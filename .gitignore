@@ -1,0 +1,25 @@
+# Python 虛擬環境
+.venv/
+venv/
+
+# Python 快取
+__pycache__/
+*.pyc
+*.pyo
+
+# VS Code
+.vscode/
+
+# 上傳的使用者檔案
+static/uploads/*
+
+# 保留 uploads 資料夾
+!static/uploads/.gitkeep
+
+# 作業系統檔案
+.DS_Store
+Thumbs.db
+
+# 環境設定
+.env
+

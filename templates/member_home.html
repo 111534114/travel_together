@@ -1,0 +1,19 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+    <meta charset="UTF-8">
+    <title>一般會員首頁</title>
+</head>
+
+<body>
+
+<h1>一般會員首頁</h1>
+
+<p>歡迎，{{ session.get("nickname") or session.get("full_name") }}！</p>
+
+<p>你可以建立行程、邀請朋友及共同規劃旅遊。</p>
+
+<a href="{{ url_for('logout') }}">登出</a>
+
+</body>
+</html>

@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <title>登入｜Travel Together</title>
+
+    <link rel="stylesheet"
+          href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+
+<body>
+
+<div class="auth-container">
+
+    <div class="auth-card">
+
+        <h1>Travel Together</h1>
+        <p class="subtitle">多人協作旅遊行程規劃系統</p>
+
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+
+                {% for category, message in messages %}
+                    <div class="message {{ category }}">
+                        {{ message }}
+                    </div>
+                {% endfor %}
+
+            {% endif %}
+        {% endwith %}
+
+        <form method="POST"
+              action="{{ url_for('login') }}">
+
+            <div class="form-group">
+                <label for="username">帳號</label>
+
+                <input type="text"
+                       id="username"
+                       name="username"
+                       placeholder="請輸入帳號"
+                       value="{{ request.form.get('username', '') }}"
+                       required>
+            </div>
+
+            <div class="form-group">
+                <label for="password">密碼</label>
+
+                <input type="password"
+                       id="password"
+                       name="password"
+                       placeholder="請輸入密碼"
+                       required>
+            </div>
+
+            <button type="submit"
+                    class="primary-button">
+                登入
+            </button>
+
+        </form>
+
+        <p class="auth-link">
+            還沒有帳號？
+            <a href="{{ url_for('register') }}">立即註冊</a>
+        </p>
+
+    </div>
+
+</div>
+
+</body>
+</html>

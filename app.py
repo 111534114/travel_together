@@ -221,15 +221,258 @@ def content_admin_home():
 
 @app.route("/system-admin")
 def system_admin_home():
+
+    # 檢查是否登入
+    if "user_id" not in session:
+        return redirect(url_for("login"))
+
+    # 只有 system_admin 可以進入
+    if session.get("role") != "system_admin":
+        return redirect(url_for("login"))
+
+    connection = get_db_connection()
+
+    if connection is None:
+        flash("資料庫連線失敗", "error")
+        return render_template(
+            "system_admin_home.html",
+            member_count=0,
+            trip_count=0,
+            public_trip_count=0,
+            report_count=0
+        )
+
+    cursor = connection.cursor(dictionary=True)
+
+    try:
+
+        # 一般會員數量
+        cursor.execute("""
+            SELECT COUNT(*) AS total
+            FROM users
+            WHERE role = 'member'
+            AND status != 'deleted'
+        """)
+
+        member_count = cursor.fetchone()["total"]
+
+        # 所有行程數量
+        cursor.execute("""
+            SELECT COUNT(*) AS total
+            FROM trips
+        """)
+
+        trip_count = cursor.fetchone()["total"]
+
+        # 公開行程數量
+        cursor.execute("""
+            SELECT COUNT(*) AS total
+            FROM trips
+            WHERE visibility = 'public'
+        """)
+
+        public_trip_count = cursor.fetchone()["total"]
+
+        # 待處理檢舉
+        cursor.execute("""
+            SELECT COUNT(*) AS total
+            FROM reports
+            WHERE status = 'pending'
+        """)
+
+        report_count = cursor.fetchone()["total"]
+
+        # 最近加入會員
+        cursor.execute("""
+            SELECT user_id,
+                   username,
+                   full_name,
+                   email,
+                   status,
+                   created_at
+            FROM users
+            WHERE role = 'member'
+            AND status != 'deleted'
+            ORDER BY created_at DESC
+            LIMIT 5
+        """)
+
+        recent_users = cursor.fetchall()
+
+    finally:
+        cursor.close()
+        connection.close()
+
+    return render_template(
+        "system_admin_home.html",
+        member_count=member_count,
+        trip_count=trip_count,
+        public_trip_count=public_trip_count,
+        report_count=report_count,
+        recent_users=recent_users
+    )
+@app.route("/system-admin/users")
+def admin_users():
+
     if "user_id" not in session:
         return redirect(url_for("login"))
 
     if session.get("role") != "system_admin":
-        return redirect_by_role(session.get("role"))
+        return redirect(url_for("login"))
 
-    return render_template("system_admin_home.html")
+    keyword = request.args.get("keyword", "").strip()
 
+    connection = get_db_connection()
 
+    if connection is None:
+        flash("資料庫連線失敗", "error")
+        return render_template("admin_users.html", users=[])
+
+    cursor = connection.cursor(dictionary=True)
+
+    try:
+
+        if keyword:
+
+            search = "%" + keyword + "%"
+
+            cursor.execute("""
+                SELECT user_id,
+                       username,
+                       full_name,
+                       nickname,
+                       email,
+                       role,
+                       status,
+                       created_at
+                FROM users
+                WHERE role = 'member'
+                AND status != 'deleted'
+                AND (
+                    username LIKE %s
+                    OR full_name LIKE %s
+                    OR email LIKE %s
+                )
+                ORDER BY user_id DESC
+            """, (search, search, search))
+
+        else:
+
+            cursor.execute("""
+                SELECT user_id,
+                       username,
+                       full_name,
+                       nickname,
+                       email,
+                       role,
+                       status,
+                       created_at
+                FROM users
+                WHERE role = 'member'
+                AND status != 'deleted'
+                ORDER BY user_id DESC
+            """)
+
+        users = cursor.fetchall()
+
+    finally:
+        cursor.close()
+        connection.close()
+
+    return render_template(
+        "admin_users.html",
+        users=users,
+        keyword=keyword
+    )
+
+@app.route("/system-admin/users/<int:user_id>/disable", methods=["POST"])
+def disable_user():
+
+    if "user_id" not in session:
+        return redirect(url_for("login"))
+
+    if session.get("role") != "system_admin":
+        return redirect(url_for("login"))
+
+    connection = get_db_connection()
+
+    if connection is None:
+        flash("資料庫連線失敗", "error")
+        return redirect(url_for("admin_users"))
+
+    cursor = connection.cursor()
+
+    try:
+
+        cursor.execute("""
+            UPDATE users
+            SET status = 'disabled'
+            WHERE user_id = %s
+            AND role = 'member'
+        """, (user_id,))
+
+        connection.commit()
+
+        flash("會員已停用", "success")
+
+    except Exception as error:
+
+        connection.rollback()
+
+        print("停用會員失敗：", error)
+
+        flash("停用會員失敗", "error")
+
+    finally:
+
+        cursor.close()
+        connection.close()
+
+    return redirect(url_for("admin_users"))
+@app.route("/system-admin/users/<int:user_id>/enable", methods=["POST"])
+def enable_user():
+
+    if "user_id" not in session:
+        return redirect(url_for("login"))
+
+    if session.get("role") != "system_admin":
+        return redirect(url_for("login"))
+
+    connection = get_db_connection()
+
+    if connection is None:
+        flash("資料庫連線失敗", "error")
+        return redirect(url_for("admin_users"))
+
+    cursor = connection.cursor()
+
+    try:
+
+        cursor.execute("""
+            UPDATE users
+            SET status = 'active'
+            WHERE user_id = %s
+            AND role = 'member'
+        """, (user_id,))
+
+        connection.commit()
+
+        flash("會員已恢復", "success")
+
+    except Exception as error:
+
+        connection.rollback()
+
+        print("恢復會員失敗：", error)
+
+        flash("恢復會員失敗", "error")
+
+    finally:
+
+        cursor.close()
+        connection.close()
+
+    return redirect(url_for("admin_users"))
 @app.route("/logout")
 def logout():
     session.clear()

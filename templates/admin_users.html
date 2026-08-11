@@ -1,0 +1,413 @@
+<!DOCTYPE html>
+
+<html lang="zh-Hant">
+
+<head>
+
+    <meta charset="UTF-8">
+
+    <meta name="viewport"
+          content="width=device-width, initial-scale=1.0">
+
+    <title>會員管理｜Travel Together</title>
+
+    <link rel="stylesheet"
+          href="{{ url_for('static', filename='css/style.css') }}">
+
+</head>
+
+
+<body class="admin-body">
+
+
+<div class="admin-layout">
+
+
+    <!-- 左側 -->
+
+    <aside class="admin-sidebar">
+
+
+        <div class="admin-logo">
+
+            <h2>Travel Together</h2>
+
+            <p>系統管理後台</p>
+
+        </div>
+
+
+        <nav class="admin-menu">
+
+
+            <a href="{{ url_for('system_admin_home') }}">
+
+                📊 儀表板
+
+            </a>
+
+
+            <a class="active"
+               href="{{ url_for('admin_users') }}">
+
+                👤 會員管理
+
+            </a>
+
+
+            <a href="#">
+                🧳 公開行程管理
+            </a>
+
+
+            <a href="#">
+                🚨 檢舉管理
+            </a>
+
+
+            <a href="#">
+                📢 公告管理
+            </a>
+
+
+            <a href="#">
+                📈 統計報表
+            </a>
+
+
+            <a href="#">
+                📝 操作紀錄
+            </a>
+
+
+            <a href="{{ url_for('logout') }}">
+
+                🚪 登出
+
+            </a>
+
+
+        </nav>
+
+
+    </aside>
+
+
+    <!-- 主要內容 -->
+
+    <main class="admin-main">
+
+
+        <div class="admin-topbar">
+
+            <div>
+
+                <h1>會員管理</h1>
+
+                <p>
+                    管理系統一般會員帳號
+                </p>
+
+            </div>
+
+        </div>
+
+
+        {% with messages =
+            get_flashed_messages(with_categories=true) %}
+
+
+            {% if messages %}
+
+
+                {% for category, message in messages %}
+
+
+                <div class="message {{ category }}">
+
+                    {{ message }}
+
+                </div>
+
+
+                {% endfor %}
+
+
+            {% endif %}
+
+
+        {% endwith %}
+
+
+        <!-- 搜尋 -->
+
+        <div class="admin-section">
+
+
+            <form method="GET"
+                  action="{{ url_for('admin_users') }}"
+                  class="admin-search">
+
+
+                <input type="text"
+                       name="keyword"
+                       placeholder="搜尋帳號、姓名或 Email"
+                       value="{{ keyword or '' }}">
+
+
+                <button type="submit">
+
+                    🔍 搜尋
+
+                </button>
+
+
+                {% if keyword %}
+
+                <a href="{{ url_for('admin_users') }}">
+
+                    清除搜尋
+
+                </a>
+
+                {% endif %}
+
+
+            </form>
+
+
+        </div>
+
+
+        <!-- 會員表格 -->
+
+        <div class="admin-section">
+
+
+            <div class="section-title">
+
+                <h2>會員列表</h2>
+
+                <span>
+                    共 {{ users|length }} 筆
+                </span>
+
+            </div>
+
+
+            <div class="table-container">
+
+
+                <table class="admin-table">
+
+
+                    <thead>
+
+
+                    <tr>
+
+                        <th>ID</th>
+
+                        <th>帳號</th>
+
+                        <th>姓名</th>
+
+                        <th>暱稱</th>
+
+                        <th>Email</th>
+
+                        <th>狀態</th>
+
+                        <th>建立日期</th>
+
+                        <th>操作</th>
+
+                    </tr>
+
+
+                    </thead>
+
+
+                    <tbody>
+
+
+                    {% for user in users %}
+
+
+                    <tr>
+
+
+                        <td>
+                            {{ user.user_id }}
+                        </td>
+
+
+                        <td>
+                            {{ user.username }}
+                        </td>
+
+
+                        <td>
+                            {{ user.full_name }}
+                        </td>
+
+
+                        <td>
+                            {{ user.nickname or "-" }}
+                        </td>
+
+
+                        <td>
+                            {{ user.email }}
+                        </td>
+
+
+                        <td>
+
+
+                            {% if user.status == "active" %}
+
+
+                                <span class="status-active">
+
+                                    啟用
+
+                                </span>
+
+
+                            {% elif user.status == "disabled" %}
+
+
+                                <span class="status-disabled">
+
+                                    停用
+
+                                </span>
+
+
+                            {% else %}
+
+
+                                {{ user.status }}
+
+
+                            {% endif %}
+
+
+                        </td>
+
+
+                        <td>
+
+                            {{ user.created_at }}
+
+                        </td>
+
+
+                        <td>
+
+
+                            {% if user.status == "active" %}
+
+
+                            <form method="POST"
+                                  action="{{ url_for(
+                                      'disable_user',
+                                      user_id=user.user_id
+                                  ) }}"
+                                  class="inline-form"
+
+                                  onsubmit="
+                                  return confirm(
+                                  '確定要停用這個會員嗎？'
+                                  );
+                                  ">
+
+
+                                <button type="submit"
+                                        class="disable-button">
+
+                                    停用
+
+                                </button>
+
+
+                            </form>
+
+
+                            {% elif user.status == "disabled" %}
+
+
+                            <form method="POST"
+                                  action="{{ url_for(
+                                      'enable_user',
+                                      user_id=user.user_id
+                                  ) }}"
+                                  class="inline-form"
+
+                                  onsubmit="
+                                  return confirm(
+                                  '確定要恢復這個會員嗎？'
+                                  );
+                                  ">
+
+
+                                <button type="submit"
+                                        class="enable-button">
+
+                                    恢復
+
+                                </button>
+
+
+                            </form>
+
+
+                            {% endif %}
+
+
+                        </td>
+
+
+                    </tr>
+
+
+                    {% else %}
+
+
+                    <tr>
+
+                        <td colspan="8"
+                            class="empty-data">
+
+                            找不到符合條件的會員
+
+                        </td>
+
+                    </tr>
+
+
+                    {% endfor %}
+
+
+                    </tbody>
+
+
+                </table>
+
+
+            </div>
+
+
+        </div>
+
+
+    </main>
+
+
+</div>
+
+
+</body>
+
+</html>

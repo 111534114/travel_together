@@ -1,19 +1,333 @@
 <!DOCTYPE html>
+
 <html lang="zh-Hant">
+
 <head>
+
     <meta charset="UTF-8">
-    <title>系統管理員首頁</title>
+
+    <meta name="viewport"
+          content="width=device-width, initial-scale=1.0">
+
+    <title>系統管理員｜Travel Together</title>
+
+    <link rel="stylesheet"
+          href="{{ url_for('static', filename='css/style.css') }}">
+
 </head>
 
-<body>
+<body class="admin-body">
 
-<h1>系統管理員首頁</h1>
 
-<p>歡迎，{{ session.get("full_name") }}！</p>
+<div class="admin-layout">
 
-<p>你可以管理會員、公告、檢舉及系統資料。</p>
 
-<a href="{{ url_for('logout') }}">登出</a>
+    <!-- 左側選單 -->
+
+    <aside class="admin-sidebar">
+
+        <div class="admin-logo">
+
+            <h2>Travel Together</h2>
+
+            <p>系統管理後台</p>
+
+        </div>
+
+
+        <nav class="admin-menu">
+
+            <a class="active"
+               href="{{ url_for('system_admin_home') }}">
+
+                📊 儀表板
+
+            </a>
+
+
+            <a href="{{ url_for('admin_users') }}">
+
+                👤 會員管理
+
+            </a>
+
+
+            <a href="#">
+
+                🧳 公開行程管理
+
+            </a>
+
+
+            <a href="#">
+
+                🚨 檢舉管理
+
+            </a>
+
+
+            <a href="#">
+
+                📢 公告管理
+
+            </a>
+
+
+            <a href="#">
+
+                📈 統計報表
+
+            </a>
+
+
+            <a href="#">
+
+                📝 操作紀錄
+
+            </a>
+
+
+            <a href="{{ url_for('logout') }}">
+
+                🚪 登出
+
+            </a>
+
+        </nav>
+
+    </aside>
+
+
+    <!-- 右側內容 -->
+
+    <main class="admin-main">
+
+
+        <div class="admin-topbar">
+
+            <div>
+
+                <h1>系統管理員儀表板</h1>
+
+                <p>
+                    歡迎，
+                    {{ session.get("full_name") }}
+                </p>
+
+            </div>
+
+        </div>
+
+
+        <!-- 統計卡片 -->
+
+        <div class="dashboard-cards">
+
+
+            <div class="dashboard-card">
+
+                <div class="card-icon">
+                    👤
+                </div>
+
+                <div>
+
+                    <p>會員總數</p>
+
+                    <h2>{{ member_count }}</h2>
+
+                </div>
+
+            </div>
+
+
+            <div class="dashboard-card">
+
+                <div class="card-icon">
+                    ✈️
+                </div>
+
+                <div>
+
+                    <p>行程總數</p>
+
+                    <h2>{{ trip_count }}</h2>
+
+                </div>
+
+            </div>
+
+
+            <div class="dashboard-card">
+
+                <div class="card-icon">
+                    🌍
+                </div>
+
+                <div>
+
+                    <p>公開行程</p>
+
+                    <h2>{{ public_trip_count }}</h2>
+
+                </div>
+
+            </div>
+
+
+            <div class="dashboard-card">
+
+                <div class="card-icon">
+                    🚨
+                </div>
+
+                <div>
+
+                    <p>待處理檢舉</p>
+
+                    <h2>{{ report_count }}</h2>
+
+                </div>
+
+            </div>
+
+
+        </div>
+
+
+        <!-- 最近會員 -->
+
+        <div class="admin-section">
+
+
+            <div class="section-title">
+
+                <h2>最近加入會員</h2>
+
+
+                <a href="{{ url_for('admin_users') }}"
+                   class="small-button">
+
+                    查看全部
+
+                </a>
+
+            </div>
+
+
+            <div class="table-container">
+
+
+                <table class="admin-table">
+
+
+                    <thead>
+
+                    <tr>
+
+                        <th>編號</th>
+
+                        <th>帳號</th>
+
+                        <th>姓名</th>
+
+                        <th>Email</th>
+
+                        <th>狀態</th>
+
+                        <th>加入時間</th>
+
+                    </tr>
+
+                    </thead>
+
+
+                    <tbody>
+
+
+                    {% for user in recent_users %}
+
+                    <tr>
+
+                        <td>
+                            {{ user.user_id }}
+                        </td>
+
+                        <td>
+                            {{ user.username }}
+                        </td>
+
+                        <td>
+                            {{ user.full_name }}
+                        </td>
+
+                        <td>
+                            {{ user.email }}
+                        </td>
+
+                        <td>
+
+                            {% if user.status == "active" %}
+
+                                <span class="status-active">
+                                    啟用
+                                </span>
+
+                            {% else %}
+
+                                <span class="status-disabled">
+                                    停用
+                                </span>
+
+                            {% endif %}
+
+                        </td>
+
+                        <td>
+
+                            {{ user.created_at }}
+
+                        </td>
+
+                    </tr>
+
+
+                    {% else %}
+
+
+                    <tr>
+
+                        <td colspan="6"
+                            class="empty-data">
+
+                            目前沒有會員資料
+
+                        </td>
+
+                    </tr>
+
+
+                    {% endfor %}
+
+
+                    </tbody>
+
+
+                </table>
+
+
+            </div>
+
+
+        </div>
+
+
+    </main>
+
+
+</div>
+
 
 </body>
+
 </html>

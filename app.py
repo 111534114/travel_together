@@ -1,27 +1,33 @@
 from flask import Flask, render_template, request, redirect, url_for, session, flash
-import mysql.connector
 from mysql.connector import Error
 from werkzeug.security import check_password_hash, generate_password_hash
 
-from config import DB_CONFIG
+from db import get_db_connection
+from blueprints.attractions import attractions_bp
+from blueprints.restaurants import restaurants_bp
+from blueprints.accommodations import accommodations_bp
+from blueprints.locations import locations_bp
+from blueprints.categories import categories_bp
+from blueprints.proposals import proposals_bp
+from blueprints.ai_data import ai_data_bp
+from blueprints.reports import reports_bp
 
 app = Flask(__name__)
 
 # Session 加密金鑰，之後可以改成更複雜的字串
 app.secret_key = "travel-together-secret-key"
 
+# 上傳圖片大小限制（8MB）
+app.config["MAX_CONTENT_LENGTH"] = 8 * 1024 * 1024
 
-def get_db_connection():
-    try:
-        connection = mysql.connector.connect(**DB_CONFIG)
-
-        if connection.is_connected():
-            return connection
-
-    except Error as error:
-        print("資料庫連線失敗：", error)
-
-    return None
+app.register_blueprint(attractions_bp)
+app.register_blueprint(restaurants_bp)
+app.register_blueprint(accommodations_bp)
+app.register_blueprint(locations_bp)
+app.register_blueprint(categories_bp)
+app.register_blueprint(proposals_bp)
+app.register_blueprint(ai_data_bp)
+app.register_blueprint(reports_bp)
 
 
 def redirect_by_role(role):
@@ -216,7 +222,84 @@ def content_admin_home():
     if session.get("role") != "content_admin":
         return redirect_by_role(session.get("role"))
 
-    return render_template("content_admin_home.html")
+    connection = get_db_connection()
+
+    if connection is None:
+        flash("資料庫連線失敗", "error")
+        return render_template(
+            "content_admin_home.html",
+            attraction_count=0, restaurant_count=0, accommodation_count=0,
+            pending_proposal_count=0, top_attractions=[], top_restaurants=[],
+            top_accommodations=[]
+        )
+
+    cursor = connection.cursor(dictionary=True)
+
+    try:
+        cursor.execute("SELECT COUNT(*) AS total FROM attractions")
+        attraction_count = cursor.fetchone()["total"]
+
+        cursor.execute("SELECT COUNT(*) AS total FROM restaurants")
+        restaurant_count = cursor.fetchone()["total"]
+
+        cursor.execute("SELECT COUNT(*) AS total FROM accommodations")
+        accommodation_count = cursor.fetchone()["total"]
+
+        cursor.execute("""
+            SELECT COUNT(*) AS total
+            FROM proposals
+            WHERE content_review_status = 'pending'
+        """)
+        pending_proposal_count = cursor.fetchone()["total"]
+
+        cursor.execute("""
+            SELECT name, country, city, favorite_count, itinerary_count
+            FROM vw_popular_attractions
+            ORDER BY (favorite_count + itinerary_count) DESC, name
+            LIMIT 5
+        """)
+        top_attractions = cursor.fetchall()
+
+        cursor.execute("""
+            SELECT r.name, co.name AS country, ci.name AS city,
+                   COUNT(i.itinerary_id) AS itinerary_count
+            FROM restaurants r
+            JOIN countries co ON co.country_id = r.country_id
+            JOIN cities ci ON ci.city_id = r.city_id
+            LEFT JOIN itineraries i ON i.restaurant_id = r.restaurant_id
+            GROUP BY r.restaurant_id, r.name, co.name, ci.name
+            ORDER BY itinerary_count DESC, r.name
+            LIMIT 5
+        """)
+        top_restaurants = cursor.fetchall()
+
+        cursor.execute("""
+            SELECT ac.name, co.name AS country, ci.name AS city,
+                   COUNT(i.itinerary_id) AS itinerary_count
+            FROM accommodations ac
+            JOIN countries co ON co.country_id = ac.country_id
+            JOIN cities ci ON ci.city_id = ac.city_id
+            LEFT JOIN itineraries i ON i.accommodation_id = ac.accommodation_id
+            GROUP BY ac.accommodation_id, ac.name, co.name, ci.name
+            ORDER BY itinerary_count DESC, ac.name
+            LIMIT 5
+        """)
+        top_accommodations = cursor.fetchall()
+
+    finally:
+        cursor.close()
+        connection.close()
+
+    return render_template(
+        "content_admin_home.html",
+        attraction_count=attraction_count,
+        restaurant_count=restaurant_count,
+        accommodation_count=accommodation_count,
+        pending_proposal_count=pending_proposal_count,
+        top_attractions=top_attractions,
+        top_restaurants=top_restaurants,
+        top_accommodations=top_accommodations,
+    )
 
 
 @app.route("/system-admin")

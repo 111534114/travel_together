@@ -1,0 +1,71 @@
+{% extends "content_admin/base.html" %}
+{% set active_menu = "proposals" %}
+
+{% block title %}提案審核｜Travel Together{% endblock %}
+{% block page_title %}會員旅遊內容提案審核{% endblock %}
+{% block page_subtitle %}核准、退回或修正會員新增的景點與旅遊資料{% endblock %}
+
+{% block content %}
+
+<div class="type-tabs">
+    <a class="{{ 'active' if status == 'pending' else '' }}" href="{{ url_for('proposals.list_proposals', status='pending') }}">待審核</a>
+    <a class="{{ 'active' if status == 'approved' else '' }}" href="{{ url_for('proposals.list_proposals', status='approved') }}">已核准</a>
+    <a class="{{ 'active' if status == 'returned' else '' }}" href="{{ url_for('proposals.list_proposals', status='returned') }}">已退回</a>
+    <a class="{{ 'active' if status == 'all' else '' }}" href="{{ url_for('proposals.list_proposals', status='all') }}">全部</a>
+</div>
+
+<div class="admin-section">
+
+    <div class="section-title">
+        <h2>提案列表</h2>
+        <span>共 {{ proposals|length }} 筆</span>
+    </div>
+
+    <div class="table-container">
+        <table class="admin-table">
+            <thead>
+            <tr>
+                <th>標題</th>
+                <th>類型</th>
+                <th>所屬行程</th>
+                <th>提案人</th>
+                <th>預估花費</th>
+                <th>審核狀態</th>
+                <th>提出時間</th>
+                <th>操作</th>
+            </tr>
+            </thead>
+            <tbody>
+            {% for proposal in proposals %}
+            <tr>
+                <td>{{ proposal.title }}</td>
+                <td>{{ proposal.proposal_type }}</td>
+                <td>{{ proposal.trip_name }}</td>
+                <td>{{ proposal.proposer_name }}</td>
+                <td>{{ proposal.estimated_cost }}</td>
+                <td>
+                    {% if proposal.content_review_status == 'approved' %}
+                        <span class="status-active">{{ status_labels[proposal.content_review_status] }}</span>
+                    {% elif proposal.content_review_status == 'pending' %}
+                        <span class="status-pending">{{ status_labels[proposal.content_review_status] }}</span>
+                    {% elif proposal.content_review_status == 'returned' %}
+                        <span class="status-returned">{{ status_labels[proposal.content_review_status] }}</span>
+                    {% else %}
+                        <span class="status-not-required">{{ status_labels[proposal.content_review_status] }}</span>
+                    {% endif %}
+                </td>
+                <td>{{ proposal.created_at }}</td>
+                <td>
+                    <a href="{{ url_for('proposals.view_proposal', proposal_id=proposal.proposal_id) }}" class="small-button">查看</a>
+                </td>
+            </tr>
+            {% else %}
+            <tr><td colspan="8" class="empty-data">目前沒有提案資料</td></tr>
+            {% endfor %}
+            </tbody>
+        </table>
+    </div>
+
+</div>
+
+{% endblock %}

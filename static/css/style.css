@@ -495,3 +495,254 @@ body {
     }
 
 }
+
+
+/* ============================= */
+/* 旅遊內容管理員後台 */
+/* ============================= */
+
+.status-hidden {
+    display: inline-block;
+    padding: 5px 10px;
+    border-radius: 20px;
+    background: #eeeeee;
+    color: #666666;
+    font-size: 14px;
+}
+
+.status-pending {
+    display: inline-block;
+    padding: 5px 10px;
+    border-radius: 20px;
+    background: #fff2df;
+    color: #a1650a;
+    font-size: 14px;
+}
+
+.status-returned {
+    display: inline-block;
+    padding: 5px 10px;
+    border-radius: 20px;
+    background: #fdeaea;
+    color: #a52d2d;
+    font-size: 14px;
+}
+
+.status-not-required {
+    display: inline-block;
+    padding: 5px 10px;
+    border-radius: 20px;
+    background: #eeeeee;
+    color: #666666;
+    font-size: 14px;
+}
+
+/* 篩選列 */
+
+.filter-form {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    align-items: center;
+}
+
+.filter-form input,
+.filter-form select {
+    padding: 10px 12px;
+    border: 1px solid #ccc;
+    border-radius: 8px;
+    font-size: 14px;
+}
+
+.filter-form button {
+    padding: 10px 18px;
+    border: none;
+    border-radius: 8px;
+    background: #5f4b8b;
+    color: white;
+    cursor: pointer;
+}
+
+.filter-form a {
+    color: #5f4b8b;
+    text-decoration: none;
+}
+
+/* 表單 */
+
+.content-form {
+    max-width: 900px;
+}
+
+.form-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 18px 24px;
+}
+
+.form-grid .full-width {
+    grid-column: 1 / -1;
+}
+
+.content-form textarea {
+    width: 100%;
+    padding: 12px 14px;
+    border: 1px solid #ccc;
+    border-radius: 9px;
+    font-size: 15px;
+    font-family: inherit;
+    resize: vertical;
+}
+
+.content-form select {
+    width: 100%;
+    padding: 12px 14px;
+    border: 1px solid #ccc;
+    border-radius: 9px;
+    font-size: 15px;
+    background: white;
+}
+
+.checkbox-group {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.checkbox-group input {
+    width: auto;
+}
+
+.form-actions {
+    margin-top: 10px;
+    display: flex;
+    gap: 12px;
+}
+
+.form-actions .primary-button {
+    width: auto;
+    padding: 12px 28px;
+}
+
+.secondary-link {
+    padding: 12px 20px;
+    border-radius: 9px;
+    color: #5f4b8b;
+    text-decoration: none;
+    border: 1px solid #d8d0ea;
+}
+
+.current-image {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    margin-bottom: 10px;
+}
+
+/* 縮圖 */
+
+.thumb {
+    width: 60px;
+    height: 60px;
+    object-fit: cover;
+    border-radius: 8px;
+}
+
+.thumb-placeholder {
+    width: 60px;
+    height: 60px;
+    border-radius: 8px;
+    background: #eee9f8;
+    color: #9b8bc4;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 12px;
+    text-align: center;
+}
+
+.thumb-large {
+    width: 220px;
+    max-width: 100%;
+    border-radius: 12px;
+}
+
+/* 分頁 */
+
+.pagination {
+    display: flex;
+    gap: 8px;
+    justify-content: center;
+    margin-top: 18px;
+}
+
+.pagination a,
+.pagination span {
+    padding: 8px 14px;
+    border-radius: 7px;
+    text-decoration: none;
+    color: #5f4b8b;
+    border: 1px solid #d8d0ea;
+}
+
+.pagination .current {
+    background: #5f4b8b;
+    color: white;
+    border-color: #5f4b8b;
+}
+
+/* 詳情頁 */
+
+.detail-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 14px 30px;
+    margin-bottom: 20px;
+}
+
+.detail-item label {
+    display: block;
+    font-size: 13px;
+    color: #888;
+    margin-bottom: 4px;
+}
+
+.detail-item p {
+    margin: 0;
+}
+
+.type-tabs {
+    display: flex;
+    gap: 10px;
+    margin-bottom: 20px;
+}
+
+.type-tabs a {
+    padding: 9px 18px;
+    border-radius: 20px;
+    text-decoration: none;
+    color: #5f4b8b;
+    background: #eee9f8;
+}
+
+.type-tabs a.active {
+    background: #5f4b8b;
+    color: white;
+}
+
+.export-button {
+    padding: 9px 14px;
+    border-radius: 8px;
+    color: white;
+    background: #43a867;
+    text-decoration: none;
+}
+
+@media (max-width: 700px) {
+
+    .form-grid,
+    .detail-grid {
+        grid-template-columns: 1fr;
+    }
+
+}

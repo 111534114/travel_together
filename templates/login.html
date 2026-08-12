@@ -16,8 +16,10 @@
 
     <div class="auth-card">
 
-        <h1>Travel Together</h1>
-        <p class="subtitle">多人協作旅遊行程規劃系統</p>
+        <div style="text-align: center; margin-bottom: 10px;">
+            <img src="{{ url_for('static', filename='images/logo.png') }}" alt="走吧揪團 Logo" style="max-width: 180px; height: auto; display: inline-block;">
+        </div>
+        <p class="subtitle" style="margin-top: 4px;">多人協作旅遊行程規劃系統</p>
 
         {% with messages = get_flashed_messages(with_categories=true) %}
             {% if messages %}
@@ -65,6 +67,8 @@
         <p class="auth-link">
             還沒有帳號？
             <a href="{{ url_for('register') }}">立即註冊</a>
+            <span style="margin: 0 8px; color: #ccc;">|</span>
+            <a href="{{ url_for('visitor') }}" style="color: #64748b;">👈 返回訪客 Demo 頁面</a>
         </p>
 
     </div>

@@ -1,0 +1,1463 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Travel Together 旅伴｜訪客探索專區 - 多人協作旅遊行程規劃系統</title>
+    <meta name="description" content="Travel Together 旅伴系統 - 訪客試用頁面。探索熱門旅遊行程、尋找志同道合的旅伴、體驗多人即時協作與智慧分帳功能。">
+    
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Noto+Sans+TC:wght@400;500;700;900&display=swap" rel="stylesheet">
+    
+    <!-- CSS Styles -->
+    <style>
+        :root {
+            --primary: #5f4b8b;
+            --primary-hover: #4e3c74;
+            --primary-light: #7657ac;
+            --primary-soft: #f1edfa;
+            --accent: #ff6b6b;
+            --accent-cyan: #06b6d4;
+            --accent-emerald: #10b981;
+            --accent-amber: #f59e0b;
+            --dark: #1e1b2e;
+            --dark-surface: #2a2540;
+            --text-main: #2d3748;
+            --text-muted: #64748b;
+            --bg-light: #f8fafc;
+            --card-bg: #ffffff;
+            --border: #e2e8f0;
+            --radius-lg: 20px;
+            --radius-md: 12px;
+            --radius-sm: 8px;
+            --shadow-sm: 0 4px 6px -1px rgba(0, 0, 0, 0.05);
+            --shadow-md: 0 10px 25px -5px rgba(95, 75, 139, 0.12);
+            --shadow-lg: 0 20px 35px -10px rgba(95, 75, 139, 0.2);
+            --transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: 'Plus Jakarta Sans', 'Noto Sans TC', sans-serif;
+            background-color: var(--bg-light);
+            color: var(--text-main);
+            line-height: 1.6;
+            overflow-x: hidden;
+        }
+
+        a {
+            text-decoration: none;
+            color: inherit;
+        }
+
+        /* Header Navigation */
+        .navbar {
+            position: sticky;
+            top: 0;
+            z-index: 1000;
+            background: rgba(255, 255, 255, 0.88);
+            backdrop-filter: blur(16px);
+            border-bottom: 1px solid rgba(226, 232, 240, 0.8);
+            transition: var(--transition);
+        }
+
+        .nav-container {
+            max-width: 1280px;
+            margin: 0 auto;
+            padding: 16px 24px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        .logo {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            font-size: 22px;
+            font-weight: 800;
+            color: var(--primary);
+            letter-spacing: -0.5px;
+        }
+
+        .logo-icon {
+            width: 40px;
+            height: 40px;
+            background: linear-gradient(135deg, var(--primary-light), var(--primary));
+            color: white;
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 20px;
+            box-shadow: 0 4px 12px rgba(95, 75, 139, 0.3);
+        }
+
+        .nav-links {
+            display: flex;
+            align-items: center;
+            gap: 32px;
+            list-style: none;
+        }
+
+        .nav-links a {
+            font-weight: 600;
+            color: var(--text-muted);
+            font-size: 15px;
+            transition: var(--transition);
+        }
+
+        .nav-links a:hover {
+            color: var(--primary);
+        }
+
+        .nav-actions {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .btn {
+            padding: 10px 20px;
+            border-radius: var(--radius-md);
+            font-weight: 600;
+            font-size: 14px;
+            cursor: pointer;
+            transition: var(--transition);
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            border: none;
+        }
+
+        .btn-ghost {
+            background: transparent;
+            color: var(--primary);
+        }
+
+        .btn-ghost:hover {
+            background: var(--primary-soft);
+        }
+
+        .btn-outline {
+            border: 1.5px solid var(--primary-light);
+            color: var(--primary);
+            background: transparent;
+        }
+
+        .btn-outline:hover {
+            background: var(--primary-soft);
+            border-color: var(--primary);
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, var(--primary-light), var(--primary));
+            color: white;
+            box-shadow: 0 4px 14px rgba(95, 75, 139, 0.35);
+        }
+
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(95, 75, 139, 0.45);
+        }
+
+        /* Hero Banner */
+        .hero {
+            position: relative;
+            padding: 80px 24px 100px;
+            background: radial-gradient(circle at 80% 20%, rgba(118, 87, 172, 0.12) 0%, transparent 40%),
+                        radial-gradient(circle at 10% 90%, rgba(6, 182, 212, 0.08) 0%, transparent 40%),
+                        linear-gradient(180deg, #ffffff 0%, #f4f0fa 100%);
+            text-align: center;
+        }
+
+        .hero-container {
+            max-width: 960px;
+            margin: 0 auto;
+        }
+
+        .badge-visitor {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 6px 16px;
+            background: var(--primary-soft);
+            color: var(--primary);
+            border-radius: 30px;
+            font-size: 14px;
+            font-weight: 700;
+            margin-bottom: 24px;
+            border: 1px solid rgba(118, 87, 172, 0.2);
+        }
+
+        .hero h1 {
+            font-size: 48px;
+            font-weight: 900;
+            line-height: 1.2;
+            color: var(--dark);
+            margin-bottom: 20px;
+            letter-spacing: -1px;
+        }
+
+        .hero h1 span {
+            background: linear-gradient(135deg, var(--primary-light), #ec4899);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .hero p {
+            font-size: 19px;
+            color: var(--text-muted);
+            margin-bottom: 36px;
+            max-width: 720px;
+            margin-left: auto;
+            margin-right: auto;
+        }
+
+        /* Search Filter Container */
+        .search-box {
+            background: var(--card-bg);
+            padding: 16px;
+            border-radius: var(--radius-lg);
+            box-shadow: var(--shadow-lg);
+            display: flex;
+            gap: 12px;
+            align-items: center;
+            max-width: 860px;
+            margin: 0 auto 30px;
+            border: 1px solid rgba(226, 232, 240, 0.8);
+            flex-wrap: wrap;
+        }
+
+        .search-item {
+            flex: 1;
+            min-width: 180px;
+            display: flex;
+            flex-direction: column;
+            align-items: flex-start;
+            padding: 8px 16px;
+            border-right: 1px solid var(--border);
+        }
+
+        .search-item:last-of-type {
+            border-right: none;
+        }
+
+        .search-label {
+            font-size: 12px;
+            font-weight: 700;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-bottom: 4px;
+        }
+
+        .search-input, .search-select {
+            width: 100%;
+            border: none;
+            outline: none;
+            font-size: 15px;
+            font-weight: 600;
+            color: var(--text-main);
+            background: transparent;
+        }
+
+        .quick-tags {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+            flex-wrap: wrap;
+            font-size: 14px;
+            color: var(--text-muted);
+        }
+
+        .tag-pill {
+            padding: 5px 14px;
+            background: rgba(255, 255, 255, 0.8);
+            border: 1px solid var(--border);
+            border-radius: 20px;
+            cursor: pointer;
+            transition: var(--transition);
+        }
+
+        .tag-pill:hover {
+            border-color: var(--primary-light);
+            color: var(--primary);
+            background: var(--primary-soft);
+        }
+
+        /* Stats Bar */
+        .stats-section {
+            background: var(--dark);
+            color: white;
+            padding: 40px 24px;
+        }
+
+        .stats-grid {
+            max-width: 1100px;
+            margin: 0 auto;
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+            gap: 30px;
+            text-align: center;
+        }
+
+        .stat-item h3 {
+            font-size: 38px;
+            font-weight: 800;
+            color: var(--accent-cyan);
+            margin-bottom: 6px;
+        }
+
+        .stat-item p {
+            color: #94a3b8;
+            font-weight: 500;
+            font-size: 15px;
+        }
+
+        /* Section Layout */
+        .section {
+            padding: 80px 24px;
+            max-width: 1280px;
+            margin: 0 auto;
+        }
+
+        .section-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-end;
+            margin-bottom: 40px;
+        }
+
+        .section-header-left h2 {
+            font-size: 32px;
+            font-weight: 800;
+            color: var(--dark);
+            margin-bottom: 8px;
+        }
+
+        .section-header-left p {
+            color: var(--text-muted);
+            font-size: 16px;
+        }
+
+        /* Filter Tabs */
+        .tabs {
+            display: flex;
+            gap: 10px;
+            background: #eef2f6;
+            padding: 6px;
+            border-radius: var(--radius-md);
+            overflow-x: auto;
+        }
+
+        .tab-btn {
+            padding: 8px 18px;
+            border-radius: var(--radius-sm);
+            font-weight: 600;
+            font-size: 14px;
+            border: none;
+            background: transparent;
+            color: var(--text-muted);
+            cursor: pointer;
+            transition: var(--transition);
+            white-space: nowrap;
+        }
+
+        .tab-btn.active {
+            background: white;
+            color: var(--primary);
+            box-shadow: var(--shadow-sm);
+        }
+
+        /* Trip Grid & Cards */
+        .trip-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
+            gap: 30px;
+        }
+
+        .trip-card {
+            background: var(--card-bg);
+            border-radius: var(--radius-lg);
+            overflow: hidden;
+            box-shadow: var(--shadow-md);
+            border: 1px solid rgba(226, 232, 240, 0.9);
+            transition: var(--transition);
+            display: flex;
+            flex-direction: column;
+            position: relative;
+        }
+
+        .trip-card:hover {
+            transform: translateY(-6px);
+            box-shadow: var(--shadow-lg);
+        }
+
+        .trip-cover {
+            height: 210px;
+            background-size: cover;
+            background-position: center;
+            position: relative;
+        }
+
+        .trip-badge-top {
+            position: absolute;
+            top: 14px;
+            left: 14px;
+            background: rgba(15, 23, 42, 0.7);
+            backdrop-filter: blur(8px);
+            color: white;
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: 700;
+        }
+
+        .trip-like {
+            position: absolute;
+            top: 14px;
+            right: 14px;
+            width: 36px;
+            height: 36px;
+            border-radius: 50%;
+            background: rgba(255, 255, 255, 0.9);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            transition: var(--transition);
+            border: none;
+        }
+
+        .trip-like:hover {
+            transform: scale(1.1);
+            background: white;
+            color: var(--accent);
+        }
+
+        .trip-content {
+            padding: 24px;
+            display: flex;
+            flex-direction: column;
+            flex: 1;
+        }
+
+        .trip-tags {
+            display: flex;
+            gap: 8px;
+            margin-bottom: 12px;
+            flex-wrap: wrap;
+        }
+
+        .trip-tag {
+            font-size: 12px;
+            font-weight: 600;
+            padding: 3px 10px;
+            border-radius: 6px;
+            background: var(--primary-soft);
+            color: var(--primary);
+        }
+
+        .trip-title {
+            font-size: 20px;
+            font-weight: 800;
+            color: var(--dark);
+            margin-bottom: 12px;
+            line-height: 1.35;
+        }
+
+        .trip-info-row {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            color: var(--text-muted);
+            font-size: 14px;
+            margin-bottom: 18px;
+            padding-bottom: 14px;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .trip-info-item {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .trip-footer {
+            margin-top: auto;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        .author-box {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .author-avatar {
+            width: 38px;
+            height: 38px;
+            border-radius: 50%;
+            background: #cbd5e1;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 700;
+            color: var(--dark);
+            font-size: 14px;
+        }
+
+        .author-name {
+            font-size: 14px;
+            font-weight: 700;
+            color: var(--dark);
+        }
+
+        .author-role {
+            font-size: 12px;
+            color: var(--text-muted);
+        }
+
+        /* Companion Match Section */
+        .companion-section {
+            background: linear-gradient(180deg, #f1f5f9 0%, #ffffff 100%);
+            border-top: 1px solid var(--border);
+            border-bottom: 1px solid var(--border);
+        }
+
+        .companion-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(380px, 1fr));
+            gap: 24px;
+        }
+
+        .companion-card {
+            background: white;
+            border-radius: var(--radius-lg);
+            padding: 24px;
+            box-shadow: var(--shadow-sm);
+            border: 1px solid var(--border);
+            transition: var(--transition);
+        }
+
+        .companion-card:hover {
+            box-shadow: var(--shadow-md);
+            border-color: var(--primary-light);
+        }
+
+        .companion-header {
+            display: flex;
+            gap: 16px;
+            margin-bottom: 16px;
+        }
+
+        .companion-avatar {
+            width: 56px;
+            height: 56px;
+            border-radius: 16px;
+            background: linear-gradient(135deg, #a855f7, #6366f1);
+            color: white;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 22px;
+            font-weight: 800;
+        }
+
+        .companion-meta h4 {
+            font-size: 18px;
+            font-weight: 800;
+            color: var(--dark);
+        }
+
+        .companion-meta p {
+            font-size: 13px;
+            color: var(--text-muted);
+        }
+
+        .companion-desc {
+            font-size: 14px;
+            color: var(--text-main);
+            margin-bottom: 16px;
+            background: var(--bg-light);
+            padding: 12px;
+            border-radius: var(--radius-md);
+        }
+
+        .companion-footer {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        .spots-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            font-size: 13px;
+            font-weight: 700;
+            color: var(--accent-emerald);
+            background: #ecfdf5;
+            padding: 4px 10px;
+            border-radius: 20px;
+        }
+
+        /* Features Section */
+        .features-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+            gap: 30px;
+            margin-top: 40px;
+        }
+
+        .feature-card {
+            background: white;
+            padding: 32px 24px;
+            border-radius: var(--radius-lg);
+            border: 1px solid var(--border);
+            transition: var(--transition);
+        }
+
+        .feature-card:hover {
+            transform: translateY(-5px);
+            box-shadow: var(--shadow-md);
+            border-color: var(--primary-light);
+        }
+
+        .feature-icon {
+            width: 56px;
+            height: 56px;
+            border-radius: 16px;
+            background: var(--primary-soft);
+            color: var(--primary);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 28px;
+            margin-bottom: 20px;
+        }
+
+        .feature-card h3 {
+            font-size: 20px;
+            font-weight: 800;
+            color: var(--dark);
+            margin-bottom: 10px;
+        }
+
+        .feature-card p {
+            color: var(--text-muted);
+            font-size: 15px;
+            line-height: 1.6;
+        }
+
+        /* FAQ Accordion */
+        .faq-list {
+            max-width: 800px;
+            margin: 40px auto 0;
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+        }
+
+        .faq-item {
+            background: white;
+            border: 1px solid var(--border);
+            border-radius: var(--radius-md);
+            overflow: hidden;
+            transition: var(--transition);
+        }
+
+        .faq-question {
+            padding: 20px 24px;
+            font-weight: 700;
+            font-size: 17px;
+            color: var(--dark);
+            cursor: pointer;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .faq-answer {
+            padding: 0 24px 20px;
+            color: var(--text-muted);
+            font-size: 15px;
+            display: none;
+        }
+
+        .faq-item.active .faq-answer {
+            display: block;
+        }
+
+        .faq-item.active {
+            border-color: var(--primary-light);
+        }
+
+        /* Bottom Banner CTA */
+        .cta-banner {
+            background: linear-gradient(135deg, var(--dark-surface), var(--dark));
+            color: white;
+            border-radius: 28px;
+            padding: 60px 40px;
+            text-align: center;
+            max-width: 1200px;
+            margin: 60px auto 80px;
+            position: relative;
+            overflow: hidden;
+            box-shadow: var(--shadow-lg);
+        }
+
+        .cta-banner h2 {
+            font-size: 36px;
+            font-weight: 900;
+            margin-bottom: 16px;
+        }
+
+        .cta-banner p {
+            font-size: 18px;
+            color: #cbd5e1;
+            margin-bottom: 32px;
+            max-width: 600px;
+            margin-left: auto;
+            margin-right: auto;
+        }
+
+        .cta-buttons {
+            display: flex;
+            justify-content: center;
+            gap: 16px;
+            flex-wrap: wrap;
+        }
+
+        /* Footer */
+        footer {
+            background: var(--dark);
+            color: #94a3b8;
+            padding: 50px 24px 30px;
+            border-top: 1px solid #334155;
+            font-size: 14px;
+        }
+
+        .footer-container {
+            max-width: 1280px;
+            margin: 0 auto;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 20px;
+            padding-bottom: 30px;
+            border-bottom: 1px solid #334155;
+        }
+
+        .footer-copy {
+            text-align: center;
+            padding-top: 24px;
+            color: #64748b;
+        }
+
+        /* Modal Preview */
+        .modal-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(15, 23, 42, 0.6);
+            backdrop-filter: blur(6px);
+            z-index: 2000;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            opacity: 0;
+            pointer-events: none;
+            transition: var(--transition);
+        }
+
+        .modal-overlay.active {
+            opacity: 1;
+            pointer-events: auto;
+        }
+
+        .modal-card {
+            background: white;
+            width: 90%;
+            max-width: 720px;
+            max-height: 85vh;
+            border-radius: var(--radius-lg);
+            overflow-y: auto;
+            padding: 32px;
+            position: relative;
+            box-shadow: var(--shadow-lg);
+            transform: translateY(20px);
+            transition: var(--transition);
+        }
+
+        .modal-overlay.active .modal-card {
+            transform: translateY(0);
+        }
+
+        .modal-close {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            width: 36px;
+            height: 36px;
+            border-radius: 50%;
+            background: var(--bg-light);
+            border: none;
+            font-size: 20px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: var(--text-muted);
+        }
+
+        .timeline {
+            margin-top: 20px;
+            border-left: 2px dashed var(--primary-light);
+            padding-left: 20px;
+            margin-left: 10px;
+        }
+
+        .timeline-day {
+            position: relative;
+            margin-bottom: 24px;
+        }
+
+        .timeline-day::before {
+            content: '';
+            position: absolute;
+            left: -27px;
+            top: 4px;
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            background: var(--primary);
+            border: 2px solid white;
+        }
+
+        .timeline-title {
+            font-weight: 800;
+            font-size: 16px;
+            color: var(--primary);
+        }
+
+        /* Responsive Design */
+        @media (max-width: 768px) {
+            .nav-links {
+                display: none;
+            }
+            .hero h1 {
+                font-size: 32px;
+            }
+            .hero p {
+                font-size: 16px;
+            }
+            .section-header {
+                flex-direction: column;
+                align-items: flex-start;
+                gap: 16px;
+            }
+            .search-box {
+                flex-direction: column;
+                align-items: stretch;
+            }
+            .search-item {
+                border-right: none;
+                border-bottom: 1px solid var(--border);
+            }
+            .search-item:last-of-type {
+                border-bottom: none;
+            }
+            .trip-grid, .companion-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+<body>
+
+    <!-- Header Navigation -->
+    <header class="navbar">
+        <div class="nav-container">
+            <a href="#" class="logo" style="display: flex; align-items: center; gap: 10px;">
+                <img src="{{ url_for('static', filename='images/logo.png') }}" alt="走吧揪團 Logo" style="height: 52px; width: auto; object-fit: contain;">
+            </a>
+            
+            <ul class="nav-links">
+                <li><a href="#trips">精選行程</a></li>
+                <li><a href="#companions">尋找旅伴</a></li>
+                <li><a href="#features">系統特色</a></li>
+                <li><a href="#faq">常見問題</a></li>
+            </ul>
+
+            <div class="nav-actions">
+                <a href="/login" class="btn btn-ghost">登入</a>
+                <a href="/register" class="btn btn-primary">免費註冊</a>
+            </div>
+        </div>
+    </header>
+
+    <!-- Hero Banner -->
+    <section class="hero">
+        <div class="hero-container">
+            <div class="badge-visitor">
+                <span>🌟 訪客專屬 Demo 模式</span>
+                <span>• 免登入探索熱門行程</span>
+            </div>
+            
+            <h1>與旅伴一同探索世界<br><span>輕鬆規劃下一趟完美旅程</span></h1>
+            <p>全台首選多人協作旅遊行程平台。免登入即可瀏覽精選行程與揪團，註冊後更可享有即時共同編輯、智慧分帳與地圖排程！</p>
+
+            <!-- Search Filter Bar -->
+            <div class="search-box">
+                <div class="search-item">
+                    <span class="search-label">目的地</span>
+                    <input type="text" id="destInput" class="search-input" placeholder="例如：京都, 澎湖, 富士山...">
+                </div>
+                <div class="search-item">
+                    <span class="search-label">旅行主題</span>
+                    <select id="typeSelect" class="search-select">
+                        <option value="all">全部主題</option>
+                        <option value="japan">日韓自由行</option>
+                        <option value="domestic">國內輕旅行</option>
+                        <option value="outdoor">露營攝影團</option>
+                        <option value="food">美食漫遊</option>
+                    </select>
+                </div>
+                <div class="search-item">
+                    <span class="search-label">預計天數</span>
+                    <select id="daysSelect" class="search-select">
+                        <option value="all">不限天數</option>
+                        <option value="1-3">1-3 天快閃</option>
+                        <option value="4-7">4-7 天深度遊</option>
+                        <option value="8+">8 天以上長程</option>
+                    </select>
+                </div>
+                <button type="button" onclick="filterTrips()" class="btn btn-primary" style="padding: 14px 28px;">
+                    🔍 搜尋行程
+                </button>
+            </div>
+
+            <!-- Quick Tag Pills -->
+            <div class="quick-tags">
+                <span>熱門關鍵字：</span>
+                <span class="tag-pill" onclick="quickSearch('京都賞枫')"># 京都賞楓</span>
+                <span class="tag-pill" onclick="quickSearch('澎湖花火')"># 澎湖花火節</span>
+                <span class="tag-pill" onclick="quickSearch('沖繩自駕')"># 沖繩自駕</span>
+                <span class="tag-pill" onclick="quickSearch('露營')"># 豪華露營</span>
+                <span class="tag-pill" onclick="quickSearch('台南美食')"># 台南美食吃貨</span>
+            </div>
+        </div>
+    </section>
+
+    <!-- System Stats -->
+    <section class="stats-section">
+        <div class="stats-grid">
+            <div class="stat-item">
+                <h3>15,200+</h3>
+                <p>已公開熱門行程</p>
+            </div>
+            <div class="stat-item">
+                <h3>48,500+</h3>
+                <p>活躍註冊旅伴</p>
+            </div>
+            <div class="stat-item">
+                <h3>99.2%</h3>
+                <p>揪團滿意好評</p>
+            </div>
+            <div class="stat-item">
+                <h3>NT$ 1,200萬+</h3>
+                <p>智慧自動結算分帳</p>
+            </div>
+        </div>
+    </section>
+
+    <!-- Public Trips Section -->
+    <section id="trips" class="section">
+        <div class="section-header">
+            <div class="section-header-left">
+                <h2>🌍 精選公開行程列表</h2>
+                <p>點擊即可預覽完整排程，包含每日景點、預算估算與路線規劃</p>
+            </div>
+            
+            <div class="tabs">
+                <button class="tab-btn active" onclick="switchCategory('all', this)">全部行程</button>
+                <button class="tab-btn" onclick="switchCategory('japan', this)">日韓大冒險</button>
+                <button class="tab-btn" onclick="switchCategory('domestic', this)">國內輕旅行</button>
+                <button class="tab-btn" onclick="switchCategory('outdoor', this)">戶外露營</button>
+                <button class="tab-btn" onclick="switchCategory('food', this)">美食美景</button>
+            </div>
+        </div>
+
+        <!-- Trip Cards Grid -->
+        <div class="trip-grid" id="tripGrid">
+
+            <!-- Card 1 -->
+            <div class="trip-card" data-category="japan">
+                <div class="trip-cover" style="background-image: linear-gradient(180deg, rgba(0,0,0,0.1), rgba(0,0,0,0.5)), url('https://images.unsplash.com/photo-1493976040374-85c8e12f0c0e?q=80&w=800&auto=format&fit=crop');">
+                    <span class="trip-badge-top">🇯🇵 日本京都 · 5天4夜</span>
+                    <button class="trip-like" onclick="likeTrip(this)">❤️</button>
+                </div>
+                <div class="trip-content">
+                    <div class="trip-tags">
+                        <span class="trip-tag"># 自由行</span>
+                        <span class="trip-tag"># 古蹟巡禮</span>
+                        <span class="trip-tag"># 和服體驗</span>
+                    </div>
+                    <h3 class="trip-title">【秋季必訪】京都清水寺與嵐山紅葉浪漫 5 日巡禮</h3>
+                    <div class="trip-info-row">
+                        <div class="trip-info-item">📅 2026/10/15 - 10/19</div>
+                        <div class="trip-info-item">💰 約 NT$ 32,000</div>
+                    </div>
+                    <div class="trip-footer">
+                        <div class="author-box">
+                            <div class="author-avatar">Emily</div>
+                            <div>
+                                <div class="author-name">Emily H.</div>
+                                <div class="author-role">資深旅遊達人</div>
+                            </div>
+                        </div>
+                        <button class="btn btn-outline" onclick="openTripModal('kyoto')">查看行程 ➔</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Card 2 -->
+            <div class="trip-card" data-category="domestic">
+                <div class="trip-cover" style="background-image: linear-gradient(180deg, rgba(0,0,0,0.1), rgba(0,0,0,0.5)), url('https://images.unsplash.com/photo-1507525428034-b723cf961d3e?q=80&w=800&auto=format&fit=crop');">
+                    <span class="trip-badge-top">🇹🇼 澎湖縣 · 3天2夜</span>
+                    <button class="trip-like" onclick="likeTrip(this)">❤️</button>
+                </div>
+                <div class="trip-content">
+                    <div class="trip-tags">
+                        <span class="trip-tag"># 花火節</span>
+                        <span class="trip-tag"># 水上活動</span>
+                        <span class="trip-tag"># 海鮮饗宴</span>
+                    </div>
+                    <h3 class="trip-title">澎湖花火節奢華海島遊！跳島七美與雙心石滬</h3>
+                    <div class="trip-info-row">
+                        <div class="trip-info-item">📅 2026/09/01 - 09/03</div>
+                        <div class="trip-info-item">💰 約 NT$ 12,500</div>
+                    </div>
+                    <div class="trip-footer">
+                        <div class="author-box">
+                            <div class="author-avatar" style="background:#38bdf8;">Alex</div>
+                            <div>
+                                <div class="author-name">Alex Chen</div>
+                                <div class="author-role">海島攝影狂熱者</div>
+                            </div>
+                        </div>
+                        <button class="btn btn-outline" onclick="openTripModal('penghu')">查看行程 ➔</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Card 3 -->
+            <div class="trip-card" data-category="outdoor">
+                <div class="trip-cover" style="background-image: linear-gradient(180deg, rgba(0,0,0,0.1), rgba(0,0,0,0.5)), url('https://images.unsplash.com/photo-1504280390367-361c6d9f38f4?q=80&w=800&auto=format&fit=crop');">
+                    <span class="trip-badge-top">🏕️ 南投合歡山 · 2天1夜</span>
+                    <button class="trip-like" onclick="likeTrip(this)">❤️</button>
+                </div>
+                <div class="trip-content">
+                    <div class="trip-tags">
+                        <span class="trip-tag"># 觀星銀河</span>
+                        <span class="trip-tag"># 登山健行</span>
+                        <span class="trip-tag"># 露營烤肉</span>
+                    </div>
+                    <h3 class="trip-title">合歡山暗空公園銀河觀星＆主峰日出挑戰團</h3>
+                    <div class="trip-info-row">
+                        <div class="trip-info-item">📅 2026/09/20 - 09/21</div>
+                        <div class="trip-info-item">💰 約 NT$ 4,500</div>
+                    </div>
+                    <div class="trip-footer">
+                        <div class="author-box">
+                            <div class="author-avatar" style="background:#10b981;">Mark</div>
+                            <div>
+                                <div class="author-name">Mark Wu</div>
+                                <div class="author-role">戶外嚮導</div>
+                            </div>
+                        </div>
+                        <button class="btn btn-outline" onclick="openTripModal('mountain')">查看行程 ➔</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Card 4 -->
+            <div class="trip-card" data-category="food">
+                <div class="trip-cover" style="background-image: linear-gradient(180deg, rgba(0,0,0,0.1), rgba(0,0,0,0.5)), url('https://images.unsplash.com/photo-1517248135467-4c7edcad34c4?q=80&w=800&auto=format&fit=crop');">
+                    <span class="trip-badge-top">🇹🇼 台南市 · 2天1夜</span>
+                    <button class="trip-like" onclick="likeTrip(this)">❤️</button>
+                </div>
+                <div class="trip-content">
+                    <div class="trip-tags">
+                        <span class="trip-tag"># 府城老街</span>
+                        <span class="trip-tag"># 牛肉湯探店</span>
+                        <span class="trip-tag"># 文青咖啡</span>
+                    </div>
+                    <h3 class="trip-title">台南國華街連續爆吃 15 家美味！老宅文青慢活</h3>
+                    <div class="trip-info-row">
+                        <div class="trip-info-item">📅 2026/10/01 - 10/02</div>
+                        <div class="trip-info-item">💰 約 NT$ 5,000</div>
+                    </div>
+                    <div class="trip-footer">
+                        <div class="author-box">
+                            <div class="author-avatar" style="background:#f59e0b;">Zoe</div>
+                            <div>
+                                <div class="author-name">Zoe Lin</div>
+                                <div class="author-role">美食部落客</div>
+                            </div>
+                        </div>
+                        <button class="btn btn-outline" onclick="openTripModal('tainan')">查看行程 ➔</button>
+                    </div>
+                </div>
+            </div>
+
+        </div>
+    </section>
+
+    <!-- Companion Match Feed Section -->
+    <section id="companions" class="section companion-section">
+        <div class="section-header">
+            <div class="section-header-left">
+                <h2>🤝 最新旅伴揪團版面</h2>
+                <p>找不到夥伴？看看其他人發起的公開徵求，輕鬆組隊出發</p>
+            </div>
+            <a href="/register" class="btn btn-primary">➕ 我要發起揪團</a>
+        </div>
+
+        <div class="companion-grid">
+            
+            <!-- Companion 1 -->
+            <div class="companion-card">
+                <div class="companion-header">
+                    <div class="companion-avatar">K</div>
+                    <div class="companion-meta">
+                        <h4>Kevin S. 揪旅伴中</h4>
+                        <p>📍 國外旅遊 • 東京迪士尼與澀谷快閃</p>
+                    </div>
+                </div>
+                <div class="companion-desc">
+                    「預計 11 月去東京看聖誕燈飾＋迪士尼陸地一日遊！徵求 1-2 位好相處、喜歡拍美照的夥伴一起分攤住宿與美食點餐。」
+                </div>
+                <div class="companion-footer">
+                    <span class="spots-badge">🟢 尚缺 2 人 (2/4)</span>
+                    <button class="btn btn-ghost" onclick="requireLogin()">💬 聯繫隊長</button>
+                </div>
+            </div>
+
+            <!-- Companion 2 -->
+            <div class="companion-card">
+                <div class="companion-header">
+                    <div class="companion-avatar" style="background: linear-gradient(135deg, #06b6d4, #3b82f6);">S</div>
+                    <div class="companion-meta">
+                        <h4>Sophia 揪自駕分攤</h4>
+                        <p>📍 國內旅遊 • 花東海岸線 3 日自駕</p>
+                    </div>
+                </div>
+                <div class="companion-desc">
+                    「從台北出發開休旅車玩花蓮台東！我開車徵求會導航、個性隨和的旅伴分攤油錢與民宿費用～行程彈性可討論。」
+                </div>
+                <div class="companion-footer">
+                    <span class="spots-badge">🟢 尚缺 1 人 (3/4)</span>
+                    <button class="btn btn-ghost" onclick="requireLogin()">💬 聯繫隊長</button>
+                </div>
+            </div>
+
+            <!-- Companion 3 -->
+            <div class="companion-card">
+                <div class="companion-header">
+                    <div class="companion-avatar" style="background: linear-gradient(135deg, #f59e0b, #ef4444);">L</div>
+                    <div class="companion-meta">
+                        <h4>Leo 揪滑雪初學者</h4>
+                        <p>📍 國外旅遊 • 北海道新雪谷滑雪團</p>
+                    </div>
+                </div>
+                <div class="companion-desc">
+                    「徵求第一次體驗滑雪的朋友！一起找中文教練比較便宜，晚上還可以一起吃札幌拉麵和烤肉。目前已有男有女。」
+                </div>
+                <div class="companion-footer">
+                    <span class="spots-badge">🟢 尚缺 3 人 (2/5)</span>
+                    <button class="btn btn-ghost" onclick="requireLogin()">💬 聯繫隊長</button>
+                </div>
+            </div>
+
+        </div>
+    </section>
+
+    <!-- Core Features Section -->
+    <section id="features" class="section">
+        <div class="section-header" style="text-align: center; display: block;">
+            <h2>✨ 為什麼選擇 Travel Together？</h2>
+            <p style="margin-top: 8px;">專為旅遊愛好者設計的多人協作系統，讓行程規劃不再混亂</p>
+        </div>
+
+        <div class="features-grid">
+            <div class="feature-card">
+                <div class="feature-icon">⚡</div>
+                <h3>即時多人共同編輯</h3>
+                <p>告別 Excel 與 Line 訊息紛亂！隊友可以同時在同一張地圖與時間軸上添加景點、修改時間。</p>
+            </div>
+
+            <div class="feature-card">
+                <div class="feature-icon">💰</div>
+                <h3>智慧分帳與外幣計算</h3>
+                <p>輸入每一筆公費與個人開銷，系統自動支援多國匯率換算並算清誰該給誰多少錢，結算一鍵搞定。</p>
+            </div>
+
+            <div class="feature-card">
+                <div class="feature-icon">🗺️</div>
+                <h3>地圖路徑最佳化</h3>
+                <p>智慧計算景點之間的交通時間與行車距離，自動提醒時間重疊或路程過遠，不再走冤枉路。</p>
+            </div>
+
+            <div class="feature-card">
+                <div class="feature-icon">🔒</div>
+                <h3>靈活的隱私與權限控制</h3>
+                <p>可自由選擇行程為私人、僅限隊友編輯、或公開成為全網熱門示範行程供訪客參考。</p>
+            </div>
+        </div>
+    </section>
+
+    <!-- FAQ Section -->
+    <section id="faq" class="section" style="background: #f8fafc; border-top: 1px solid var(--border);">
+        <div class="section-header" style="text-align: center; display: block;">
+            <h2>❓ 常見問題 (FAQ)</h2>
+            <p style="margin-top: 8px;">有關訪客權限與 Travel Together 系統的詳細說明</p>
+        </div>
+
+        <div class="faq-list">
+            <div class="faq-item active" onclick="toggleFaq(this)">
+                <div class="faq-question">
+                    <span>Q: 訪客身份在網站上可以做些什麼？</span>
+                    <span>▼</span>
+                </div>
+                <div class="faq-answer">
+                    訪客可以自由搜尋並瀏覽所有「公開」的行程內容、查看景點安排與每日時間軸、參考其他人發起的揪團資訊。若要發起行程、加入隊伍或進行即時協作，則需免費註冊帳號。
+                </div>
+            </div>
+
+            <div class="faq-item" onclick="toggleFaq(this)">
+                <div class="faq-question">
+                    <span>Q: 註冊 Travel Together 需要費用嗎？</span>
+                    <span>▼</span>
+                </div>
+                <div class="faq-answer">
+                    完全免費！註冊後即可建立無限數量的個人行程、邀請朋友共同編輯、使用智慧分帳工具與導出 PDF 行程表。
+                </div>
+            </div>
+
+            <div class="faq-item" onclick="toggleFaq(this)">
+                <div class="faq-question">
+                    <span>Q: 如何邀請朋友一起編輯同一個行程？</span>
+                    <span>▼</span>
+                </div>
+                <div class="faq-answer">
+                    登入後建立行程，點擊右上角的「邀請夥伴」按鈕，分享專屬邀請連結或直接輸入好友的帳號，即可開始進行多人即時共同編輯。
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Bottom CTA Banner -->
+    <div class="cta-banner">
+        <h2>準備好開啟你的下一趟旅程了嗎？</h2>
+        <p>立即註冊帳號，與朋友一同打造最棒的旅遊回憶！</p>
+        <div class="cta-buttons">
+            <a href="/register" class="btn btn-primary" style="padding: 14px 32px; font-size: 16px;">🚀 免費註冊帳號</a>
+            <a href="/login" class="btn btn-outline" style="padding: 14px 32px; font-size: 16px; color: white; border-color: rgba(255,255,255,0.4);">🔑 已有帳號登入</a>
+        </div>
+    </div>
+
+    <!-- Footer -->
+    <footer>
+        <div class="footer-container">
+            <div class="logo" style="display: flex; align-items: center; gap: 10px;">
+                <img src="{{ url_for('static', filename='images/logo.png') }}" alt="走吧揪團 Logo" style="height: 44px; width: auto; object-fit: contain; background: white; padding: 4px 10px; border-radius: 10px;">
+            </div>
+            <div>
+                多人協作旅遊行程規劃系統 © 2026 All Rights Reserved.
+            </div>
+        </div>
+        <div class="footer-copy">
+            Demo 訪客體驗頁面 | 建議搭配現代瀏覽器瀏覽 (Chrome, Edge, Safari)
+        </div>
+    </footer>
+
+    <!-- Trip Preview Modal -->
+    <div class="modal-overlay" id="tripModal">
+        <div class="modal-card">
+            <button class="modal-close" onclick="closeTripModal()">✕</button>
+            <div id="modalBody">
+                <!-- Modal Dynamic Content filled by JS -->
+            </div>
+        </div>
+    </div>
+
+    <!-- JavaScript Interaction Logic -->
+    <script>
+        // Demo Trip Modal Data
+        const sampleTrips = {
+            'kyoto': {
+                title: '【秋季必訪】京都清水寺與嵐山紅葉浪漫 5 日巡禮',
+                author: 'Emily H.',
+                days: '5 天 4 夜',
+                budget: 'NT$ 32,000 / 人',
+                timeline: [
+                    { day: 'Day 1', desc: '抵達關西國際機場 ➔ 搭乘 HARUKA 至京都車站 ➔ 飯店 Check-in ➔ 京都塔夜景與拉麵小路晚餐' },
+                    { day: 'Day 2', desc: '穿著傳統和服 ➔ 清水寺參拜與三年坂散策 ➔ 高台寺 ➔ 祇園花見小路茶屋體驗' },
+                    { day: 'Day 3', desc: '嵐山小列車賞楓 ➔ 竹林小徑與天龍寺 ➔ 渡月橋散步 ➔ 傍晚返回河原町逛街' },
+                    { day: 'Day 4', desc: '伏見稻荷大社千本鳥居 ➔ 宇治抹茶體驗與平等院 ➔ 錦市場在地美食搜羅' },
+                    { day: 'Day 5', desc: '臨空城 Outlets 購物 ➔ 返回關西機場搭機返台' }
+                ]
+            },
+            'penghu': {
+                title: '澎湖花火節奢華海島遊！跳島七美與雙心石滬',
+                author: 'Alex Chen',
+                days: '3 天 2 夜',
+                budget: 'NT$ 12,500 / 人',
+                timeline: [
+                    { day: 'Day 1', desc: '松山機場飛往馬公 ➔ 租用 Gogoro 自駕 ➔ 跨海大橋與易家仙人掌冰 ➔ 晚上馬公觀音亭花火節煙火秀' },
+                    { day: 'Day 2', desc: '南海跳島一日遊（七美雙心石滬 ➔ 望安綠蠵龜保育中心）➔ 傍晚海鮮海景燒烤吃到飽' },
+                    { day: 'Day 3', desc: '奎壁山摩西分海奇景 ➔ 澎坊免稅店購物 ➔ 伴手禮購買 ➔ 返程 flight' }
+                ]
+            },
+            'mountain': {
+                title: '合歡山暗空公園銀河觀星＆主峰日出挑戰團',
+                author: 'Mark Wu',
+                days: '2 天 1 夜',
+                budget: 'NT$ 4,500 / 人',
+                timeline: [
+                    { day: 'Day 1', desc: '台中高鐵站集合出發 ➔ 清境農場小瑞士花園 ➔ 入住松雪樓 / 清境民宿 ➔ 晚間暗空公園專業觀星與銀河攝影' },
+                    { day: 'Day 2', desc: '凌晨 04:00 起床攻頂合歡山主峰觀賞日出 ➔ 武嶺地標合照 ➔ 下山享用甕仔雞午餐 ➔ 賦歸' }
+                ]
+            },
+            'tainan': {
+                title: '台南國華街連續爆吃 15 家美味！老宅文青慢活',
+                author: 'Zoe Lin',
+                days: '2 天 1 夜',
+                budget: 'NT$ 5,000 / 人',
+                timeline: [
+                    { day: 'Day 1', desc: '台南火車站租車 ➔ 文章牛肉湯 ➔ 國華街肉圓與富盛號碗粿 ➔ 神農街老宅酒吧趴趴走' },
+                    { day: 'Day 2', desc: '奇美博物館參觀 ➔ 安平古堡與蝦捲 ➔ 甜點店買伴手禮 ➔ 滿載而歸' }
+                ]
+            }
+        };
+
+        function openTripModal(key) {
+            const data = sampleTrips[key];
+            if (!data) return;
+
+            let html = `
+                <span class="trip-tag" style="margin-bottom:12px; display:inline-block;">訪客行程快顯預覽</span>
+                <h2 style="font-size: 24px; font-weight:800; color:var(--dark); margin-bottom:10px;">${data.title}</h2>
+                <p style="color:var(--text-muted); font-size:14px; margin-bottom:20px;">👤 發起者：${data.author} | ⏱️ 天數：${data.days} | 💰 估算預算：${data.budget}</p>
+                
+                <h3 style="font-size:18px; font-weight:700; border-bottom:2px solid var(--primary-soft); padding-bottom:8px; margin-bottom:16px;">📅 每日詳細路線與景點</h3>
+                <div class="timeline">
+            `;
+
+            data.timeline.forEach(item => {
+                html += `
+                    <div class="timeline-day">
+                        <div class="timeline-title">${item.day}</div>
+                        <div style="font-size:14px; color:var(--text-main); margin-top:4px;">${item.desc}</div>
+                    </div>
+                `;
+            });
+
+            html += `
+                </div>
+                <div style="margin-top:30px; padding:16px; background:var(--primary-soft); border-radius:12px; text-align:center;">
+                    <p style="font-weight:700; color:var(--primary); margin-bottom:8px;">💡 喜歡這個行程嗎？</p>
+                    <p style="font-size:13px; color:var(--text-muted); margin-bottom:12px;">免費註冊即可複製此行程至個人帳號進行二次修改與多人協作！</p>
+                    <a href="/register" class="btn btn-primary">免費註冊帳號並複製行程</a>
+                </div>
+            `;
+
+            document.getElementById('modalBody').innerHTML = html;
+            document.getElementById('tripModal').classList.add('active');
+        }
+
+        function closeTripModal() {
+            document.getElementById('tripModal').classList.remove('active');
+        }
+
+        // Close modal when clicking background overlay
+        document.getElementById('tripModal').addEventListener('click', function(e) {
+            if (e.target === this) {
+                closeTripModal();
+            }
+        });
+
+        // Category Filter Function
+        function switchCategory(category, btnElement) {
+            document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+            btnElement.classList.add('active');
+
+            const cards = document.querySelectorAll('.trip-card');
+            cards.forEach(card => {
+                if (category === 'all' || card.getAttribute('data-category') === category) {
+                    card.style.display = 'flex';
+                } else {
+                    card.style.display = 'none';
+                }
+            });
+        }
+
+        // Search Filter
+        function filterTrips() {
+            const dest = document.getElementById('destInput').value.toLowerCase().trim();
+            const cards = document.querySelectorAll('.trip-card');
+
+            cards.forEach(card => {
+                const text = card.innerText.toLowerCase();
+                if (!dest || text.includes(dest)) {
+                    card.style.display = 'flex';
+                } else {
+                    card.style.display = 'none';
+                }
+            });
+        }
+
+        function quickSearch(tag) {
+            document.getElementById('destInput').value = tag.replace('#', '').trim();
+            filterTrips();
+        }
+
+        // Like button simulation
+        function likeTrip(btn) {
+            if (btn.style.color === 'red') {
+                btn.style.color = '';
+            } else {
+                btn.style.color = 'red';
+            }
+        }
+
+        // FAQ Toggle
+        function toggleFaq(element) {
+            element.classList.toggle('active');
+        }
+
+        // Require Login Modal/Alert for companion actions
+        function requireLogin() {
+            alert('您目前為訪客模式。請登入或免費註冊帳號，即可與隊長聯繫或發送加入隊伍申請！');
+            window.location.href = '/login';
+        }
+    </script>
+</body>
+</html>

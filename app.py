@@ -18,10 +18,11 @@ def get_db_connection():
         if connection.is_connected():
             return connection
 
-    except Error as error:
+    except Exception as error:
         print("資料庫連線失敗：", error)
 
     return None
+
 
 
 def redirect_by_role(role):
@@ -44,7 +45,13 @@ def index():
     if "user_id" in session:
         return redirect_by_role(session.get("role"))
 
-    return redirect(url_for("login"))
+    return redirect(url_for("visitor"))
+
+
+@app.route("/visitor")
+def visitor():
+    return render_template("visitor.html")
+
 
 
 @app.route("/login", methods=["GET", "POST"])
@@ -181,7 +188,7 @@ def register():
 
             connection.commit()
 
-        except Error as error:
+        except Exception as error:
             connection.rollback()
             print("註冊失敗：", error)
             flash("註冊失敗，請稍後再試。", "error")

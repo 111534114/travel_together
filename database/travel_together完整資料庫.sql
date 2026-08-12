@@ -406,9 +406,9 @@ SET FOREIGN_KEY_CHECKS=1;
 
 -- 測試帳號，密碼皆為 123456
 INSERT INTO users(username,password_hash,full_name,nickname,email,role) VALUES
-('member01','pbkdf2:sha256:600000$67d6646475fb2904$439c40d8eb4f1f1e9de61f14cc0abafae1f4b88c3766c55cdf8827b959c106e9','一般會員測試','旅遊小幫手','member01@example.com','member'),
-('contentadmin','pbkdf2:sha256:600000$67d6646475fb2904$439c40d8eb4f1f1e9de61f14cc0abafae1f4b88c3766c55cdf8827b959c106e9','旅遊內容管理員','內容管理員','contentadmin@example.com','content_admin'),
-('admin','pbkdf2:sha256:600000$67d6646475fb2904$439c40d8eb4f1f1e9de61f14cc0abafae1f4b88c3766c55cdf8827b959c106e9','系統管理員','系統管理員','admin@example.com','system_admin');
+('member01','scrypt:32768:8:1$y9cxLcELeqAVhtmm$47381a4bba2ae38a900d4ee69c211f7c0c64923faebc583e83e395da6a226176d5a4a99c886ed306ac8029795fbe3e1a8daebe19b6466821900e7dbb6bbac244','一般會員測試','旅遊小幫手','member01@example.com','member'),
+('contentadmin','scrypt:32768:8:1$y9cxLcELeqAVhtmm$47381a4bba2ae38a900d4ee69c211f7c0c64923faebc583e83e395da6a226176d5a4a99c886ed306ac8029795fbe3e1a8daebe19b6466821900e7dbb6bbac244','旅遊內容管理員','內容管理員','contentadmin@example.com','content_admin'),
+('admin','scrypt:32768:8:1$y9cxLcELeqAVhtmm$47381a4bba2ae38a900d4ee69c211f7c0c64923faebc583e83e395da6a226176d5a4a99c886ed306ac8029795fbe3e1a8daebe19b6466821900e7dbb6bbac244','系統管理員','系統管理員','admin@example.com','system_admin');
 
 INSERT INTO categories(category_type,category_name,description,created_by) VALUES
 ('trip','自由行','一般自由行程',3),

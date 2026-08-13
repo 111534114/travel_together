@@ -1,0 +1,116 @@
+{% extends "content_admin/base.html" %}
+{% set active_menu = "proposals" %}
+
+{% block title %}提案詳情｜Travel Together{% endblock %}
+{% block page_title %}提案詳情：{{ proposal.title }}{% endblock %}
+{% block page_subtitle %}核准、退回或修正這筆會員提案{% endblock %}
+
+{% block content %}
+
+<div class="admin-section">
+
+    <div class="detail-grid">
+        <div class="detail-item">
+            <label>提案類型</label>
+            <p>{{ proposal.proposal_type }}</p>
+        </div>
+        <div class="detail-item">
+            <label>所屬行程</label>
+            <p>{{ proposal.trip_name }}</p>
+        </div>
+        <div class="detail-item">
+            <label>提案人</label>
+            <p>{{ proposal.proposer_name }}（{{ proposal.proposer_email }}）</p>
+        </div>
+        <div class="detail-item">
+            <label>審核狀態</label>
+            <p>
+                {% if proposal.content_review_status == 'approved' %}
+                    <span class="status-active">{{ status_labels[proposal.content_review_status] }}</span>
+                {% elif proposal.content_review_status == 'pending' %}
+                    <span class="status-pending">{{ status_labels[proposal.content_review_status] }}</span>
+                {% elif proposal.content_review_status == 'returned' %}
+                    <span class="status-returned">{{ status_labels[proposal.content_review_status] }}</span>
+                {% else %}
+                    <span class="status-not-required">{{ status_labels[proposal.content_review_status] }}</span>
+                {% endif %}
+            </p>
+        </div>
+        {% if proposal.reviewer_name %}
+        <div class="detail-item">
+            <label>審核者</label>
+            <p>{{ proposal.reviewer_name }}（{{ proposal.reviewed_at }}）</p>
+        </div>
+        {% endif %}
+        {% if proposal.review_note %}
+        <div class="detail-item full-width">
+            <label>審核意見</label>
+            <p>{{ proposal.review_note }}</p>
+        </div>
+        {% endif %}
+    </div>
+
+    <form method="POST" action="{{ url_for('proposals.update_proposal', proposal_id=proposal.proposal_id) }}" class="content-form">
+
+        <div class="form-grid">
+
+            <div class="form-group full-width">
+                <label for="title">標題 *</label>
+                <input type="text" id="title" name="title" value="{{ proposal.title }}" required>
+            </div>
+
+            <div class="form-group">
+                <label for="location">地點</label>
+                <input type="text" id="location" name="location" value="{{ proposal.location or '' }}">
+            </div>
+
+            <div class="form-group">
+                <label for="estimated_cost">預估花費</label>
+                <input type="number" step="0.01" min="0" id="estimated_cost" name="estimated_cost" value="{{ proposal.estimated_cost }}">
+            </div>
+
+            <div class="form-group">
+                <label for="proposed_date">建議日期</label>
+                <input type="date" id="proposed_date" name="proposed_date" value="{{ proposal.proposed_date or '' }}">
+            </div>
+
+            <div class="form-group">
+                <label for="website_url">參考網址</label>
+                <input type="url" id="website_url" name="website_url" value="{{ proposal.website_url or '' }}">
+            </div>
+
+            <div class="form-group full-width">
+                <label for="description">內容說明</label>
+                <textarea id="description" name="description" rows="4">{{ proposal.description or '' }}</textarea>
+            </div>
+
+        </div>
+
+        <div class="form-actions">
+            <button type="submit" class="primary-button">修正並儲存</button>
+        </div>
+
+    </form>
+
+    <div class="form-actions" style="margin-top:26px;">
+
+        <form method="POST" action="{{ url_for('proposals.approve_proposal', proposal_id=proposal.proposal_id) }}"
+              onsubmit="return confirm('確定要核准這筆提案嗎？');">
+            <button type="submit" class="enable-button">✅ 核准提案</button>
+        </form>
+
+        <form method="POST" action="{{ url_for('proposals.return_proposal', proposal_id=proposal.proposal_id) }}"
+              onsubmit="return confirm('確定要退回這筆提案嗎？');" style="display:flex; gap:10px; align-items:center;">
+            <input type="text" name="review_note" placeholder="退回原因（必填）" required style="padding:10px; border:1px solid #ccc; border-radius:8px; width:260px;">
+            <button type="submit" class="disable-button">↩ 退回提案</button>
+        </form>
+
+    </div>
+
+    <p style="margin-top:20px;">
+        <a href="{{ url_for('proposals.list_proposals', status=proposal.content_review_status) }}">← 返回提案列表</a>
+    </p>
+
+</div>
+
+{% endblock %}

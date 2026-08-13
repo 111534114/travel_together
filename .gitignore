@@ -23,3 +23,6 @@ Thumbs.db
 # 環境設定
 .env
 
+# 本機資料庫備份（可能包含帳號資料）
+database/backup_*.sql
+

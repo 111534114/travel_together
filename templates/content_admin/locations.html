@@ -1,0 +1,111 @@
+{% extends "content_admin/base.html" %}
+{% set active_menu = "locations" %}
+
+{% block title %}國家與城市管理｜Travel Together{% endblock %}
+{% block page_title %}國家與城市管理{% endblock %}
+{% block page_subtitle %}管理景點、餐廳、住宿共用的國家與城市清單{% endblock %}
+
+{% block content %}
+
+<div class="admin-section">
+
+    <div class="section-title">
+        <h2>國家</h2>
+        <span>共 {{ countries|length }} 筆</span>
+    </div>
+
+    <div class="table-container">
+        <table class="admin-table">
+            <thead>
+            <tr>
+                <th>國家名稱</th>
+                <th>城市數</th>
+                <th>操作</th>
+            </tr>
+            </thead>
+            <tbody>
+            {% for country in countries %}
+            <tr>
+                <td>
+                    <form method="POST" action="{{ url_for('locations.edit_country', country_id=country.country_id) }}" class="inline-form">
+                        <input type="text" name="name" value="{{ country.name }}" required style="width:220px;">
+                        <button type="submit" class="small-button">更新</button>
+                    </form>
+                </td>
+                <td>{{ country.city_count }}</td>
+                <td>
+                    <form method="POST" action="{{ url_for('locations.delete_country', country_id=country.country_id) }}" class="inline-form" onsubmit="return confirm('確定要刪除這個國家嗎？');">
+                        <button type="submit" class="disable-button">刪除</button>
+                    </form>
+                </td>
+            </tr>
+            {% else %}
+            <tr><td colspan="3" class="empty-data">尚未新增國家</td></tr>
+            {% endfor %}
+            </tbody>
+        </table>
+    </div>
+
+    <form method="POST" action="{{ url_for('locations.create_country') }}" class="filter-form" style="margin-top:18px;">
+        <input type="text" name="name" placeholder="新增國家名稱" required>
+        <button type="submit">＋ 新增國家</button>
+    </form>
+
+</div>
+
+<div class="admin-section">
+
+    <div class="section-title">
+        <h2>城市</h2>
+        <span>共 {{ cities|length }} 筆</span>
+    </div>
+
+    <div class="table-container">
+        <table class="admin-table">
+            <thead>
+            <tr>
+                <th>國家 / 城市名稱</th>
+                <th>操作</th>
+            </tr>
+            </thead>
+            <tbody>
+            {% for city in cities %}
+            <tr>
+                <td>
+                    <form method="POST" action="{{ url_for('locations.edit_city', city_id=city.city_id) }}" class="inline-form">
+                        <select name="country_id">
+                            {% for country in countries %}
+                                <option value="{{ country.country_id }}" {{ 'selected' if country.country_id == city.country_id else '' }}>{{ country.name }}</option>
+                            {% endfor %}
+                        </select>
+                        <input type="text" name="name" value="{{ city.name }}" required style="width:160px;">
+                        <button type="submit" class="small-button">更新</button>
+                    </form>
+                </td>
+                <td>
+                    <form method="POST" action="{{ url_for('locations.delete_city', city_id=city.city_id) }}" class="inline-form" onsubmit="return confirm('確定要刪除這個城市嗎？');">
+                        <button type="submit" class="disable-button">刪除</button>
+                    </form>
+                </td>
+            </tr>
+            {% else %}
+            <tr><td colspan="2" class="empty-data">尚未新增城市</td></tr>
+            {% endfor %}
+            </tbody>
+        </table>
+    </div>
+
+    <form method="POST" action="{{ url_for('locations.create_city') }}" class="filter-form" style="margin-top:18px;">
+        <select name="country_id" required>
+            <option value="">選擇國家</option>
+            {% for country in countries %}
+                <option value="{{ country.country_id }}">{{ country.name }}</option>
+            {% endfor %}
+        </select>
+        <input type="text" name="name" placeholder="新增城市名稱" required>
+        <button type="submit">＋ 新增城市</button>
+    </form>
+
+</div>
+
+{% endblock %}

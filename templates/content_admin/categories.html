@@ -1,0 +1,79 @@
+{% extends "content_admin/base.html" %}
+{% set active_menu = "categories" %}
+
+{% block title %}分類管理｜Travel Together{% endblock %}
+{% block page_title %}分類管理{% endblock %}
+{% block page_subtitle %}管理景點類別、餐廳類別與住宿類別{% endblock %}
+
+{% block content %}
+
+<div class="type-tabs">
+    {% for t in allowed_types %}
+        <a class="{{ 'active' if category_type == t else '' }}" href="{{ url_for('categories.manage_categories', type=t) }}">{{ type_labels[t] }}</a>
+    {% endfor %}
+</div>
+
+<div class="admin-section">
+
+    <div class="section-title">
+        <h2>{{ type_labels[category_type] }}</h2>
+        <span>共 {{ categories|length }} 筆</span>
+    </div>
+
+    <div class="table-container">
+        <table class="admin-table">
+            <thead>
+            <tr>
+                <th>類別名稱</th>
+                <th>說明</th>
+                <th>狀態</th>
+                <th>操作</th>
+            </tr>
+            </thead>
+            <tbody>
+            {% for category in categories %}
+            <tr>
+                <td colspan="4" style="padding:0;">
+                    <form method="POST" action="{{ url_for('categories.edit_category', category_id=category.category_id) }}"
+                          style="display:table; width:100%;">
+                        <input type="hidden" name="category_type" value="{{ category_type }}">
+                        <div style="display:table-row;">
+                            <div style="display:table-cell; padding:14px; border-bottom:1px solid #eee;">
+                                <input type="text" name="category_name" value="{{ category.category_name }}" required style="width:90%;">
+                            </div>
+                            <div style="display:table-cell; padding:14px; border-bottom:1px solid #eee;">
+                                <input type="text" name="description" value="{{ category.description or '' }}" style="width:90%;">
+                            </div>
+                            <div style="display:table-cell; padding:14px; border-bottom:1px solid #eee;">
+                                <select name="status">
+                                    <option value="active" {{ 'selected' if category.status == 'active' else '' }}>啟用</option>
+                                    <option value="hidden" {{ 'selected' if category.status == 'hidden' else '' }}>隱藏</option>
+                                </select>
+                            </div>
+                            <div style="display:table-cell; padding:14px; border-bottom:1px solid #eee; white-space:nowrap;">
+                                <button type="submit" class="small-button">更新</button>
+                                <button type="submit" formaction="{{ url_for('categories.delete_category', category_id=category.category_id) }}"
+                                        class="disable-button"
+                                        onclick="return confirm('確定要刪除這個類別嗎？');">刪除</button>
+                            </div>
+                        </div>
+                    </form>
+                </td>
+            </tr>
+            {% else %}
+            <tr><td colspan="4" class="empty-data">尚未新增類別</td></tr>
+            {% endfor %}
+            </tbody>
+        </table>
+    </div>
+
+    <form method="POST" action="{{ url_for('categories.create_category') }}" class="filter-form" style="margin-top:18px;">
+        <input type="hidden" name="category_type" value="{{ category_type }}">
+        <input type="text" name="category_name" placeholder="新增類別名稱" required>
+        <input type="text" name="description" placeholder="說明（選填）">
+        <button type="submit">＋ 新增類別</button>
+    </form>
+
+</div>
+
+{% endblock %}

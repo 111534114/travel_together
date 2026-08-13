@@ -33,12 +33,29 @@ CREATE TABLE categories (
  FOREIGN KEY(created_by) REFERENCES users(user_id) ON DELETE SET NULL
 ) ENGINE=InnoDB;
 
+CREATE TABLE countries (
+ country_id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+ name VARCHAR(100) NOT NULL UNIQUE,
+ created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+ updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+) ENGINE=InnoDB;
+
+CREATE TABLE cities (
+ city_id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+ country_id BIGINT UNSIGNED NOT NULL,
+ name VARCHAR(100) NOT NULL,
+ created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+ updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+ UNIQUE(country_id,name),
+ FOREIGN KEY(country_id) REFERENCES countries(country_id)
+) ENGINE=InnoDB;
+
 CREATE TABLE attractions (
  attraction_id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
  category_id BIGINT UNSIGNED,
  name VARCHAR(150) NOT NULL,
- country VARCHAR(100) NOT NULL,
- city VARCHAR(100) NOT NULL,
+ country_id BIGINT UNSIGNED NOT NULL,
+ city_id BIGINT UNSIGNED NOT NULL,
  address VARCHAR(255),
  latitude DECIMAL(10,7),
  longitude DECIMAL(10,7),
@@ -50,10 +67,15 @@ CREATE TABLE attractions (
  image_path VARCHAR(255),
  is_popular BOOLEAN NOT NULL DEFAULT FALSE,
  status ENUM('active','hidden','pending') NOT NULL DEFAULT 'active',
+ ai_verified_at DATETIME,
+ ai_verified_by BIGINT UNSIGNED,
  created_by BIGINT UNSIGNED,
  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
  updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
  FOREIGN KEY(category_id) REFERENCES categories(category_id) ON DELETE SET NULL,
+ FOREIGN KEY(country_id) REFERENCES countries(country_id),
+ FOREIGN KEY(city_id) REFERENCES cities(city_id),
+ FOREIGN KEY(ai_verified_by) REFERENCES users(user_id) ON DELETE SET NULL,
  FOREIGN KEY(created_by) REFERENCES users(user_id) ON DELETE SET NULL
 ) ENGINE=InnoDB;
 
@@ -61,8 +83,8 @@ CREATE TABLE restaurants (
  restaurant_id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
  category_id BIGINT UNSIGNED,
  name VARCHAR(150) NOT NULL,
- country VARCHAR(100) NOT NULL,
- city VARCHAR(100) NOT NULL,
+ country_id BIGINT UNSIGNED NOT NULL,
+ city_id BIGINT UNSIGNED NOT NULL,
  address VARCHAR(255),
  cuisine_type VARCHAR(100),
  price_level ENUM('low','medium','high','luxury') DEFAULT 'medium',
@@ -71,10 +93,15 @@ CREATE TABLE restaurants (
  website_url VARCHAR(500),
  image_path VARCHAR(255),
  status ENUM('active','hidden','pending') NOT NULL DEFAULT 'active',
+ ai_verified_at DATETIME,
+ ai_verified_by BIGINT UNSIGNED,
  created_by BIGINT UNSIGNED,
  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
  updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
  FOREIGN KEY(category_id) REFERENCES categories(category_id) ON DELETE SET NULL,
+ FOREIGN KEY(country_id) REFERENCES countries(country_id),
+ FOREIGN KEY(city_id) REFERENCES cities(city_id),
+ FOREIGN KEY(ai_verified_by) REFERENCES users(user_id) ON DELETE SET NULL,
  FOREIGN KEY(created_by) REFERENCES users(user_id) ON DELETE SET NULL
 ) ENGINE=InnoDB;
 
@@ -82,19 +109,26 @@ CREATE TABLE accommodations (
  accommodation_id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
  category_id BIGINT UNSIGNED,
  name VARCHAR(150) NOT NULL,
- country VARCHAR(100) NOT NULL,
- city VARCHAR(100) NOT NULL,
+ country_id BIGINT UNSIGNED NOT NULL,
+ city_id BIGINT UNSIGNED NOT NULL,
  address VARCHAR(255),
  accommodation_type VARCHAR(100),
  price_per_night DECIMAL(12,2) NOT NULL DEFAULT 0,
+ check_in_time TIME,
+ check_out_time TIME,
  description TEXT,
  website_url VARCHAR(500),
  image_path VARCHAR(255),
  status ENUM('active','hidden','pending') NOT NULL DEFAULT 'active',
+ ai_verified_at DATETIME,
+ ai_verified_by BIGINT UNSIGNED,
  created_by BIGINT UNSIGNED,
  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
  updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
  FOREIGN KEY(category_id) REFERENCES categories(category_id) ON DELETE SET NULL,
+ FOREIGN KEY(country_id) REFERENCES countries(country_id),
+ FOREIGN KEY(city_id) REFERENCES cities(city_id),
+ FOREIGN KEY(ai_verified_by) REFERENCES users(user_id) ON DELETE SET NULL,
  FOREIGN KEY(created_by) REFERENCES users(user_id) ON DELETE SET NULL
 ) ENGINE=InnoDB;
 
@@ -420,8 +454,17 @@ INSERT INTO categories(category_type,category_name,description,created_by) VALUE
 ('expense','餐飲','餐飲相關費用',3),
 ('expense','住宿','住宿相關費用',3);
 
-INSERT INTO attractions(category_id,name,country,city,address,ticket_price,suggested_duration_minutes,description,is_popular,created_by)
-VALUES(3,'台北101','台灣','台北市','台北市信義區信義路五段7號',600,120,'台北代表性地標與觀景台',TRUE,2);
+INSERT INTO countries(name) VALUES
+('台灣'),
+('日本');
+
+INSERT INTO cities(country_id,name) VALUES
+(1,'台北市'),
+(1,'高雄市'),
+(2,'東京都');
+
+INSERT INTO attractions(category_id,name,country_id,city_id,address,ticket_price,suggested_duration_minutes,description,is_popular,created_by)
+VALUES(3,'台北101',1,1,'台北市信義區信義路五段7號',600,120,'台北代表性地標與觀景台',TRUE,2);
 
 INSERT INTO trips(owner_id,category_id,trip_name,country,city,start_date,end_date,people_count,total_budget,currency,introduction,visibility,status,share_token)
 VALUES(1,1,'台北三天兩夜','台灣','台北市','2026-08-10','2026-08-12',3,15000,'TWD','測試用多人協作旅遊行程','private','planning','demo-taipei-2026');
@@ -431,6 +474,9 @@ VALUES(1,1,'owner','accepted',NOW());
 
 INSERT INTO itineraries(trip_id,created_by,itinerary_date,item_type,title,start_time,end_time,address,estimated_cost,attraction_id,sort_order)
 VALUES(1,1,'2026-08-10','attraction','參觀台北101','10:00','12:00','台北市信義區信義路五段7號',600,1,1);
+
+INSERT INTO proposals(trip_id,proposer_id,proposal_type,title,location,description,estimated_cost,proposed_date,status,content_review_status)
+VALUES(1,1,'attraction','貓空纜車','台北市文山區','會員提議加入貓空纜車景點，可俯瞰台北市景',300,'2026-08-11','discussing','pending');
 
 INSERT INTO announcements(created_by,title,content,is_pinned,status,publish_at)
 VALUES(3,'歡迎使用 Travel Together','歡迎使用多人協作旅遊行程規劃系統',TRUE,'published',NOW());
@@ -443,12 +489,14 @@ FROM trips t LEFT JOIN expenses e ON e.trip_id=t.trip_id
 GROUP BY t.trip_id,t.trip_name,t.total_budget,t.currency;
 
 CREATE VIEW vw_popular_attractions AS
-SELECT a.attraction_id,a.name,a.country,a.city,
+SELECT a.attraction_id,a.name,c.name AS country,ci.name AS city,
 COUNT(DISTINCT f.favorite_id) favorite_count,
 COUNT(DISTINCT i.itinerary_id) itinerary_count
 FROM attractions a
+JOIN countries c ON c.country_id=a.country_id
+JOIN cities ci ON ci.city_id=a.city_id
 LEFT JOIN favorites f ON f.attraction_id=a.attraction_id
 LEFT JOIN itineraries i ON i.attraction_id=a.attraction_id
-GROUP BY a.attraction_id,a.name,a.country,a.city;
+GROUP BY a.attraction_id,a.name,c.name,ci.name;
 
 SELECT '資料庫建立完成' AS message;

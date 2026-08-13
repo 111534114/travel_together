@@ -1,0 +1,138 @@
+{% extends "content_admin/base.html" %}
+{% set active_menu = "restaurants" %}
+{% set current_status = restaurant.status if restaurant else 'active' %}
+{% set current_price_level = restaurant.price_level if restaurant else 'medium' %}
+
+{% block title %}{{ '編輯餐廳' if mode == 'edit' else '新增餐廳' }}｜Travel Together{% endblock %}
+{% block page_title %}{{ '編輯餐廳' if mode == 'edit' else '新增餐廳' }}{% endblock %}
+{% block page_subtitle %}維護餐廳料理、價格、營業時間{% endblock %}
+
+{% block content %}
+
+<div class="admin-section">
+
+    <form method="POST" enctype="multipart/form-data" class="content-form">
+
+        <div class="form-grid">
+
+            <div class="form-group">
+                <label for="name">餐廳名稱 *</label>
+                <input type="text" id="name" name="name" value="{{ restaurant.name or '' }}" required>
+            </div>
+
+            <div class="form-group">
+                <label for="category_id">分類</label>
+                <select id="category_id" name="category_id">
+                    <option value="">未分類</option>
+                    {% for category in categories %}
+                        <option value="{{ category.category_id }}" {{ 'selected' if restaurant.category_id|string == category.category_id|string else '' }}>{{ category.category_name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+
+            <div class="form-group">
+                <label for="country_id">國家 *</label>
+                <select id="countrySelect" name="country_id" required>
+                    <option value="">請選擇國家</option>
+                    {% for country in countries %}
+                        <option value="{{ country.country_id }}" {{ 'selected' if restaurant.country_id|string == country.country_id|string else '' }}>{{ country.name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+
+            <div class="form-group">
+                <label for="city_id">城市 *</label>
+                <select id="citySelect" name="city_id" required>
+                    <option value="">請選擇城市</option>
+                    {% for city in cities %}
+                        <option value="{{ city.city_id }}" data-country="{{ city.country_id }}" {{ 'selected' if restaurant.city_id|string == city.city_id|string else '' }}>{{ city.name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+
+            <div class="form-group full-width">
+                <label for="address">地址</label>
+                <input type="text" id="address" name="address" value="{{ restaurant.address or '' }}">
+            </div>
+
+            <div class="form-group">
+                <label for="cuisine_type">料理類型</label>
+                <input type="text" id="cuisine_type" name="cuisine_type" placeholder="例如：日式料理" value="{{ restaurant.cuisine_type or '' }}">
+            </div>
+
+            <div class="form-group">
+                <label for="price_level">價位</label>
+                <select id="price_level" name="price_level">
+                    <option value="low" {{ 'selected' if current_price_level == 'low' else '' }}>平價</option>
+                    <option value="medium" {{ 'selected' if current_price_level == 'medium' else '' }}>中價位</option>
+                    <option value="high" {{ 'selected' if current_price_level == 'high' else '' }}>高價位</option>
+                    <option value="luxury" {{ 'selected' if current_price_level == 'luxury' else '' }}>奢華</option>
+                </select>
+            </div>
+
+            <div class="form-group">
+                <label for="opening_hours">營業時間</label>
+                <input type="text" id="opening_hours" name="opening_hours" placeholder="例如：11:00-21:00" value="{{ restaurant.opening_hours or '' }}">
+            </div>
+
+            <div class="form-group">
+                <label for="website_url">官方網站</label>
+                <input type="url" id="website_url" name="website_url" value="{{ restaurant.website_url or '' }}">
+            </div>
+
+            <div class="form-group full-width">
+                <label for="description">餐廳描述</label>
+                <textarea id="description" name="description" rows="4">{{ restaurant.description or '' }}</textarea>
+            </div>
+
+            <div class="form-group full-width">
+                <label for="image">餐廳圖片</label>
+
+                {% if restaurant and restaurant.image_path %}
+                <div class="current-image">
+                    <img class="thumb" src="{{ url_for('static', filename=restaurant.image_path) }}" alt="目前圖片">
+                    <label class="checkbox-group">
+                        <input type="checkbox" name="remove_image">
+                        移除目前圖片
+                    </label>
+                </div>
+                {% endif %}
+
+                <input type="file" id="image" name="image" accept=".png,.jpg,.jpeg,.gif,.webp">
+            </div>
+
+            <div class="form-group">
+                <label for="status">狀態</label>
+                <select id="status" name="status">
+                    <option value="active" {{ 'selected' if current_status == 'active' else '' }}>啟用</option>
+                    <option value="pending" {{ 'selected' if current_status == 'pending' else '' }}>待確認</option>
+                    <option value="hidden" {{ 'selected' if current_status == 'hidden' else '' }}>隱藏</option>
+                </select>
+            </div>
+
+        </div>
+
+        <div class="form-actions">
+            <button type="submit" class="primary-button">{{ '儲存變更' if mode == 'edit' else '新增餐廳' }}</button>
+            <a href="{{ url_for('restaurants.list_restaurants') }}" class="secondary-link">取消</a>
+        </div>
+
+    </form>
+
+</div>
+
+<script>
+    function filterCitiesByCountry() {
+        var countryId = document.getElementById('countrySelect').value;
+        var options = document.getElementById('citySelect').querySelectorAll('option[data-country]');
+
+        options.forEach(function (option) {
+            option.hidden = Boolean(countryId) && option.dataset.country !== countryId;
+        });
+    }
+
+    document.getElementById('countrySelect').addEventListener('change', filterCitiesByCountry);
+    window.addEventListener('DOMContentLoaded', filterCitiesByCountry);
+</script>
+
+{% endblock %}

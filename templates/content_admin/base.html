@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <title>{% block title %}旅遊內容管理｜Travel Together{% endblock %}</title>
+
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+
+<body class="admin-body">
+
+<div class="admin-layout">
+
+    <aside class="admin-sidebar">
+
+        <div class="admin-logo admin-logo-branded">
+            <img src="{{ url_for('static', filename='images/logo.png') }}"
+                 alt="走吧揪團 Logo">
+            <p>旅遊內容管理後台</p>
+        </div>
+
+        <nav class="admin-menu">
+
+            <a class="{{ 'active' if active_menu == 'dashboard' else '' }}"
+               href="{{ url_for('content_admin_home') }}">
+                📊 儀表板
+            </a>
+
+            <a class="{{ 'active' if active_menu == 'attractions' else '' }}"
+               href="{{ url_for('attractions.list_attractions') }}">
+                📍 景點管理
+            </a>
+
+            <a class="{{ 'active' if active_menu == 'restaurants' else '' }}"
+               href="{{ url_for('restaurants.list_restaurants') }}">
+                🍜 餐廳管理
+            </a>
+
+            <a class="{{ 'active' if active_menu == 'accommodations' else '' }}"
+               href="{{ url_for('accommodations.list_accommodations') }}">
+                🏨 住宿管理
+            </a>
+
+            <a class="{{ 'active' if active_menu == 'locations' else '' }}"
+               href="{{ url_for('locations.manage_locations') }}">
+                🌏 國家與城市
+            </a>
+
+            <a class="{{ 'active' if active_menu == 'categories' else '' }}"
+               href="{{ url_for('categories.manage_categories') }}">
+                🏷️ 分類管理
+            </a>
+
+            <a class="{{ 'active' if active_menu == 'proposals' else '' }}"
+               href="{{ url_for('proposals.list_proposals') }}">
+                📥 提案審核
+            </a>
+
+            <a class="{{ 'active' if active_menu == 'ai_data' else '' }}"
+               href="{{ url_for('ai_data.list_ai_data') }}">
+                🤖 AI資料維護
+            </a>
+
+            <a href="{{ url_for('logout') }}">
+                🚪 登出
+            </a>
+
+        </nav>
+
+    </aside>
+
+    <main class="admin-main">
+
+        <div class="admin-topbar">
+            <div>
+                <h1>{% block page_title %}旅遊內容管理{% endblock %}</h1>
+                <p>{% block page_subtitle %}{% endblock %}</p>
+            </div>
+        </div>
+
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+                {% for category, message in messages %}
+                    <div class="message {{ category }}">{{ message }}</div>
+                {% endfor %}
+            {% endif %}
+        {% endwith %}
+
+        {% block content %}{% endblock %}
+
+    </main>
+
+</div>
+
+</body>
+</html>

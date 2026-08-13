@@ -1,0 +1,64 @@
+{% extends "content_admin/base.html" %}
+{% set active_menu = "ai_data" %}
+
+{% block title %}AI使用資料維護｜Travel Together{% endblock %}
+{% block page_title %}AI使用資料維護{% endblock %}
+{% block page_subtitle %}更新提供AI排行程使用的景點、餐廳、住宿資訊，標記資料確認日期{% endblock %}
+
+{% block content %}
+
+<div class="type-tabs">
+    {% for key, config in type_config.items() %}
+        <a class="{{ 'active' if item_type == key else '' }}" href="{{ url_for('ai_data.list_ai_data', type=key) }}">{{ config.label }}</a>
+    {% endfor %}
+</div>
+
+<div class="admin-section">
+
+    <div class="section-title">
+        <h2>{{ type_config[item_type].label }}資料確認狀態</h2>
+        <span>共 {{ items|length }} 筆</span>
+    </div>
+
+    <div class="table-container">
+        <table class="admin-table">
+            <thead>
+            <tr>
+                <th>名稱</th>
+                <th>國家/城市</th>
+                <th>資料最後更新</th>
+                <th>AI 資料確認日期</th>
+                <th>確認人</th>
+                <th>操作</th>
+            </tr>
+            </thead>
+            <tbody>
+            {% for item in items %}
+            <tr>
+                <td>{{ item.name }}</td>
+                <td>{{ item.country_name }} / {{ item.city_name }}</td>
+                <td>{{ item.updated_at }}</td>
+                <td>
+                    {% if item.ai_verified_at %}
+                        <span class="status-active">{{ item.ai_verified_at }}</span>
+                    {% else %}
+                        <span class="status-pending">尚未確認</span>
+                    {% endif %}
+                </td>
+                <td>{{ item.verified_by_name or '-' }}</td>
+                <td>
+                    <form method="POST" action="{{ url_for('ai_data.verify_item', item_type=item_type, item_id=item.item_id) }}" class="inline-form">
+                        <button type="submit" class="small-button">標記今日已確認</button>
+                    </form>
+                </td>
+            </tr>
+            {% else %}
+            <tr><td colspan="6" class="empty-data">目前沒有資料</td></tr>
+            {% endfor %}
+            </tbody>
+        </table>
+    </div>
+
+</div>
+
+{% endblock %}

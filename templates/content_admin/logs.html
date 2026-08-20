@@ -1,0 +1,84 @@
+{% extends "content_admin/base.html" %}
+{% set active_menu = "logs" %}
+
+{% block title %}操作紀錄｜Travel Together{% endblock %}
+{% block page_title %}操作紀錄{% endblock %}
+{% block page_subtitle %}查詢內容管理員在景點、餐廳、住宿、國家城市、分類、提案審核上的所有操作{% endblock %}
+
+{% block content %}
+
+<div class="admin-section">
+    <form method="GET" action="{{ url_for('logs.list_logs') }}" class="filter-form">
+
+        <input type="text" name="keyword" placeholder="搜尋說明內容" value="{{ keyword or '' }}">
+
+        <select name="action">
+            <option value="">全部動作</option>
+            {% for a in actions %}
+                <option value="{{ a }}" {{ 'selected' if action == a else '' }}>{{ action_labels.get(a, a) }}</option>
+            {% endfor %}
+        </select>
+
+        <input type="date" name="date_from" value="{{ date_from or '' }}">
+        <span>～</span>
+        <input type="date" name="date_to" value="{{ date_to or '' }}">
+
+        <button type="submit">🔍 搜尋</button>
+        <a href="{{ url_for('logs.list_logs') }}">清除篩選</a>
+
+    </form>
+</div>
+
+<div class="admin-section">
+
+    <div class="section-title">
+        <h2>操作紀錄列表</h2>
+        <span>共 {{ total }} 筆</span>
+    </div>
+
+    <div class="table-container">
+        <table class="admin-table">
+            <thead>
+            <tr>
+                <th>時間</th>
+                <th>操作人</th>
+                <th>動作</th>
+                <th>對象</th>
+                <th>說明</th>
+                <th>來源 IP</th>
+            </tr>
+            </thead>
+            <tbody>
+            {% for log in logs %}
+            <tr>
+                <td>{{ log.created_at }}</td>
+                <td>{{ log.admin_name }}</td>
+                <td>{{ action_labels.get(log.action, log.action) }}</td>
+                <td>{{ log.target_type or '-' }}{% if log.target_id %}（ID: {{ log.target_id }}）{% endif %}</td>
+                <td>{{ log.description or '-' }}</td>
+                <td>{{ log.ip_address or '-' }}</td>
+            </tr>
+            {% else %}
+            <tr>
+                <td colspan="6" class="empty-data">目前沒有符合條件的操作紀錄</td>
+            </tr>
+            {% endfor %}
+            </tbody>
+        </table>
+    </div>
+
+    {% if total_pages > 1 %}
+    <div class="pagination">
+        {% for p in range(1, total_pages + 1) %}
+            {% if p == page %}
+                <span class="current">{{ p }}</span>
+            {% else %}
+                <a href="{{ url_for('logs.list_logs', keyword=keyword, action=action, date_from=date_from, date_to=date_to, page=p) }}">{{ p }}</a>
+            {% endif %}
+        {% endfor %}
+    </div>
+    {% endif %}
+
+</div>
+
+{% endblock %}

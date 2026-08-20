@@ -1,0 +1,46 @@
+{% extends "content_admin/base.html" %}
+{% set active_menu = "restaurants" %}
+
+{% block title %}匯入餐廳｜Travel Together{% endblock %}
+{% block page_title %}CSV 匯入餐廳{% endblock %}
+{% block page_subtitle %}一次上傳多筆餐廳資料{% endblock %}
+
+{% block content %}
+
+<div class="admin-section">
+
+    <p>請先下載範本，依欄位格式填好資料後上傳。<a href="{{ url_for('restaurants.download_restaurant_template') }}">⬇ 下載範本 CSV</a></p>
+
+    <table class="admin-table" style="margin-top:14px;">
+        <thead>
+        <tr><th>欄位</th><th>說明</th></tr>
+        </thead>
+        <tbody>
+        <tr><td>name</td><td>餐廳名稱（必填）</td></tr>
+        <tr><td>country</td><td>國家名稱（必填，若不存在會自動新增）</td></tr>
+        <tr><td>city</td><td>城市名稱（必填，若不存在會自動新增）</td></tr>
+        <tr><td>category</td><td>餐廳分類（選填，若不存在會自動新增）</td></tr>
+        <tr><td>address</td><td>地址（選填）</td></tr>
+        <tr><td>cuisine_type</td><td>料理類型（選填，例如日式料理）</td></tr>
+        <tr><td>price_level</td><td>價位：low／medium／high／luxury（選填，預設 medium）</td></tr>
+        <tr><td>opening_hours</td><td>營業時間（選填，例如 11:00-21:00）</td></tr>
+        <tr><td>description</td><td>餐廳描述（選填）</td></tr>
+        <tr><td>website_url</td><td>官方網站（選填）</td></tr>
+        <tr><td>status</td><td>狀態：active／hidden／pending（選填，預設 active）</td></tr>
+        </tbody>
+    </table>
+
+    <form method="POST" enctype="multipart/form-data" class="content-form" style="margin-top:22px;">
+        <div class="form-group">
+            <label for="csv_file">選擇 CSV 檔案</label>
+            <input type="file" id="csv_file" name="csv_file" accept=".csv" required>
+        </div>
+        <div class="form-actions">
+            <button type="submit" class="primary-button">開始匯入</button>
+            <a href="{{ url_for('restaurants.list_restaurants') }}" class="secondary-link">取消</a>
+        </div>
+    </form>
+
+</div>
+
+{% endblock %}

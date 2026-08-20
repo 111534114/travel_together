@@ -1,0 +1,47 @@
+{% extends "content_admin/base.html" %}
+{% set active_menu = "accommodations" %}
+
+{% block title %}匯入住宿｜Travel Together{% endblock %}
+{% block page_title %}CSV 匯入住宿{% endblock %}
+{% block page_subtitle %}一次上傳多筆住宿資料{% endblock %}
+
+{% block content %}
+
+<div class="admin-section">
+
+    <p>請先下載範本，依欄位格式填好資料後上傳。<a href="{{ url_for('accommodations.download_accommodation_template') }}">⬇ 下載範本 CSV</a></p>
+
+    <table class="admin-table" style="margin-top:14px;">
+        <thead>
+        <tr><th>欄位</th><th>說明</th></tr>
+        </thead>
+        <tbody>
+        <tr><td>name</td><td>住宿名稱（必填）</td></tr>
+        <tr><td>country</td><td>國家名稱（必填，若不存在會自動新增）</td></tr>
+        <tr><td>city</td><td>城市名稱（必填，若不存在會自動新增）</td></tr>
+        <tr><td>category</td><td>住宿分類（選填，若不存在會自動新增）</td></tr>
+        <tr><td>address</td><td>地址（選填）</td></tr>
+        <tr><td>accommodation_type</td><td>住宿類型（選填，例如飯店、民宿）</td></tr>
+        <tr><td>price_per_night</td><td>每晚房價（選填，數字，預設 0）</td></tr>
+        <tr><td>check_in_time</td><td>入住時間（選填，例如 15:00）</td></tr>
+        <tr><td>check_out_time</td><td>退房時間（選填，例如 11:00）</td></tr>
+        <tr><td>description</td><td>住宿描述（選填）</td></tr>
+        <tr><td>website_url</td><td>官方網站（選填）</td></tr>
+        <tr><td>status</td><td>狀態：active／hidden／pending（選填，預設 active）</td></tr>
+        </tbody>
+    </table>
+
+    <form method="POST" enctype="multipart/form-data" class="content-form" style="margin-top:22px;">
+        <div class="form-group">
+            <label for="csv_file">選擇 CSV 檔案</label>
+            <input type="file" id="csv_file" name="csv_file" accept=".csv" required>
+        </div>
+        <div class="form-actions">
+            <button type="submit" class="primary-button">開始匯入</button>
+            <a href="{{ url_for('accommodations.list_accommodations') }}" class="secondary-link">取消</a>
+        </div>
+    </form>
+
+</div>
+
+{% endblock %}

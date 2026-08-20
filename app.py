@@ -57,7 +57,117 @@ def index():
 
 @app.route("/visitor")
 def visitor():
-    return render_template("visitor.html")
+    connection = get_db_connection()
+
+    stats = {
+        'total_trips': 0,
+        'total_members': 0,
+        'satisfaction_rate': '99.2%',
+        'total_expenses': '0'
+    }
+    public_trips = []
+    companions = []
+    trips_timeline_json = {}
+
+    if connection:
+        cursor = connection.cursor(dictionary=True)
+        try:
+            # 1. 查詢真實統計數據
+            cursor.execute("SELECT COUNT(*) AS total FROM trips")
+            stats['total_trips'] = cursor.fetchone()['total'] or 0
+
+            cursor.execute("SELECT COUNT(*) AS total FROM users WHERE role = 'member' AND status != 'deleted'")
+            stats['total_members'] = cursor.fetchone()['total'] or 0
+
+            cursor.execute("SELECT COALESCE(SUM(amount), 0) AS total FROM expenses")
+            total_exp = cursor.fetchone()['total'] or 0
+            stats['total_expenses'] = f"{total_exp:,.0f}"
+
+            # 2. 查詢會員建立的公開行程列表
+            cursor.execute("""
+                SELECT t.trip_id, t.trip_name, t.country, t.city,
+                       t.start_date, t.end_date, t.people_count,
+                       t.total_budget, t.currency, t.introduction,
+                       t.cover_image_path, t.visibility,
+                       c.category_name,
+                       u.full_name AS owner_name,
+                       u.nickname AS owner_nickname,
+                       DATEDIFF(t.end_date, t.start_date) + 1 AS days_count
+                FROM trips t
+                JOIN users u ON u.user_id = t.owner_id
+                LEFT JOIN categories c ON c.category_id = t.category_id
+                WHERE t.visibility = 'public'
+                ORDER BY t.trip_id DESC
+            """)
+            public_trips = cursor.fetchall()
+
+            # 3. 查詢最新揪團旅伴資訊
+            cursor.execute("""
+                SELECT t.trip_id, t.trip_name, t.country, t.city,
+                       t.people_count, t.total_budget, t.currency, t.introduction,
+                       u.full_name AS owner_name, u.nickname AS owner_nickname,
+                       COUNT(tm.user_id) AS joined_count
+                FROM trips t
+                JOIN users u ON u.user_id = t.owner_id
+                LEFT JOIN trip_members tm ON tm.trip_id = t.trip_id AND tm.join_status = 'accepted'
+                WHERE t.visibility = 'public' OR t.people_count > 1
+                GROUP BY t.trip_id, t.trip_name, t.country, t.city, t.people_count, t.total_budget, t.currency, t.introduction, u.full_name, u.nickname
+                ORDER BY t.trip_id DESC
+                LIMIT 6
+            """)
+            companions = cursor.fetchall()
+
+            # 4. 查詢所有公開行程的每日詳細景點明細 (提供 Modal 彈窗即時動態預覽)
+            if public_trips:
+                trip_ids = [t['trip_id'] for t in public_trips]
+                format_strings = ','.join(['%s'] * len(trip_ids))
+                cursor.execute(f"""
+                    SELECT i.itinerary_id, i.trip_id, i.itinerary_date,
+                           i.title, i.start_time, i.end_time, i.address,
+                           i.estimated_cost
+                    FROM itineraries i
+                    WHERE i.trip_id IN ({format_strings})
+                    ORDER BY i.itinerary_date ASC, i.start_time ASC
+                """, tuple(trip_ids))
+                all_itineraries = cursor.fetchall()
+
+                for trip in public_trips:
+                    tid = trip['trip_id']
+                    t_items = [item for item in all_itineraries if item['trip_id'] == tid]
+                    
+                    timeline = []
+                    for idx, item in enumerate(t_items, 1):
+                        date_str = str(item['itinerary_date']) if item['itinerary_date'] else f"第 {idx} 天"
+                        time_str = f" ({item['start_time']} - {item['end_time']})" if item['start_time'] else ""
+                        addr_str = f" ｜ 地址: {item['address']}" if item['address'] else ""
+                        cost_str = f" (預估金額: NT$ {item['estimated_cost']:,.0f})" if item['estimated_cost'] else ""
+                        timeline.append({
+                            'day': f"📍 {date_str}{time_str}",
+                            'desc': f"{item['title']}{addr_str}{cost_str}"
+                        })
+
+                    trips_timeline_json[str(tid)] = {
+                        'title': trip['trip_name'],
+                        'author': trip['owner_nickname'] or trip['owner_name'],
+                        'days': f"{trip['days_count']} 天",
+                        'budget': f"{trip['currency']} {trip['total_budget']:,.0f}",
+                        'timeline': timeline if timeline else [{'day': 'Day 1', 'desc': trip['introduction'] or '暫無明細'}]
+                    }
+
+        except Exception as error:
+            print("訪客頁面資料庫查詢失敗：", error)
+        finally:
+            cursor.close()
+            connection.close()
+
+    return render_template(
+        "visitor.html",
+        stats=stats,
+        public_trips=public_trips,
+        companions=companions,
+        trips_timeline_json=trips_timeline_json
+    )
+
 
 
 @app.route("/login", methods=["GET", "POST"])

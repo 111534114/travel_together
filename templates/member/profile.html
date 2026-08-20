@@ -1,3 +1,35 @@
-{% extends 'member/base.html' %}{% block title %}個人資料｜走吧揪團{% endblock %}{% block content %}
-<div class="page-heading"><p class="eyebrow">ACCOUNT</p><h1>個人資料</h1><p>管理你的會員資訊與登入安全。</p></div><div class="profile-grid"><section class="panel"><h2>基本資料</h2><form method="post" class="member-form compact"><label>會員帳號<input disabled value="{{ user.username }}"></label><label>姓名<input disabled value="{{ user.full_name }}"></label><label>暱稱<input name="nickname" value="{{ user.nickname or '' }}"></label><label>電子郵件<input name="email" type="email" required value="{{ user.email }}"></label><p class="muted">註冊日期：{{ user.created_at.strftime('%Y-%m-%d') }}　帳號狀態：{{ user.status }}</p><button class="member-btn primary">儲存資料</button></form></section><section class="panel"><h2>修改密碼</h2><form method="post" action="{{ url_for('member.change_password') }}" class="member-form compact"><label>目前密碼<input name="current_password" type="password" required></label><label>新密碼<input name="new_password" type="password" minlength="6" required></label><label>確認新密碼<input name="confirm_password" type="password" minlength="6" required></label><button class="member-btn primary">更新密碼</button></form></section></div>
+{% extends 'member/base.html' %}
+{% block title %}個人資料｜走吧揪團{% endblock %}
+{% block content %}
+<div class="profile-page">
+  <div class="page-heading profile-heading">
+    <p class="eyebrow">ACCOUNT SETTINGS</p>
+    <h1>個人資料</h1>
+    <p>管理你的會員資訊與登入安全。</p>
+  </div>
+
+  <section class="profile-card">
+    <div class="profile-card-top">
+      <div class="profile-avatar">{{ (user.nickname or user.full_name)[0] }}</div>
+      <div>
+        <p class="profile-kicker">TRAVEL TOGETHER MEMBER</p>
+        <h2>{{ user.nickname or user.full_name }}</h2>
+        <span>@{{ user.username }}</span>
+      </div>
+      <span class="account-status">帳號正常</span>
+    </div>
+
+    <form method="post" class="profile-form">
+      <div class="profile-section-title"><div><h3>基本資料</h3><p>更新其他旅伴看到的個人資訊。</p></div></div>
+      <div class="profile-fields">
+        <label>會員帳號<input disabled value="{{ user.username }}"></label>
+        <label>姓名<input disabled value="{{ user.full_name }}"></label>
+        <label>暱稱<input name="nickname" value="{{ user.nickname or '' }}" placeholder="輸入顯示名稱"></label>
+        <label>電子郵件<input name="email" type="email" required value="{{ user.email }}"></label>
+      </div>
+      <div class="profile-meta"><span>加入日期　{{ user.created_at.strftime('%Y 年 %m 月 %d 日') }}</span><span>帳號狀態　{{ user.status }}</span></div>
+      <div class="profile-actions"><a class="member-btn outline" href="{{ url_for('member.change_password') }}">修改密碼</a><button class="member-btn primary">儲存變更</button></div>
+    </form>
+  </section>
+</div>
 {% endblock %}

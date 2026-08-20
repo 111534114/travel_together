@@ -331,17 +331,20 @@ def profile():
     return render_template("member/profile.html", user=user)
 
 
-@member_bp.route("/profile/password", methods=["POST"])
+@member_bp.route("/profile/password", methods=["GET", "POST"])
 @login_required("member")
 def change_password():
+    if request.method == "GET":
+        return render_template("member/change_password.html")
+
     current=request.form.get("current_password",""); new=request.form.get("new_password",""); confirm=request.form.get("confirm_password","")
-    if len(new)<6 or new != confirm: flash("新密碼至少 6 碼，且兩次輸入必須一致。", "error"); return redirect(url_for("member.profile"))
+    if len(new)<6 or new != confirm: flash("新密碼至少 6 碼，且兩次輸入必須一致。", "error"); return redirect(url_for("member.change_password"))
     connection=_connection_or_home()
-    if connection is None: return redirect(url_for("member.profile"))
+    if connection is None: return redirect(url_for("member.change_password"))
     cursor=connection.cursor(dictionary=True)
     try:
         cursor.execute("SELECT password_hash FROM users WHERE user_id=%s",(session["user_id"],)); user=cursor.fetchone()
-        if not user or not check_password_hash(user["password_hash"],current): flash("目前密碼不正確。", "error")
+        if not user or not check_password_hash(user["password_hash"],current): flash("目前密碼不正確。", "error"); return redirect(url_for("member.change_password"))
         else: cursor.execute("UPDATE users SET password_hash=%s WHERE user_id=%s",(generate_password_hash(new),session["user_id"])); connection.commit(); flash("密碼已更新。", "success")
     finally: cursor.close(); connection.close()
     return redirect(url_for("member.profile"))

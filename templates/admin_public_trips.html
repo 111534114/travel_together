@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>公開行程管理｜Travel Together</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body class="admin-body">
+<div class="admin-layout">
+    <aside class="admin-sidebar">
+        <div class="admin-logo admin-logo-branded">
+            <img src="{{ url_for('static', filename='images/logo.png') }}" alt="走吧揪團 Logo">
+            <p>系統管理後台</p>
+        </div>
+        <nav class="admin-menu">
+            <a href="{{ url_for('system_admin_home') }}">📊 儀表板</a>
+            <a href="{{ url_for('admin_users') }}">👤 會員管理</a>
+            <a class="active" href="{{ url_for('admin_public_trips') }}">🧳 公開行程管理</a>
+            <a href="#">🚨 檢舉管理</a>
+            <a href="#">📢 公告管理</a>
+            <a href="#">📈 統計報表</a>
+            <a href="#">📝 操作紀錄</a>
+            <a href="{{ url_for('logout') }}">🚪 登出</a>
+        </nav>
+    </aside>
+
+    <main class="admin-main">
+        <div class="admin-topbar">
+            <div>
+                <h1>公開行程管理</h1>
+                <p>檢視公開行程內容與公開狀態</p>
+            </div>
+        </div>
+
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% for category, message in messages %}
+                <div class="message {{ category }}">{{ message }}</div>
+            {% endfor %}
+        {% endwith %}
+
+        <div class="dashboard-cards public-trip-stats">
+            <div class="dashboard-card">
+                <div class="card-icon">🌍</div>
+                <div><p>目前公開</p><h2>{{ public_count }}</h2></div>
+            </div>
+            <div class="dashboard-card">
+                <div class="card-icon">🚨</div>
+                <div><p>待處理檢舉</p><h2>{{ pending_report_count }}</h2></div>
+            </div>
+        </div>
+
+        <section class="admin-section">
+            <form method="get" action="{{ url_for('admin_public_trips') }}"
+                  class="admin-search public-trip-filter">
+                <input type="search" name="keyword"
+                       value="{{ keyword }}"
+                       placeholder="搜尋行程、國家城市或建立者">
+                <select name="status" aria-label="行程狀態">
+                    <option value="">所有狀態</option>
+                    <option value="planning" {{ 'selected' if trip_status == 'planning' }}>規劃中</option>
+                    <option value="upcoming" {{ 'selected' if trip_status == 'upcoming' }}>即將出發</option>
+                    <option value="completed" {{ 'selected' if trip_status == 'completed' }}>已完成</option>
+                    <option value="cancelled" {{ 'selected' if trip_status == 'cancelled' }}>已取消</option>
+                </select>
+                <button type="submit">🔍 搜尋</button>
+                {% if keyword or trip_status %}
+                    <a href="{{ url_for('admin_public_trips') }}">清除篩選</a>
+                {% endif %}
+            </form>
+        </section>
+
+        <section class="admin-section">
+            <div class="section-title">
+                <h2>公開行程列表</h2>
+                <span>符合條件 {{ trips|length }} 筆</span>
+            </div>
+            <div class="table-container">
+                <table class="admin-table public-trips-table">
+                    <thead>
+                    <tr>
+                        <th>行程</th>
+                        <th>建立者</th>
+                        <th>日期</th>
+                        <th>狀態</th>
+                        <th>內容</th>
+                        <th>檢舉</th>
+                        <th>操作</th>
+                    </tr>
+                    </thead>
+                    <tbody>
+                    {% for trip in trips %}
+                    <tr>
+                        <td>
+                            <strong>{{ trip.trip_name }}</strong>
+                            <small>{{ trip.country or '未設定' }} · {{ trip.city or '未設定' }}</small>
+                        </td>
+                        <td>{{ trip.owner_name }}<small>@{{ trip.owner_username }}</small></td>
+                        <td>{{ trip.start_date }}<small>至 {{ trip.end_date }}</small></td>
+                        <td><span class="trip-status status-{{ trip.status }}">
+                            {{ {'planning':'規劃中','upcoming':'即將出發','completed':'已完成','cancelled':'已取消'}[trip.status] }}
+                        </span></td>
+                        <td>{{ trip.member_count }} 位旅伴<small>{{ trip.itinerary_count }} 個項目</small></td>
+                        <td>
+                            {% if trip.report_count %}
+                                <span class="report-count">{{ trip.report_count }} 件</span>
+                            {% else %}0 件{% endif %}
+                        </td>
+                        <td>
+                            <form method="post"
+                                  action="{{ url_for('unpublish_public_trip', trip_id=trip.trip_id) }}"
+                                  class="inline-form"
+                                  onsubmit="return confirm('確定取消公開這個行程嗎？行程將改為私人。');">
+                                <button type="submit" class="disable-button">取消公開</button>
+                            </form>
+                        </td>
+                    </tr>
+                    {% else %}
+                    <tr><td colspan="7" class="empty-data">目前沒有符合條件的公開行程</td></tr>
+                    {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </section>
+    </main>
+</div>
+</body>
+</html>

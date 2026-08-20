@@ -1307,6 +1307,77 @@ body {
     text-decoration: none;
 }
 
+.public-trip-stats {
+    grid-template-columns: repeat(2, minmax(220px, 340px));
+}
+
+.public-trip-filter select {
+    min-width: 150px;
+    padding: 10px 12px;
+    border: 1px solid #cccccc;
+    border-radius: 6px;
+    background: #ffffff;
+    font: inherit;
+}
+
+.public-trips-table td strong,
+.public-trips-table td small {
+    display: block;
+}
+
+.public-trips-table td small {
+    margin-top: 4px;
+    color: #777777;
+    white-space: nowrap;
+}
+
+.trip-status,
+.report-count {
+    display: inline-block;
+    padding: 5px 9px;
+    border-radius: 999px;
+    font-size: 13px;
+    white-space: nowrap;
+}
+
+.status-planning {
+    color: #55407d;
+    background: #eee9f8;
+}
+
+.status-upcoming {
+    color: #17655d;
+    background: #ddf3ef;
+}
+
+.status-completed {
+    color: #376145;
+    background: #e2f1e6;
+}
+
+.status-cancelled,
+.report-count {
+    color: #9d2f38;
+    background: #fde7e9;
+}
+
+@media (max-width: 700px) {
+    .public-trip-stats {
+        grid-template-columns: 1fr;
+    }
+
+    .public-trip-filter {
+        align-items: stretch;
+        flex-direction: column;
+    }
+
+    .public-trip-filter input,
+    .public-trip-filter select,
+    .public-trip-filter button {
+        width: 100%;
+    }
+}
+
 @media (max-width: 700px) {
 
     .form-grid,

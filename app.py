@@ -11,6 +11,7 @@ from blueprints.categories import categories_bp
 from blueprints.proposals import proposals_bp
 from blueprints.ai_data import ai_data_bp
 from blueprints.reports import reports_bp
+from blueprints.member import member_bp
 
 app = Flask(__name__)
 
@@ -28,6 +29,7 @@ app.register_blueprint(categories_bp)
 app.register_blueprint(proposals_bp)
 app.register_blueprint(ai_data_bp)
 app.register_blueprint(reports_bp)
+app.register_blueprint(member_bp)
 
 
 def redirect_by_role(role):
@@ -216,7 +218,7 @@ def member_home():
     if session.get("role") != "member":
         return redirect_by_role(session.get("role"))
 
-    return render_template("member_home.html")
+    return redirect(url_for("member.dashboard"))
 
 
 @app.route("/content-admin")

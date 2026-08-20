@@ -486,6 +486,125 @@ def admin_users():
         keyword=keyword
     )
 
+
+@app.route("/system-admin/public-trips")
+def admin_public_trips():
+    if "user_id" not in session or session.get("role") != "system_admin":
+        return redirect(url_for("login"))
+
+    keyword = request.args.get("keyword", "").strip()
+    trip_status = request.args.get("status", "").strip()
+    allowed_statuses = {"planning", "upcoming", "completed", "cancelled"}
+    if trip_status not in allowed_statuses:
+        trip_status = ""
+
+    connection = get_db_connection()
+    if connection is None:
+        flash("資料庫連線失敗", "error")
+        return render_template(
+            "admin_public_trips.html",
+            trips=[], keyword=keyword, trip_status=trip_status,
+            public_count=0, pending_report_count=0
+        )
+
+    cursor = connection.cursor(dictionary=True)
+    try:
+        conditions = ["t.visibility = 'public'"]
+        params = []
+
+        if keyword:
+            search = f"%{keyword}%"
+            conditions.append("""
+                (t.trip_name LIKE %s OR t.country LIKE %s OR t.city LIKE %s
+                 OR u.username LIKE %s OR u.full_name LIKE %s)
+            """)
+            params.extend([search] * 5)
+
+        if trip_status:
+            conditions.append("t.status = %s")
+            params.append(trip_status)
+
+        where_clause = " AND ".join(conditions)
+        cursor.execute(f"""
+            SELECT t.trip_id, t.trip_name, t.country, t.city,
+                   t.start_date, t.end_date, t.status, t.created_at,
+                   u.username AS owner_username, u.full_name AS owner_name,
+                   COUNT(DISTINCT CASE WHEN tm.join_status = 'accepted'
+                                      THEN tm.trip_member_id END) AS member_count,
+                   COUNT(DISTINCT i.itinerary_id) AS itinerary_count,
+                   COUNT(DISTINCT CASE WHEN r.status IN ('pending', 'processing')
+                                      THEN r.report_id END) AS report_count
+            FROM trips t
+            JOIN users u ON u.user_id = t.owner_id
+            LEFT JOIN trip_members tm ON tm.trip_id = t.trip_id
+            LEFT JOIN itineraries i ON i.trip_id = t.trip_id
+            LEFT JOIN reports r ON r.target_type = 'trip' AND r.target_id = t.trip_id
+            WHERE {where_clause}
+            GROUP BY t.trip_id, t.trip_name, t.country, t.city,
+                     t.start_date, t.end_date, t.status, t.created_at,
+                     u.username, u.full_name
+            ORDER BY t.created_at DESC
+        """, tuple(params))
+        trips = cursor.fetchall()
+
+        cursor.execute("SELECT COUNT(*) AS total FROM trips WHERE visibility = 'public'")
+        public_count = cursor.fetchone()["total"]
+
+        cursor.execute("""
+            SELECT COUNT(*) AS total
+            FROM reports r
+            JOIN trips t ON t.trip_id = r.target_id
+            WHERE r.target_type = 'trip'
+              AND r.status IN ('pending', 'processing')
+              AND t.visibility = 'public'
+        """)
+        pending_report_count = cursor.fetchone()["total"]
+    finally:
+        cursor.close()
+        connection.close()
+
+    return render_template(
+        "admin_public_trips.html",
+        trips=trips,
+        keyword=keyword,
+        trip_status=trip_status,
+        public_count=public_count,
+        pending_report_count=pending_report_count,
+    )
+
+
+@app.route("/system-admin/public-trips/<int:trip_id>/unpublish", methods=["POST"])
+def unpublish_public_trip(trip_id):
+    if "user_id" not in session or session.get("role") != "system_admin":
+        return redirect(url_for("login"))
+
+    connection = get_db_connection()
+    if connection is None:
+        flash("資料庫連線失敗", "error")
+        return redirect(url_for("admin_public_trips"))
+
+    cursor = connection.cursor()
+    try:
+        cursor.execute("""
+            UPDATE trips
+            SET visibility = 'private'
+            WHERE trip_id = %s AND visibility = 'public'
+        """, (trip_id,))
+        connection.commit()
+        if cursor.rowcount:
+            flash("行程已取消公開，原有行程資料不受影響。", "success")
+        else:
+            flash("找不到該公開行程，可能已被更新。", "error")
+    except Exception as error:
+        connection.rollback()
+        print("取消公開行程失敗：", error)
+        flash("取消公開行程失敗", "error")
+    finally:
+        cursor.close()
+        connection.close()
+
+    return redirect(url_for("admin_public_trips"))
+
 @app.route("/system-admin/users/<int:user_id>/disable", methods=["POST"])
 def disable_user():
 

@@ -52,6 +52,7 @@
         <h2>景點列表</h2>
         <div>
             <span>共 {{ total }} 筆　</span>
+            <a href="{{ url_for('attractions.import_attractions') }}" class="small-button">⬆ 匯入 CSV</a>
             <a href="{{ url_for('attractions.create_attraction') }}" class="small-button">＋ 新增景點</a>
         </div>
     </div>

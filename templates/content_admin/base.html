@@ -63,6 +63,11 @@
                 🤖 AI資料維護
             </a>
 
+            <a class="{{ 'active' if active_menu == 'logs' else '' }}"
+               href="{{ url_for('logs.list_logs') }}">
+                📝 操作紀錄
+            </a>
+
             <a href="{{ url_for('logout') }}">
                 🚪 登出
             </a>

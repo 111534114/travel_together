@@ -52,6 +52,7 @@
         <h2>餐廳列表</h2>
         <div>
             <span>共 {{ total }} 筆　</span>
+            <a href="{{ url_for('restaurants.import_restaurants') }}" class="small-button">⬆ 匯入 CSV</a>
             <a href="{{ url_for('restaurants.create_restaurant') }}" class="small-button">＋ 新增餐廳</a>
         </div>
     </div>

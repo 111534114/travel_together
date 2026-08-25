@@ -52,6 +52,7 @@
         <h2>住宿列表</h2>
         <div>
             <span>共 {{ total }} 筆　</span>
+            <a href="{{ url_for('accommodations.import_accommodations') }}" class="small-button">⬆ 匯入 CSV</a>
             <a href="{{ url_for('accommodations.create_accommodation') }}" class="small-button">＋ 新增住宿</a>
         </div>
     </div>

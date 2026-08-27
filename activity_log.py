@@ -5,6 +5,7 @@ ACTION_LABELS = {  # 定義每種操作代碼對應的中文顯示名稱，給�
     "update_attraction": "更新景點",
     "delete_attraction": "刪除景點",
     "import_attractions": "匯入景點",
+    "import_attractions_google": "從Google地圖匯入景點",
     "create_restaurant": "新增餐廳",
     "update_restaurant": "更新餐廳",
     "delete_restaurant": "刪除餐廳",

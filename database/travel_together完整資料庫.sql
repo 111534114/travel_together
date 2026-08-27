@@ -467,7 +467,7 @@ INSERT INTO attractions(category_id,name,country_id,city_id,address,ticket_price
 VALUES(3,'台北101',1,1,'台北市信義區信義路五段7號',600,120,'台北代表性地標與觀景台',TRUE,2);
 
 INSERT INTO trips(owner_id,category_id,trip_name,country,city,start_date,end_date,people_count,total_budget,currency,introduction,visibility,status,share_token)
-VALUES(1,1,'台北三天兩夜','台灣','台北市','2026-08-10','2026-08-12',3,15000,'TWD','測試用多人協作旅遊行程','private','planning','demo-taipei-2026');
+VALUES(1,1,'台北三天兩夜','台灣','台北市','2026-08-10','2026-08-12',3,15000,'TWD','測試用多人協作旅遊行程','public','planning','demo-taipei-2026');
 
 INSERT INTO trip_members(trip_id,user_id,member_role,join_status,joined_at)
 VALUES(1,1,'owner','accepted',NOW());

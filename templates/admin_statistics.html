@@ -1,0 +1,24 @@
+{% extends "system_admin_base.html" %}
+{% set active_page = "statistics" %}
+{% block title %}統計報表{% endblock %}
+{% block page_title %}統計報表{% endblock %}
+{% block page_description %}快速掌握會員、行程與管理案件概況{% endblock %}
+{% block content %}
+<div class="dashboard-cards admin-cards-compact">
+    <div class="dashboard-card"><div class="card-icon">👥</div><div><p>會員／啟用</p><h2>{{ totals.members }} <small>/ {{ totals.active_members }}</small></h2></div></div>
+    <div class="dashboard-card"><div class="card-icon">✈️</div><div><p>行程／公開</p><h2>{{ totals.trips }} <small>/ {{ totals.public_trips }}</small></h2></div></div>
+    <div class="dashboard-card"><div class="card-icon">🚨</div><div><p>檢舉／結案</p><h2>{{ totals.reports }} <small>/ {{ totals.resolved_reports }}</small></h2></div></div>
+    <div class="dashboard-card"><div class="card-icon">📢</div><div><p>公告總數</p><h2>{{ totals.announcements }}</h2></div></div>
+</div>
+<div class="admin-report-grid">
+    <section class="admin-section"><h2>近六個月新會員</h2><div class="simple-bars">
+        {% set max_members = monthly|map(attribute='total')|max if monthly else 1 %}
+        {% for row in monthly %}<div class="bar-row"><span>{{ row.month }}</span><div class="bar-track"><i style="width: {{ (row.total / max_members * 100)|round }}%"></i></div><strong>{{ row.total }}</strong></div>
+        {% else %}<p class="empty-data">尚無會員資料</p>{% endfor %}
+    </div></section>
+    <section class="admin-section"><h2>行程狀態分布</h2><table class="admin-table"><thead><tr><th>狀態</th><th>數量</th></tr></thead><tbody>
+        {% for row in trip_statuses %}<tr><td>{{ {'planning':'規劃中','upcoming':'即將出發','completed':'已完成','cancelled':'已取消'}.get(row.status, row.status) }}</td><td>{{ row.total }}</td></tr>
+        {% else %}<tr><td colspan="2" class="empty-data">尚無行程資料</td></tr>{% endfor %}
+    </tbody></table></section>
+</div>
+{% endblock %}

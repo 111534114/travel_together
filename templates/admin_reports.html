@@ -1,0 +1,46 @@
+{% extends "system_admin_base.html" %}
+{% set active_page = "reports" %}
+{% block title %}檢舉管理{% endblock %}
+{% block page_title %}檢舉管理{% endblock %}
+{% block page_description %}查看會員檢舉並記錄處理結果{% endblock %}
+{% block content %}
+<div class="dashboard-cards admin-cards-compact">
+    <div class="dashboard-card"><div class="card-icon">⏳</div><div><p>待處理</p><h2>{{ counts.pending }}</h2></div></div>
+    <div class="dashboard-card"><div class="card-icon">🔎</div><div><p>處理中</p><h2>{{ counts.processing }}</h2></div></div>
+    <div class="dashboard-card"><div class="card-icon">✅</div><div><p>已結案</p><h2>{{ counts.resolved }}</h2></div></div>
+    <div class="dashboard-card"><div class="card-icon">↩️</div><div><p>已駁回</p><h2>{{ counts.rejected }}</h2></div></div>
+</div>
+<section class="admin-section">
+    <form class="admin-search admin-filter" method="get">
+        <input name="keyword" value="{{ keyword }}" placeholder="搜尋檢舉人、原因或說明">
+        <select name="status">
+            <option value="">全部狀態</option>
+            {% for value, label in [('pending','待處理'),('processing','處理中'),('resolved','已結案'),('rejected','已駁回')] %}
+            <option value="{{ value }}" {{ 'selected' if report_status == value }}>{{ label }}</option>
+            {% endfor %}
+        </select>
+        <button>🔍 查詢</button><a href="{{ url_for('admin_reports') }}">清除</a>
+    </form>
+</section>
+<section class="admin-section">
+    <div class="section-title"><h2>檢舉列表</h2><span>共 {{ reports|length }} 筆</span></div>
+    <div class="table-container"><table class="admin-table">
+        <thead><tr><th>ID</th><th>檢舉人</th><th>對象</th><th>原因／說明</th><th>狀態</th><th>建立時間</th><th>處理</th></tr></thead>
+        <tbody>
+        {% for report in reports %}<tr>
+            <td>#{{ report.report_id }}</td>
+            <td>{{ report.reporter_name }}<br><small>{{ report.reporter_username }}</small></td>
+            <td>{{ report.target_type }} #{{ report.target_id }}</td>
+            <td><strong>{{ report.reason }}</strong><br><small>{{ report.description or '—' }}</small>{% if report.handling_result %}<div class="result-note">結果：{{ report.handling_result }}</div>{% endif %}</td>
+            <td><span class="status-badge status-{{ report.status }}">{{ {'pending':'待處理','processing':'處理中','resolved':'已結案','rejected':'已駁回'}[report.status] }}</span></td>
+            <td>{{ report.created_at }}</td>
+            <td><form method="post" action="{{ url_for('handle_admin_report', report_id=report.report_id) }}" class="stack-form">
+                <select name="status"><option value="processing">處理中</option><option value="resolved">結案</option><option value="rejected">駁回</option></select>
+                <input name="handling_result" placeholder="處理備註">
+                <button class="small-button" type="submit">儲存</button>
+            </form></td>
+        </tr>{% else %}<tr><td class="empty-data" colspan="7">目前沒有符合條件的檢舉</td></tr>{% endfor %}
+        </tbody>
+    </table></div>
+</section>
+{% endblock %}

@@ -1,0 +1,38 @@
+{% extends "system_admin_base.html" %}
+{% set active_page = "announcements" %}
+{% block title %}公告管理{% endblock %}
+{% block page_title %}公告管理{% endblock %}
+{% block page_description %}建立公告並控制發布、置頂或隱藏{% endblock %}
+{% block content %}
+<section class="admin-section">
+    <div class="section-title"><h2>新增公告</h2></div>
+    <form method="post" class="admin-form-grid">
+        <label>公告標題<input name="title" maxlength="150" required></label>
+        <label>初始狀態<select name="status"><option value="draft">草稿</option><option value="published">立即發布</option></select></label>
+        <label class="form-wide">公告內容<textarea name="content" rows="5" required></textarea></label>
+        <label class="checkbox-label"><input type="checkbox" name="is_pinned"> 置頂公告</label>
+        <div><button class="small-button" type="submit">建立公告</button></div>
+    </form>
+</section>
+<section class="admin-section">
+    <div class="section-title"><h2>公告列表</h2><span>共 {{ announcements|length }} 筆</span></div>
+    <div class="announcement-list">
+    {% for item in announcements %}
+        <article class="announcement-item">
+            <div class="announcement-content">
+                <h3>{% if item.is_pinned %}📌 {% endif %}{{ item.title }}</h3>
+                <p>{{ item.content }}</p>
+                <small>建立者：{{ item.creator_name }} ｜ 建立：{{ item.created_at }}{% if item.publish_at %} ｜ 發布：{{ item.publish_at }}{% endif %}</small>
+            </div>
+            <form method="post" action="{{ url_for('update_admin_announcement', announcement_id=item.announcement_id) }}" class="announcement-actions">
+                <select name="status">
+                    {% for value, label in [('draft','草稿'),('published','已發布'),('hidden','已隱藏')] %}<option value="{{ value }}" {{ 'selected' if item.status == value }}>{{ label }}</option>{% endfor %}
+                </select>
+                <label><input type="checkbox" name="is_pinned" {{ 'checked' if item.is_pinned }}> 置頂</label>
+                <button class="small-button" type="submit">更新</button>
+            </form>
+        </article>
+    {% else %}<p class="empty-data">目前尚無公告</p>{% endfor %}
+    </div>
+</section>
+{% endblock %}

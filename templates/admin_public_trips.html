@@ -17,10 +17,10 @@
             <a href="{{ url_for('system_admin_home') }}">📊 儀表板</a>
             <a href="{{ url_for('admin_users') }}">👤 會員管理</a>
             <a class="active" href="{{ url_for('admin_public_trips') }}">🧳 公開行程管理</a>
-            <a href="#">🚨 檢舉管理</a>
-            <a href="#">📢 公告管理</a>
-            <a href="#">📈 統計報表</a>
-            <a href="#">📝 操作紀錄</a>
+            <a href="{{ url_for('admin_reports') }}">🚨 檢舉管理</a>
+            <a href="{{ url_for('admin_announcements') }}">📢 公告管理</a>
+            <a href="{{ url_for('admin_statistics') }}">📈 統計報表</a>
+            <a href="{{ url_for('admin_logs') }}">📝 操作紀錄</a>
             <a href="{{ url_for('logout') }}">🚪 登出</a>
         </nav>
     </aside>

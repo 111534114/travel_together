@@ -488,6 +488,127 @@ body {
     padding: 30px !important;
 }
 
+/* 系統管理員進階頁面 */
+.admin-cards-compact .dashboard-card {
+    padding: 20px;
+}
+
+.dashboard-card h2 small {
+    color: #8c819f;
+    font-size: 16px;
+}
+
+.admin-filter {
+    flex-wrap: wrap;
+}
+
+.admin-filter select,
+.stack-form select,
+.stack-form input,
+.announcement-actions select,
+.admin-form-grid input,
+.admin-form-grid select,
+.admin-form-grid textarea {
+    padding: 10px 12px;
+    border: 1px solid #d8d2e2;
+    border-radius: 8px;
+    background: #fff;
+    font: inherit;
+    box-sizing: border-box;
+}
+
+.status-badge {
+    display: inline-block;
+    padding: 5px 9px;
+    border-radius: 20px;
+    white-space: nowrap;
+    font-size: 13px;
+}
+
+.status-pending { background: #fff3cd; color: #805b00; }
+.status-processing { background: #e6f0ff; color: #24569b; }
+.status-resolved { background: #e6f6ea; color: #26763a; }
+.status-rejected { background: #fdeaea; color: #a52d2d; }
+
+.stack-form {
+    display: grid;
+    min-width: 175px;
+    gap: 7px;
+}
+
+.stack-form .small-button,
+.announcement-actions .small-button,
+.admin-form-grid .small-button {
+    border: 0;
+    cursor: pointer;
+}
+
+.result-note {
+    margin-top: 7px;
+    padding: 7px;
+    border-left: 3px solid #7a65a6;
+    background: #f6f3fb;
+    font-size: 13px;
+}
+
+.admin-form-grid {
+    display: grid;
+    grid-template-columns: 2fr 1fr;
+    gap: 16px;
+    align-items: end;
+}
+
+.admin-form-grid label:not(.checkbox-label) {
+    display: grid;
+    gap: 7px;
+    color: #51406f;
+    font-weight: bold;
+}
+
+.form-wide {
+    grid-column: 1 / -1;
+}
+
+.checkbox-label {
+    padding: 10px 0;
+}
+
+.announcement-list {
+    display: grid;
+    gap: 14px;
+}
+
+.announcement-item {
+    display: flex;
+    justify-content: space-between;
+    gap: 25px;
+    padding: 18px;
+    border: 1px solid #ebe7f1;
+    border-radius: 12px;
+}
+
+.announcement-content h3 { margin: 0 0 8px; color: #51406f; }
+.announcement-content p { margin: 0 0 12px; white-space: pre-wrap; }
+.announcement-content small, .admin-table small { color: #777; }
+
+.announcement-actions {
+    min-width: 145px;
+    display: grid;
+    gap: 10px;
+    align-content: start;
+}
+
+.admin-report-grid {
+    display: grid;
+    grid-template-columns: 1.4fr 1fr;
+    gap: 20px;
+}
+
+.simple-bars { display: grid; gap: 16px; margin-top: 22px; }
+.bar-row { display: grid; grid-template-columns: 75px 1fr 35px; gap: 12px; align-items: center; }
+.bar-track { height: 12px; background: #eee9f8; border-radius: 10px; overflow: hidden; }
+.bar-track i { display: block; height: 100%; min-width: 4px; background: #6f58a0; border-radius: inherit; }
+
 
 /* 手機版 */
 
@@ -513,6 +634,15 @@ body {
 
     .dashboard-cards {
         grid-template-columns: 1fr;
+    }
+
+    .admin-form-grid,
+    .admin-report-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .announcement-item {
+        flex-direction: column;
     }
 
 }

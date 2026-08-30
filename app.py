@@ -13,6 +13,7 @@ from blueprints.ai_data import ai_data_bp  # 匯入 AI 使用資料維護的藍�
 from blueprints.reports import reports_bp  # 匯入統計報表匯出的藍圖
 from blueprints.logs import logs_bp  # 匯入操作紀錄查詢的藍圖
 from blueprints.member import member_bp  # 匯入會員功能的藍圖
+from activity_log import ACTION_LABELS, log_action
 
 app = Flask(__name__)  # 建立 Flask 應用程式實例
 
@@ -716,7 +717,7 @@ def unpublish_public_trip(trip_id):  # 定義取消公開行程函式
     return redirect(url_for("admin_public_trips"))  # 導回公開行程管理頁
 
 @app.route("/system-admin/users/<int:user_id>/disable", methods=["POST"])  # 設定停用會員的路由，網址帶入會員 ID
-def disable_user():  # 定義停用會員函式(注意：這裡函式簽名少了 user_id 參數，是既有的程式錯誤，執行到下面用到 user_id 時會噴錯)
+def disable_user(user_id):
 
     if "user_id" not in session:  # 如果尚未登入
         return redirect(url_for("login"))  # 導向登入頁
@@ -760,7 +761,7 @@ def disable_user():  # 定義停用會員函式(注意：這裡函式簽名少�
 
     return redirect(url_for("admin_users"))  # 導回會員管理頁
 @app.route("/system-admin/users/<int:user_id>/enable", methods=["POST"])  # 設定恢復會員的路由，網址帶入會員 ID
-def enable_user():  # 定義恢復會員函式(同樣缺少 user_id 參數，是既有的程式錯誤)
+def enable_user(user_id):
 
     if "user_id" not in session:  # 如果尚未登入
         return redirect(url_for("login"))  # 導向登入頁
@@ -803,6 +804,274 @@ def enable_user():  # 定義恢復會員函式(同樣缺少 user_id 參數，是
         connection.close()  # 關閉資料庫連線
 
     return redirect(url_for("admin_users"))  # 導回會員管理頁
+def system_admin_required():
+    """Return a redirect when the current user is not a system administrator."""
+    if "user_id" not in session or session.get("role") != "system_admin":
+        return redirect(url_for("login"))
+    return None
+
+
+@app.route("/system-admin/reports")
+def admin_reports():
+    denied = system_admin_required()
+    if denied:
+        return denied
+
+    keyword = request.args.get("keyword", "").strip()
+    report_status = request.args.get("status", "").strip()
+    if report_status not in {"pending", "processing", "resolved", "rejected"}:
+        report_status = ""
+
+    connection = get_db_connection()
+    reports = []
+    counts = {"pending": 0, "processing": 0, "resolved": 0, "rejected": 0}
+    if connection is None:
+        flash("資料庫連線失敗", "error")
+    else:
+        cursor = connection.cursor(dictionary=True)
+        try:
+            conditions = []
+            params = []
+            if report_status:
+                conditions.append("r.status = %s")
+                params.append(report_status)
+            if keyword:
+                search = f"%{keyword}%"
+                conditions.append("(u.username LIKE %s OR u.full_name LIKE %s OR r.reason LIKE %s OR r.description LIKE %s)")
+                params.extend([search, search, search, search])
+            where_clause = f"WHERE {' AND '.join(conditions)}" if conditions else ""
+            cursor.execute(f"""
+                SELECT r.*, u.username AS reporter_username, u.full_name AS reporter_name,
+                       h.full_name AS handler_name
+                FROM reports r
+                JOIN users u ON u.user_id = r.reporter_id
+                LEFT JOIN users h ON h.user_id = r.handled_by
+                {where_clause}
+                ORDER BY FIELD(r.status, 'pending', 'processing', 'resolved', 'rejected'),
+                         r.created_at DESC
+                LIMIT 200
+            """, tuple(params))
+            reports = cursor.fetchall()
+            cursor.execute("SELECT status, COUNT(*) AS total FROM reports GROUP BY status")
+            for row in cursor.fetchall():
+                counts[row["status"]] = row["total"]
+        finally:
+            cursor.close()
+            connection.close()
+    return render_template("admin_reports.html", reports=reports, counts=counts,
+                           keyword=keyword, report_status=report_status)
+
+
+@app.route("/system-admin/reports/<int:report_id>/handle", methods=["POST"])
+def handle_admin_report(report_id):
+    denied = system_admin_required()
+    if denied:
+        return denied
+    new_status = request.form.get("status", "processing")
+    result = request.form.get("handling_result", "").strip()
+    if new_status not in {"processing", "resolved", "rejected"}:
+        flash("檢舉狀態不正確", "error")
+        return redirect(url_for("admin_reports"))
+    if new_status in {"resolved", "rejected"} and not result:
+        flash("結案或駁回時請填寫處理結果", "error")
+        return redirect(url_for("admin_reports"))
+
+    connection = get_db_connection()
+    if connection is None:
+        flash("資料庫連線失敗", "error")
+        return redirect(url_for("admin_reports"))
+    cursor = connection.cursor()
+    try:
+        cursor.execute("""
+            UPDATE reports
+            SET status = %s, handling_result = %s, handled_by = %s,
+                handled_at = CASE WHEN %s IN ('resolved', 'rejected') THEN NOW() ELSE NULL END
+            WHERE report_id = %s
+        """, (new_status, result or None, session["user_id"], new_status, report_id))
+        log_action(cursor, "handle_report", "report", report_id,
+                   f"檢舉狀態更新為 {new_status}：{result or '未填寫備註'}")
+        connection.commit()
+        flash("檢舉處理狀態已更新", "success")
+    except Exception as error:
+        connection.rollback()
+        print("更新檢舉失敗：", error)
+        flash("更新檢舉失敗", "error")
+    finally:
+        cursor.close()
+        connection.close()
+    return redirect(url_for("admin_reports"))
+
+
+@app.route("/system-admin/announcements", methods=["GET", "POST"])
+def admin_announcements():
+    denied = system_admin_required()
+    if denied:
+        return denied
+    connection = get_db_connection()
+    announcements = []
+    if connection is None:
+        flash("資料庫連線失敗", "error")
+        return render_template("admin_announcements.html", announcements=[])
+    cursor = connection.cursor(dictionary=True)
+    try:
+        if request.method == "POST":
+            title = request.form.get("title", "").strip()
+            content = request.form.get("content", "").strip()
+            status = request.form.get("status", "draft")
+            is_pinned = 1 if request.form.get("is_pinned") else 0
+            if status not in {"draft", "published"}:
+                status = "draft"
+            if not title or not content:
+                flash("請填寫公告標題與內容", "error")
+            else:
+                cursor.execute("""
+                    INSERT INTO announcements
+                    (created_by, title, content, is_pinned, status, publish_at)
+                    VALUES (%s, %s, %s, %s, %s,
+                            CASE WHEN %s = 'published' THEN NOW() ELSE NULL END)
+                """, (session["user_id"], title, content, is_pinned, status, status))
+                announcement_id = cursor.lastrowid
+                log_action(cursor, "create_announcement", "announcement", announcement_id,
+                           f"新增公告：{title}")
+                connection.commit()
+                flash("公告已建立", "success")
+                return redirect(url_for("admin_announcements"))
+        cursor.execute("""
+            SELECT a.*, u.full_name AS creator_name
+            FROM announcements a
+            JOIN users u ON u.user_id = a.created_by
+            ORDER BY a.is_pinned DESC, a.created_at DESC
+        """)
+        announcements = cursor.fetchall()
+    finally:
+        cursor.close()
+        connection.close()
+    return render_template("admin_announcements.html", announcements=announcements)
+
+
+@app.route("/system-admin/announcements/<int:announcement_id>/update", methods=["POST"])
+def update_admin_announcement(announcement_id):
+    denied = system_admin_required()
+    if denied:
+        return denied
+    status = request.form.get("status", "draft")
+    if status not in {"draft", "published", "hidden"}:
+        status = "draft"
+    is_pinned = 1 if request.form.get("is_pinned") else 0
+    connection = get_db_connection()
+    if connection is None:
+        flash("資料庫連線失敗", "error")
+        return redirect(url_for("admin_announcements"))
+    cursor = connection.cursor()
+    try:
+        cursor.execute("""
+            UPDATE announcements
+            SET status = %s, is_pinned = %s,
+                publish_at = CASE
+                    WHEN %s = 'published' AND publish_at IS NULL THEN NOW()
+                    WHEN %s != 'published' THEN NULL ELSE publish_at END
+            WHERE announcement_id = %s
+        """, (status, is_pinned, status, status, announcement_id))
+        log_action(cursor, "update_announcement", "announcement", announcement_id,
+                   f"公告狀態更新為 {status}")
+        connection.commit()
+        flash("公告設定已更新", "success")
+    except Exception as error:
+        connection.rollback()
+        print("更新公告失敗：", error)
+        flash("更新公告失敗", "error")
+    finally:
+        cursor.close()
+        connection.close()
+    return redirect(url_for("admin_announcements"))
+
+
+@app.route("/system-admin/statistics")
+def admin_statistics():
+    denied = system_admin_required()
+    if denied:
+        return denied
+    totals = {"members": 0, "active_members": 0, "trips": 0, "public_trips": 0,
+              "reports": 0, "resolved_reports": 0, "announcements": 0}
+    monthly = []
+    trip_statuses = []
+    connection = get_db_connection()
+    if connection is None:
+        flash("資料庫連線失敗", "error")
+    else:
+        cursor = connection.cursor(dictionary=True)
+        try:
+            cursor.execute("""
+                SELECT
+                  (SELECT COUNT(*) FROM users WHERE role='member' AND status!='deleted') AS members,
+                  (SELECT COUNT(*) FROM users WHERE role='member' AND status='active') AS active_members,
+                  (SELECT COUNT(*) FROM trips) AS trips,
+                  (SELECT COUNT(*) FROM trips WHERE visibility='public') AS public_trips,
+                  (SELECT COUNT(*) FROM reports) AS reports,
+                  (SELECT COUNT(*) FROM reports WHERE status='resolved') AS resolved_reports,
+                  (SELECT COUNT(*) FROM announcements) AS announcements
+            """)
+            totals.update(cursor.fetchone())
+            cursor.execute("""
+                SELECT DATE_FORMAT(created_at, '%%Y-%%m') AS month, COUNT(*) AS total
+                FROM users WHERE role='member'
+                GROUP BY DATE_FORMAT(created_at, '%%Y-%%m')
+                ORDER BY month DESC LIMIT 6
+            """)
+            monthly = list(reversed(cursor.fetchall()))
+            cursor.execute("SELECT status, COUNT(*) AS total FROM trips GROUP BY status ORDER BY total DESC")
+            trip_statuses = cursor.fetchall()
+        finally:
+            cursor.close()
+            connection.close()
+    return render_template("admin_statistics.html", totals=totals, monthly=monthly,
+                           trip_statuses=trip_statuses)
+
+
+@app.route("/system-admin/logs")
+def admin_logs():
+    denied = system_admin_required()
+    if denied:
+        return denied
+    keyword = request.args.get("keyword", "").strip()
+    action = request.args.get("action", "").strip()
+    logs = []
+    actions = []
+    connection = get_db_connection()
+    if connection is None:
+        flash("資料庫連線失敗", "error")
+    else:
+        cursor = connection.cursor(dictionary=True)
+        try:
+            conditions = []
+            params = []
+            if action:
+                conditions.append("l.action = %s")
+                params.append(action)
+            if keyword:
+                search = f"%{keyword}%"
+                conditions.append("(u.full_name LIKE %s OR l.description LIKE %s OR l.ip_address LIKE %s)")
+                params.extend([search, search, search])
+            where_clause = f"WHERE {' AND '.join(conditions)}" if conditions else ""
+            cursor.execute(f"""
+                SELECT l.*, u.full_name AS admin_name, u.username AS admin_username
+                FROM admin_logs l JOIN users u ON u.user_id = l.admin_id
+                {where_clause}
+                ORDER BY l.created_at DESC LIMIT 200
+            """, tuple(params))
+            logs = cursor.fetchall()
+            cursor.execute("SELECT DISTINCT action FROM admin_logs ORDER BY action")
+            actions = [row["action"] for row in cursor.fetchall()]
+        finally:
+            cursor.close()
+            connection.close()
+    labels = dict(ACTION_LABELS)
+    labels.update({"handle_report": "處理檢舉", "create_announcement": "新增公告",
+                   "update_announcement": "更新公告"})
+    return render_template("admin_logs.html", logs=logs, actions=actions,
+                           labels=labels, keyword=keyword, selected_action=action)
+
+
 @app.route("/logout")  # 設定登出路由
 def logout():  # 定義登出函式
     session.clear()  # 清空 session，移除登入狀態

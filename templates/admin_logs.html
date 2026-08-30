@@ -1,0 +1,17 @@
+{% extends "system_admin_base.html" %}
+{% set active_page = "logs" %}
+{% block title %}操作紀錄{% endblock %}
+{% block page_title %}操作紀錄{% endblock %}
+{% block page_description %}追蹤管理員的重要資料異動{% endblock %}
+{% block content %}
+<section class="admin-section"><form class="admin-search admin-filter" method="get">
+    <input name="keyword" value="{{ keyword }}" placeholder="搜尋管理員、說明或 IP">
+    <select name="action"><option value="">全部操作</option>{% for value in actions %}<option value="{{ value }}" {{ 'selected' if selected_action == value }}>{{ labels.get(value, value) }}</option>{% endfor %}</select>
+    <button>🔍 查詢</button><a href="{{ url_for('admin_logs') }}">清除</a>
+</form></section>
+<section class="admin-section"><div class="section-title"><h2>最近操作</h2><span>最多顯示 200 筆</span></div>
+<div class="table-container"><table class="admin-table"><thead><tr><th>時間</th><th>管理員</th><th>操作</th><th>對象</th><th>說明</th><th>IP</th></tr></thead><tbody>
+{% for log in logs %}<tr><td>{{ log.created_at }}</td><td>{{ log.admin_name }}<br><small>{{ log.admin_username }}</small></td><td>{{ labels.get(log.action, log.action) }}</td><td>{{ log.target_type or '—' }}{% if log.target_id %} #{{ log.target_id }}{% endif %}</td><td>{{ log.description or '—' }}</td><td>{{ log.ip_address or '—' }}</td></tr>
+{% else %}<tr><td class="empty-data" colspan="6">目前沒有符合條件的操作紀錄</td></tr>{% endfor %}
+</tbody></table></div></section>
+{% endblock %}

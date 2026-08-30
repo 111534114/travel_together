@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}系統管理後台{% endblock %}｜Travel Together</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body class="admin-body">
+<div class="admin-layout">
+    <aside class="admin-sidebar">
+        <div class="admin-logo admin-logo-branded">
+            <img src="{{ url_for('static', filename='images/logo.png') }}" alt="走吧揪團 Logo">
+            <p>系統管理後台</p>
+        </div>
+        <nav class="admin-menu">
+            <a class="{{ 'active' if active_page == 'dashboard' }}" href="{{ url_for('system_admin_home') }}">📊 儀表板</a>
+            <a class="{{ 'active' if active_page == 'users' }}" href="{{ url_for('admin_users') }}">👤 會員管理</a>
+            <a class="{{ 'active' if active_page == 'trips' }}" href="{{ url_for('admin_public_trips') }}">🧳 公開行程管理</a>
+            <a class="{{ 'active' if active_page == 'reports' }}" href="{{ url_for('admin_reports') }}">🚨 檢舉管理</a>
+            <a class="{{ 'active' if active_page == 'announcements' }}" href="{{ url_for('admin_announcements') }}">📢 公告管理</a>
+            <a class="{{ 'active' if active_page == 'statistics' }}" href="{{ url_for('admin_statistics') }}">📈 統計報表</a>
+            <a class="{{ 'active' if active_page == 'logs' }}" href="{{ url_for('admin_logs') }}">📝 操作紀錄</a>
+            <a href="{{ url_for('logout') }}">🚪 登出</a>
+        </nav>
+    </aside>
+    <main class="admin-main">
+        <div class="admin-topbar">
+            <h1>{% block page_title %}{% endblock %}</h1>
+            <p>{% block page_description %}{% endblock %}</p>
+        </div>
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% for category, message in messages %}
+                <div class="message {{ category }}">{{ message }}</div>
+            {% endfor %}
+        {% endwith %}
+        {% block content %}{% endblock %}
+    </main>
+</div>
+</body>
+</html>

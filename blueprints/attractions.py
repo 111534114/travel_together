@@ -6,6 +6,12 @@ from flask import Blueprint, flash, redirect, render_template, request, session,
 from activity_log import log_action  # 匯入操作紀錄共用函式
 from auth import login_required  # 匯入登入/角色檢查裝飾器
 from db import get_db_connection  # 匯入取得資料庫連線的函式
+from google_places import (  # 匯入 Google Places API 相關函式
+    PlacesApiError,  # Google Places API 呼叫失敗時拋出的例外類別
+    extract_place_fields,  # 把 Google 回傳的地點資料整理成我們需要的欄位
+    is_configured,  # 檢查是否已設定 API 金鑰
+    search_place,  # 用文字搜尋一個地點
+)
 from utils import (  # 匯入圖片、下拉選單、CSV 匯入匯出相關的共用工具函式
     csv_response,  # 組成 CSV 檔案下載回應
     delete_uploaded_image,  # 刪除已上傳圖片
@@ -23,6 +29,8 @@ attractions_bp = Blueprint("attractions", __name__, url_prefix="/content-admin/a
 PAGE_SIZE = 20  # 定義列表頁每頁顯示筆數
 
 STATUS_CHOICES = ("active", "hidden", "pending")  # 定義景點狀態允許的合法值
+
+MAX_GOOGLE_IMPORT_ROWS = 50  # 定義單次 Google 地圖匯入最多可處理的地點數量，避免一次送出過多付費 API 請求
 
 
 def _parse_form(form_data):  # 定義內部函式：把表單資料解析成乾淨的欄位字典，並做基本驗證
@@ -526,6 +534,105 @@ def import_attractions():  # 定義景點 CSV 匯入函式
     return render_template(  # 渲染匯入結果頁面
         "content_admin/attractions/import_result.html",
         results=results,  # 每一列的匯入結果
+        success_count=success_count,  # 成功筆數
+        fail_count=len(results) - success_count,  # 失敗筆數
+    )
+
+
+@attractions_bp.route("/import/google", methods=["GET", "POST"])  # 設定用 Google 地圖批次匯入景點的路由
+@login_required("content_admin")  # 限制只有內容管理員登入後才能存取
+def import_from_google():  # 定義 Google 地圖批次匯入函式
+    if request.method == "GET":  # 如果是進頁面(還沒送出地點清單)
+        return render_template(  # 顯示上傳表單頁面，並告知目前 API 金鑰是否已設定
+            "content_admin/attractions/import_google.html",
+            api_configured=is_configured()
+        )
+
+    if not is_configured():  # 如果還沒設定 Google Places API 金鑰
+        flash("尚未設定 Google Places API 金鑰，請先在專案的 .env 檔案設定 GOOGLE_MAPS_API_KEY", "error")  # 顯示錯誤提示
+        return redirect(url_for("attractions.import_from_google"))  # 導回匯入頁面
+
+    raw_text = request.form.get("place_names", "")  # 取得使用者輸入的地點名稱清單(一行一個)
+    queries = [line.strip() for line in raw_text.splitlines() if line.strip()]  # 拆成一行一行，並去掉空白列
+
+    if not queries:  # 如果沒有輸入任何地點名稱
+        flash("請至少輸入一個地點名稱", "error")  # 顯示錯誤提示
+        return redirect(url_for("attractions.import_from_google"))  # 導回匯入頁面
+
+    if len(queries) > MAX_GOOGLE_IMPORT_ROWS:  # 如果一次輸入的地點數量超過上限
+        flash(f"一次最多只能匯入 {MAX_GOOGLE_IMPORT_ROWS} 筆，請分批處理", "error")  # 顯示錯誤提示(避免一次打太多付費 API 請求)
+        return redirect(url_for("attractions.import_from_google"))  # 導回匯入頁面
+
+    connection = get_db_connection()  # 建立資料庫連線
+
+    if connection is None:  # 如果連線失敗
+        flash("資料庫連線失敗", "error")  # 顯示錯誤提示
+        return redirect(url_for("attractions.import_from_google"))  # 導回匯入頁面
+
+    cursor = connection.cursor()  # 建立一般游標(方便搭配 get_or_create 系列函式)
+    results = []  # 建立每一列的處理結果清單，元素為 (列號, 查詢字串或地點名稱, 是否成功, 說明)
+    success_count = 0  # 建立成功筆數計數器
+
+    try:  # 開始逐一處理每個地點名稱
+        for row_number, query in enumerate(queries, start=1):  # 從第 1 個開始編號
+            try:  # 嘗試呼叫 Google API 並寫入資料庫
+                place = search_place(query)  # 用文字搜尋這個地點名稱(新版 API 一次就能拿到需要的所有欄位)
+
+                if place is None:  # 如果 Google 地圖上找不到符合的地點
+                    results.append((row_number, query, False, "Google 地圖查無此地點"))  # 記錄失敗原因
+                    continue  # 跳過這一筆，繼續處理下一個
+
+                fields = extract_place_fields(place)  # 把 Google 回傳的資料整理成我們需要的欄位
+                name = fields["name"] or query  # 取得地點名稱，找不到就用原本輸入的查詢字串
+                country_name = fields["country_name"]  # 取得解析出來的國家名稱
+                city_name = fields["city_name"]  # 取得解析出來的城市名稱
+
+                if not country_name or not city_name:  # 如果無法判斷國家或城市
+                    results.append((row_number, name, False, "無法從 Google 資料判斷國家或城市，請改用手動新增或修改後再匯入"))  # 記錄失敗原因
+                    continue  # 跳過這一筆，繼續處理下一個
+
+                latitude = fields["latitude"]  # 取得緯度
+                longitude = fields["longitude"]  # 取得經度
+                address = fields["address"]  # 取得完整地址
+                opening_hours_text = fields["opening_hours"]  # 取得整理好的開放時間文字
+                website_url = fields["website_url"]  # 取得官方網站(或 Google 地圖連結)
+
+                country_id = get_or_create_country(cursor, country_name)  # 取得(或新增)國家 ID
+                city_id = get_or_create_city(cursor, country_id, city_name)  # 取得(或新增)城市 ID
+
+                cursor.execute(  # 執行新增景點的 SQL，狀態固定設為「待確認」，需要管理員人工複核後才上架
+                    """
+                    INSERT INTO attractions
+                    (name, country_id, city_id, address, latitude, longitude,
+                     opening_hours, website_url, status, created_by)
+                    VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
+                    """,
+                    (
+                        name, country_id, city_id, address, latitude, longitude,  # 名稱、國家、城市、地址、緯度、經度
+                        opening_hours_text, website_url, "pending", session["user_id"]  # 開放時間、網站、狀態、建立者
+                    )
+                )
+                success_count += 1  # 成功筆數加一
+                results.append((row_number, name, True, "已從 Google 地圖匯入，狀態為「待確認」，請人工複核後改為啟用"))  # 記錄這一列匯入成功
+
+            except PlacesApiError as error:  # 如果呼叫 Google Places API 時發生錯誤(例如金鑰無效、超過用量)
+                results.append((row_number, query, False, f"Google API 錯誤：{error}"))  # 記錄失敗原因
+            except Exception as error:  # 如果處理過程發生其他例外(不中斷整批匯入)
+                results.append((row_number, query, False, str(error)))  # 記錄失敗原因
+
+        log_action(  # 把這次批次匯入寫入操作紀錄
+            cursor, "import_attractions_google", "attraction", None,
+            f"從 Google 地圖匯入景點，成功 {success_count} 筆，失敗 {len(results) - success_count} 筆"
+        )
+        connection.commit()  # 提交交易，正式寫入這次匯入成功的所有景點與操作紀錄
+
+    finally:  # 不論成功或失敗都要執行
+        cursor.close()  # 關閉游標
+        connection.close()  # 關閉資料庫連線
+
+    return render_template(  # 渲染匯入結果頁面
+        "content_admin/attractions/import_google_result.html",
+        results=results,  # 每一列的處理結果
         success_count=success_count,  # 成功筆數
         fail_count=len(results) - success_count,  # 失敗筆數
     )

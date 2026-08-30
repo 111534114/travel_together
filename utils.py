@@ -90,7 +90,16 @@ def get_categories(cursor, category_type):  # 定義取得指定類型分類清�
     return cursor.fetchall()  # 回傳查詢結果(分類清單)
 
 
+def normalize_place_name(name):  # 定義函式：統一常見的繁體異體字，避免同一個地方因為用字不同被當成兩筆資料
+    if not name:  # 如果名稱是空值
+        return name  # 直接原樣回傳
+
+    return name.replace("臺", "台")  # 「臺」統一轉成「台」(例如 Google 回傳的「臺北市」對應資料庫既有的「台北市」)
+
+
 def get_or_create_country(cursor, name):  # 定義函式：依名稱找國家，找不到就自動新增(給 CSV 匯入用)，cursor 需為非字典格式
+    name = normalize_place_name(name)  # 先統一異體字，避免「台灣」「臺灣」被當成兩個國家
+
     cursor.execute("SELECT country_id FROM countries WHERE name = %s", (name,))  # 查詢是否已有同名國家
     row = cursor.fetchone()  # 取得查詢結果(一筆 tuple 或 None)
 
@@ -102,6 +111,8 @@ def get_or_create_country(cursor, name):  # 定義函式：依名稱找國家，
 
 
 def get_or_create_city(cursor, country_id, name):  # 定義函式：依國家 ID 與城市名稱找城市，找不到就自動新增
+    name = normalize_place_name(name)  # 先統一異體字，避免「台北市」「臺北市」被當成兩個城市
+
     cursor.execute(  # 查詢該國家底下是否已有同名城市
         "SELECT city_id FROM cities WHERE country_id = %s AND name = %s",
         (country_id, name)

@@ -1,0 +1,40 @@
+{% extends "content_admin/base.html" %}
+{% set active_menu = "attractions" %}
+
+{% block title %}Google地圖匯入景點｜Travel Together{% endblock %}
+{% block page_title %}用 Google 地圖批次匯入景點{% endblock %}
+{% block page_subtitle %}輸入地點名稱清單，系統會自動查詢 Google 地圖並補齊地址、經緯度、開放時間{% endblock %}
+
+{% block content %}
+
+<div class="admin-section">
+
+    {% if not api_configured %}
+    <div class="message error">
+        尚未設定 Google Places API 金鑰。請在專案根目錄的 <code>.env</code> 檔案中設定
+        <code>GOOGLE_MAPS_API_KEY=你的金鑰</code>，並重新啟動伺服器後再使用這個功能。
+        （可參考 <code>.env.example</code>；金鑰需要到 Google Cloud Console 申請，Places API 為付費服務，有每月免費額度。）
+    </div>
+    {% endif %}
+
+    <ul>
+        <li>每一行輸入一個地點名稱，例如「台北101」或「日本東京晴空塔」，系統會用 Google 地圖搜尋最相符的地點。</li>
+        <li>一次最多 {{ 50 }} 筆，避免一次送出過多付費 API 請求。</li>
+        <li>匯入後的景點狀態會是「<strong>待確認</strong>」，不會直接對外顯示，請到景點列表逐筆確認資料正確後，再把狀態改成「啟用」。</li>
+        <li>票價、建議停留時間、分類 Google 地圖不會提供，匯入後請自行補上。</li>
+    </ul>
+
+    <form method="POST" class="content-form" style="margin-top:10px;">
+        <div class="form-group full-width">
+            <label for="place_names">地點名稱清單（一行一個）</label>
+            <textarea id="place_names" name="place_names" rows="10" placeholder="台北101&#10;日本東京晴空塔&#10;台北市立動物園" required></textarea>
+        </div>
+        <div class="form-actions">
+            <button type="submit" class="primary-button" {{ 'disabled' if not api_configured else '' }}>開始匯入</button>
+            <a href="{{ url_for('attractions.list_attractions') }}" class="secondary-link">取消</a>
+        </div>
+    </form>
+
+</div>
+
+{% endblock %}

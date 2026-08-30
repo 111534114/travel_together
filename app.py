@@ -65,7 +65,6 @@ def visitor():
     stats = {
         'total_trips': 0,
         'total_members': 0,
-        'satisfaction_rate': '99.2%',
         'total_expenses': '0'
     }
     public_trips = []
@@ -153,8 +152,11 @@ def visitor():
                         'title': trip['trip_name'],
                         'author': trip['owner_nickname'] or trip['owner_name'],
                         'days': f"{trip['days_count']} 天",
-                        'budget': f"{trip['currency']} {trip['total_budget']:,.0f}",
-                        'timeline': timeline if timeline else [{'day': 'Day 1', 'desc': trip['introduction'] or '暫無明細'}]
+                        'budget': (
+                            f"{trip['currency']} {trip['total_budget']:,.0f}"
+                            if trip['total_budget'] is not None else "未提供預算"
+                        ),
+                        'timeline': timeline
                     }
 
         except Exception as error:

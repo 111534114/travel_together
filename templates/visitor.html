@@ -29,6 +29,14 @@
     .hero p:last-child { margin: 0; color: #e9e3f5; }
     .button-light { display: inline-flex; flex: 0 0 auto; align-items: center; justify-content: center; min-height: 44px; padding: 10px 18px; color: #4b376d; background: #fff; border: 1px solid transparent; border-radius: 6px; font-weight: 700; }
     .button-light:hover { background: #f4f0fa; }
+    .announcements { margin: 28px 0 32px; }
+    .announcement-list { display: grid; gap: 12px; }
+    .announcement-card { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: 14px; align-items: start; padding: 17px 18px; background: #fff; border: 1px solid var(--line); border-radius: 8px; box-shadow: 0 6px 18px rgba(45, 37, 68, .04); }
+    .announcement-icon { display: grid; width: 38px; height: 38px; place-items: center; background: var(--purple-soft); border-radius: 50%; font-size: 18px; }
+    .announcement-card h3 { margin: 0 0 5px; font-size: 17px; }
+    .announcement-card p { margin: 0; color: #514b60; white-space: pre-wrap; font-size: 14px; line-height: 1.65; }
+    .announcement-meta { color: var(--muted); font-size: 12px; white-space: nowrap; }
+    .pinned-badge { display: inline-block; margin-left: 7px; padding: 2px 6px; color: #5a4088; background: var(--purple-soft); border-radius: 999px; font-size: 11px; vertical-align: 2px; }
     .search-bar { display: flex; gap: 12px; align-items: center; padding: 13px; margin: 20px 0 32px; background: #fff; border: 1px solid var(--line); border-radius: 8px; box-shadow: 0 8px 22px rgba(45, 37, 68, .05); }
     .search-bar label { flex: 1; min-width: 0; }
     .search-bar input { width: 100%; min-height: 44px; padding: 10px 14px; color: var(--ink); background: #fff; border: 1px solid #cbc5d7; border-radius: 6px; outline: none; }
@@ -60,6 +68,13 @@
     .companion-card h3 { margin: 0 0 7px; font-size: 18px; }
     .companion-card p { margin: 0; color: var(--muted); font-size: 14px; }
     .companion-card .intro { min-height: 42px; margin: 14px 0; color: #443d54; }
+    .member-unlock { display: flex; align-items: center; justify-content: space-between; gap: 22px; margin-top: 54px; padding: 26px 30px; color: #fff; background: var(--purple); border-radius: 8px; }
+    .member-unlock h2 { margin: 0 0 6px; font-size: 23px; }
+    .member-unlock p { margin: 0; color: #e9e3f5; font-size: 14px; }
+    .member-unlock-actions { display: flex; flex: 0 0 auto; gap: 10px; }
+    .member-unlock .button-light { min-height: 40px; }
+    .member-unlock .button-outline { display: inline-flex; align-items: center; justify-content: center; min-height: 40px; padding: 9px 15px; color: #fff; border: 1px solid #cfc1e5; border-radius: 6px; font-size: 14px; font-weight: 700; }
+    .member-unlock .button-outline:hover { background: rgba(255, 255, 255, .12); }
     .modal { position: fixed; inset: 0; z-index: 30; display: none; place-items: center; padding: 20px; background: rgba(39, 35, 58, .55); }
     .modal.open { display: grid; }
     .modal-card { width: min(680px, 100%); max-height: 85vh; overflow-y: auto; padding: 28px; background: #fff; border-radius: 12px; box-shadow: 0 20px 45px rgba(35, 27, 55, .25); }
@@ -71,13 +86,14 @@
     .timeline-item b, .timeline-item span { display: block; }
     .timeline-item span { margin-top: 3px; color: #5e556c; font-size: 14px; }
     @media (max-width: 850px) { .site-nav { align-items: flex-start; flex-direction: column; gap: 6px; padding: 8px 18px 12px; } .nav-links { width: 100%; margin-left: 0; overflow-x: auto; } main { width: min(100% - 28px, 680px); padding-top: 24px; } .hero { align-items: flex-start; flex-direction: column; padding: 30px 26px; } .trip-grid, .companion-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
-    @media (max-width: 560px) { .brand { width: 108px; height: 48px; } .nav-links { gap: 2px; } .nav-links a { padding: 8px; font-size: 14px; white-space: nowrap; } .hero h1 { font-size: 28px; } .search-bar, .section-header { align-items: stretch; flex-direction: column; } .trip-grid, .companion-grid { grid-template-columns: 1fr; } .section-header h2 { font-size: 24px; } }
+    @media (max-width: 560px) { .brand { width: 108px; height: 48px; } .nav-links { gap: 2px; } .nav-links a { padding: 8px; font-size: 14px; white-space: nowrap; } .hero h1 { font-size: 28px; } .search-bar, .section-header, .member-unlock { align-items: stretch; flex-direction: column; } .trip-grid, .companion-grid { grid-template-columns: 1fr; } .announcement-card { grid-template-columns: auto minmax(0, 1fr); } .announcement-meta { grid-column: 2; } .member-unlock { padding: 24px; } .member-unlock-actions { flex-wrap: wrap; } .section-header h2 { font-size: 24px; } }
   </style>
 </head>
 <body>
   <header class="site-nav">
     <a class="brand" href="{{ url_for('visitor') }}"><img src="{{ url_for('static', filename='images/logo.png') }}" alt="走吧揪團"></a>
     <nav class="nav-links">
+      <a href="#announcements">公告事項</a>
       <a href="#trips">探索行程</a>
       <a href="#companions">尋找旅伴</a>
       <a href="/login">登入</a>
@@ -92,6 +108,29 @@
         <p>依行程名稱、國家、城市或分類，尋找目前公開分享的行程。</p>
       </div>
       <a class="button-light" href="/register">＋ 建立新行程</a>
+    </section>
+    <section id="announcements" class="announcements">
+      <div class="section-header">
+        <div>
+          <p class="eyebrow" style="color: var(--purple-light)">ANNOUNCEMENTS</p>
+          <h2>公告事項</h2>
+          <p>掌握 Travel Together 的最新消息與服務通知。</p>
+        </div>
+      </div>
+      <div class="announcement-list">
+        {% for announcement in announcements %}
+          <article class="announcement-card">
+            <div class="announcement-icon" aria-hidden="true">{% if announcement.is_pinned %}📌{% else %}📢{% endif %}</div>
+            <div>
+              <h3>{{ announcement.title }}{% if announcement.is_pinned %}<span class="pinned-badge">置頂</span>{% endif %}</h3>
+              <p>{{ announcement.content }}</p>
+            </div>
+            <time class="announcement-meta" datetime="{{ announcement.publish_at or announcement.created_at }}">{{ (announcement.publish_at or announcement.created_at).strftime('%Y-%m-%d') if (announcement.publish_at or announcement.created_at) else '' }}</time>
+          </article>
+        {% else %}
+          <div class="empty">目前尚無公告事項。</div>
+        {% endfor %}
+      </div>
     </section>
     <form class="search-bar" onsubmit="searchTrips(event)">
       <label for="tripSearch"><input id="tripSearch" type="search" placeholder="搜尋行程名稱、地點或分類"></label>
@@ -153,6 +192,16 @@
         {% else %}
           <div class="empty">目前沒有公開的旅伴揪團資訊。</div>
         {% endfor %}
+      </div>
+    </section>
+    <section class="member-unlock" aria-labelledby="member-unlock-title">
+      <div>
+        <h2 id="member-unlock-title">登入會員後，解鎖更多旅遊功能</h2>
+        <p>建立與協作行程、發起揪團、管理預算分帳，和旅伴一起規劃每一段旅程。</p>
+      </div>
+      <div class="member-unlock-actions">
+        <a class="button-outline" href="/login">會員登入</a>
+        <a class="button-light" href="/register">免費註冊</a>
       </div>
     </section>
   </main>

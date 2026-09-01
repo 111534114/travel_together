@@ -13,6 +13,7 @@ from google_places import (  # 匯入 Google Places API 相關函式
     search_place,  # 用文字搜尋一個地點
 )
 from utils import (  # 匯入圖片、下拉選單、CSV 匯入匯出相關的共用工具函式
+    build_place_description,  # 沒有現成簡介時，自動組一段景點描述
     csv_response,  # 組成 CSV 檔案下載回應
     delete_uploaded_image,  # 刪除已上傳圖片
     get_categories,  # 取得分類清單
@@ -21,6 +22,7 @@ from utils import (  # 匯入圖片、下拉選單、CSV 匯入匯出相關的�
     get_or_create_category,  # 依名稱找分類，找不到就自動新增
     get_or_create_city,  # 依名稱找城市，找不到就自動新增
     get_or_create_country,  # 依名稱找國家，找不到就自動新增
+    save_image_from_url,  # 從網址下載圖片
     save_uploaded_image,  # 儲存上傳圖片
 )
 
@@ -48,6 +50,7 @@ def _parse_form(form_data):  # 定義內部函式：把表單資料解析成乾�
         "is_popular": form_data.get("is_popular") == "on",  # 是否熱門景點，checkbox 有勾選時值為 "on"
         "status": form_data.get("status", "active").strip(),  # 狀態，預設 active
         "remove_image": form_data.get("remove_image") == "on",  # 是否要移除目前圖片(編輯時使用)
+        "image_url": form_data.get("image_url", "").strip(),  # 圖片網址(選填，用來從網路下載圖片)
     }
 
     errors = []  # 建立錯誤訊息清單
@@ -215,10 +218,13 @@ def create_attraction():  # 定義新增景點函式
         if request.method == "POST":  # 如果是表單送出請求
             form, errors = _parse_form(request.form)  # 解析並驗證表單資料
 
-            if not errors:  # 如果基本驗證沒有錯誤，才處理圖片上傳
-                try:  # 嘗試儲存上傳圖片
-                    image_path = save_uploaded_image(request.files.get("image"), "attractions")  # 儲存圖片，回傳相對路徑或 None
-                except ValueError as error:  # 如果圖片格式不符合規定
+            if not errors:  # 如果基本驗證沒有錯誤，才處理圖片
+                try:  # 嘗試儲存圖片(優先用上傳的檔案，沒有檔案才改用圖片網址)
+                    image_path = save_uploaded_image(request.files.get("image"), "attractions")  # 儲存上傳圖片，回傳相對路徑或 None
+
+                    if image_path is None:  # 如果沒有上傳檔案
+                        image_path = save_image_from_url(form["image_url"], "attractions")  # 改嘗試從圖片網址下載
+                except ValueError as error:  # 如果圖片格式不符合規定、下載失敗等
                     errors.append(str(error))  # 把錯誤訊息加入錯誤清單
                     image_path = None  # 圖片路徑設為 None
 
@@ -307,6 +313,14 @@ def edit_attraction(attraction_id):  # 定義編輯景點函式
             elif form["remove_image"]:  # 如果沒有上傳新圖片，但使用者勾選了「移除目前圖片」
                 delete_uploaded_image(existing["image_path"])  # 刪除硬碟上的舊圖片
                 image_path = None  # 圖片路徑改為 None
+            elif form["image_url"]:  # 如果沒有上傳新圖片、沒勾選移除，但有填圖片網址
+                try:  # 嘗試從網址下載新圖片
+                    downloaded_path = save_image_from_url(form["image_url"], "attractions")  # 下載圖片，取得新路徑
+                    if downloaded_path:  # 如果有成功下載到新圖片
+                        delete_uploaded_image(existing["image_path"])  # 刪除舊圖片檔案
+                        image_path = downloaded_path  # 更新要存進資料庫的圖片路徑
+                except ValueError as error:  # 如果下載失敗、格式不符合規定
+                    errors.append(str(error))  # 加入錯誤訊息
 
             if errors:  # 如果有任何驗證錯誤
                 for message in errors:  # 逐一顯示每個錯誤訊息
@@ -402,6 +416,159 @@ def delete_attraction(attraction_id):  # 定義刪除景點函式
         connection.close()  # 關閉資料庫連線
 
     return redirect(url_for("attractions.list_attractions", **request.args.to_dict()))  # 導回景點列表頁，並保留原本的搜尋/篩選參數
+
+
+def _parse_bulk_ids():  # 定義內部函式：從表單取出勾選的景點 ID 清單，並過濾掉不是數字的髒資料
+    raw_ids = request.form.getlist("attraction_ids")  # 取得所有被勾選的 checkbox 值(可能有多個同名欄位)
+    return [raw_id for raw_id in raw_ids if raw_id.isdigit()]  # 只保留看起來是正整數的值
+
+
+@attractions_bp.route("/bulk/activate", methods=["POST"])  # 設定批次啟用景點的路由
+@login_required("content_admin")  # 限制只有內容管理員登入後才能存取
+def bulk_activate_attractions():  # 定義批次啟用景點函式
+    ids = _parse_bulk_ids()  # 取得勾選的景點 ID 清單
+
+    if not ids:  # 如果沒有勾選任何景點
+        flash("請先勾選要啟用的景點", "error")  # 顯示錯誤提示
+        return redirect(url_for("attractions.list_attractions"))  # 導回景點列表頁
+
+    connection = get_db_connection()  # 建立資料庫連線
+
+    if connection is None:  # 如果連線失敗
+        flash("資料庫連線失敗", "error")  # 顯示錯誤提示
+        return redirect(url_for("attractions.list_attractions"))  # 導回景點列表頁
+
+    cursor = connection.cursor()  # 建立一般游標
+
+    try:  # 嘗試批次更新
+        placeholders = ",".join(["%s"] * len(ids))  # 組成跟 ID 數量一樣多的 %s 佔位符，例如 "%s,%s,%s"
+        cursor.execute(  # 執行批次更新狀態的 SQL
+            f"UPDATE attractions SET status = 'active' WHERE attraction_id IN ({placeholders})",
+            tuple(ids)
+        )
+        updated_count = cursor.rowcount  # 取得實際被更新的筆數
+
+        log_action(  # 把這次批次啟用寫入操作紀錄
+            cursor, "bulk_activate_attractions", "attraction", None,
+            f"批次啟用 {updated_count} 筆景點"
+        )
+        connection.commit()  # 提交交易(狀態更新與操作紀錄一起寫入)
+        flash(f"已啟用 {updated_count} 筆景點", "success")  # 顯示成功訊息
+    except Exception as error:  # 如果更新過程發生例外
+        connection.rollback()  # 回復交易
+        print("批次啟用景點失敗：", error)  # 在伺服器端印出錯誤內容
+        flash("批次啟用失敗", "error")  # 顯示錯誤提示
+    finally:  # 不論成功或失敗都要執行
+        cursor.close()  # 關閉游標
+        connection.close()  # 關閉資料庫連線
+
+    return redirect(url_for("attractions.list_attractions"))  # 導回景點列表頁
+
+
+@attractions_bp.route("/bulk/delete", methods=["POST"])  # 設定批次刪除景點的路由
+@login_required("content_admin")  # 限制只有內容管理員登入後才能存取
+def bulk_delete_attractions():  # 定義批次刪除景點函式
+    ids = _parse_bulk_ids()  # 取得勾選的景點 ID 清單
+
+    if not ids:  # 如果沒有勾選任何景點
+        flash("請先勾選要刪除的景點", "error")  # 顯示錯誤提示
+        return redirect(url_for("attractions.list_attractions"))  # 導回景點列表頁
+
+    connection = get_db_connection()  # 建立資料庫連線
+
+    if connection is None:  # 如果連線失敗
+        flash("資料庫連線失敗", "error")  # 顯示錯誤提示
+        return redirect(url_for("attractions.list_attractions"))  # 導回景點列表頁
+
+    cursor = connection.cursor(dictionary=True)  # 建立字典格式游標
+
+    try:  # 嘗試批次刪除
+        placeholders = ",".join(["%s"] * len(ids))  # 組成跟 ID 數量一樣多的 %s 佔位符
+
+        cursor.execute(  # 先查出這些景點目前的圖片路徑，等下要一併刪除檔案
+            f"SELECT attraction_id, image_path FROM attractions WHERE attraction_id IN ({placeholders})",
+            tuple(ids)
+        )
+        existing_rows = cursor.fetchall()  # 取得查詢結果
+
+        cursor.execute(  # 執行批次刪除的 SQL
+            f"DELETE FROM attractions WHERE attraction_id IN ({placeholders})",
+            tuple(ids)
+        )
+        deleted_count = cursor.rowcount  # 取得實際被刪除的筆數
+
+        log_action(  # 把這次批次刪除寫入操作紀錄
+            cursor, "bulk_delete_attractions", "attraction", None,
+            f"批次刪除 {deleted_count} 筆景點"
+        )
+        connection.commit()  # 提交交易(刪除與操作紀錄一起寫入)
+
+        for row in existing_rows:  # 逐一刪除硬碟上對應的圖片檔案
+            delete_uploaded_image(row["image_path"])
+
+        flash(f"已刪除 {deleted_count} 筆景點", "success")  # 顯示成功訊息
+    except Exception as error:  # 如果刪除過程發生例外(例如仍有其他資料參照這些景點)
+        connection.rollback()  # 回復交易
+        print("批次刪除景點失敗：", error)  # 在伺服器端印出錯誤內容
+        flash("批次刪除失敗，請確認沒有其他資料仍在使用這些景點", "error")  # 顯示錯誤提示
+    finally:  # 不論成功或失敗都要執行
+        cursor.close()  # 關閉游標
+        connection.close()  # 關閉資料庫連線
+
+    return redirect(url_for("attractions.list_attractions"))  # 導回景點列表頁
+
+
+@attractions_bp.route("/backfill-descriptions", methods=["POST"])  # 設定批次補上缺少景點描述的路由
+@login_required("content_admin")  # 限制只有內容管理員登入後才能存取
+def backfill_descriptions():  # 定義批次補上景點描述函式
+    connection = get_db_connection()  # 建立資料庫連線
+
+    if connection is None:  # 如果連線失敗
+        flash("資料庫連線失敗", "error")  # 顯示錯誤提示
+        return redirect(url_for("attractions.list_attractions"))  # 導回景點列表頁
+
+    cursor = connection.cursor(dictionary=True)  # 建立字典格式游標
+
+    try:  # 開始批次補上描述
+        cursor.execute(  # 查出還沒有描述、或描述是舊版單一句型自動產生的景點(重新換一種句型)，並關聯出分類、國家、城市名稱(組描述要用)
+            """
+            SELECT a.attraction_id, a.name, cat.category_name,
+                   co.name AS country_name, ci.name AS city_name
+            FROM attractions a
+            LEFT JOIN categories cat ON cat.category_id = a.category_id
+            JOIN countries co ON co.country_id = a.country_id
+            JOIN cities ci ON ci.city_id = a.city_id
+            WHERE a.description IS NULL
+               OR a.description = ''
+               OR a.description LIKE '%，是當地值得一遊的景點。'
+            """
+        )
+        rows = cursor.fetchall()  # 取出所有缺少描述、或描述太單調要重新產生的景點
+
+        for row in rows:  # 逐一補上(或換一種句型重新產生)描述
+            description = build_place_description(  # 用已知的名稱、分類、國家、城市隨機組一段描述
+                row["name"], row["category_name"], row["country_name"], row["city_name"]
+            )
+            cursor.execute(  # 執行更新描述的 SQL
+                "UPDATE attractions SET description = %s WHERE attraction_id = %s",
+                (description, row["attraction_id"])
+            )
+
+        log_action(  # 把這次批次補描述寫入操作紀錄
+            cursor, "backfill_attraction_descriptions", "attraction", None,
+            f"批次補上 {len(rows)} 筆景點描述"
+        )
+        connection.commit()  # 提交交易(所有描述更新與操作紀錄一起寫入)
+        flash(f"已補上 {len(rows)} 筆景點的描述", "success")  # 顯示成功訊息
+    except Exception as error:  # 如果過程發生例外
+        connection.rollback()  # 回復交易
+        print("批次補上景點描述失敗：", error)  # 在伺服器端印出錯誤內容
+        flash("批次補上景點描述失敗", "error")  # 顯示錯誤提示
+    finally:  # 不論成功或失敗都要執行
+        cursor.close()  # 關閉游標
+        connection.close()  # 關閉資料庫連線
+
+    return redirect(url_for("attractions.list_attractions"))  # 導回景點列表頁
 
 
 IMPORT_HEADER = [  # 定義景點 CSV 匯入需要的欄位順序，範本下載與匯入解析都用這份清單
@@ -599,21 +766,31 @@ def import_from_google():  # 定義 Google 地圖批次匯入函式
 
                 country_id = get_or_create_country(cursor, country_name)  # 取得(或新增)國家 ID
                 city_id = get_or_create_city(cursor, country_id, city_name)  # 取得(或新增)城市 ID
+                category_id = get_or_create_category(cursor, "attraction", fields["category_name"])  # 用 Google 判斷的地點類型取得(或新增)分類 ID
 
-                cursor.execute(  # 執行新增景點的 SQL，狀態固定設為「待確認」，需要管理員人工複核後才上架
+                description = fields["description"] or build_place_description(  # 優先用 Google 官方簡介，沒有就自動組一段
+                    name, fields["category_name"], country_name, city_name
+                )
+
+                is_data_complete = bool(address and latitude and longitude and category_id)  # 判斷資料是否完整(有地址、經緯度、分類)
+                status = "active" if is_data_complete else "pending"  # 資料完整就直接啟用，不完整才留待人工確認
+
+                cursor.execute(  # 執行新增景點的 SQL
                     """
                     INSERT INTO attractions
-                    (name, country_id, city_id, address, latitude, longitude,
-                     opening_hours, website_url, status, created_by)
-                    VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
+                    (name, category_id, country_id, city_id, address, latitude, longitude,
+                     opening_hours, website_url, description, status, created_by)
+                    VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
                     """,
                     (
-                        name, country_id, city_id, address, latitude, longitude,  # 名稱、國家、城市、地址、緯度、經度
-                        opening_hours_text, website_url, "pending", session["user_id"]  # 開放時間、網站、狀態、建立者
+                        name, category_id, country_id, city_id, address, latitude, longitude,  # 名稱、分類、國家、城市、地址、緯度、經度
+                        opening_hours_text, website_url, description, status, session["user_id"]  # 開放時間、網站、描述、狀態、建立者
                     )
                 )
                 success_count += 1  # 成功筆數加一
-                results.append((row_number, name, True, "已從 Google 地圖匯入，狀態為「待確認」，請人工複核後改為啟用"))  # 記錄這一列匯入成功
+                category_note = f"，分類：{fields['category_name']}" if fields["category_name"] else ""  # 如果有抓到分類名稱，附註在結果說明裡
+                status_note = "已直接啟用" if is_data_complete else "狀態為「待確認」，請人工複核後改為啟用"  # 依資料完整度給不同的結果說明
+                results.append((row_number, name, True, f"已從 Google 地圖匯入，{status_note}{category_note}"))  # 記錄這一列匯入成功
 
             except PlacesApiError as error:  # 如果呼叫 Google Places API 時發生錯誤(例如金鑰無效、超過用量)
                 results.append((row_number, query, False, f"Google API 錯誤：{error}"))  # 記錄失敗原因

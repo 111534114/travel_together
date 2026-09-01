@@ -93,6 +93,9 @@
                 {% endif %}
 
                 <input type="file" id="image" name="image" accept=".png,.jpg,.jpeg,.gif,.webp">
+
+                <p style="margin:10px 0 6px; color:#777; font-size:14px;">或直接貼圖片網址，系統會自動下載（如果同時選了檔案，以上傳檔案為準）</p>
+                <input type="url" id="image_url" name="image_url" placeholder="https://example.com/photo.jpg" value="{{ attraction.image_url or '' }}">
             </div>
 
             <div class="form-group">

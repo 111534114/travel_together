@@ -9,7 +9,7 @@ TEXT_SEARCH_URL = "https://places.googleapis.com/v1/places:searchText"  # Google
 FIELD_MASK = (  # 定義要跟 Google 要哪些欄位，只要必要欄位可以省流量、省費用
     "places.id,places.displayName,places.formattedAddress,places.location,"
     "places.websiteUri,places.regularOpeningHours,places.addressComponents,"
-    "places.googleMapsUri"
+    "places.googleMapsUri,places.primaryTypeDisplayName,places.editorialSummary"
 )
 
 
@@ -96,6 +96,8 @@ def extract_place_fields(place):  # 定義函式：把 Google 回傳的單筆地
     website_url = place.get("websiteUri") or place.get("googleMapsUri")  # 取得官方網站，沒有就用 Google 地圖連結
     opening_hours_text = format_opening_hours(place.get("regularOpeningHours"))  # 把開放時間轉成單行文字
     country_name, city_name = extract_country_and_city(place.get("addressComponents"))  # 解析出國家與城市名稱
+    category_name = (place.get("primaryTypeDisplayName") or {}).get("text")  # 取得 Google 判斷的地點類型中文名稱(例如「觀光景點」「博物館」)，當作分類
+    description = (place.get("editorialSummary") or {}).get("text")  # 取得 Google 官方簡介(不是每個地點都有)
 
     return {  # 回傳整理好的欄位字典
         "name": name,
@@ -106,4 +108,6 @@ def extract_place_fields(place):  # 定義函式：把 Google 回傳的單筆地
         "opening_hours": opening_hours_text,
         "country_name": country_name,
         "city_name": city_name,
+        "category_name": category_name,
+        "description": description,
     }

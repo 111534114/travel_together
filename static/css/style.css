@@ -954,6 +954,26 @@ body {
     max-width: 920px;
 }
 
+.trip-form-page {
+    max-width: 920px;
+    margin: 0 auto;
+}
+
+.trip-form-heading {
+    text-align: center;
+}
+
+.trip-form-heading > a {
+    display: block;
+    margin-bottom: 8px;
+    text-align: left;
+}
+
+.trip-form {
+    margin-right: auto;
+    margin-left: auto;
+}
+
 .member-form.compact {
     max-width: none;
 }

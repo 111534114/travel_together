@@ -3,7 +3,7 @@
 
 {% block title %}Google地圖匯入結果｜Travel Together{% endblock %}
 {% block page_title %}Google 地圖匯入結果{% endblock %}
-{% block page_subtitle %}成功 {{ success_count }} 筆，失敗 {{ fail_count }} 筆；成功的景點狀態皆為「待確認」，請逐筆複核{% endblock %}
+{% block page_subtitle %}成功 {{ success_count }} 筆，失敗 {{ fail_count }} 筆；資料完整（地址、經緯度、分類齊全）的會直接啟用，其餘留待人工複核{% endblock %}
 
 {% block content %}
 
@@ -25,7 +25,9 @@
                 <td>{{ row_number }}</td>
                 <td>{{ name }}</td>
                 <td>
-                    {% if ok %}
+                    {% if ok and '已直接啟用' in message %}
+                        <span class="status-active">已匯入（啟用）</span>
+                    {% elif ok %}
                         <span class="status-pending">已匯入（待確認）</span>
                     {% else %}
                         <span class="status-returned">失敗</span>

@@ -15,6 +15,7 @@ from utils import (  # 匯入圖片、下拉選單、CSV 匯入匯出相關的�
     get_or_create_category,  # 依名稱找分類，找不到就自動新增
     get_or_create_city,  # 依名稱找城市，找不到就自動新增
     get_or_create_country,  # 依名稱找國家，找不到就自動新增
+    save_image_from_url,  # 從網址下載圖片
     save_uploaded_image,  # 儲存上傳圖片
 )
 
@@ -40,6 +41,7 @@ def _parse_form(form_data):  # 定義內部函式：把表單資料解析成乾�
         "website_url": form_data.get("website_url", "").strip() or None,  # 官方網站，空字串轉成 None
         "status": form_data.get("status", "active").strip(),  # 狀態，預設 active
         "remove_image": form_data.get("remove_image") == "on",  # 是否要移除目前圖片(編輯時使用)
+        "image_url": form_data.get("image_url", "").strip(),  # 圖片網址(選填，用來從網路下載圖片)
     }
 
     errors = []  # 建立錯誤訊息清單
@@ -187,10 +189,13 @@ def create_restaurant():  # 定義新增餐廳函式
         if request.method == "POST":  # 如果是表單送出請求
             form, errors = _parse_form(request.form)  # 解析並驗證表單資料
 
-            if not errors:  # 如果基本驗證沒有錯誤，才處理圖片上傳
-                try:  # 嘗試儲存上傳圖片
-                    image_path = save_uploaded_image(request.files.get("image"), "restaurants")  # 儲存圖片，回傳相對路徑或 None
-                except ValueError as error:  # 如果圖片格式不符合規定
+            if not errors:  # 如果基本驗證沒有錯誤，才處理圖片
+                try:  # 嘗試儲存圖片(優先用上傳的檔案，沒有檔案才改用圖片網址)
+                    image_path = save_uploaded_image(request.files.get("image"), "restaurants")  # 儲存上傳圖片，回傳相對路徑或 None
+
+                    if image_path is None:  # 如果沒有上傳檔案
+                        image_path = save_image_from_url(form["image_url"], "restaurants")  # 改嘗試從圖片網址下載
+                except ValueError as error:  # 如果圖片格式不符合規定、下載失敗等
                     errors.append(str(error))  # 把錯誤訊息加入錯誤清單
                     image_path = None  # 圖片路徑設為 None
 
@@ -278,6 +283,14 @@ def edit_restaurant(restaurant_id):  # 定義編輯餐廳函式
             elif form["remove_image"]:  # 如果沒有上傳新圖片，但使用者勾選了「移除目前圖片」
                 delete_uploaded_image(existing["image_path"])  # 刪除硬碟上的舊圖片
                 image_path = None  # 圖片路徑改為 None
+            elif form["image_url"]:  # 如果沒有上傳新圖片、沒勾選移除，但有填圖片網址
+                try:  # 嘗試從網址下載新圖片
+                    downloaded_path = save_image_from_url(form["image_url"], "restaurants")  # 下載圖片，取得新路徑
+                    if downloaded_path:  # 如果有成功下載到新圖片
+                        delete_uploaded_image(existing["image_path"])  # 刪除舊圖片檔案
+                        image_path = downloaded_path  # 更新要存進資料庫的圖片路徑
+                except ValueError as error:  # 如果下載失敗、格式不符合規定
+                    errors.append(str(error))  # 加入錯誤訊息
 
             if errors:  # 如果有任何驗證錯誤
                 for message in errors:  # 逐一顯示每個錯誤訊息

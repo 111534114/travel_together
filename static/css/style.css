@@ -433,6 +433,8 @@ body {
 /* 按鈕 */
 
 .small-button {
+    display: inline-block;
+
     padding: 9px 14px;
 
     border-radius: 8px;
@@ -442,10 +444,16 @@ body {
     background: #5f4b8b;
 
     text-decoration: none;
+
+    margin: 3px 4px 3px 0;
+
+    vertical-align: middle;
 }
 
 
 .disable-button {
+    display: inline-block;
+
     border: none;
 
     background: #e35d5d;
@@ -457,10 +465,16 @@ body {
     border-radius: 7px;
 
     cursor: pointer;
+
+    margin: 3px 4px 3px 0;
+
+    vertical-align: middle;
 }
 
 
 .enable-button {
+    display: inline-block;
+
     border: none;
 
     background: #43a867;
@@ -472,11 +486,17 @@ body {
     border-radius: 7px;
 
     cursor: pointer;
+
+    margin: 3px 4px 3px 0;
+
+    vertical-align: middle;
 }
 
 
 .inline-form {
-    display: inline;
+    display: inline-block;
+    vertical-align: middle;
+    margin: 0;
 }
 
 
@@ -954,6 +974,26 @@ body {
     max-width: 920px;
 }
 
+.trip-form-page {
+    max-width: 920px;
+    margin: 0 auto;
+}
+
+.trip-form-heading {
+    text-align: center;
+}
+
+.trip-form-heading > a {
+    display: block;
+    margin-bottom: 8px;
+    text-align: left;
+}
+
+.trip-form {
+    margin-right: auto;
+    margin-left: auto;
+}
+
 .member-form.compact {
     max-width: none;
 }
@@ -1415,6 +1455,21 @@ body {
     background: #5f4b8b;
     color: white;
     border-color: #5f4b8b;
+}
+
+/* 批次操作列 */
+
+.bulk-actions {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 14px;
+    color: #666;
+}
+
+.bulk-actions button:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
 }
 
 /* 詳情頁 */

@@ -69,6 +69,7 @@ def visitor():
     }
     public_trips = []
     companions = []
+    announcements = []
     trips_timeline_json = {}
 
     if connection:
@@ -85,7 +86,18 @@ def visitor():
             total_exp = cursor.fetchone()['total'] or 0
             stats['total_expenses'] = f"{total_exp:,.0f}"
 
-            # 2. 查詢會員建立的公開行程列表
+            # 2. 查詢訪客可見的已發布公告
+            cursor.execute("""
+                SELECT announcement_id, title, content, is_pinned, publish_at, created_at
+                FROM announcements
+                WHERE status = 'published'
+                  AND (publish_at IS NULL OR publish_at <= NOW())
+                ORDER BY is_pinned DESC, publish_at DESC, created_at DESC
+                LIMIT 6
+            """)
+            announcements = cursor.fetchall()
+
+            # 3. 查詢會員建立的公開行程列表
             cursor.execute("""
                 SELECT t.trip_id, t.trip_name, t.country, t.city,
                        t.start_date, t.end_date, t.people_count,
@@ -103,7 +115,7 @@ def visitor():
             """)
             public_trips = cursor.fetchall()
 
-            # 3. 查詢最新揪團旅伴資訊
+            # 4. 查詢最新揪團旅伴資訊
             cursor.execute("""
                 SELECT t.trip_id, t.trip_name, t.country, t.city,
                        t.people_count, t.total_budget, t.currency, t.introduction,
@@ -119,7 +131,7 @@ def visitor():
             """)
             companions = cursor.fetchall()
 
-            # 4. 查詢所有公開行程的每日詳細景點明細 (提供 Modal 彈窗即時動態預覽)
+            # 5. 查詢所有公開行程的每日詳細景點明細 (提供 Modal 彈窗即時動態預覽)
             if public_trips:
                 trip_ids = [t['trip_id'] for t in public_trips]
                 format_strings = ','.join(['%s'] * len(trip_ids))
@@ -168,6 +180,7 @@ def visitor():
     return render_template(
         "visitor.html",
         stats=stats,
+        announcements=announcements,
         public_trips=public_trips,
         companions=companions,
         trips_timeline_json=trips_timeline_json

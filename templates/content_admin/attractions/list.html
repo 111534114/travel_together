@@ -55,13 +55,30 @@
             <a href="{{ url_for('attractions.import_from_google') }}" class="small-button">🔍 Google地圖匯入</a>
             <a href="{{ url_for('attractions.import_attractions') }}" class="small-button">⬆ 匯入 CSV</a>
             <a href="{{ url_for('attractions.create_attraction') }}" class="small-button">＋ 新增景點</a>
+            <form method="POST" action="{{ url_for('attractions.backfill_descriptions') }}" class="inline-form"
+                  onsubmit="return confirm('確定要幫所有還沒有描述、或描述太單調的景點重新自動產生一段描述嗎？');">
+                <button type="submit" class="small-button">🖊 補上/更新描述</button>
+            </form>
         </div>
+    </div>
+
+    <form id="bulk-form" method="POST"></form>
+
+    <div class="bulk-actions">
+        <span id="selected-count">已選取 0 筆</span>
+        <button type="submit" form="bulk-form" formaction="{{ url_for('attractions.bulk_activate_attractions') }}"
+                id="bulk-activate-btn" class="enable-button" disabled
+                onclick="return confirmBulkAction('啟用');">✅ 啟用選取項目</button>
+        <button type="submit" form="bulk-form" formaction="{{ url_for('attractions.bulk_delete_attractions') }}"
+                id="bulk-delete-btn" class="disable-button" disabled
+                onclick="return confirmBulkAction('刪除');">🗑 刪除選取項目</button>
     </div>
 
     <div class="table-container">
         <table class="admin-table">
             <thead>
             <tr>
+                <th><input type="checkbox" id="select-all-checkbox" onchange="toggleSelectAll(this)"></th>
                 <th>圖片</th>
                 <th>名稱</th>
                 <th>分類</th>
@@ -76,6 +93,10 @@
             <tbody>
             {% for attraction in attractions %}
             <tr>
+                <td>
+                    <input type="checkbox" name="attraction_ids" value="{{ attraction.attraction_id }}"
+                           form="bulk-form" class="row-checkbox" onchange="updateBulkSelection()">
+                </td>
                 <td>
                     {% if attraction.image_path %}
                         <img class="thumb" src="{{ url_for('static', filename=attraction.image_path) }}" alt="{{ attraction.name }}">
@@ -110,7 +131,7 @@
             </tr>
             {% else %}
             <tr>
-                <td colspan="9" class="empty-data">找不到符合條件的景點</td>
+                <td colspan="10" class="empty-data">找不到符合條件的景點</td>
             </tr>
             {% endfor %}
             </tbody>
@@ -130,5 +151,31 @@
     {% endif %}
 
 </div>
+
+<script>
+    function updateBulkSelection() {
+        var checked = document.querySelectorAll('.row-checkbox:checked').length;
+        document.getElementById('selected-count').textContent = '已選取 ' + checked + ' 筆';
+        document.getElementById('bulk-activate-btn').disabled = checked === 0;
+        document.getElementById('bulk-delete-btn').disabled = checked === 0;
+
+        var all = document.querySelectorAll('.row-checkbox').length;
+        document.getElementById('select-all-checkbox').checked = (all > 0 && checked === all);
+    }
+
+    function toggleSelectAll(source) {
+        document.querySelectorAll('.row-checkbox').forEach(function (checkbox) {
+            checkbox.checked = source.checked;
+        });
+        updateBulkSelection();
+    }
+
+    function confirmBulkAction(actionLabel) {
+        var checked = document.querySelectorAll('.row-checkbox:checked').length;
+        return confirm('確定要' + actionLabel + '選取的 ' + checked + ' 筆景點嗎？');
+    }
+
+    document.addEventListener('DOMContentLoaded', updateBulkSelection);
+</script>
 
 {% endblock %}

@@ -6,6 +6,9 @@ ACTION_LABELS = {  # 定義每種操作代碼對應的中文顯示名稱，給�
     "delete_attraction": "刪除景點",
     "import_attractions": "匯入景點",
     "import_attractions_google": "從Google地圖匯入景點",
+    "bulk_activate_attractions": "批次啟用景點",
+    "bulk_delete_attractions": "批次刪除景點",
+    "backfill_attraction_descriptions": "批次補上景點描述",
     "create_restaurant": "新增餐廳",
     "update_restaurant": "更新餐廳",
     "delete_restaurant": "刪除餐廳",
@@ -27,6 +30,9 @@ ACTION_LABELS = {  # 定義每種操作代碼對應的中文顯示名稱，給�
     "return_proposal": "退回提案",
     "update_proposal": "修正提案",
     "verify_ai_data": "標記AI資料已確認",
+    "change_user_role": "修改帳號角色",
+    "disable_user": "停用帳號",
+    "enable_user": "恢復帳號",
 }
 
 

@@ -69,6 +69,7 @@ def visitor():
     }
     public_trips = []
     companions = []
+    announcements = []
     trips_timeline_json = {}
 
     if connection:
@@ -85,7 +86,18 @@ def visitor():
             total_exp = cursor.fetchone()['total'] or 0
             stats['total_expenses'] = f"{total_exp:,.0f}"
 
-            # 2. 查詢會員建立的公開行程列表
+            # 2. 查詢訪客可見的已發布公告
+            cursor.execute("""
+                SELECT announcement_id, title, content, is_pinned, publish_at, created_at
+                FROM announcements
+                WHERE status = 'published'
+                  AND (publish_at IS NULL OR publish_at <= NOW())
+                ORDER BY is_pinned DESC, publish_at DESC, created_at DESC
+                LIMIT 6
+            """)
+            announcements = cursor.fetchall()
+
+            # 3. 查詢會員建立的公開行程列表
             cursor.execute("""
                 SELECT t.trip_id, t.trip_name, t.country, t.city,
                        t.start_date, t.end_date, t.people_count,
@@ -103,7 +115,7 @@ def visitor():
             """)
             public_trips = cursor.fetchall()
 
-            # 3. 查詢最新揪團旅伴資訊
+            # 4. 查詢最新揪團旅伴資訊
             cursor.execute("""
                 SELECT t.trip_id, t.trip_name, t.country, t.city,
                        t.people_count, t.total_budget, t.currency, t.introduction,
@@ -119,7 +131,7 @@ def visitor():
             """)
             companions = cursor.fetchall()
 
-            # 4. 查詢所有公開行程的每日詳細景點明細 (提供 Modal 彈窗即時動態預覽)
+            # 5. 查詢所有公開行程的每日詳細景點明細 (提供 Modal 彈窗即時動態預覽)
             if public_trips:
                 trip_ids = [t['trip_id'] for t in public_trips]
                 format_strings = ','.join(['%s'] * len(trip_ids))
@@ -168,6 +180,7 @@ def visitor():
     return render_template(
         "visitor.html",
         stats=stats,
+        announcements=announcements,
         public_trips=public_trips,
         companions=companions,
         trips_timeline_json=trips_timeline_json
@@ -451,6 +464,7 @@ def system_admin_home():  # 定義系統管理員儀表板函式
         return render_template(  # 回傳儀表板頁面，統計數字給預設值 0
             "system_admin_home.html",
             member_count=0,
+            content_admin_count=0,
             trip_count=0,
             public_trip_count=0,
             report_count=0
@@ -469,6 +483,16 @@ def system_admin_home():  # 定義系統管理員儀表板函式
         """)  # 統計角色為會員且未被刪除的人數
 
         member_count = cursor.fetchone()["total"]  # 取出會員總數
+
+        # 旅遊內容管理員數量
+        cursor.execute("""
+            SELECT COUNT(*) AS total
+            FROM users
+            WHERE role = 'content_admin'
+            AND status != 'deleted'
+        """)  # 統計角色為內容管理員且未被刪除的人數
+
+        content_admin_count = cursor.fetchone()["total"]  # 取出內容管理員總數
 
         # 所有行程數量
         cursor.execute("""
@@ -520,6 +544,7 @@ def system_admin_home():  # 定義系統管理員儀表板函式
     return render_template(  # 渲染系統管理員儀表板頁面
         "system_admin_home.html",
         member_count=member_count,  # 會員總數
+        content_admin_count=content_admin_count,  # 內容管理員總數
         trip_count=trip_count,  # 行程總數
         public_trip_count=public_trip_count,  # 公開行程總數
         report_count=report_count,  # 待處理檢舉數
@@ -544,48 +569,23 @@ def admin_users():  # 定義會員管理列表函式
 
     cursor = connection.cursor(dictionary=True)  # 建立字典格式游標
 
-    try:  # 開始查詢會員資料
+    try:  # 開始查詢帳號資料
+        conditions = ["status != 'deleted'"]
+        params = []
 
         if keyword:  # 如果有輸入搜尋關鍵字
-
             search = "%" + keyword + "%"  # 組成 SQL LIKE 模糊搜尋用的字串
+            conditions.append("(username LIKE %s OR full_name LIKE %s OR email LIKE %s)")
+            params.extend([search, search, search])
 
-            cursor.execute("""
-                SELECT user_id,
-                       username,
-                       full_name,
-                       nickname,
-                       email,
-                       role,
-                       status,
-                       created_at
-                FROM users
-                WHERE role = 'member'
-                AND status != 'deleted'
-                AND (
-                    username LIKE %s
-                    OR full_name LIKE %s
-                    OR email LIKE %s
-                )
-                ORDER BY user_id DESC
-            """, (search, search, search))  # 依帳號、姓名、Email 模糊搜尋會員資料
-
-        else:  # 如果沒有輸入搜尋關鍵字
-
-            cursor.execute("""
-                SELECT user_id,
-                       username,
-                       full_name,
-                       nickname,
-                       email,
-                       role,
-                       status,
-                       created_at
-                FROM users
-                WHERE role = 'member'
-                AND status != 'deleted'
-                ORDER BY user_id DESC
-            """)  # 查詢全部未刪除的會員資料
+        cursor.execute(f"""
+            SELECT user_id, username, full_name, nickname, email,
+                   role, status, created_at
+            FROM users
+            WHERE {' AND '.join(conditions)}
+            ORDER BY FIELD(role, 'system_admin', 'content_admin', 'member'),
+                     user_id DESC
+        """, tuple(params))  # 查詢全部未刪除帳號，依角色與編號排序
 
         users = cursor.fetchall()  # 取出查詢結果
 
@@ -598,6 +598,75 @@ def admin_users():  # 定義會員管理列表函式
         users=users,  # 會員清單
         keyword=keyword  # 搜尋關鍵字(用來顯示在搜尋框裡)
     )
+
+
+@app.route("/system-admin/users/<int:user_id>/role", methods=["POST"])
+def update_user_role(user_id):
+    if "user_id" not in session or session.get("role") != "system_admin":
+        return redirect(url_for("login"))
+
+    new_role = request.form.get("role", "").strip()
+    role_labels = {
+        "member": "一般會員",
+        "content_admin": "內容管理員",
+        "system_admin": "系統管理員",
+    }
+    if new_role not in role_labels:
+        flash("帳號角色不正確", "error")
+        return redirect(url_for("admin_users"))
+
+    if user_id == session.get("user_id"):
+        flash("不能修改自己目前登入帳號的角色", "error")
+        return redirect(url_for("admin_users"))
+
+    connection = get_db_connection()
+    if connection is None:
+        flash("資料庫連線失敗", "error")
+        return redirect(url_for("admin_users"))
+
+    cursor = connection.cursor(dictionary=True)
+    try:
+        cursor.execute("""
+            SELECT user_id, username, role, status
+            FROM users
+            WHERE user_id = %s AND status != 'deleted'
+        """, (user_id,))
+        target = cursor.fetchone()
+
+        if target is None:
+            flash("找不到指定帳號", "error")
+            return redirect(url_for("admin_users"))
+
+        if target["role"] == new_role:
+            flash("帳號角色沒有變更", "success")
+            return redirect(url_for("admin_users"))
+
+        if target["role"] == "system_admin" and new_role != "system_admin" and target["status"] == "active":
+            cursor.execute("""
+                SELECT COUNT(*) AS total FROM users
+                WHERE role = 'system_admin' AND status = 'active'
+            """)
+            if cursor.fetchone()["total"] <= 1:
+                flash("系統至少需要保留一位啟用中的系統管理員", "error")
+                return redirect(url_for("admin_users"))
+
+        old_role = target["role"]
+        cursor.execute("UPDATE users SET role = %s WHERE user_id = %s", (new_role, user_id))
+        log_action(
+            cursor, "change_user_role", "user", user_id,
+            f"帳號 {target['username']}：{role_labels[old_role]}改為{role_labels[new_role]}"
+        )
+        connection.commit()
+        flash(f"已將 {target['username']} 設為{role_labels[new_role]}，下次登入生效", "success")
+    except Exception as error:
+        connection.rollback()
+        print("修改帳號角色失敗：", error)
+        flash("修改帳號角色失敗", "error")
+    finally:
+        cursor.close()
+        connection.close()
+
+    return redirect(url_for("admin_users"))
 
 
 @app.route("/system-admin/public-trips")  # 設定公開行程管理頁路由
@@ -733,20 +802,45 @@ def disable_user(user_id):
         flash("資料庫連線失敗", "error")  # 顯示錯誤提示
         return redirect(url_for("admin_users"))  # 導回會員管理頁
 
-    cursor = connection.cursor()  # 建立一般游標
+    if user_id == session.get("user_id"):
+        flash("不能停用自己目前登入的帳號", "error")
+        connection.close()
+        return redirect(url_for("admin_users"))
+
+    cursor = connection.cursor(dictionary=True)  # 建立字典格式游標
 
     try:  # 開始執行更新
 
         cursor.execute("""
-            UPDATE users
-            SET status = 'disabled'
-            WHERE user_id = %s
-            AND role = 'member'
-        """, (user_id,))  # 把指定會員狀態改為停用(僅限角色為會員的帳號)
+            SELECT user_id, username, role, status
+            FROM users
+            WHERE user_id = %s AND status != 'deleted'
+        """, (user_id,))
+        target = cursor.fetchone()
+
+        if target is None:
+            flash("找不到指定帳號", "error")
+            return redirect(url_for("admin_users"))
+
+        if target["role"] == "system_admin" and target["status"] == "active":
+            cursor.execute("""
+                SELECT COUNT(*) AS total FROM users
+                WHERE role = 'system_admin' AND status = 'active'
+            """)
+            if cursor.fetchone()["total"] <= 1:
+                flash("不能停用最後一位啟用中的系統管理員", "error")
+                return redirect(url_for("admin_users"))
+
+        cursor.execute("""
+            UPDATE users SET status = 'disabled'
+            WHERE user_id = %s AND status != 'deleted'
+        """, (user_id,))
+
+        log_action(cursor, "disable_user", "user", user_id, f"停用帳號：{target['username']}")
 
         connection.commit()  # 提交交易
 
-        flash("會員已停用", "success")  # 顯示成功訊息
+        flash("帳號已停用", "success")  # 顯示成功訊息
 
     except Exception as error:  # 如果執行過程發生例外
 
@@ -782,15 +876,24 @@ def enable_user(user_id):
     try:  # 開始執行更新
 
         cursor.execute("""
-            UPDATE users
-            SET status = 'active'
-            WHERE user_id = %s
-            AND role = 'member'
-        """, (user_id,))  # 把指定會員狀態改回啟用(僅限角色為會員的帳號)
+            SELECT username FROM users
+            WHERE user_id = %s AND status != 'deleted'
+        """, (user_id,))
+        target = cursor.fetchone()
+        if target is None:
+            flash("找不到指定帳號", "error")
+            return redirect(url_for("admin_users"))
+
+        cursor.execute("""
+            UPDATE users SET status = 'active'
+            WHERE user_id = %s AND status != 'deleted'
+        """, (user_id,))
+
+        log_action(cursor, "enable_user", "user", user_id, f"恢復帳號：{target[0]}")
 
         connection.commit()  # 提交交易
 
-        flash("會員已恢復", "success")  # 顯示成功訊息
+        flash("帳號已恢復", "success")  # 顯示成功訊息
 
     except Exception as error:  # 如果執行過程發生例外
 

@@ -433,6 +433,8 @@ body {
 /* 按鈕 */
 
 .small-button {
+    display: inline-block;
+
     padding: 9px 14px;
 
     border-radius: 8px;
@@ -442,10 +444,16 @@ body {
     background: #5f4b8b;
 
     text-decoration: none;
+
+    margin: 3px 4px 3px 0;
+
+    vertical-align: middle;
 }
 
 
 .disable-button {
+    display: inline-block;
+
     border: none;
 
     background: #e35d5d;
@@ -457,10 +465,16 @@ body {
     border-radius: 7px;
 
     cursor: pointer;
+
+    margin: 3px 4px 3px 0;
+
+    vertical-align: middle;
 }
 
 
 .enable-button {
+    display: inline-block;
+
     border: none;
 
     background: #43a867;
@@ -472,11 +486,70 @@ body {
     border-radius: 7px;
 
     cursor: pointer;
+
+    margin: 3px 4px 3px 0;
+
+    vertical-align: middle;
 }
 
 
 .inline-form {
-    display: inline;
+    display: inline-block;
+    vertical-align: middle;
+    margin: 0;
+}
+
+.role-form {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    min-width: 225px;
+}
+
+.role-form select {
+    min-width: 125px;
+    padding: 8px 9px;
+    border: 1px solid #cfc8dd;
+    border-radius: 6px;
+    background: #ffffff;
+    color: #352a4b;
+    font: inherit;
+}
+
+.role-form .small-button {
+    border: 0;
+    cursor: pointer;
+}
+
+.role-badge {
+    display: inline-block;
+    padding: 5px 9px;
+    border-radius: 999px;
+    white-space: nowrap;
+    font-size: 13px;
+}
+
+.role-system_admin {
+    color: #6d2f5f;
+    background: #f5e1ef;
+}
+
+.role-content_admin {
+    color: #4f3b78;
+    background: #ece7f7;
+}
+
+.role-member {
+    color: #276049;
+    background: #e2f2e9;
+}
+
+.current-account-label {
+    display: block;
+    margin-top: 5px;
+    color: #777777;
+    font-size: 12px;
+    white-space: nowrap;
 }
 
 
@@ -954,6 +1027,26 @@ body {
     max-width: 920px;
 }
 
+.trip-form-page {
+    max-width: 920px;
+    margin: 0 auto;
+}
+
+.trip-form-heading {
+    text-align: center;
+}
+
+.trip-form-heading > a {
+    display: block;
+    margin-bottom: 8px;
+    text-align: left;
+}
+
+.trip-form {
+    margin-right: auto;
+    margin-left: auto;
+}
+
 .member-form.compact {
     max-width: none;
 }
@@ -1415,6 +1508,21 @@ body {
     background: #5f4b8b;
     color: white;
     border-color: #5f4b8b;
+}
+
+/* 批次操作列 */
+
+.bulk-actions {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 14px;
+    color: #666;
+}
+
+.bulk-actions button:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
 }
 
 /* 詳情頁 */

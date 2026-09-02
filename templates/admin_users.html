@@ -9,7 +9,7 @@
     <meta name="viewport"
           content="width=device-width, initial-scale=1.0">
 
-    <title>會員管理｜Travel Together</title>
+    <title>帳號管理｜Travel Together</title>
 
     <link rel="stylesheet"
           href="{{ url_for('static', filename='css/style.css') }}">
@@ -50,7 +50,7 @@
             <a class="active"
                href="{{ url_for('admin_users') }}">
 
-                👤 會員管理
+                👤 帳號管理
 
             </a>
 
@@ -102,10 +102,10 @@
 
             <div>
 
-                <h1>會員管理</h1>
+                <h1>帳號管理</h1>
 
                 <p>
-                    管理系統一般會員帳號
+                    檢視所有帳號並管理角色與使用狀態
                 </p>
 
             </div>
@@ -186,7 +186,7 @@
 
             <div class="section-title">
 
-                <h2>會員列表</h2>
+                <h2>帳號列表</h2>
 
                 <span>
                     共 {{ users|length }} 筆
@@ -215,6 +215,8 @@
                         <th>暱稱</th>
 
                         <th>Email</th>
+
+                        <th>角色</th>
 
                         <th>狀態</th>
 
@@ -263,9 +265,35 @@
 
 
                         <td>
+                            {% if user.user_id == session.get('user_id') %}
+                                <span class="role-badge role-{{ user.role }}">
+                                    {{ {'member':'一般會員','content_admin':'內容管理員','system_admin':'系統管理員'}[user.role] }}
+                                </span>
+                                <small class="current-account-label">目前帳號</small>
+                            {% else %}
+                                <form method="POST"
+                                      action="{{ url_for('update_user_role', user_id=user.user_id) }}"
+                                      class="role-form"
+                                      onsubmit="return confirm('確定要修改這個帳號的角色嗎？');">
+                                    <select name="role" aria-label="選擇 {{ user.username }} 的角色">
+                                        <option value="member" {{ 'selected' if user.role == 'member' }}>一般會員</option>
+                                        <option value="content_admin" {{ 'selected' if user.role == 'content_admin' }}>內容管理員</option>
+                                        <option value="system_admin" {{ 'selected' if user.role == 'system_admin' }}>系統管理員</option>
+                                    </select>
+                                    <button type="submit" class="small-button">儲存</button>
+                                </form>
+                            {% endif %}
+                        </td>
 
 
-                            {% if user.status == "active" %}
+                        <td>
+
+
+                            {% if user.user_id == session.get('user_id') %}
+
+                                <span class="current-account-label">不可停用自己</span>
+
+                            {% elif user.status == "active" %}
 
 
                                 <span class="status-active">
@@ -319,7 +347,7 @@
 
                                   onsubmit="
                                   return confirm(
-                                  '確定要停用這個會員嗎？'
+                                  '確定要停用這個帳號嗎？'
                                   );
                                   ">
 
@@ -377,10 +405,10 @@
 
                     <tr>
 
-                        <td colspan="8"
+                        <td colspan="9"
                             class="empty-data">
 
-                            找不到符合條件的會員
+                            找不到符合條件的帳號
 
                         </td>
 

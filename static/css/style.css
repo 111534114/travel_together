@@ -499,6 +499,59 @@ body {
     margin: 0;
 }
 
+.role-form {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    min-width: 225px;
+}
+
+.role-form select {
+    min-width: 125px;
+    padding: 8px 9px;
+    border: 1px solid #cfc8dd;
+    border-radius: 6px;
+    background: #ffffff;
+    color: #352a4b;
+    font: inherit;
+}
+
+.role-form .small-button {
+    border: 0;
+    cursor: pointer;
+}
+
+.role-badge {
+    display: inline-block;
+    padding: 5px 9px;
+    border-radius: 999px;
+    white-space: nowrap;
+    font-size: 13px;
+}
+
+.role-system_admin {
+    color: #6d2f5f;
+    background: #f5e1ef;
+}
+
+.role-content_admin {
+    color: #4f3b78;
+    background: #ece7f7;
+}
+
+.role-member {
+    color: #276049;
+    background: #e2f2e9;
+}
+
+.current-account-label {
+    display: block;
+    margin-top: 5px;
+    color: #777777;
+    font-size: 12px;
+    white-space: nowrap;
+}
+
 
 .empty-data {
     text-align: center;

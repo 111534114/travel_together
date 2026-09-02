@@ -464,6 +464,7 @@ def system_admin_home():  # 定義系統管理員儀表板函式
         return render_template(  # 回傳儀表板頁面，統計數字給預設值 0
             "system_admin_home.html",
             member_count=0,
+            content_admin_count=0,
             trip_count=0,
             public_trip_count=0,
             report_count=0
@@ -482,6 +483,16 @@ def system_admin_home():  # 定義系統管理員儀表板函式
         """)  # 統計角色為會員且未被刪除的人數
 
         member_count = cursor.fetchone()["total"]  # 取出會員總數
+
+        # 旅遊內容管理員數量
+        cursor.execute("""
+            SELECT COUNT(*) AS total
+            FROM users
+            WHERE role = 'content_admin'
+            AND status != 'deleted'
+        """)  # 統計角色為內容管理員且未被刪除的人數
+
+        content_admin_count = cursor.fetchone()["total"]  # 取出內容管理員總數
 
         # 所有行程數量
         cursor.execute("""
@@ -533,6 +544,7 @@ def system_admin_home():  # 定義系統管理員儀表板函式
     return render_template(  # 渲染系統管理員儀表板頁面
         "system_admin_home.html",
         member_count=member_count,  # 會員總數
+        content_admin_count=content_admin_count,  # 內容管理員總數
         trip_count=trip_count,  # 行程總數
         public_trip_count=public_trip_count,  # 公開行程總數
         report_count=report_count,  # 待處理檢舉數

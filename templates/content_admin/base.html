@@ -6,6 +6,7 @@
 
     <title>{% block title %}旅遊內容管理｜Travel Together{% endblock %}</title>
 
+    <link rel="icon" type="image/png" href="{{ url_for('static', filename='images/logo.png') }}">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
 </head>
 
@@ -15,11 +16,11 @@
 
     <aside class="admin-sidebar">
 
-        <div class="admin-logo admin-logo-branded">
+        <a class="admin-logo admin-logo-branded" href="{{ url_for('content_admin_home') }}">
             <img src="{{ url_for('static', filename='images/logo.png') }}"
                  alt="走吧揪團 Logo">
             <p>旅遊內容管理後台</p>
-        </div>
+        </a>
 
         <nav class="admin-menu">
 
@@ -68,6 +69,11 @@
                 📝 操作紀錄
             </a>
 
+            <a class="{{ 'active' if active_menu == 'ai_chat' else '' }}"
+               href="{{ url_for('ai_chat.chat_page') }}">
+                💬 AI 助理
+            </a>
+
             <a href="{{ url_for('logout') }}">
                 🚪 登出
             </a>
@@ -83,6 +89,7 @@
                 <h1>{% block page_title %}旅遊內容管理{% endblock %}</h1>
                 <p>{% block page_subtitle %}{% endblock %}</p>
             </div>
+            <button type="button" class="back-button" onclick="history.back()">⬅ 返回上一頁</button>
         </div>
 
         {% with messages = get_flashed_messages(with_categories=true) %}

@@ -16,3 +16,7 @@ DB_CONFIG = {
 # 請在專案根目錄建立 .env 檔案，寫入一行：GOOGLE_MAPS_API_KEY=你的金鑰
 # .env 已經被 .gitignore 排除，不會被提交到 GitHub
 GOOGLE_MAPS_API_KEY = os.environ.get("GOOGLE_MAPS_API_KEY", "")
+
+# Claude API(Anthropic)金鑰，用來提供 AI 助理對話功能
+# 請在 .env 檔案裡新增一行：ANTHROPIC_API_KEY=你的金鑰
+ANTHROPIC_API_KEY = os.environ.get("ANTHROPIC_API_KEY", "")

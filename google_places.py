@@ -9,8 +9,17 @@ TEXT_SEARCH_URL = "https://places.googleapis.com/v1/places:searchText"  # Google
 FIELD_MASK = (  # 定義要跟 Google 要哪些欄位，只要必要欄位可以省流量、省費用
     "places.id,places.displayName,places.formattedAddress,places.location,"
     "places.websiteUri,places.regularOpeningHours,places.addressComponents,"
-    "places.googleMapsUri,places.primaryTypeDisplayName,places.editorialSummary"
+    "places.googleMapsUri,places.primaryTypeDisplayName,places.editorialSummary,"
+    "places.priceLevel"
 )
+
+PRICE_LEVEL_MAP = {  # 定義 Google 價位等級對應到我們資料庫用的價位等級(只有餐廳會用到)
+    "PRICE_LEVEL_FREE": "low",
+    "PRICE_LEVEL_INEXPENSIVE": "low",
+    "PRICE_LEVEL_MODERATE": "medium",
+    "PRICE_LEVEL_EXPENSIVE": "high",
+    "PRICE_LEVEL_VERY_EXPENSIVE": "luxury",
+}
 
 
 class PlacesApiError(Exception):  # 定義自訂例外類別，代表呼叫 Google Places API 時發生的錯誤
@@ -98,6 +107,7 @@ def extract_place_fields(place):  # 定義函式：把 Google 回傳的單筆地
     country_name, city_name = extract_country_and_city(place.get("addressComponents"))  # 解析出國家與城市名稱
     category_name = (place.get("primaryTypeDisplayName") or {}).get("text")  # 取得 Google 判斷的地點類型中文名稱(例如「觀光景點」「博物館」)，當作分類
     description = (place.get("editorialSummary") or {}).get("text")  # 取得 Google 官方簡介(不是每個地點都有)
+    price_level = PRICE_LEVEL_MAP.get(place.get("priceLevel"))  # 把 Google 的價位等級轉成我們資料庫用的等級(找不到對應就是 None)
 
     return {  # 回傳整理好的欄位字典
         "name": name,
@@ -110,4 +120,5 @@ def extract_place_fields(place):  # 定義函式：把 Google 回傳的單筆地
         "city_name": city_name,
         "category_name": category_name,
         "description": description,
+        "price_level": price_level,
     }

@@ -52,15 +52,33 @@
         <h2>住宿列表</h2>
         <div>
             <span>共 {{ total }} 筆　</span>
+            <a href="{{ url_for('accommodations.import_from_google') }}" class="small-button">🔍 Google地圖匯入</a>
             <a href="{{ url_for('accommodations.import_accommodations') }}" class="small-button">⬆ 匯入 CSV</a>
             <a href="{{ url_for('accommodations.create_accommodation') }}" class="small-button">＋ 新增住宿</a>
+            <form method="POST" action="{{ url_for('accommodations.backfill_descriptions') }}" class="inline-form"
+                  onsubmit="return confirm('確定要幫所有還沒有描述、或描述太單調的住宿重新自動產生一段描述嗎？');">
+                <button type="submit" class="small-button">🖊 補上/更新描述</button>
+            </form>
         </div>
+    </div>
+
+    <form id="bulk-form" method="POST"></form>
+
+    <div class="bulk-actions">
+        <span id="selected-count">已選取 0 筆</span>
+        <button type="submit" form="bulk-form" formaction="{{ url_for('accommodations.bulk_activate_accommodations') }}"
+                id="bulk-activate-btn" class="enable-button" disabled
+                onclick="return confirmBulkAction('啟用');">✅ 啟用選取項目</button>
+        <button type="submit" form="bulk-form" formaction="{{ url_for('accommodations.bulk_delete_accommodations') }}"
+                id="bulk-delete-btn" class="disable-button" disabled
+                onclick="return confirmBulkAction('刪除');">🗑 刪除選取項目</button>
     </div>
 
     <div class="table-container">
         <table class="admin-table">
             <thead>
             <tr>
+                <th><input type="checkbox" id="select-all-checkbox" onchange="toggleSelectAll(this)"></th>
                 <th>圖片</th>
                 <th>名稱</th>
                 <th>分類</th>
@@ -76,6 +94,10 @@
             <tbody>
             {% for accommodation in accommodations %}
             <tr>
+                <td>
+                    <input type="checkbox" name="accommodation_ids" value="{{ accommodation.accommodation_id }}"
+                           form="bulk-form" class="row-checkbox" onchange="updateBulkSelection()">
+                </td>
                 <td>
                     {% if accommodation.image_path %}
                         <img class="thumb" src="{{ url_for('static', filename=accommodation.image_path) }}" alt="{{ accommodation.name }}">
@@ -111,7 +133,7 @@
             </tr>
             {% else %}
             <tr>
-                <td colspan="10" class="empty-data">找不到符合條件的住宿</td>
+                <td colspan="11" class="empty-data">找不到符合條件的住宿</td>
             </tr>
             {% endfor %}
             </tbody>
@@ -131,5 +153,31 @@
     {% endif %}
 
 </div>
+
+<script>
+    function updateBulkSelection() {
+        var checked = document.querySelectorAll('.row-checkbox:checked').length;
+        document.getElementById('selected-count').textContent = '已選取 ' + checked + ' 筆';
+        document.getElementById('bulk-activate-btn').disabled = checked === 0;
+        document.getElementById('bulk-delete-btn').disabled = checked === 0;
+
+        var all = document.querySelectorAll('.row-checkbox').length;
+        document.getElementById('select-all-checkbox').checked = (all > 0 && checked === all);
+    }
+
+    function toggleSelectAll(source) {
+        document.querySelectorAll('.row-checkbox').forEach(function (checkbox) {
+            checkbox.checked = source.checked;
+        });
+        updateBulkSelection();
+    }
+
+    function confirmBulkAction(actionLabel) {
+        var checked = document.querySelectorAll('.row-checkbox:checked').length;
+        return confirm('確定要' + actionLabel + '選取的 ' + checked + ' 筆住宿嗎？');
+    }
+
+    document.addEventListener('DOMContentLoaded', updateBulkSelection);
+</script>
 
 {% endblock %}

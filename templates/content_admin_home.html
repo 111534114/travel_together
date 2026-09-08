@@ -9,37 +9,37 @@
 
 <div class="dashboard-cards">
 
-    <div class="dashboard-card">
+    <a class="dashboard-card" href="{{ url_for('attractions.list_attractions') }}">
         <div class="card-icon">📍</div>
         <div>
             <p>景點總數</p>
             <h2>{{ attraction_count }}</h2>
         </div>
-    </div>
+    </a>
 
-    <div class="dashboard-card">
+    <a class="dashboard-card" href="{{ url_for('restaurants.list_restaurants') }}">
         <div class="card-icon">🍜</div>
         <div>
             <p>餐廳總數</p>
             <h2>{{ restaurant_count }}</h2>
         </div>
-    </div>
+    </a>
 
-    <div class="dashboard-card">
+    <a class="dashboard-card" href="{{ url_for('accommodations.list_accommodations') }}">
         <div class="card-icon">🏨</div>
         <div>
             <p>住宿總數</p>
             <h2>{{ accommodation_count }}</h2>
         </div>
-    </div>
+    </a>
 
-    <div class="dashboard-card">
+    <a class="dashboard-card" href="{{ url_for('proposals.list_proposals', status='pending') }}">
         <div class="card-icon">📥</div>
         <div>
             <p>待審核提案</p>
             <h2>{{ pending_proposal_count }}</h2>
         </div>
-    </div>
+    </a>
 
 </div>
 
@@ -50,7 +50,39 @@
         <a href="{{ url_for('reports.export_attractions') }}" class="export-button">⬇ 匯出景點統計 CSV</a>
     </div>
 
-    <div class="table-container">
+    {% if top_attractions %}
+    {% set max_total = namespace(value=1) %}
+    {% for attraction in top_attractions %}
+        {% set row_total = attraction.favorite_count + attraction.itinerary_count %}
+        {% if row_total > max_total.value %}{% set max_total.value = row_total %}{% endif %}
+    {% endfor %}
+
+    <div class="chart-legend">
+        <span class="chart-legend-item"><span class="chart-legend-swatch chart-series-1"></span>收藏次數</span>
+        <span class="chart-legend-item"><span class="chart-legend-swatch chart-series-2"></span>被排入行程次數</span>
+    </div>
+
+    <div class="chart-rows">
+        {% for attraction in top_attractions %}
+            {% set fav_pct = (attraction.favorite_count / max_total.value * 100) | round(2) %}
+            {% set itin_pct = (attraction.itinerary_count / max_total.value * 100) | round(2) %}
+            <div class="chart-row">
+                <div class="chart-label" title="{{ attraction.name }}（{{ attraction.country }} / {{ attraction.city }}）">{{ attraction.name }}</div>
+                <div class="chart-bar-track">
+                    <div class="chart-bar-segment chart-series-1" style="width: {{ fav_pct }}%"
+                         tabindex="0" title="收藏次數：{{ attraction.favorite_count }}"></div>
+                    <div class="chart-bar-segment chart-series-2" style="width: {{ itin_pct }}%"
+                         tabindex="0" title="被排入行程次數：{{ attraction.itinerary_count }}"></div>
+                </div>
+                <div class="chart-value">{{ attraction.favorite_count + attraction.itinerary_count }}</div>
+            </div>
+        {% endfor %}
+    </div>
+    {% else %}
+        <p class="empty-data">目前沒有景點資料</p>
+    {% endif %}
+
+    <div class="table-container" style="margin-top:22px;">
         <table class="admin-table">
             <thead>
             <tr>

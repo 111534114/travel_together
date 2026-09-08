@@ -12,6 +12,7 @@ from blueprints.proposals import proposals_bp  # 匯入會員提案審核的藍�
 from blueprints.ai_data import ai_data_bp  # 匯入 AI 使用資料維護的藍圖
 from blueprints.reports import reports_bp  # 匯入統計報表匯出的藍圖
 from blueprints.logs import logs_bp  # 匯入操作紀錄查詢的藍圖
+from blueprints.ai_chat import ai_chat_bp  # 匯入 AI 助理對話的藍圖
 from blueprints.member import member_bp  # 匯入會員功能的藍圖
 from activity_log import ACTION_LABELS, log_action
 
@@ -32,6 +33,7 @@ app.register_blueprint(proposals_bp)  # 註冊提案審核路由
 app.register_blueprint(ai_data_bp)  # 註冊 AI 資料維護路由
 app.register_blueprint(reports_bp)  # 註冊統計報表路由
 app.register_blueprint(logs_bp)  # 註冊操作紀錄路由
+app.register_blueprint(ai_chat_bp)  # 註冊 AI 助理對話路由
 app.register_blueprint(member_bp)  # 註冊會員功能路由
 
 

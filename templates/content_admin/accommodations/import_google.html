@@ -1,0 +1,39 @@
+{% extends "content_admin/base.html" %}
+{% set active_menu = "accommodations" %}
+
+{% block title %}Google地圖匯入住宿｜Travel Together{% endblock %}
+{% block page_title %}用 Google 地圖批次匯入住宿{% endblock %}
+{% block page_subtitle %}輸入住宿名稱清單，系統會自動查詢 Google 地圖並補齊地址、類型等資料{% endblock %}
+
+{% block content %}
+
+<div class="admin-section">
+
+    {% if not api_configured %}
+    <div class="message error">
+        尚未設定 Google Places API 金鑰。請在專案根目錄的 <code>.env</code> 檔案中設定
+        <code>GOOGLE_MAPS_API_KEY=你的金鑰</code>，並重新啟動伺服器後再使用這個功能。
+    </div>
+    {% endif %}
+
+    <ul>
+        <li>每一行輸入一個住宿名稱，例如「台北W飯店」，系統會用 Google 地圖搜尋最相符的地點。</li>
+        <li>一次最多 50 筆，避免一次送出過多付費 API 請求。</li>
+        <li>匯入後，資料完整（有地址、有類型）的住宿會直接啟用；資料不齊全的會是「<strong>待確認</strong>」，請到住宿列表逐筆確認。</li>
+        <li><strong>房價、入住/退房時間 Google 地圖不會提供</strong>，匯入後請自行補上。</li>
+    </ul>
+
+    <form method="POST" class="content-form" style="margin-top:10px;">
+        <div class="form-group full-width">
+            <label for="place_names">住宿名稱清單（一行一個）</label>
+            <textarea id="place_names" name="place_names" rows="10" placeholder="台北W飯店&#10;大板根森林溫泉渡假village&#10;老爺酒店" required></textarea>
+        </div>
+        <div class="form-actions">
+            <button type="submit" class="primary-button" {{ 'disabled' if not api_configured else '' }}>開始匯入</button>
+            <a href="{{ url_for('accommodations.list_accommodations') }}" class="secondary-link">取消</a>
+        </div>
+    </form>
+
+</div>
+
+{% endblock %}

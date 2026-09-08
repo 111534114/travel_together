@@ -1,0 +1,51 @@
+{% extends "content_admin/base.html" %}
+{% set active_menu = "ai_chat" %}
+
+{% block title %}AI 助理｜Travel Together{% endblock %}
+{% block page_title %}AI 助理{% endblock %}
+{% block page_subtitle %}用聊天的方式新增或查詢國家與城市資料{% endblock %}
+
+{% block content %}
+
+<div class="admin-section">
+
+    {% if not api_configured %}
+    <div class="message error">
+        尚未設定 Claude API 金鑰。請在專案根目錄的 <code>.env</code> 檔案中設定
+        <code>ANTHROPIC_API_KEY=你的金鑰</code>，並重新啟動伺服器後再使用這個功能。
+        （金鑰需要到 <code>console.anthropic.com</code> 申請。）
+    </div>
+    {% endif %}
+
+    <div class="chat-window" id="chat-window">
+        {% for entry in history %}
+            <div class="chat-bubble chat-bubble-{{ entry.role }}">
+                <div class="chat-role">{{ '你' if entry.role == 'user' else 'AI 助理' }}</div>
+                <div class="chat-text">{{ entry.text }}</div>
+            </div>
+        {% else %}
+            <p style="color:#999;">跟 AI 助理說說話吧，例如：「幫我新增日本，還有大阪跟東京兩個城市」或「目前有哪些國家？」</p>
+        {% endfor %}
+    </div>
+
+    <form method="POST" action="{{ url_for('ai_chat.send_message') }}" class="chat-input-form">
+        <input type="text" name="message" placeholder="輸入訊息…" required autocomplete="off"
+               {{ 'disabled' if not api_configured else '' }}>
+        <button type="submit" class="primary-button" style="width:auto; padding:12px 24px;"
+                {{ 'disabled' if not api_configured else '' }}>送出</button>
+    </form>
+
+    <form method="POST" action="{{ url_for('ai_chat.clear_chat') }}" style="margin-top:10px;">
+        <button type="submit" class="secondary-link" style="cursor:pointer; background:white;">🗑 清除對話</button>
+    </form>
+
+</div>
+
+<script>
+    var chatWindow = document.getElementById('chat-window');
+    if (chatWindow) {
+        chatWindow.scrollTop = chatWindow.scrollHeight;
+    }
+</script>
+
+{% endblock %}

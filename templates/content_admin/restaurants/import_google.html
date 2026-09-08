@@ -1,0 +1,39 @@
+{% extends "content_admin/base.html" %}
+{% set active_menu = "restaurants" %}
+
+{% block title %}Google地圖匯入餐廳｜Travel Together{% endblock %}
+{% block page_title %}用 Google 地圖批次匯入餐廳{% endblock %}
+{% block page_subtitle %}輸入餐廳名稱清單，系統會自動查詢 Google 地圖並補齊地址、料理類型、價位、營業時間{% endblock %}
+
+{% block content %}
+
+<div class="admin-section">
+
+    {% if not api_configured %}
+    <div class="message error">
+        尚未設定 Google Places API 金鑰。請在專案根目錄的 <code>.env</code> 檔案中設定
+        <code>GOOGLE_MAPS_API_KEY=你的金鑰</code>，並重新啟動伺服器後再使用這個功能。
+    </div>
+    {% endif %}
+
+    <ul>
+        <li>每一行輸入一個餐廳名稱，例如「鼎泰豐信義店」，系統會用 Google 地圖搜尋最相符的地點。</li>
+        <li>一次最多 50 筆，避免一次送出過多付費 API 請求。</li>
+        <li>匯入後，資料完整（有地址、有分類）的餐廳會直接啟用；資料不齊全的會是「<strong>待確認</strong>」，請到餐廳列表逐筆確認。</li>
+        <li>料理類型、分類會用 Google 判斷的地點類型自動帶入；價位如果 Google 有提供也會自動帶入，沒有就用預設中價位。</li>
+    </ul>
+
+    <form method="POST" class="content-form" style="margin-top:10px;">
+        <div class="form-group full-width">
+            <label for="place_names">餐廳名稱清單（一行一個）</label>
+            <textarea id="place_names" name="place_names" rows="10" placeholder="鼎泰豐信義店&#10;春水堂人文茶館&#10;藍瓶咖啡" required></textarea>
+        </div>
+        <div class="form-actions">
+            <button type="submit" class="primary-button" {{ 'disabled' if not api_configured else '' }}>開始匯入</button>
+            <a href="{{ url_for('restaurants.list_restaurants') }}" class="secondary-link">取消</a>
+        </div>
+    </form>
+
+</div>
+
+{% endblock %}

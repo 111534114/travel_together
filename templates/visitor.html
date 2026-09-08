@@ -23,12 +23,32 @@
     .nav-links .nav-register { color: #fff; background: var(--purple); }
     .nav-links .nav-register:hover { color: #fff; background: #4b376d; }
     main { width: min(1180px, calc(100% - 48px)); margin: 0 auto; padding: 42px 0 70px; }
-    .hero { display: flex; align-items: center; justify-content: space-between; gap: 30px; padding: 38px 52px; color: #fff; background: var(--purple); border-radius: 8px; }
     .eyebrow { margin: 0; color: #ded2ee; font-size: 12px; font-weight: 700; letter-spacing: .4px; }
-    .hero h1 { margin: 9px 0 12px; font-size: 36px; line-height: 1.35; }
-    .hero p:last-child { margin: 0; color: #e9e3f5; }
     .button-light { display: inline-flex; flex: 0 0 auto; align-items: center; justify-content: center; min-height: 44px; padding: 10px 18px; color: #4b376d; background: #fff; border: 1px solid transparent; border-radius: 6px; font-weight: 700; }
     .button-light:hover { background: #f4f0fa; }
+    .hero-banner { position: relative; margin-bottom: 200px; }
+    .hero-banner-bg { padding: 50px 52px 64px; color: #fff; background: linear-gradient(135deg, #4d3d73 0%, #5f4b8b 45%, #9c85d6 100%); border-radius: 16px; }
+    .hero-banner-bg h1 { margin: 10px 0 12px; font-size: 34px; line-height: 1.35; }
+    .hero-banner-bg p:last-child { margin: 0; max-width: 620px; color: #e9e3f5; }
+    .search-card { position: absolute; top: 100%; right: 24px; left: 24px; padding: 18px 22px 22px; background: #fff; border-radius: 14px; box-shadow: 0 20px 45px rgba(45, 37, 68, .18); transform: translateY(-64px); }
+    .search-tabs { display: flex; align-items: center; gap: 2px; margin-bottom: 16px; border-bottom: 1px solid var(--line); }
+    .search-tab { display: flex; align-items: center; gap: 6px; padding: 10px 16px; color: var(--muted); background: transparent; border: 0; border-bottom: 2px solid transparent; cursor: pointer; font-size: 15px; font-weight: 600; }
+    .search-tab .tab-icon { font-size: 17px; }
+    .search-tab:hover { color: var(--purple); }
+    .search-tab.active { color: var(--purple); border-bottom-color: var(--purple); }
+    .tab-badge { padding: 3px 9px; margin-left: auto; color: #9c6b1f; background: #fdf1dd; border-radius: 999px; font-size: 11px; font-weight: 700; white-space: nowrap; }
+    .search-fields-row { display: flex; flex-wrap: wrap; align-items: end; gap: 12px; }
+    .search-fields-row[hidden] { display: none; }
+    .field { display: flex; flex: 1 1 150px; min-width: 130px; flex-direction: column; gap: 5px; }
+    .field label { color: var(--muted); font-size: 12px; font-weight: 600; }
+    .field input { min-height: 44px; padding: 9px 12px; color: var(--ink); background: #fff; border: 1px solid #cbc5d7; border-radius: 6px; outline: none; }
+    .field input:focus { border-color: var(--purple); box-shadow: 0 0 0 3px #e8def4; }
+    .field-sep { display: flex; flex: 0 0 auto; align-items: center; justify-content: center; padding-bottom: 11px; color: var(--muted); font-size: 16px; }
+    .search-submit { flex: 0 0 auto; min-height: 44px; padding: 10px 26px; color: #fff; background: var(--purple); border: 0; border-radius: 6px; cursor: pointer; font-size: 15px; font-weight: 700; }
+    .search-submit:hover { background: #4b376d; }
+    .search-note { margin: 14px 0 0; color: var(--muted); font-size: 12px; }
+    .toast { position: fixed; z-index: 50; bottom: 30px; left: 50%; padding: 12px 22px; color: #fff; background: #33293f; border-radius: 8px; box-shadow: 0 10px 25px rgba(0, 0, 0, .25); font-size: 14px; opacity: 0; transform: translate(-50%, 10px); transition: opacity 200ms ease, transform 200ms ease; pointer-events: none; }
+    .toast.show { opacity: 1; transform: translate(-50%, 0); }
     .announcements { margin: 28px 0 32px; }
     .announcement-list { display: grid; gap: 12px; }
     .announcement-card { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: 14px; align-items: start; padding: 17px 18px; background: #fff; border: 1px solid var(--line); border-radius: 8px; box-shadow: 0 6px 18px rgba(45, 37, 68, .04); }
@@ -85,8 +105,8 @@
     .timeline-item { padding: 13px 15px; background: var(--purple-soft); border-left: 3px solid var(--purple); border-radius: 0 6px 6px 0; }
     .timeline-item b, .timeline-item span { display: block; }
     .timeline-item span { margin-top: 3px; color: #5e556c; font-size: 14px; }
-    @media (max-width: 850px) { .site-nav { align-items: flex-start; flex-direction: column; gap: 6px; padding: 8px 18px 12px; } .nav-links { width: 100%; margin-left: 0; overflow-x: auto; } main { width: min(100% - 28px, 680px); padding-top: 24px; } .hero { align-items: flex-start; flex-direction: column; padding: 30px 26px; } .trip-grid, .companion-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
-    @media (max-width: 560px) { .brand { width: 108px; height: 48px; } .nav-links { gap: 2px; } .nav-links a { padding: 8px; font-size: 14px; white-space: nowrap; } .hero h1 { font-size: 28px; } .search-bar, .section-header, .member-unlock { align-items: stretch; flex-direction: column; } .trip-grid, .companion-grid { grid-template-columns: 1fr; } .announcement-card { grid-template-columns: auto minmax(0, 1fr); } .announcement-meta { grid-column: 2; } .member-unlock { padding: 24px; } .member-unlock-actions { flex-wrap: wrap; } .section-header h2 { font-size: 24px; } }
+    @media (max-width: 850px) { .site-nav { align-items: flex-start; flex-direction: column; gap: 6px; padding: 8px 18px 12px; } .nav-links { width: 100%; margin-left: 0; overflow-x: auto; } main { width: min(100% - 28px, 680px); padding-top: 24px; } .hero-banner { margin-bottom: 24px; } .hero-banner-bg { padding: 28px 24px; border-radius: 12px; } .search-card { position: static; margin-top: -32px; box-shadow: 0 12px 30px rgba(45, 37, 68, .16); } .search-tabs { flex-wrap: nowrap; overflow-x: auto; } .search-tab { flex: 0 0 auto; } .tab-badge { flex: 0 0 auto; margin-left: 10px; } .trip-grid, .companion-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+    @media (max-width: 560px) { .brand { width: 108px; height: 48px; } .nav-links { gap: 2px; } .nav-links a { padding: 8px; font-size: 14px; white-space: nowrap; } .hero-banner-bg h1 { font-size: 26px; } .search-tabs { flex-wrap: wrap; gap: 8px; } .search-tab { padding: 8px 10px; font-size: 14px; } .search-submit { width: 100%; } .search-bar, .section-header, .member-unlock { align-items: stretch; flex-direction: column; } .trip-grid, .companion-grid { grid-template-columns: 1fr; } .announcement-card { grid-template-columns: auto minmax(0, 1fr); } .announcement-meta { grid-column: 2; } .member-unlock { padding: 24px; } .member-unlock-actions { flex-wrap: wrap; } .section-header h2 { font-size: 24px; } }
   </style>
 </head>
 <body>
@@ -101,13 +121,51 @@
     </nav>
   </header>
   <main>
-    <section class="hero">
-      <div>
-        <p class="eyebrow">EXPLORE TRIPS</p>
-        <h1>探索大家的公開旅程</h1>
-        <p>依行程名稱、國家、城市或分類，尋找目前公開分享的行程。</p>
+    <section class="hero-banner">
+      <div class="hero-banner-bg">
+        <p class="eyebrow">TRAVEL TOGETHER</p>
+        <h1>揪伴同行，一起規劃下一趟旅程</h1>
+        <p>探索大家分享的公開行程與旅伴揪團；住宿與機票搜尋即將推出，敬請期待。</p>
       </div>
-      <a class="button-light" href="/register">＋ 建立新行程</a>
+      <div class="search-card">
+        <div class="search-tabs" role="tablist">
+          <button class="search-tab active" type="button" data-tab="hotel" onclick="switchSearchTab('hotel', this)"><span class="tab-icon">🏨</span>住宿</button>
+          <button class="search-tab" type="button" data-tab="flight" onclick="switchSearchTab('flight', this)"><span class="tab-icon">✈️</span>機票</button>
+          <button class="search-tab" type="button" data-tab="train" onclick="switchSearchTab('train', this)"><span class="tab-icon">🚄</span>高鐵／火車票</button>
+          <button class="search-tab" type="button" data-tab="experience" onclick="switchSearchTab('experience', this)"><span class="tab-icon">🧭</span>當地體驗</button>
+          <span class="tab-badge">功能開發中</span>
+        </div>
+        <form onsubmit="handleBookingSearch(event)">
+          <div class="search-fields-row" data-tab-fields="hotel">
+            <div class="field"><label for="hotelDest">目的地</label><input id="hotelDest" type="text" placeholder="城市、飯店名稱"></div>
+            <div class="field"><label for="hotelCheckin">入住</label><input id="hotelCheckin" type="date"></div>
+            <div class="field"><label for="hotelCheckout">退房</label><input id="hotelCheckout" type="date"></div>
+            <div class="field"><label for="hotelGuests">人數</label><input id="hotelGuests" type="number" min="1" value="2"></div>
+          </div>
+          <div class="search-fields-row" data-tab-fields="flight" hidden>
+            <div class="field"><label for="flightFrom">出發地</label><input id="flightFrom" type="text" placeholder="台北"></div>
+            <div class="field-sep">→</div>
+            <div class="field"><label for="flightTo">目的地</label><input id="flightTo" type="text" placeholder="東京"></div>
+            <div class="field"><label for="flightDepart">去程日期</label><input id="flightDepart" type="date"></div>
+            <div class="field"><label for="flightReturn">回程日期</label><input id="flightReturn" type="date"></div>
+            <div class="field"><label for="flightPax">人數</label><input id="flightPax" type="number" min="1" value="1"></div>
+          </div>
+          <div class="search-fields-row" data-tab-fields="train" hidden>
+            <div class="field"><label for="trainFrom">出發站</label><input id="trainFrom" type="text" placeholder="台北"></div>
+            <div class="field-sep">→</div>
+            <div class="field"><label for="trainTo">到達站</label><input id="trainTo" type="text" placeholder="高雄"></div>
+            <div class="field"><label for="trainDate">日期</label><input id="trainDate" type="date"></div>
+            <div class="field"><label for="trainPax">人數</label><input id="trainPax" type="number" min="1" value="1"></div>
+          </div>
+          <div class="search-fields-row" data-tab-fields="experience" hidden>
+            <div class="field"><label for="expDest">目的地</label><input id="expDest" type="text" placeholder="城市或景點"></div>
+            <div class="field"><label for="expDate">日期</label><input id="expDate" type="date"></div>
+            <div class="field"><label for="expPax">人數</label><input id="expPax" type="number" min="1" value="1"></div>
+          </div>
+          <button class="search-submit" type="submit">🔍 搜尋</button>
+        </form>
+        <p class="search-note">＊住宿／機票／高鐵／體驗搜尋為介面預覽，實際資料串接開發中；您可以先探索下方的公開行程與旅伴揪團。</p>
+      </div>
     </section>
     <section id="announcements" class="announcements">
       <div class="section-header">
@@ -212,6 +270,31 @@
     </div>
   </div>
   <script>
+    function switchSearchTab(tab, btn) {
+      document.querySelectorAll('.search-tab').forEach((t) => t.classList.remove('active'));
+      btn.classList.add('active');
+      document.querySelectorAll('[data-tab-fields]').forEach((row) => {
+        row.hidden = row.dataset.tabFields !== tab;
+      });
+    }
+    let toastTimer;
+    function showToast(message) {
+      let toast = document.getElementById('siteToast');
+      if (!toast) {
+        toast = document.createElement('div');
+        toast.id = 'siteToast';
+        toast.className = 'toast';
+        document.body.appendChild(toast);
+      }
+      toast.textContent = message;
+      requestAnimationFrame(() => toast.classList.add('show'));
+      clearTimeout(toastTimer);
+      toastTimer = setTimeout(() => toast.classList.remove('show'), 3000);
+    }
+    function handleBookingSearch(event) {
+      event.preventDefault();
+      showToast('此搜尋功能開發中，敬請期待！可以先看看下方的公開行程與旅伴揪團 🙂');
+    }
     const trips = {{ trips_timeline_json | tojson }};
     function escapeHtml(value) {
       const element = document.createElement('div');

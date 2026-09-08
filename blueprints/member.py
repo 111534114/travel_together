@@ -7,6 +7,7 @@ from werkzeug.security import check_password_hash, generate_password_hash
 
 from auth import login_required
 from db import get_db_connection
+from utils import get_cities, get_countries
 
 
 member_bp = Blueprint("member", __name__, url_prefix="/member")
@@ -22,8 +23,10 @@ def _connection_or_home():
 
 def _member_access(cursor, trip_id, user_id):
     cursor.execute("""
-        SELECT t.*, tm.member_role, tm.join_status
+        SELECT t.*, co.name AS country, ci.name AS city, tm.member_role, tm.join_status
         FROM trips t
+        JOIN countries co ON co.country_id = t.country_id
+        JOIN cities ci ON ci.city_id = t.city_id
         LEFT JOIN trip_members tm ON tm.trip_id = t.trip_id AND tm.user_id = %s
         WHERE t.trip_id = %s
     """, (user_id, trip_id))
@@ -40,8 +43,8 @@ def _can_edit(trip):
 def _parse_trip(form):
     values = {
         "trip_name": form.get("trip_name", "").strip(),
-        "country": form.get("country", "").strip(),
-        "city": form.get("city", "").strip(),
+        "country_id": form.get("country_id", "").strip(),
+        "city_id": form.get("city_id", "").strip(),
         "start_date": form.get("start_date", "").strip(),
         "end_date": form.get("end_date", "").strip(),
         "people_count": form.get("people_count", "1").strip(),
@@ -51,7 +54,7 @@ def _parse_trip(form):
         "visibility": form.get("visibility", "private").strip(),
     }
     errors = []
-    if not all(values[k] for k in ("trip_name", "country", "city", "start_date", "end_date")):
+    if not all(values[k] for k in ("trip_name", "country_id", "city_id", "start_date", "end_date")):
         errors.append("請填寫行程名稱、目的地與旅遊日期。")
     try:
         start, end = date.fromisoformat(values["start_date"]), date.fromisoformat(values["end_date"])
@@ -88,10 +91,13 @@ def dashboard():
     try:
         user_id = session["user_id"]
         cursor.execute("""
-            SELECT t.*, tm.member_role,
+            SELECT t.*, co.name AS country, ci.name AS city, tm.member_role,
                    (SELECT COUNT(*) FROM itineraries i WHERE i.trip_id=t.trip_id) AS itinerary_count,
                    (SELECT COUNT(*) FROM trip_members tm2 WHERE tm2.trip_id=t.trip_id AND tm2.join_status='accepted') AS member_count
-            FROM trip_members tm JOIN trips t ON t.trip_id = tm.trip_id
+            FROM trip_members tm
+            JOIN trips t ON t.trip_id = tm.trip_id
+            JOIN countries co ON co.country_id = t.country_id
+            JOIN cities ci ON ci.city_id = t.city_id
             WHERE tm.user_id=%s AND tm.join_status='accepted'
             ORDER BY t.start_date ASC, t.created_at DESC
         """, (user_id,))
@@ -113,28 +119,31 @@ def dashboard():
 @member_bp.route("/trips/new", methods=["GET", "POST"])
 @login_required("member")
 def create_trip():
-    if request.method == "POST":
-        form, errors = _parse_trip(request.form)
-        if errors:
-            for error in errors: flash(error, "error")
-            return render_template("member/trip_form.html", trip=form, mode="create")
-        connection = _connection_or_home()
-        if connection is None: return redirect(url_for("member.dashboard"))
-        cursor = connection.cursor()
-        try:
-            cursor.execute("""INSERT INTO trips (owner_id,trip_name,country,city,start_date,end_date,people_count,total_budget,currency,introduction,visibility,status,share_token)
-                              VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,'planning',%s)""",
-                           (session["user_id"], form["trip_name"], form["country"], form["city"], form["start_date"], form["end_date"], form["people_count"], form["total_budget"], form["currency"], form["introduction"] or None, form["visibility"], secrets.token_urlsafe(16)))
-            trip_id = cursor.lastrowid
-            cursor.execute("INSERT INTO trip_members (trip_id,user_id,member_role,join_status,joined_at) VALUES (%s,%s,'owner','accepted',NOW())", (trip_id, session["user_id"]))
-            connection.commit()
-            flash("已建立新行程，現在可以邀請旅伴並安排每日活動。", "success")
-            return redirect(url_for("member.trip_detail", trip_id=trip_id))
-        except Exception:
-            connection.rollback(); flash("建立行程失敗，請再試一次。", "error")
-        finally:
-            cursor.close(); connection.close()
-    return render_template("member/trip_form.html", trip=None, mode="create")
+    connection = _connection_or_home()
+    if connection is None: return redirect(url_for("member.dashboard"))
+    cursor = connection.cursor(dictionary=True)
+    try:
+        countries = get_countries(cursor)
+        cities = get_cities(cursor)
+        if request.method == "POST":
+            form, errors = _parse_trip(request.form)
+            if errors:
+                for error in errors: flash(error, "error")
+                return render_template("member/trip_form.html", trip=form, mode="create", countries=countries, cities=cities)
+            try:
+                cursor.execute("""INSERT INTO trips (owner_id,trip_name,country_id,city_id,start_date,end_date,people_count,total_budget,currency,introduction,visibility,status,share_token)
+                                  VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,'planning',%s)""",
+                               (session["user_id"], form["trip_name"], form["country_id"], form["city_id"], form["start_date"], form["end_date"], form["people_count"], form["total_budget"], form["currency"], form["introduction"] or None, form["visibility"], secrets.token_urlsafe(16)))
+                trip_id = cursor.lastrowid
+                cursor.execute("INSERT INTO trip_members (trip_id,user_id,member_role,join_status,joined_at) VALUES (%s,%s,'owner','accepted',NOW())", (trip_id, session["user_id"]))
+                connection.commit()
+                flash("已建立新行程，現在可以邀請旅伴並安排每日活動。", "success")
+                return redirect(url_for("member.trip_detail", trip_id=trip_id))
+            except Exception:
+                connection.rollback(); flash("建立行程失敗，請再試一次。", "error")
+        return render_template("member/trip_form.html", trip=None, mode="create", countries=countries, cities=cities)
+    finally:
+        cursor.close(); connection.close()
 
 
 @member_bp.route("/trips/<int:trip_id>")
@@ -172,16 +181,18 @@ def edit_trip(trip_id):
         trip = _member_access(cursor, trip_id, session["user_id"])
         if not trip or trip["member_role"] != "owner":
             flash("只有行程建立者可以修改整份行程。", "error"); return redirect(url_for("member.dashboard"))
+        countries = get_countries(cursor)
+        cities = get_cities(cursor)
         if request.method == "POST":
             form, errors = _parse_trip(request.form)
             if errors:
                 for error in errors: flash(error, "error")
-                form["trip_id"] = trip_id; return render_template("member/trip_form.html", trip=form, mode="edit")
-            cursor.execute("""UPDATE trips SET trip_name=%s,country=%s,city=%s,start_date=%s,end_date=%s,people_count=%s,total_budget=%s,currency=%s,introduction=%s,visibility=%s WHERE trip_id=%s""", (form["trip_name"],form["country"],form["city"],form["start_date"],form["end_date"],form["people_count"],form["total_budget"],form["currency"],form["introduction"] or None,form["visibility"],trip_id))
+                form["trip_id"] = trip_id; return render_template("member/trip_form.html", trip=form, mode="edit", countries=countries, cities=cities)
+            cursor.execute("""UPDATE trips SET trip_name=%s,country_id=%s,city_id=%s,start_date=%s,end_date=%s,people_count=%s,total_budget=%s,currency=%s,introduction=%s,visibility=%s WHERE trip_id=%s""", (form["trip_name"],form["country_id"],form["city_id"],form["start_date"],form["end_date"],form["people_count"],form["total_budget"],form["currency"],form["introduction"] or None,form["visibility"],trip_id))
             connection.commit(); flash("行程資料已更新。", "success"); return redirect(url_for("member.trip_detail", trip_id=trip_id))
+        return render_template("member/trip_form.html", trip=trip, mode="edit", countries=countries, cities=cities)
     finally:
         cursor.close(); connection.close()
-    return render_template("member/trip_form.html", trip=trip, mode="edit")
 
 
 @member_bp.route("/trips/<int:trip_id>/itinerary", methods=["POST"])

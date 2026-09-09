@@ -138,8 +138,8 @@ CREATE TABLE trips (
  category_id BIGINT UNSIGNED,
  trip_name VARCHAR(150) NOT NULL,
  cover_image_path VARCHAR(255),
- country VARCHAR(100),
- city VARCHAR(100),
+ country_id BIGINT UNSIGNED NOT NULL,
+ city_id BIGINT UNSIGNED NOT NULL,
  start_date DATE NOT NULL,
  end_date DATE NOT NULL,
  people_count INT UNSIGNED NOT NULL DEFAULT 1,
@@ -153,6 +153,8 @@ CREATE TABLE trips (
  updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
  FOREIGN KEY(owner_id) REFERENCES users(user_id),
  FOREIGN KEY(category_id) REFERENCES categories(category_id) ON DELETE SET NULL,
+ FOREIGN KEY(country_id) REFERENCES countries(country_id),
+ FOREIGN KEY(city_id) REFERENCES cities(city_id),
  CHECK(end_date>=start_date), CHECK(people_count>=1), CHECK(total_budget>=0)
 ) ENGINE=InnoDB;
 
@@ -466,8 +468,8 @@ INSERT INTO cities(country_id,name) VALUES
 INSERT INTO attractions(category_id,name,country_id,city_id,address,ticket_price,suggested_duration_minutes,description,is_popular,created_by)
 VALUES(3,'台北101',1,1,'台北市信義區信義路五段7號',600,120,'台北代表性地標與觀景台',TRUE,2);
 
-INSERT INTO trips(owner_id,category_id,trip_name,country,city,start_date,end_date,people_count,total_budget,currency,introduction,visibility,status,share_token)
-VALUES(1,1,'台北三天兩夜','台灣','台北市','2026-08-10','2026-08-12',3,15000,'TWD','測試用多人協作旅遊行程','public','planning','demo-taipei-2026');
+INSERT INTO trips(owner_id,category_id,trip_name,country_id,city_id,start_date,end_date,people_count,total_budget,currency,introduction,visibility,status,share_token)
+VALUES(1,1,'台北三天兩夜',1,1,'2026-08-10','2026-08-12',3,15000,'TWD','測試用多人協作旅遊行程','public','planning','demo-taipei-2026');
 
 INSERT INTO trip_members(trip_id,user_id,member_role,join_status,joined_at)
 VALUES(1,1,'owner','accepted',NOW());

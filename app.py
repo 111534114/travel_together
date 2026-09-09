@@ -101,7 +101,7 @@ def visitor():
 
             # 3. 查詢會員建立的公開行程列表
             cursor.execute("""
-                SELECT t.trip_id, t.trip_name, t.country, t.city,
+                SELECT t.trip_id, t.trip_name, co.name AS country, ci.name AS city,
                        t.start_date, t.end_date, t.people_count,
                        t.total_budget, t.currency, t.introduction,
                        t.cover_image_path, t.visibility,
@@ -111,6 +111,8 @@ def visitor():
                        DATEDIFF(t.end_date, t.start_date) + 1 AS days_count
                 FROM trips t
                 JOIN users u ON u.user_id = t.owner_id
+                JOIN countries co ON co.country_id = t.country_id
+                JOIN cities ci ON ci.city_id = t.city_id
                 LEFT JOIN categories c ON c.category_id = t.category_id
                 WHERE t.visibility = 'public'
                 ORDER BY t.trip_id DESC
@@ -119,15 +121,17 @@ def visitor():
 
             # 4. 查詢最新揪團旅伴資訊
             cursor.execute("""
-                SELECT t.trip_id, t.trip_name, t.country, t.city,
+                SELECT t.trip_id, t.trip_name, co.name AS country, ci.name AS city,
                        t.people_count, t.total_budget, t.currency, t.introduction,
                        u.full_name AS owner_name, u.nickname AS owner_nickname,
                        COUNT(tm.user_id) AS joined_count
                 FROM trips t
                 JOIN users u ON u.user_id = t.owner_id
+                JOIN countries co ON co.country_id = t.country_id
+                JOIN cities ci ON ci.city_id = t.city_id
                 LEFT JOIN trip_members tm ON tm.trip_id = t.trip_id AND tm.join_status = 'accepted'
                 WHERE t.visibility = 'public' OR t.people_count > 1
-                GROUP BY t.trip_id, t.trip_name, t.country, t.city, t.people_count, t.total_budget, t.currency, t.introduction, u.full_name, u.nickname
+                GROUP BY t.trip_id, t.trip_name, co.name, ci.name, t.people_count, t.total_budget, t.currency, t.introduction, u.full_name, u.nickname
                 ORDER BY t.trip_id DESC
                 LIMIT 6
             """)
@@ -699,7 +703,7 @@ def admin_public_trips():  # 定義公開行程管理列表函式
         if keyword:  # 如果有輸入搜尋關鍵字
             search = f"%{keyword}%"  # 組成模糊搜尋字串
             conditions.append("""
-                (t.trip_name LIKE %s OR t.country LIKE %s OR t.city LIKE %s
+                (t.trip_name LIKE %s OR co.name LIKE %s OR ci.name LIKE %s
                  OR u.username LIKE %s OR u.full_name LIKE %s)
             """)  # 加入依行程名稱、國家、城市、擁有者帳號、姓名搜尋的條件
             params.extend([search] * 5)  # 5 個搜尋欄位都用同一個關鍵字
@@ -710,7 +714,7 @@ def admin_public_trips():  # 定義公開行程管理列表函式
 
         where_clause = " AND ".join(conditions)  # 把所有條件用 AND 串起來
         cursor.execute(f"""
-            SELECT t.trip_id, t.trip_name, t.country, t.city,
+            SELECT t.trip_id, t.trip_name, co.name AS country, ci.name AS city,
                    t.start_date, t.end_date, t.status, t.created_at,
                    u.username AS owner_username, u.full_name AS owner_name,
                    COUNT(DISTINCT CASE WHEN tm.join_status = 'accepted'
@@ -720,11 +724,13 @@ def admin_public_trips():  # 定義公開行程管理列表函式
                                       THEN r.report_id END) AS report_count
             FROM trips t
             JOIN users u ON u.user_id = t.owner_id
+            JOIN countries co ON co.country_id = t.country_id
+            JOIN cities ci ON ci.city_id = t.city_id
             LEFT JOIN trip_members tm ON tm.trip_id = t.trip_id
             LEFT JOIN itineraries i ON i.trip_id = t.trip_id
             LEFT JOIN reports r ON r.target_type = 'trip' AND r.target_id = t.trip_id
             WHERE {where_clause}
-            GROUP BY t.trip_id, t.trip_name, t.country, t.city,
+            GROUP BY t.trip_id, t.trip_name, co.name, ci.name,
                      t.start_date, t.end_date, t.status, t.created_at,
                      u.username, u.full_name
             ORDER BY t.created_at DESC

@@ -126,16 +126,19 @@ body {
 
 .admin-sidebar {
     width: 250px;
-    background: #5f4b8b;
-    color: white;
+    background: #ffffff;
+    color: #443463;
     padding: 25px 18px;
+    box-sizing: border-box;
+    border-right: 1px solid #e8e3ef;
+    box-shadow: 4px 0 16px rgba(68, 52, 99, 0.06);
 }
 
 
 .admin-logo {
     display: block;
     padding: 5px 12px 25px 12px;
-    border-bottom: 1px solid rgba(255, 255, 255, 0.2);
+    border-bottom: 1px solid #e8e3ef;
     text-decoration: none;
     color: inherit;
 }
@@ -183,7 +186,7 @@ body {
     padding: 14px 15px;
     margin-bottom: 8px;
 
-    color: white;
+    color: #443463;
 
     text-decoration: none;
 
@@ -195,7 +198,8 @@ body {
 
 .admin-menu a:hover,
 .admin-menu a.active {
-    background: rgba(255, 255, 255, 0.18);
+    background: #eee9f8;
+    color: #443463;
 }
 
 

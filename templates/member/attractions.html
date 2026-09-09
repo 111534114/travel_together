@@ -1,0 +1,16 @@
+{% extends 'member/base.html' %}{% block title %}探索景點｜走吧揪團{% endblock %}{% block content %}
+<div class="page-heading"><p class="eyebrow">EXPLORE</p><h1>探索景點</h1><p>瀏覽景點並收藏喜歡的地方，之後排行程時更快找到。</p></div>
+<form class="member-form compact attraction-filter" method="get"><div class="form-grid-member"><label>關鍵字<input name="keyword" value="{{ keyword }}" placeholder="景點名稱或地址"></label><label>國家<select id="countrySelect" name="country_id"><option value="">全部國家</option>{% for country in countries %}<option value="{{ country.country_id }}" {{ 'selected' if country_id == country.country_id|string else '' }}>{{ country.name }}</option>{% endfor %}</select></label><label>城市<select id="citySelect" name="city_id"><option value="">全部城市</option>{% for city in cities %}<option value="{{ city.city_id }}" data-country="{{ city.country_id }}" {{ 'selected' if city_id == city.city_id|string else '' }}>{{ city.name }}</option>{% endfor %}</select></label><label class="checkbox-inline-member"><input type="checkbox" name="favorites_only" value="1" {{ 'checked' if favorites_only else '' }}> 只看我的收藏</label></div><div class="form-actions-member"><button class="member-btn primary" type="submit">篩選</button><a class="member-btn ghost" href="{{ url_for('member.browse_attractions') }}">清除篩選</a></div></form>
+{% if attractions %}<div class="trip-grid attraction-grid">{% for a in attractions %}<div class="attraction-card-member"><div class="card-art attraction-art">{% if a.image_path %}<img src="{{ url_for('static', filename=a.image_path) }}" alt="{{ a.name }}">{% else %}<span class="art-fallback">{{ a.name[:1] }}</span>{% endif %}<form method="post" action="{{ url_for('member.toggle_favorite', attraction_id=a.attraction_id) }}" class="favorite-form"><input type="hidden" name="next" value="{{ request.full_path }}"><button type="submit" class="favorite-btn {{ 'is-favorited' if a.is_favorited else '' }}" title="{{ '取消收藏' if a.is_favorited else '收藏景點' }}">{{ '♥' if a.is_favorited else '♡' }}</button></form></div><div class="card-content"><p>{{ a.country }} · {{ a.city }}{% if a.category_name %} · {{ a.category_name }}{% endif %}</p><h3>{{ a.name }}</h3><footer><span>{{ a.address or '地址未提供' }}</span><strong>{{ 'NT$ {:,.0f}'.format(a.ticket_price) if a.ticket_price else '免費' }}</strong></footer></div></div>{% endfor %}</div>{% else %}<div class="empty-member"><div>✦</div><h2>{{ '還沒有收藏的景點' if favorites_only else '找不到符合條件的景點' }}</h2><p>{{ '去逛逛景點，把喜歡的加進收藏吧。' if favorites_only else '試試看調整關鍵字或國家、城市篩選。' }}</p></div>{% endif %}
+<script>
+    function filterCitiesByCountry() {
+        var countryId = document.getElementById('countrySelect').value;
+        var options = document.getElementById('citySelect').querySelectorAll('option[data-country]');
+        options.forEach(function (option) {
+            option.hidden = Boolean(countryId) && option.dataset.country !== countryId;
+        });
+    }
+    document.getElementById('countrySelect').addEventListener('change', filterCitiesByCountry);
+    window.addEventListener('DOMContentLoaded', filterCitiesByCountry);
+</script>
+{% endblock %}

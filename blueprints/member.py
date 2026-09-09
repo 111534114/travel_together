@@ -1,5 +1,5 @@
-from datetime import date
-from decimal import Decimal, InvalidOperation
+from datetime import date, datetime
+from decimal import ROUND_DOWN, Decimal, InvalidOperation
 import secrets
 
 from flask import Blueprint, flash, redirect, render_template, request, session, url_for
@@ -38,6 +38,97 @@ def _member_access(cursor, trip_id, user_id):
 
 def _can_edit(trip):
     return trip["member_role"] in ("owner", "editor")
+
+
+def _load_votes(cursor, trip_id, user_id):
+    cursor.execute("""
+        SELECT v.*, u.full_name AS creator_name, u.nickname AS creator_nickname,
+               (SELECT COUNT(*) FROM vote_records vr WHERE vr.vote_id=v.vote_id) AS total_votes
+        FROM votes v JOIN users u ON u.user_id=v.created_by
+        WHERE v.trip_id=%s ORDER BY v.created_at DESC
+    """, (trip_id,))
+    votes = cursor.fetchall()
+
+    for v in votes:
+        cursor.execute("""
+            SELECT o.option_id, o.option_text, o.sort_order,
+                   (SELECT COUNT(*) FROM vote_records vr WHERE vr.option_id=o.option_id) AS vote_count
+            FROM vote_options o WHERE o.vote_id=%s ORDER BY o.sort_order
+        """, (v["vote_id"],))
+        v["options"] = cursor.fetchall()
+
+        cursor.execute("SELECT option_id, approval_choice FROM vote_records WHERE vote_id=%s AND user_id=%s", (v["vote_id"], user_id))
+        my_vote = cursor.fetchone()
+        v["my_option_id"] = my_vote["option_id"] if my_vote else None
+        v["my_approval_choice"] = my_vote["approval_choice"] if my_vote else None
+
+        if v["vote_type"] == "approval":
+            cursor.execute("""
+                SELECT approval_choice, COUNT(*) AS c FROM vote_records
+                WHERE vote_id=%s AND approval_choice IS NOT NULL GROUP BY approval_choice
+            """, (v["vote_id"],))
+            tally = {row["approval_choice"]: row["c"] for row in cursor.fetchall()}
+            v["agree_count"] = tally.get("agree", 0)
+            v["disagree_count"] = tally.get("disagree", 0)
+            v["neutral_count"] = tally.get("neutral", 0)
+
+    return votes
+
+
+def _load_comments(cursor, trip_id):
+    cursor.execute("""
+        SELECT c.*, u.full_name, u.nickname
+        FROM comments c JOIN users u ON u.user_id = c.user_id
+        WHERE c.trip_id=%s AND c.itinerary_id IS NULL AND c.proposal_id IS NULL AND c.status='visible'
+        ORDER BY c.created_at ASC
+    """, (trip_id,))
+    rows = cursor.fetchall()
+
+    replies_by_parent = {}
+    for r in rows:
+        if r["parent_comment_id"] is not None:
+            replies_by_parent.setdefault(r["parent_comment_id"], []).append(r)
+
+    top_level = [r for r in rows if r["parent_comment_id"] is None]
+    for c in top_level:
+        c["replies"] = replies_by_parent.get(c["comment_id"], [])
+
+    return top_level
+
+
+def _load_expenses(cursor, trip_id):
+    cursor.execute("""
+        SELECT e.*, u.full_name AS payer_name, u.nickname AS payer_nickname
+        FROM expenses e JOIN users u ON u.user_id = e.payer_id
+        WHERE e.trip_id=%s ORDER BY e.expense_date DESC, e.created_at DESC
+    """, (trip_id,))
+    expenses = cursor.fetchall()
+
+    for e in expenses:
+        cursor.execute("""
+            SELECT es.*, u.full_name, u.nickname
+            FROM expense_splits es JOIN users u ON u.user_id = es.user_id
+            WHERE es.expense_id=%s ORDER BY es.user_id
+        """, (e["expense_id"],))
+        e["splits"] = cursor.fetchall()
+
+    return expenses
+
+
+def _load_balance_summary(cursor, trip_id):
+    cursor.execute("""
+        SELECT u.user_id, u.full_name, u.nickname,
+               COALESCE(SUM(CASE WHEN es.settlement_status='unpaid' THEN es.split_amount ELSE 0 END),0) AS unpaid_total
+        FROM trip_members tm
+        JOIN users u ON u.user_id = tm.user_id
+        LEFT JOIN expense_splits es ON es.user_id = tm.user_id
+            AND es.expense_id IN (SELECT expense_id FROM expenses WHERE trip_id=%s)
+        WHERE tm.trip_id=%s AND tm.join_status='accepted'
+        GROUP BY u.user_id, u.full_name, u.nickname
+        HAVING unpaid_total > 0
+        ORDER BY unpaid_total DESC
+    """, (trip_id, trip_id))
+    return cursor.fetchall()
 
 
 def _parse_trip(form):
@@ -116,6 +207,87 @@ def dashboard():
     return render_template("member/dashboard.html", trips=trips, invitations=invitations, stats=stats)
 
 
+@member_bp.route("/attractions")
+@login_required("member")
+def browse_attractions():
+    keyword = request.args.get("keyword", "").strip()
+    country_id = request.args.get("country_id", "").strip()
+    city_id = request.args.get("city_id", "").strip()
+    favorites_only = request.args.get("favorites_only") == "1"
+
+    connection = _connection_or_home()
+    if connection is None:
+        return render_template("member/attractions.html", attractions=[], countries=[], cities=[],
+                                keyword=keyword, country_id=country_id, city_id=city_id, favorites_only=favorites_only)
+    cursor = connection.cursor(dictionary=True)
+    try:
+        conditions = ["a.status = 'active'"]
+        params = [session["user_id"]]
+
+        if keyword:
+            conditions.append("(a.name LIKE %s OR a.address LIKE %s)")
+            params.extend([f"%{keyword}%", f"%{keyword}%"])
+        if country_id:
+            conditions.append("a.country_id = %s")
+            params.append(country_id)
+        if city_id:
+            conditions.append("a.city_id = %s")
+            params.append(city_id)
+        if favorites_only:
+            conditions.append("f.favorite_id IS NOT NULL")
+
+        where_clause = " AND ".join(conditions)
+        cursor.execute(f"""
+            SELECT a.attraction_id, a.name, a.address, a.ticket_price, a.image_path,
+                   cat.category_name, co.name AS country, ci.name AS city,
+                   (f.favorite_id IS NOT NULL) AS is_favorited
+            FROM attractions a
+            LEFT JOIN categories cat ON cat.category_id = a.category_id
+            JOIN countries co ON co.country_id = a.country_id
+            JOIN cities ci ON ci.city_id = a.city_id
+            LEFT JOIN favorites f ON f.attraction_id = a.attraction_id AND f.user_id = %s
+            WHERE {where_clause}
+            ORDER BY a.attraction_id DESC
+        """, params)
+        attractions = cursor.fetchall()
+        countries = get_countries(cursor)
+        cities = get_cities(cursor)
+    finally:
+        cursor.close(); connection.close()
+
+    return render_template("member/attractions.html", attractions=attractions, countries=countries, cities=cities,
+                            keyword=keyword, country_id=country_id, city_id=city_id, favorites_only=favorites_only)
+
+
+@member_bp.route("/attractions/<int:attraction_id>/favorite", methods=["POST"])
+@login_required("member")
+def toggle_favorite(attraction_id):
+    connection = _connection_or_home()
+    if connection is None: return redirect(url_for("member.browse_attractions"))
+    cursor = connection.cursor()
+    try:
+        user_id = session["user_id"]
+        cursor.execute("SELECT favorite_id FROM favorites WHERE user_id=%s AND attraction_id=%s", (user_id, attraction_id))
+        existing = cursor.fetchone()
+        if existing:
+            cursor.execute("DELETE FROM favorites WHERE favorite_id=%s", (existing[0],))
+            connection.commit()
+            flash("已取消收藏。", "success")
+        else:
+            cursor.execute("INSERT INTO favorites (user_id, target_type, attraction_id) VALUES (%s,'attraction',%s)", (user_id, attraction_id))
+            connection.commit()
+            flash("已加入收藏。", "success")
+    except Exception:
+        connection.rollback(); flash("操作失敗，請再試一次。", "error")
+    finally:
+        cursor.close(); connection.close()
+
+    next_url = request.form.get("next", "")
+    if not next_url.startswith("/") or next_url.startswith("//"):
+        next_url = url_for("member.browse_attractions")
+    return redirect(next_url)
+
+
 @member_bp.route("/trips/new", methods=["GET", "POST"])
 @login_required("member")
 def create_trip():
@@ -162,13 +334,14 @@ def trip_detail(trip_id):
                           WHERE tm.trip_id=%s ORDER BY FIELD(tm.member_role,'owner','editor','viewer'),u.full_name""", (trip_id,)); members = cursor.fetchall()
         cursor.execute("""SELECT p.*,u.full_name AS proposer_name FROM proposals p JOIN users u ON u.user_id=p.proposer_id
                           WHERE p.trip_id=%s ORDER BY p.created_at DESC""", (trip_id,)); proposals = cursor.fetchall()
-        cursor.execute("SELECT * FROM votes WHERE trip_id=%s ORDER BY deadline_at DESC", (trip_id,)); votes = cursor.fetchall()
-        cursor.execute("""SELECT e.*, u.full_name AS payer_name FROM expenses e JOIN users u ON u.user_id=e.payer_id
-                          WHERE e.trip_id=%s ORDER BY e.expense_date DESC,e.created_at DESC""", (trip_id,)); expenses = cursor.fetchall()
+        votes = _load_votes(cursor, trip_id, session["user_id"])
+        comments = _load_comments(cursor, trip_id)
+        expenses = _load_expenses(cursor, trip_id)
+        balance_summary = _load_balance_summary(cursor, trip_id)
         cursor.execute("SELECT COALESCE(SUM(amount),0) AS actual FROM expenses WHERE trip_id=%s AND expense_type='actual'", (trip_id,)); actual = cursor.fetchone()["actual"]
     finally:
         cursor.close(); connection.close()
-    return render_template("member/trip_detail.html", trip=trip, itinerary=itinerary, members=members, proposals=proposals, votes=votes, expenses=expenses, actual=actual, can_edit=_can_edit(trip), is_owner=trip["member_role"] == "owner")
+    return render_template("member/trip_detail.html", trip=trip, itinerary=itinerary, members=members, proposals=proposals, votes=votes, comments=comments, expenses=expenses, balance_summary=balance_summary, actual=actual, can_edit=_can_edit(trip), is_owner=trip["member_role"] == "owner", now=datetime.now())
 
 
 @member_bp.route("/trips/<int:trip_id>/edit", methods=["GET", "POST"])
@@ -245,6 +418,173 @@ def add_proposal(trip_id):
     return redirect(url_for("member.trip_detail", trip_id=trip_id) + "#proposals")
 
 
+@member_bp.route("/trips/<int:trip_id>/votes", methods=["POST"])
+@login_required("member")
+def add_vote(trip_id):
+    connection = _connection_or_home()
+    if connection is None: return redirect(url_for("member.dashboard"))
+    cursor = connection.cursor(dictionary=True)
+    try:
+        trip = _member_access(cursor, trip_id, session["user_id"])
+        title = request.form.get("title", "").strip()
+        vote_type = request.form.get("vote_type", "approval")
+        if vote_type not in ("approval", "single_choice"): vote_type = "approval"
+        deadline_at = request.form.get("deadline_at", "").strip().replace("T", " ")
+        option_texts = [line.strip() for line in request.form.get("options_text", "").splitlines() if line.strip()]
+
+        if not trip: flash("你沒有查看此行程的權限。", "error")
+        elif not title or not deadline_at: flash("請填寫投票標題與截止時間。", "error")
+        elif vote_type == "single_choice" and len(option_texts) < 2: flash("單選投票至少需要 2 個選項（每行一個）。", "error")
+        else:
+            cursor.execute("""INSERT INTO votes (trip_id,created_by,title,vote_type,deadline_at)
+                              VALUES (%s,%s,%s,%s,%s)""", (trip_id, session["user_id"], title, vote_type, deadline_at))
+            vote_id = cursor.lastrowid
+            if vote_type == "single_choice":
+                for idx, text in enumerate(option_texts, 1):
+                    cursor.execute("INSERT INTO vote_options (vote_id,option_text,sort_order) VALUES (%s,%s,%s)", (vote_id, text, idx))
+            connection.commit()
+            flash("投票已建立。", "success")
+    except Exception:
+        connection.rollback(); flash("建立投票失敗，請再試一次。", "error")
+    finally:
+        cursor.close(); connection.close()
+    return redirect(url_for("member.trip_detail", trip_id=trip_id) + "#proposals")
+
+
+@member_bp.route("/trips/<int:trip_id>/votes/<int:vote_id>/cast", methods=["POST"])
+@login_required("member")
+def cast_vote(trip_id, vote_id):
+    connection = _connection_or_home()
+    if connection is None: return redirect(url_for("member.dashboard"))
+    cursor = connection.cursor(dictionary=True)
+    try:
+        trip = _member_access(cursor, trip_id, session["user_id"])
+        if not trip:
+            flash("你沒有查看此行程的權限。", "error")
+            return redirect(url_for("member.dashboard"))
+
+        cursor.execute("SELECT * FROM votes WHERE vote_id=%s AND trip_id=%s", (vote_id, trip_id))
+        vote = cursor.fetchone()
+
+        if not vote:
+            flash("找不到這個投票。", "error")
+        elif vote["status"] != "open" or vote["deadline_at"] < datetime.now():
+            flash("這個投票已經結束了。", "error")
+        else:
+            cursor.execute("SELECT vote_record_id FROM vote_records WHERE vote_id=%s AND user_id=%s", (vote_id, session["user_id"]))
+            existing = cursor.fetchone()
+
+            if existing and not vote["allow_change"]:
+                flash("這個投票不允許更改，你已經投過票了。", "error")
+            elif vote["vote_type"] == "approval":
+                choice = request.form.get("approval_choice")
+                if choice not in ("agree", "disagree", "neutral"):
+                    flash("請選擇有效的投票選項。", "error")
+                elif existing:
+                    cursor.execute("UPDATE vote_records SET approval_choice=%s, option_id=NULL WHERE vote_record_id=%s", (choice, existing["vote_record_id"]))
+                    connection.commit(); flash("已更新你的投票。", "success")
+                else:
+                    cursor.execute("INSERT INTO vote_records (vote_id,user_id,approval_choice) VALUES (%s,%s,%s)", (vote_id, session["user_id"], choice))
+                    connection.commit(); flash("已送出你的投票。", "success")
+            else:
+                option_id = request.form.get("option_id", "")
+                cursor.execute("SELECT option_id FROM vote_options WHERE option_id=%s AND vote_id=%s", (option_id, vote_id))
+                if not cursor.fetchone():
+                    flash("請選擇有效的選項。", "error")
+                elif existing:
+                    cursor.execute("UPDATE vote_records SET option_id=%s, approval_choice=NULL WHERE vote_record_id=%s", (option_id, existing["vote_record_id"]))
+                    connection.commit(); flash("已更新你的投票。", "success")
+                else:
+                    cursor.execute("INSERT INTO vote_records (vote_id,user_id,option_id) VALUES (%s,%s,%s)", (vote_id, session["user_id"], option_id))
+                    connection.commit(); flash("已送出你的投票。", "success")
+    except Exception:
+        connection.rollback(); flash("投票失敗，請再試一次。", "error")
+    finally:
+        cursor.close(); connection.close()
+    return redirect(url_for("member.trip_detail", trip_id=trip_id) + "#proposals")
+
+
+@member_bp.route("/trips/<int:trip_id>/votes/<int:vote_id>/close", methods=["POST"])
+@login_required("member")
+def close_vote(trip_id, vote_id):
+    connection = _connection_or_home()
+    if connection is None: return redirect(url_for("member.dashboard"))
+    cursor = connection.cursor(dictionary=True)
+    try:
+        trip = _member_access(cursor, trip_id, session["user_id"])
+        cursor.execute("SELECT * FROM votes WHERE vote_id=%s AND trip_id=%s", (vote_id, trip_id))
+        vote = cursor.fetchone()
+
+        if not trip or not vote:
+            flash("找不到這個投票。", "error")
+        elif vote["created_by"] != session["user_id"] and trip["member_role"] != "owner":
+            flash("只有發起人或行程建立者可以結束投票。", "error")
+        else:
+            cursor.execute("UPDATE votes SET status='closed' WHERE vote_id=%s", (vote_id,))
+            connection.commit()
+            flash("投票已結束。", "success")
+    except Exception:
+        connection.rollback(); flash("操作失敗，請再試一次。", "error")
+    finally:
+        cursor.close(); connection.close()
+    return redirect(url_for("member.trip_detail", trip_id=trip_id) + "#proposals")
+
+
+@member_bp.route("/trips/<int:trip_id>/comments", methods=["POST"])
+@login_required("member")
+def add_comment(trip_id):
+    connection = _connection_or_home()
+    if connection is None: return redirect(url_for("member.dashboard"))
+    cursor = connection.cursor(dictionary=True)
+    try:
+        trip = _member_access(cursor, trip_id, session["user_id"])
+        content = request.form.get("content", "").strip()
+        parent_id = request.form.get("parent_comment_id", "").strip() or None
+
+        if not trip: flash("你沒有查看此行程的權限。", "error")
+        elif not content: flash("留言內容不能是空的。", "error")
+        else:
+            if parent_id:
+                cursor.execute("SELECT comment_id FROM comments WHERE comment_id=%s AND trip_id=%s", (parent_id, trip_id))
+                if not cursor.fetchone():
+                    parent_id = None
+            cursor.execute("""INSERT INTO comments (trip_id,user_id,parent_comment_id,content)
+                              VALUES (%s,%s,%s,%s)""", (trip_id, session["user_id"], parent_id, content))
+            connection.commit()
+            flash("留言已送出。", "success")
+    except Exception:
+        connection.rollback(); flash("留言失敗，請再試一次。", "error")
+    finally:
+        cursor.close(); connection.close()
+    return redirect(url_for("member.trip_detail", trip_id=trip_id) + "#discussion")
+
+
+@member_bp.route("/trips/<int:trip_id>/comments/<int:comment_id>/delete", methods=["POST"])
+@login_required("member")
+def delete_comment(trip_id, comment_id):
+    connection = _connection_or_home()
+    if connection is None: return redirect(url_for("member.dashboard"))
+    cursor = connection.cursor(dictionary=True)
+    try:
+        trip = _member_access(cursor, trip_id, session["user_id"])
+        cursor.execute("SELECT * FROM comments WHERE comment_id=%s AND trip_id=%s", (comment_id, trip_id))
+        comment = cursor.fetchone()
+
+        if not trip or not comment:
+            flash("找不到這則留言。", "error")
+        elif comment["user_id"] != session["user_id"] and trip["member_role"] != "owner":
+            flash("只有留言者本人或行程建立者可以刪除留言。", "error")
+        else:
+            cursor.execute("UPDATE comments SET status='deleted' WHERE comment_id=%s", (comment_id,))
+            connection.commit()
+            flash("留言已刪除。", "success")
+    except Exception:
+        connection.rollback(); flash("刪除失敗，請再試一次。", "error")
+    finally:
+        cursor.close(); connection.close()
+    return redirect(url_for("member.trip_detail", trip_id=trip_id) + "#discussion")
+
+
 @member_bp.route("/trips/<int:trip_id>/expenses", methods=["POST"])
 @login_required("member")
 def add_expense(trip_id):
@@ -259,14 +599,69 @@ def add_expense(trip_id):
             if amount < 0: raise InvalidOperation
         except (InvalidOperation, ValueError):
             amount = None
+        scope = request.form.get("scope", "shared")
+        if scope not in ("shared", "personal"): scope = "shared"
+
         if not trip or not _can_edit(trip): flash("你沒有管理費用的權限。", "error")
         elif not name or amount is None or not request.form.get("expense_date"): flash("請完整填寫費用名稱、金額與日期。", "error")
         else:
+            payer_id = session["user_id"]
             cursor.execute("""INSERT INTO expenses (trip_id,created_by,payer_id,expense_name,expense_type,scope,amount,currency,expense_date,note)
-                              VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)""", (trip_id, session["user_id"], session["user_id"], name, request.form.get("expense_type", "actual"), request.form.get("scope", "shared"), amount, trip["currency"], request.form["expense_date"], request.form.get("note", "").strip() or None))
-            connection.commit(); flash("費用已記錄。", "success")
+                              VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)""", (trip_id, payer_id, payer_id, name, request.form.get("expense_type", "actual"), scope, amount, trip["currency"], request.form["expense_date"], request.form.get("note", "").strip() or None))
+            expense_id = cursor.lastrowid
+
+            if scope == "shared":
+                cursor.execute("SELECT user_id FROM trip_members WHERE trip_id=%s AND join_status='accepted'", (trip_id,))
+                member_ids = sorted(row["user_id"] for row in cursor.fetchall())
+                if member_ids:
+                    member_count = len(member_ids)
+                    base_share = (amount / member_count).quantize(Decimal("0.01"), rounding=ROUND_DOWN)
+                    remainder_cents = int(((amount - base_share * member_count) * 100).to_integral_value())
+                    for idx, uid in enumerate(member_ids):
+                        share = base_share + (Decimal("0.01") if idx < remainder_cents else Decimal("0"))
+                        status = "paid" if uid == payer_id else "unpaid"
+                        cursor.execute(
+                            "INSERT INTO expense_splits (expense_id,user_id,split_amount,settlement_status,paid_at) VALUES (%s,%s,%s,%s,%s)",
+                            (expense_id, uid, share, status, datetime.now() if status == "paid" else None)
+                        )
+
+            connection.commit(); flash("費用已記錄，並自動平均分攤給旅程成員。" if scope == "shared" else "費用已記錄。", "success")
     except Exception:
         connection.rollback(); flash("儲存費用失敗。", "error")
+    finally:
+        cursor.close(); connection.close()
+    return redirect(url_for("member.trip_detail", trip_id=trip_id) + "#budget")
+
+
+@member_bp.route("/trips/<int:trip_id>/splits/<int:split_id>/mark-paid", methods=["POST"])
+@login_required("member")
+def mark_split_paid(trip_id, split_id):
+    connection = _connection_or_home()
+    if connection is None: return redirect(url_for("member.dashboard"))
+    cursor = connection.cursor(dictionary=True)
+    try:
+        trip = _member_access(cursor, trip_id, session["user_id"])
+        cursor.execute("""
+            SELECT es.*, e.payer_id, e.trip_id
+            FROM expense_splits es JOIN expenses e ON e.expense_id = es.expense_id
+            WHERE es.split_id=%s
+        """, (split_id,))
+        split = cursor.fetchone()
+
+        if not trip or not split or split["trip_id"] != trip_id:
+            flash("找不到這筆分帳紀錄。", "error")
+        elif session["user_id"] not in (split["user_id"], split["payer_id"]) and trip["member_role"] != "owner":
+            flash("只有本人、代墊者或行程建立者可以標記付款狀態。", "error")
+        else:
+            new_status = "unpaid" if split["settlement_status"] == "paid" else "paid"
+            cursor.execute(
+                "UPDATE expense_splits SET settlement_status=%s, paid_at=%s WHERE split_id=%s",
+                (new_status, datetime.now() if new_status == "paid" else None, split_id)
+            )
+            connection.commit()
+            flash("已更新付款狀態。", "success")
+    except Exception:
+        connection.rollback(); flash("操作失敗，請再試一次。", "error")
     finally:
         cursor.close(); connection.close()
     return redirect(url_for("member.trip_detail", trip_id=trip_id) + "#budget")

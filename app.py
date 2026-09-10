@@ -1,3 +1,4 @@
+from datetime import datetime  # 匯入 datetime，用來解析住宿搜尋的入住/退房日期字串
 from flask import Flask, render_template, request, redirect, url_for, session, flash  # 匯入 Flask 核心功能：建立 App、渲染樣板、取得請求、導向、產生網址、session、顯示訊息
 from mysql.connector import Error  # 匯入 MySQL 連線錯誤類別，用來捕捉資料庫例外
 from werkzeug.security import check_password_hash, generate_password_hash  # 匯入密碼工具：驗證密碼、產生密碼雜湊值
@@ -15,6 +16,7 @@ from blueprints.logs import logs_bp  # 匯入操作紀錄查詢的藍圖
 from blueprints.ai_chat import ai_chat_bp  # 匯入 AI 助理對話的藍圖
 from blueprints.member import member_bp  # 匯入會員功能的藍圖
 from activity_log import ACTION_LABELS, log_action
+import weather  # 匯入中央氣象署天氣預報模組(訪客頁面「目的地天氣」功能用)
 
 app = Flask(__name__)  # 建立 Flask 應用程式實例
 
@@ -73,6 +75,7 @@ def visitor():
     companions = []
     announcements = []
     trips_timeline_json = {}
+    city_weather = {}
 
     if connection:
         cursor = connection.cursor(dictionary=True)
@@ -118,6 +121,10 @@ def visitor():
                 ORDER BY t.trip_id DESC
             """)
             public_trips = cursor.fetchall()
+
+            # 3-1. 依公開行程的目的地城市，查詢中央氣象署天氣預報(僅支援台灣縣市，查不到的城市會被忽略)
+            trip_cities = [t['city'] for t in public_trips if t.get('city')]
+            city_weather = weather.get_weather_by_cities(trip_cities)
 
             # 4. 查詢最新揪團旅伴資訊
             cursor.execute("""
@@ -189,8 +196,79 @@ def visitor():
         announcements=announcements,
         public_trips=public_trips,
         companions=companions,
-        trips_timeline_json=trips_timeline_json
+        trips_timeline_json=trips_timeline_json,
+        city_weather=city_weather
     )
+
+
+@app.route("/visitor/hotels")  # 設定訪客住宿搜尋結果頁路由(從訪客頁面的住宿搜尋表單導入，帶入目的地/日期/人數)
+def visitor_hotel_search():
+    destination = request.args.get("destination", "").strip()  # 取得使用者輸入的目的地關鍵字
+    checkin = request.args.get("checkin", "").strip()  # 取得入住日期(YYYY-MM-DD)
+    checkout = request.args.get("checkout", "").strip()  # 取得退房日期(YYYY-MM-DD)
+
+    guests_raw = request.args.get("guests", "2").strip()  # 取得人數參數(字串)
+    guests = int(guests_raw) if guests_raw.isdigit() and int(guests_raw) > 0 else 2  # 驗證人數為正整數，否則預設 2 人
+
+    nights = None  # 預設住宿晚數未知
+    if checkin and checkout:  # 如果入住與退房日期都有填
+        try:
+            check_in_date = datetime.strptime(checkin, "%Y-%m-%d").date()  # 解析入住日期
+            check_out_date = datetime.strptime(checkout, "%Y-%m-%d").date()  # 解析退房日期
+            diff = (check_out_date - check_in_date).days  # 計算相差天數
+            nights = diff if diff > 0 else None  # 退房要晚於入住才算合理晚數
+        except ValueError:  # 如果日期格式不正確
+            nights = None
+
+    accommodations = []  # 預設搜尋結果為空清單
+    connection = get_db_connection()
+
+    if connection:
+        cursor = connection.cursor(dictionary=True)
+        try:
+            conditions = ["ac.status = 'active'"]  # 只搜尋已啟用的住宿
+            params = []
+
+            if destination:  # 如果有輸入目的地關鍵字，依名稱/城市/國家/地址模糊搜尋
+                conditions.append(
+                    "(ac.name LIKE %s OR ci.name LIKE %s OR co.name LIKE %s OR ac.address LIKE %s)"
+                )
+                like = f"%{destination}%"
+                params.extend([like, like, like, like])
+
+            where_clause = "WHERE " + " AND ".join(conditions)
+
+            cursor.execute(
+                f"""
+                SELECT ac.accommodation_id, ac.name, ac.address, ac.accommodation_type,
+                       ac.price_per_night, ac.check_in_time, ac.check_out_time,
+                       ac.image_path, ac.description, ac.website_url,
+                       co.name AS country_name, ci.name AS city_name
+                FROM accommodations ac
+                JOIN countries co ON co.country_id = ac.country_id
+                JOIN cities ci ON ci.city_id = ac.city_id
+                {where_clause}
+                ORDER BY ac.accommodation_id DESC
+                """,
+                params
+            )
+            accommodations = cursor.fetchall()
+        except Exception as error:
+            print("住宿搜尋查詢失敗：", error)
+        finally:
+            cursor.close()
+            connection.close()
+
+    return render_template(
+        "hotel_search.html",
+        destination=destination,
+        checkin=checkin,
+        checkout=checkout,
+        guests=guests,
+        nights=nights,
+        accommodations=accommodations,
+    )
+
 
 @app.route("/login", methods=["GET", "POST"])  # 設定登入頁路由，允許 GET(顯示表單) 與 POST(送出表單)
 def login():  # 定義登入功能函式

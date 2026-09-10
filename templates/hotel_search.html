@@ -1,0 +1,220 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>住宿搜尋結果｜走吧揪團</title>
+  <link rel="icon" type="image/png" href="{{ url_for('static', filename='images/logo.png') }}">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <style>
+    :root { --purple: #5f4b8b; --purple-light: #7657ac; --purple-soft: #f0edf7; --ink: #27233a; --muted: #777084; --line: #e5e1ec; --page: #f5f6fa; }
+    * { box-sizing: border-box; }
+    body { margin: 0; background: var(--page); color: var(--ink); font-family: "Noto Sans TC", "Segoe UI", sans-serif; }
+    a { color: inherit; text-decoration: none; }
+    button, input { font: inherit; }
+    .site-nav { position: sticky; top: 0; z-index: 10; display: flex; align-items: center; min-height: 72px; padding: 8px max(24px, calc((100vw - 1180px) / 2)); background: #fff; border-bottom: 1px solid #e6e2ef; box-shadow: 0 2px 10px rgba(45, 37, 68, .05); }
+    .brand { display: flex; align-items: center; width: 126px; height: 56px; }
+    .brand img { display: block; width: 100%; height: 100%; object-fit: contain; }
+    .nav-links { display: flex; align-items: center; gap: 8px; margin-left: auto; }
+    .nav-links a { padding: 10px 13px; border-radius: 6px; color: #4b4264; font-size: 15px; }
+    .nav-links a:hover { color: var(--purple); background: var(--purple-soft); }
+    .nav-links .nav-register { color: #fff; background: var(--purple); }
+    .nav-links .nav-register:hover { color: #fff; background: #4b376d; }
+    main { width: min(1180px, calc(100% - 48px)); margin: 0 auto; padding: 32px 0 70px; }
+    .breadcrumb { margin: 0 0 18px; color: var(--muted); font-size: 14px; }
+    .breadcrumb a { color: var(--purple); font-weight: 600; }
+    .search-panel { margin: 0 0 32px; padding: 20px 24px 24px; background: #fff; border: 1px solid var(--line); border-radius: 14px; box-shadow: 0 12px 30px rgba(45, 37, 68, .08); }
+    .search-tabs { display: flex; align-items: center; gap: 2px; margin-bottom: 16px; border-bottom: 1px solid var(--line); }
+    .search-tab { display: flex; align-items: center; gap: 6px; padding: 10px 16px; color: var(--muted); background: transparent; border: 0; border-bottom: 2px solid transparent; cursor: pointer; font-size: 15px; font-weight: 600; }
+    .search-tab .tab-icon { font-size: 17px; }
+    .search-tab:hover { color: var(--purple); }
+    .search-tab.active { color: var(--purple); border-bottom-color: var(--purple); }
+    .tab-badge { padding: 3px 9px; margin-left: auto; color: #9c6b1f; background: #fdf1dd; border-radius: 999px; font-size: 11px; font-weight: 700; white-space: nowrap; }
+    .search-fields-row { display: flex; flex-wrap: wrap; align-items: end; gap: 12px; }
+    .search-fields-row[hidden] { display: none; }
+    .field { display: flex; flex: 1 1 150px; min-width: 130px; flex-direction: column; gap: 5px; }
+    .field label { color: var(--muted); font-size: 12px; font-weight: 600; }
+    .field input { min-height: 44px; padding: 9px 12px; color: var(--ink); background: #fff; border: 1px solid #cbc5d7; border-radius: 6px; outline: none; }
+    .field input:focus { border-color: var(--purple); box-shadow: 0 0 0 3px #e8def4; }
+    .field-sep { display: flex; flex: 0 0 auto; align-items: center; justify-content: center; padding-bottom: 11px; color: var(--muted); font-size: 16px; }
+    .search-submit { flex: 0 0 auto; min-height: 44px; padding: 10px 26px; color: #fff; background: var(--purple); border: 0; border-radius: 6px; cursor: pointer; font-size: 15px; font-weight: 700; }
+    .search-submit:hover { background: #4b376d; }
+    .search-note { margin: 14px 0 0; color: var(--muted); font-size: 12px; }
+    .toast { position: fixed; z-index: 50; bottom: 30px; left: 50%; padding: 12px 22px; color: #fff; background: #33293f; border-radius: 8px; box-shadow: 0 10px 25px rgba(0, 0, 0, .25); font-size: 14px; opacity: 0; transform: translate(-50%, 10px); transition: opacity 200ms ease, transform 200ms ease; pointer-events: none; }
+    .toast.show { opacity: 1; transform: translate(-50%, 0); }
+    .section-header { display: flex; align-items: end; justify-content: space-between; gap: 18px; margin-bottom: 18px; }
+    .section-header h2 { margin: 0; font-size: 26px; }
+    .section-header p { margin: 5px 0 0; color: var(--muted); font-size: 14px; }
+    .hotel-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 18px; }
+    .hotel-card { display: flex; flex-direction: column; overflow: hidden; background: #fff; border: 1px solid var(--line); border-radius: 8px; box-shadow: 0 8px 22px rgba(45, 37, 68, .06); transition: transform 160ms ease, box-shadow 160ms ease; }
+    .hotel-card:hover { transform: translateY(-3px); box-shadow: 0 12px 28px rgba(45, 37, 68, .12); }
+    .hotel-art { position: relative; display: grid; min-height: 142px; place-items: center; color: #fff; background: #5f4b8b; background-position: center; background-size: cover; font-size: 36px; font-weight: 700; }
+    .hotel-art.with-image::after { content: ""; position: absolute; inset: 0; background: rgba(25, 35, 55, .16); }
+    .hotel-art span { position: relative; z-index: 1; }
+    .hotel-art .type-badge { position: absolute; z-index: 2; top: 12px; right: 12px; padding: 5px 8px; color: #45365f; background: rgba(255, 255, 255, .92); border-radius: 999px; font-size: 12px; font-weight: 600; }
+    .hotel-content { display: flex; flex: 1; flex-direction: column; padding: 18px; }
+    .hotel-content h3 { margin: 0 0 8px; font-size: 20px; line-height: 1.4; }
+    .location { min-height: 22px; margin: 0 0 10px; color: var(--muted); font-size: 14px; }
+    .hotel-desc { margin: 0 0 14px; color: #514b60; font-size: 13px; line-height: 1.6; }
+    .hotel-details { display: flex; flex-wrap: wrap; gap: 7px 12px; padding: 13px 0; color: var(--muted); border-top: 1px solid #ece9f1; border-bottom: 1px solid #ece9f1; font-size: 13px; }
+    .hotel-footer { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-top: auto; padding-top: 14px; }
+    .price { color: var(--purple); font-size: 18px; font-weight: 800; }
+    .price small { color: var(--muted); font-size: 12px; font-weight: 500; }
+    .view-button { padding: 7px 12px; color: var(--purple); background: #fff; border: 1px solid #cfc6df; border-radius: 6px; cursor: pointer; font-weight: 700; }
+    .view-button:hover { color: #fff; background: var(--purple); border-color: var(--purple); }
+    .empty { grid-column: 1 / -1; padding: 36px; color: var(--muted); text-align: center; background: #fff; border: 1px dashed #cfc6df; border-radius: 8px; }
+    @media (max-width: 850px) { .site-nav { align-items: flex-start; flex-direction: column; gap: 6px; padding: 8px 18px 12px; } .nav-links { width: 100%; margin-left: 0; overflow-x: auto; } main { width: min(100% - 28px, 680px); padding-top: 24px; } .search-panel { padding: 16px 18px 20px; } .search-tabs { flex-wrap: nowrap; overflow-x: auto; } .search-tab { flex: 0 0 auto; } .tab-badge { flex: 0 0 auto; margin-left: 10px; } .hotel-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+    @media (max-width: 560px) { .brand { width: 108px; height: 48px; } .nav-links { gap: 2px; } .nav-links a { padding: 8px; font-size: 14px; white-space: nowrap; } .search-tab { padding: 8px 10px; font-size: 14px; } .search-submit { width: 100%; } .section-header { align-items: stretch; flex-direction: column; } .hotel-grid { grid-template-columns: 1fr; } .section-header h2 { font-size: 22px; } }
+  </style>
+</head>
+<body>
+  <header class="site-nav">
+    <a class="brand" href="{{ url_for('visitor') }}"><img src="{{ url_for('static', filename='images/logo.png') }}" alt="走吧揪團"></a>
+    <nav class="nav-links">
+      <a href="{{ url_for('visitor') }}#announcements">公告事項</a>
+      <a href="{{ url_for('visitor') }}#weather">目的地天氣</a>
+      <a href="{{ url_for('visitor') }}#trips">探索行程</a>
+      <a href="{{ url_for('visitor') }}#companions">尋找旅伴</a>
+      <a href="/login">登入</a>
+      <a class="nav-register" href="/register">免費註冊</a>
+    </nav>
+  </header>
+  <main>
+    <p class="breadcrumb"><a href="{{ url_for('visitor') }}">← 返回訪客首頁</a></p>
+    <section class="search-panel">
+      <div class="search-tabs" role="tablist">
+        <button class="search-tab active" type="button" data-tab="hotel" onclick="switchSearchTab('hotel', this)"><span class="tab-icon">🏨</span>住宿</button>
+        <button class="search-tab" type="button" data-tab="flight" onclick="switchSearchTab('flight', this)"><span class="tab-icon">✈️</span>機票</button>
+        <button class="search-tab" type="button" data-tab="train" onclick="switchSearchTab('train', this)"><span class="tab-icon">🚄</span>高鐵／火車票</button>
+        <button class="search-tab" type="button" data-tab="experience" onclick="switchSearchTab('experience', this)"><span class="tab-icon">🧭</span>當地體驗</button>
+        <span class="tab-badge" hidden>功能開發中</span>
+      </div>
+      <form onsubmit="handleBookingSearch(event)">
+        <div class="search-fields-row" data-tab-fields="hotel">
+          <div class="field"><label for="hotelDest">目的地</label><input id="hotelDest" type="text" placeholder="城市、飯店名稱" value="{{ destination }}"></div>
+          <div class="field"><label for="hotelCheckin">入住</label><input id="hotelCheckin" type="date" value="{{ checkin }}"></div>
+          <div class="field"><label for="hotelCheckout">退房</label><input id="hotelCheckout" type="date" value="{{ checkout }}"></div>
+          <div class="field"><label for="hotelGuests">人數</label><input id="hotelGuests" type="number" min="1" value="{{ guests }}"></div>
+        </div>
+        <div class="search-fields-row" data-tab-fields="flight" hidden>
+          <div class="field"><label for="flightFrom">出發地</label><input id="flightFrom" type="text" placeholder="台北"></div>
+          <div class="field-sep">→</div>
+          <div class="field"><label for="flightTo">目的地</label><input id="flightTo" type="text" placeholder="東京"></div>
+          <div class="field"><label for="flightDepart">去程日期</label><input id="flightDepart" type="date"></div>
+          <div class="field"><label for="flightReturn">回程日期</label><input id="flightReturn" type="date"></div>
+          <div class="field"><label for="flightPax">人數</label><input id="flightPax" type="number" min="1" value="1"></div>
+        </div>
+        <div class="search-fields-row" data-tab-fields="train" hidden>
+          <div class="field"><label for="trainFrom">出發站</label><input id="trainFrom" type="text" placeholder="台北"></div>
+          <div class="field-sep">→</div>
+          <div class="field"><label for="trainTo">到達站</label><input id="trainTo" type="text" placeholder="高雄"></div>
+          <div class="field"><label for="trainDate">日期</label><input id="trainDate" type="date"></div>
+          <div class="field"><label for="trainPax">人數</label><input id="trainPax" type="number" min="1" value="1"></div>
+        </div>
+        <div class="search-fields-row" data-tab-fields="experience" hidden>
+          <div class="field"><label for="expDest">目的地</label><input id="expDest" type="text" placeholder="城市或景點"></div>
+          <div class="field"><label for="expDate">日期</label><input id="expDate" type="date"></div>
+          <div class="field"><label for="expPax">人數</label><input id="expPax" type="number" min="1" value="1"></div>
+        </div>
+        <button class="search-submit" type="submit">🔍 搜尋</button>
+      </form>
+      <p class="search-note" id="searchNote">＊住宿搜尋已串接真實資料，送出後將依您填寫的目的地與日期顯示搜尋結果。</p>
+    </section>
+    <section id="hotel-results">
+      <div class="section-header">
+        <div>
+          <h2>住宿搜尋結果</h2>
+          <p>
+            {% if destination %}目的地：{{ destination }}{% else %}顯示全部目的地{% endif %}
+            {% if checkin and checkout %} ・ {{ checkin }} ～ {{ checkout }}{% if nights %}（{{ nights }} 晚）{% endif %}{% endif %}
+            ・ {{ guests }} 人
+            ・ 共 {{ accommodations|length }} 筆結果
+          </p>
+        </div>
+      </div>
+      <div class="hotel-grid">
+        {% for hotel in accommodations %}
+          <article class="hotel-card">
+            <div class="hotel-art {% if hotel.image_path %}with-image{% endif %}" {% if hotel.image_path %}style="background-image: url('{{ url_for('static', filename=hotel.image_path) }}')"{% endif %}>
+              {% if not hotel.image_path %}<span>🏨</span>{% endif %}
+              {% if hotel.accommodation_type %}<span class="type-badge">{{ hotel.accommodation_type }}</span>{% endif %}
+            </div>
+            <div class="hotel-content">
+              <h3>{{ hotel.name }}</h3>
+              <p class="location">{{ hotel.country_name or '未設定國家' }}{% if hotel.city_name %} · {{ hotel.city_name }}{% endif %}{% if hotel.address %} · {{ hotel.address }}{% endif %}</p>
+              {% if hotel.description %}<p class="hotel-desc">{{ hotel.description }}</p>{% endif %}
+              <div class="hotel-details">
+                {% if hotel.check_in_time %}<span>入住 {{ hotel.check_in_time }}</span>{% endif %}
+                {% if hotel.check_out_time %}<span>退房 {{ hotel.check_out_time }}</span>{% endif %}
+              </div>
+              <div class="hotel-footer">
+                <span class="price">
+                  {% if hotel.price_per_night %}NT$ {{ "{:,.0f}".format(hotel.price_per_night) }}<small> / 晚{% if nights %}・約 NT$ {{ "{:,.0f}".format(hotel.price_per_night * nights) }}（{{ nights }} 晚）{% endif %}</small>{% else %}<small>價格洽詢</small>{% endif %}
+                </span>
+                {% if hotel.website_url %}
+                  <a class="view-button" href="{{ hotel.website_url }}" target="_blank" rel="noopener">查看詳情</a>
+                {% else %}
+                  <button class="view-button" type="button" onclick="showToast('此住宿尚未提供官網連結')">查看詳情</button>
+                {% endif %}
+              </div>
+            </div>
+          </article>
+        {% else %}
+          <div class="empty">找不到符合「{{ destination }}」的住宿，換個關鍵字試試，或<a href="{{ url_for('visitor_hotel_search') }}" style="color: var(--purple); font-weight: 700;">清除目的地看全部住宿</a>。</div>
+        {% endfor %}
+      </div>
+    </section>
+  </main>
+  <script>
+    function switchSearchTab(tab, btn) {
+      document.querySelectorAll('.search-tab').forEach((t) => t.classList.remove('active'));
+      btn.classList.add('active');
+      document.querySelectorAll('[data-tab-fields]').forEach((row) => {
+        row.hidden = row.dataset.tabFields !== tab;
+      });
+      const badge = document.querySelector('.tab-badge');
+      if (badge) badge.hidden = tab === 'hotel';
+      const note = document.getElementById('searchNote');
+      if (note) {
+        note.textContent = tab === 'hotel'
+          ? '＊住宿搜尋已串接真實資料，送出後將依您填寫的目的地與日期顯示搜尋結果。'
+          : '＊機票／高鐵／體驗搜尋為介面預覽，實際資料串接開發中；您可以先探索下方的公開行程與旅伴揪團。';
+      }
+    }
+    let toastTimer;
+    function showToast(message) {
+      let toast = document.getElementById('siteToast');
+      if (!toast) {
+        toast = document.createElement('div');
+        toast.id = 'siteToast';
+        toast.className = 'toast';
+        document.body.appendChild(toast);
+      }
+      toast.textContent = message;
+      requestAnimationFrame(() => toast.classList.add('show'));
+      clearTimeout(toastTimer);
+      toastTimer = setTimeout(() => toast.classList.remove('show'), 3000);
+    }
+    function handleBookingSearch(event) {
+      event.preventDefault();
+      const activeTab = document.querySelector('.search-tab.active').dataset.tab;
+      if (activeTab === 'hotel') {
+        const params = new URLSearchParams();
+        const destination = document.getElementById('hotelDest').value.trim();
+        const checkin = document.getElementById('hotelCheckin').value;
+        const checkout = document.getElementById('hotelCheckout').value;
+        const guests = document.getElementById('hotelGuests').value;
+        if (destination) params.set('destination', destination);
+        if (checkin) params.set('checkin', checkin);
+        if (checkout) params.set('checkout', checkout);
+        if (guests) params.set('guests', guests);
+        window.location.href = '/visitor/hotels?' + params.toString();
+        return;
+      }
+      showToast('此搜尋功能開發中，敬請期待！可以先看看下方的公開行程與旅伴揪團 🙂');
+    }
+  </script>
+</body>
+</html>

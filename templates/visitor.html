@@ -82,6 +82,18 @@
     .view-button { padding: 7px 12px; color: var(--purple); background: #fff; border: 1px solid #cfc6df; border-radius: 6px; cursor: pointer; font-weight: 700; }
     .view-button:hover { color: #fff; background: var(--purple); border-color: var(--purple); }
     .empty { grid-column: 1 / -1; padding: 36px; color: var(--muted); text-align: center; background: #fff; border: 1px dashed #cfc6df; border-radius: 8px; }
+    .weather-section { margin: 44px 0; }
+    .weather-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 18px; }
+    .weather-card { display: flex; flex-direction: column; align-items: center; padding: 24px 20px; text-align: center; background: #fff; border: 1px solid var(--line); border-radius: 8px; box-shadow: 0 8px 22px rgba(45, 37, 68, .06); }
+    .weather-card h3 { margin: 0; font-size: 18px; }
+    .weather-card .weather-emoji { margin-top: 14px; font-size: 40px; line-height: 1; }
+    .weather-card .weather-desc { margin: 6px 0 0; color: #514b60; font-size: 14px; }
+    .weather-card .weather-temp { margin: 10px 0 16px; color: var(--purple); font-size: 22px; font-weight: 700; }
+    .modal-meta.weather-source { margin: -14px 0 18px; }
+    .weather-forecast-table { width: 100%; border-collapse: collapse; }
+    .weather-forecast-table td { padding: 9px 6px; border-bottom: 1px solid var(--line); font-size: 14px; }
+    .weather-forecast-table td:first-child { color: var(--muted); white-space: nowrap; }
+    .weather-forecast-table td:last-child { text-align: right; font-weight: 600; }
     .companions { margin-top: 54px; }
     .companion-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 18px; }
     .companion-card { padding: 20px; background: #fff; border: 1px solid var(--line); border-radius: 8px; }
@@ -105,8 +117,8 @@
     .timeline-item { padding: 13px 15px; background: var(--purple-soft); border-left: 3px solid var(--purple); border-radius: 0 6px 6px 0; }
     .timeline-item b, .timeline-item span { display: block; }
     .timeline-item span { margin-top: 3px; color: #5e556c; font-size: 14px; }
-    @media (max-width: 850px) { .site-nav { align-items: flex-start; flex-direction: column; gap: 6px; padding: 8px 18px 12px; } .nav-links { width: 100%; margin-left: 0; overflow-x: auto; } main { width: min(100% - 28px, 680px); padding-top: 24px; } .search-panel { padding: 16px 18px 20px; } .search-tabs { flex-wrap: nowrap; overflow-x: auto; } .search-tab { flex: 0 0 auto; } .tab-badge { flex: 0 0 auto; margin-left: 10px; } .trip-grid, .companion-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
-    @media (max-width: 560px) { .brand { width: 108px; height: 48px; } .nav-links { gap: 2px; } .nav-links a { padding: 8px; font-size: 14px; white-space: nowrap; } .hero-intro h1 { font-size: 26px; } .search-tab { padding: 8px 10px; font-size: 14px; } .search-submit { width: 100%; } .search-bar, .section-header, .member-unlock { align-items: stretch; flex-direction: column; } .trip-grid, .companion-grid { grid-template-columns: 1fr; } .announcement-card { grid-template-columns: auto minmax(0, 1fr); } .announcement-meta { grid-column: 2; } .member-unlock { padding: 24px; } .member-unlock-actions { flex-wrap: wrap; } .section-header h2 { font-size: 24px; } }
+    @media (max-width: 850px) { .site-nav { align-items: flex-start; flex-direction: column; gap: 6px; padding: 8px 18px 12px; } .nav-links { width: 100%; margin-left: 0; overflow-x: auto; } main { width: min(100% - 28px, 680px); padding-top: 24px; } .search-panel { padding: 16px 18px 20px; } .search-tabs { flex-wrap: nowrap; overflow-x: auto; } .search-tab { flex: 0 0 auto; } .tab-badge { flex: 0 0 auto; margin-left: 10px; } .trip-grid, .companion-grid, .weather-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+    @media (max-width: 560px) { .brand { width: 108px; height: 48px; } .nav-links { gap: 2px; } .nav-links a { padding: 8px; font-size: 14px; white-space: nowrap; } .hero-intro h1 { font-size: 26px; } .search-tab { padding: 8px 10px; font-size: 14px; } .search-submit { width: 100%; } .search-bar, .section-header, .member-unlock { align-items: stretch; flex-direction: column; } .trip-grid, .companion-grid, .weather-grid { grid-template-columns: 1fr; } .announcement-card { grid-template-columns: auto minmax(0, 1fr); } .announcement-meta { grid-column: 2; } .member-unlock { padding: 24px; } .member-unlock-actions { flex-wrap: wrap; } .section-header h2 { font-size: 24px; } }
   </style>
 </head>
 <body>
@@ -114,6 +126,7 @@
     <a class="brand" href="{{ url_for('visitor') }}"><img src="{{ url_for('static', filename='images/logo.png') }}" alt="走吧揪團"></a>
     <nav class="nav-links">
       <a href="#announcements">公告事項</a>
+      <a href="#weather">目的地天氣</a>
       <a href="#trips">探索行程</a>
       <a href="#companions">尋找旅伴</a>
       <a href="/login">登入</a>
@@ -127,7 +140,7 @@
         <button class="search-tab" type="button" data-tab="flight" onclick="switchSearchTab('flight', this)"><span class="tab-icon">✈️</span>機票</button>
         <button class="search-tab" type="button" data-tab="train" onclick="switchSearchTab('train', this)"><span class="tab-icon">🚄</span>高鐵／火車票</button>
         <button class="search-tab" type="button" data-tab="experience" onclick="switchSearchTab('experience', this)"><span class="tab-icon">🧭</span>當地體驗</button>
-        <span class="tab-badge">功能開發中</span>
+        <span class="tab-badge" hidden>功能開發中</span>
       </div>
       <form onsubmit="handleBookingSearch(event)">
         <div class="search-fields-row" data-tab-fields="hotel">
@@ -158,7 +171,7 @@
         </div>
         <button class="search-submit" type="submit">🔍 搜尋</button>
       </form>
-      <p class="search-note">＊住宿／機票／高鐵／體驗搜尋為介面預覽，實際資料串接開發中；您可以先探索下方的公開行程與旅伴揪團。</p>
+      <p class="search-note" id="searchNote">＊住宿搜尋已串接真實資料；機票／高鐵／體驗搜尋為介面預覽，實際資料串接開發中，您可以先探索下方的公開行程與旅伴揪團。</p>
     </section>
     <section class="hero-intro">
       <p class="eyebrow" style="color: var(--purple-light)">TRAVEL TOGETHER</p>
@@ -185,6 +198,28 @@
           </article>
         {% else %}
           <div class="empty">目前尚無公告事項。</div>
+        {% endfor %}
+      </div>
+    </section>
+    <section id="weather" class="weather-section">
+      <div class="section-header">
+        <div>
+          <p class="eyebrow" style="color: var(--purple-light)">DESTINATION WEATHER</p>
+          <h2>目的地天氣</h2>
+          <p>依目前公開行程的目的地，提供中央氣象署天氣預報（僅支援台灣縣市）。</p>
+        </div>
+      </div>
+      <div class="weather-grid">
+        {% for city_name, w in city_weather.items() %}
+          <article class="weather-card">
+            <h3>{{ city_name }}</h3>
+            <div class="weather-emoji" aria-hidden="true">{{ w.today.emoji }}</div>
+            <p class="weather-desc">{{ w.today.weather }}</p>
+            <p class="weather-temp">{{ w.today.min }}° ～ {{ w.today.max }}°</p>
+            <button class="view-button" type="button" onclick="openWeatherModal('{{ city_name }}')">查看 7 天預報</button>
+          </article>
+        {% else %}
+          <div class="empty">目前公開行程的目的地暫無天氣資訊（僅支援台灣縣市，或天氣服務尚未設定）。</div>
         {% endfor %}
       </div>
     </section>
@@ -267,6 +302,12 @@
       <div id="modalBody"></div>
     </div>
   </div>
+  <div class="modal" id="weatherModal" onclick="if (event.target === this) closeWeatherModal()">
+    <div class="modal-card">
+      <button class="modal-close" type="button" onclick="closeWeatherModal()" aria-label="關閉">×</button>
+      <div id="weatherModalBody"></div>
+    </div>
+  </div>
   <script>
     function switchSearchTab(tab, btn) {
       document.querySelectorAll('.search-tab').forEach((t) => t.classList.remove('active'));
@@ -274,6 +315,14 @@
       document.querySelectorAll('[data-tab-fields]').forEach((row) => {
         row.hidden = row.dataset.tabFields !== tab;
       });
+      const badge = document.querySelector('.tab-badge');
+      if (badge) badge.hidden = tab === 'hotel';
+      const note = document.getElementById('searchNote');
+      if (note) {
+        note.textContent = tab === 'hotel'
+          ? '＊住宿搜尋已串接真實資料，送出後將依您填寫的目的地與日期顯示搜尋結果。'
+          : '＊機票／高鐵／體驗搜尋為介面預覽，實際資料串接開發中；您可以先探索下方的公開行程與旅伴揪團。';
+      }
     }
     let toastTimer;
     function showToast(message) {
@@ -291,6 +340,20 @@
     }
     function handleBookingSearch(event) {
       event.preventDefault();
+      const activeTab = document.querySelector('.search-tab.active').dataset.tab;
+      if (activeTab === 'hotel') {
+        const params = new URLSearchParams();
+        const destination = document.getElementById('hotelDest').value.trim();
+        const checkin = document.getElementById('hotelCheckin').value;
+        const checkout = document.getElementById('hotelCheckout').value;
+        const guests = document.getElementById('hotelGuests').value;
+        if (destination) params.set('destination', destination);
+        if (checkin) params.set('checkin', checkin);
+        if (checkout) params.set('checkout', checkout);
+        if (guests) params.set('guests', guests);
+        window.location.href = '/visitor/hotels?' + params.toString();
+        return;
+      }
       showToast('此搜尋功能開發中，敬請期待！可以先看看下方的公開行程與旅伴揪團 🙂');
     }
     const trips = {{ trips_timeline_json | tojson }};
@@ -324,6 +387,28 @@
     }
     function closeTripModal() {
       document.getElementById('tripModal').classList.remove('open');
+    }
+    const cityWeather = {{ city_weather | tojson }};
+    function formatWeatherDate(dateStr) {
+      const parts = (dateStr || '').split('-');
+      return parts.length === 3 ? parts[1] + '/' + parts[2] : (dateStr || '');
+    }
+    function openWeatherModal(cityName) {
+      const weather = cityWeather[cityName];
+      if (!weather) return;
+      const rows = weather.days.map((day) =>
+        '<tr><td>' + escapeHtml(formatWeatherDate(day.date)) + '</td>' +
+        '<td>' + day.emoji + ' ' + escapeHtml(day.weather) + '</td>' +
+        '<td>' + escapeHtml(String(day.min)) + '° ～ ' + escapeHtml(String(day.max)) + '°</td></tr>'
+      ).join('');
+      document.getElementById('weatherModalBody').innerHTML =
+        '<h2>' + escapeHtml(cityName) + ' 未來 7 天天氣預報</h2>' +
+        '<p class="modal-meta weather-source">資料來源：中央氣象署開放資料平台</p>' +
+        '<table class="weather-forecast-table">' + rows + '</table>';
+      document.getElementById('weatherModal').classList.add('open');
+    }
+    function closeWeatherModal() {
+      document.getElementById('weatherModal').classList.remove('open');
     }
   </script>
 </body>

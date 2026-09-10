@@ -20,3 +20,7 @@ GOOGLE_MAPS_API_KEY = os.environ.get("GOOGLE_MAPS_API_KEY", "")
 # Claude API(Anthropic)金鑰，用來提供 AI 助理對話功能
 # 請在 .env 檔案裡新增一行：ANTHROPIC_API_KEY=你的金鑰
 ANTHROPIC_API_KEY = os.environ.get("ANTHROPIC_API_KEY", "")
+
+# 中央氣象署開放資料平台授權碼，用來提供訪客頁面的台灣縣市天氣預報功能
+# 請到 https://opendata.cwa.gov.tw 註冊會員取得授權碼，並在 .env 檔案裡新增一行：CWA_API_KEY=你的授權碼
+CWA_API_KEY = os.environ.get("CWA_API_KEY", "")

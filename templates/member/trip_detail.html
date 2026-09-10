@@ -8,7 +8,7 @@
 {% else %}<div class="vote-bars">{% for opt in v.options %}<div class="vote-bar-row"><span>{{ opt.option_text }}</span><div class="vote-bar-track"><div class="vote-bar-fill option" style="width: {{ (opt.vote_count / v.total_votes * 100) if v.total_votes else 0 }}%"></div></div><b>{{ opt.vote_count }}</b></div>{% endfor %}</div>{% if v.status == 'open' and v.deadline_at >= now %}<form method="post" action="{{ url_for('member.cast_vote', trip_id=trip.trip_id, vote_id=v.vote_id) }}" class="vote-cast-form">{% for opt in v.options %}<button name="option_id" value="{{ opt.option_id }}" class="member-btn small {{ 'primary' if v.my_option_id == opt.option_id else 'ghost' }}">{{ opt.option_text }}</button>{% endfor %}</form>{% endif %}
 {% endif %}
 {% if v.status == 'open' and (v.created_by == session.user_id or is_owner) %}<form method="post" action="{{ url_for('member.close_vote', trip_id=trip.trip_id, vote_id=v.vote_id) }}"><button class="member-btn ghost small">結束投票</button></form>{% endif %}</div>{% else %}<p class="muted">還沒有投票，建立一個讓大家一起決定吧。</p>{% endfor %}</div>
-<details class="quick-add"><summary>＋ 建立新投票</summary><form method="post" action="{{ url_for('member.add_vote', trip_id=trip.trip_id) }}" class="form-grid-member"><label>投票標題<input required name="title" placeholder="例如：要不要加貓空纜車？"></label><label>投票類型<select name="vote_type" id="voteTypeSelect"><option value="approval">同意／不同意</option><option value="single_choice">單選</option></select></label><label>截止時間<input required type="datetime-local" name="deadline_at"></label><label class="span-2" id="voteOptionsField">選項（單選投票用，至少 2 個，每行一個）<textarea name="options_text" rows="3" placeholder="選項一&#10;選項二"></textarea></label><button class="member-btn primary" type="submit">建立投票</button></form></details></section>
+<details class="quick-add"><summary>＋ 建立新投票</summary><form method="post" action="{{ url_for('member.add_vote', trip_id=trip.trip_id) }}" class="form-grid-member"><label>投票標題<input required name="title" placeholder="例如：要不要加貓空纜車？"></label><label>投票類型<select name="vote_type" id="voteTypeSelect"><option value="approval">同意／不同意</option><option value="single_choice">單選（自訂多個選項）</option></select></label><label>截止時間<input required type="datetime-local" name="deadline_at"></label><div class="span-2 vote-options-field" id="voteOptionsField"><label>選項（單選投票用，至少填 2 個）</label><div id="voteOptionsList"><input name="option_text" placeholder="選項 1"><input name="option_text" placeholder="選項 2"></div><button type="button" id="addOptionBtn" class="member-btn ghost small">＋ 新增選項</button></div><button class="member-btn primary" type="submit">建立投票</button></form></details></section>
 <section class="panel" id="discussion"><div class="panel-title"><div><p class="eyebrow">DISCUSSION</p><h2>留言討論</h2></div><span>{{ comments|length }} 則留言</span></div>
 {% for c in comments %}<div class="comment-row"><i>{{ (c.nickname or c.full_name)[:1] }}</i><div class="comment-body"><b>{{ c.nickname or c.full_name }}</b><small>{{ c.created_at.strftime('%m/%d %H:%M') }}</small><p>{{ c.content }}</p><div class="comment-actions"><details class="reply-details"><summary>回覆</summary><form method="post" action="{{ url_for('member.add_comment', trip_id=trip.trip_id) }}"><input type="hidden" name="parent_comment_id" value="{{ c.comment_id }}"><textarea name="content" rows="2" required placeholder="回覆…"></textarea><button class="member-btn primary small" type="submit">送出回覆</button></form></details>{% if c.user_id == session.user_id or is_owner %}<form method="post" action="{{ url_for('member.delete_comment', trip_id=trip.trip_id, comment_id=c.comment_id) }}" onsubmit="return confirm('確定要刪除這則留言嗎？')"><button class="member-btn ghost small" type="submit">刪除</button></form>{% endif %}</div>
 {% if c.replies %}<div class="comment-replies">{% for r in c.replies %}<div class="comment-row reply"><i>{{ (r.nickname or r.full_name)[:1] }}</i><div class="comment-body"><b>{{ r.nickname or r.full_name }}</b><small>{{ r.created_at.strftime('%m/%d %H:%M') }}</small><p>{{ r.content }}</p>{% if r.user_id == session.user_id or is_owner %}<form method="post" action="{{ url_for('member.delete_comment', trip_id=trip.trip_id, comment_id=r.comment_id) }}" onsubmit="return confirm('確定要刪除這則留言嗎？')"><button class="member-btn ghost small" type="submit">刪除</button></form>{% endif %}</div></div>{% endfor %}</div>{% endif %}
@@ -29,6 +29,17 @@
     }
     var voteTypeSelect = document.getElementById('voteTypeSelect');
     if (voteTypeSelect) voteTypeSelect.addEventListener('change', toggleVoteOptions);
+
+    var addOptionBtn = document.getElementById('addOptionBtn');
+    if (addOptionBtn) addOptionBtn.addEventListener('click', function () {
+        var list = document.getElementById('voteOptionsList');
+        var count = list.querySelectorAll('input[name="option_text"]').length;
+        if (count >= 8) return;
+        var input = document.createElement('input');
+        input.name = 'option_text';
+        input.placeholder = '選項 ' + (count + 1);
+        list.appendChild(input);
+    });
     window.addEventListener('DOMContentLoaded', toggleVoteOptions);
 </script>
 {% endblock %}

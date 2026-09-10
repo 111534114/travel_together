@@ -177,7 +177,7 @@ def _parse_trip(form):
 def dashboard():
     connection = _connection_or_home()
     if connection is None:
-        return render_template("member/dashboard.html", trips=[], invitations=[], stats={})
+        return render_template("member/dashboard.html", trips=[], invitations=[], stats={}, announcements=[])
     cursor = connection.cursor(dictionary=True)
     try:
         user_id = session["user_id"]
@@ -200,11 +200,20 @@ def dashboard():
             WHERE ti.invitee_id=%s AND ti.status='pending' ORDER BY ti.created_at DESC
         """, (user_id,))
         invitations = cursor.fetchall()
+        cursor.execute("""
+            SELECT announcement_id, title, content, is_pinned, publish_at, created_at
+            FROM announcements
+            WHERE status = 'published'
+              AND (publish_at IS NULL OR publish_at <= NOW())
+            ORDER BY is_pinned DESC, publish_at DESC, created_at DESC
+            LIMIT 6
+        """)
+        announcements = cursor.fetchall()
         stats = {"total": len(trips), "upcoming": sum(t["start_date"] >= date.today() for t in trips),
                  "planning": sum(t["status"] == "planning" for t in trips), "pending": len(invitations)}
     finally:
         cursor.close(); connection.close()
-    return render_template("member/dashboard.html", trips=trips, invitations=invitations, stats=stats)
+    return render_template("member/dashboard.html", trips=trips, invitations=invitations, stats=stats, announcements=announcements)
 
 
 @member_bp.route("/attractions")
@@ -430,11 +439,11 @@ def add_vote(trip_id):
         vote_type = request.form.get("vote_type", "approval")
         if vote_type not in ("approval", "single_choice"): vote_type = "approval"
         deadline_at = request.form.get("deadline_at", "").strip().replace("T", " ")
-        option_texts = [line.strip() for line in request.form.get("options_text", "").splitlines() if line.strip()]
+        option_texts = [text.strip() for text in request.form.getlist("option_text") if text.strip()]
 
         if not trip: flash("你沒有查看此行程的權限。", "error")
         elif not title or not deadline_at: flash("請填寫投票標題與截止時間。", "error")
-        elif vote_type == "single_choice" and len(option_texts) < 2: flash("單選投票至少需要 2 個選項（每行一個）。", "error")
+        elif vote_type == "single_choice" and len(option_texts) < 2: flash("單選投票至少需要填寫 2 個選項。", "error")
         else:
             cursor.execute("""INSERT INTO votes (trip_id,created_by,title,vote_type,deadline_at)
                               VALUES (%s,%s,%s,%s,%s)""", (trip_id, session["user_id"], title, vote_type, deadline_at))

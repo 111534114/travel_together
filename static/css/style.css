@@ -1210,7 +1210,8 @@ body {
 }
 
 .member-form label,
-.invite-details label {
+.invite-details label,
+.form-grid-member label {
     display: flex;
     flex-direction: column;
     gap: 7px;
@@ -1222,7 +1223,10 @@ body {
 .member-form select,
 .member-form textarea,
 .invite-details input,
-.invite-details select {
+.invite-details select,
+.form-grid-member input,
+.form-grid-member select,
+.form-grid-member textarea {
     width: 100%;
     padding: 11px 12px;
     color: #27233a;
@@ -1234,7 +1238,10 @@ body {
 
 .member-form input:focus,
 .member-form select:focus,
-.member-form textarea:focus {
+.member-form textarea:focus,
+.form-grid-member input:focus,
+.form-grid-member select:focus,
+.form-grid-member textarea:focus {
     outline: 2px solid #cbbce2;
     border-color: #5f4b8b;
 }
@@ -1482,6 +1489,27 @@ body {
     flex-wrap: wrap;
     gap: 8px;
     margin-top: 10px;
+}
+
+.vote-options-field {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.vote-options-field > label {
+    color: #443d54;
+    font-weight: 600;
+}
+
+#voteOptionsList {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+#addOptionBtn {
+    align-self: flex-start;
 }
 
 .comment-row {

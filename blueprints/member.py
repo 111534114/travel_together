@@ -439,11 +439,11 @@ def add_vote(trip_id):
         vote_type = request.form.get("vote_type", "approval")
         if vote_type not in ("approval", "single_choice"): vote_type = "approval"
         deadline_at = request.form.get("deadline_at", "").strip().replace("T", " ")
-        option_texts = [line.strip() for line in request.form.get("options_text", "").splitlines() if line.strip()]
+        option_texts = [text.strip() for text in request.form.getlist("option_text") if text.strip()]
 
         if not trip: flash("你沒有查看此行程的權限。", "error")
         elif not title or not deadline_at: flash("請填寫投票標題與截止時間。", "error")
-        elif vote_type == "single_choice" and len(option_texts) < 2: flash("單選投票至少需要 2 個選項（每行一個）。", "error")
+        elif vote_type == "single_choice" and len(option_texts) < 2: flash("單選投票至少需要填寫 2 個選項。", "error")
         else:
             cursor.execute("""INSERT INTO votes (trip_id,created_by,title,vote_type,deadline_at)
                               VALUES (%s,%s,%s,%s,%s)""", (trip_id, session["user_id"], title, vote_type, deadline_at))

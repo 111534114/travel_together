@@ -118,6 +118,12 @@ def visitor():
                 JOIN cities ci ON ci.city_id = t.city_id
                 LEFT JOIN categories c ON c.category_id = t.category_id
                 WHERE t.visibility = 'public'
+                  AND NOT EXISTS (
+                      SELECT 1 FROM reports active_report
+                      WHERE active_report.target_type = 'trip'
+                        AND active_report.target_id = t.trip_id
+                        AND active_report.status IN ('pending', 'processing')
+                  )
                 ORDER BY t.trip_id DESC
             """)
             public_trips = cursor.fetchall()
@@ -137,7 +143,13 @@ def visitor():
                 JOIN countries co ON co.country_id = t.country_id
                 JOIN cities ci ON ci.city_id = t.city_id
                 LEFT JOIN trip_members tm ON tm.trip_id = t.trip_id AND tm.join_status = 'accepted'
-                WHERE t.visibility = 'public' OR t.people_count > 1
+                WHERE (t.visibility = 'public' OR t.people_count > 1)
+                  AND NOT EXISTS (
+                      SELECT 1 FROM reports active_report
+                      WHERE active_report.target_type = 'trip'
+                        AND active_report.target_id = t.trip_id
+                        AND active_report.status IN ('pending', 'processing')
+                  )
                 GROUP BY t.trip_id, t.trip_name, co.name, ci.name, t.people_count, t.total_budget, t.currency, t.introduction, u.full_name, u.nickname
                 ORDER BY t.trip_id DESC
                 LIMIT 6
@@ -1079,6 +1091,13 @@ def handle_admin_report(report_id):
                 handled_at = CASE WHEN %s IN ('resolved', 'rejected') THEN NOW() ELSE NULL END
             WHERE report_id = %s
         """, (new_status, result or None, session["user_id"], new_status, report_id))
+        if new_status == "resolved":
+            cursor.execute("""
+                UPDATE trips t
+                JOIN reports r ON r.target_type = 'trip' AND r.target_id = t.trip_id
+                SET t.visibility = 'private'
+                WHERE r.report_id = %s
+            """, (report_id,))
         log_action(cursor, "handle_report", "report", report_id,
                    f"檢舉狀態更新為 {new_status}：{result or '未填寫備註'}")
         connection.commit()

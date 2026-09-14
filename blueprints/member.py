@@ -8,6 +8,7 @@ from werkzeug.security import check_password_hash, generate_password_hash
 from auth import login_required
 from db import get_db_connection
 from utils import get_cities, get_countries
+import weather
 
 
 member_bp = Blueprint("member", __name__, url_prefix="/member")
@@ -177,7 +178,11 @@ def _parse_trip(form):
 def dashboard():
     connection = _connection_or_home()
     if connection is None:
-        return render_template("member/dashboard.html", trips=[], invitations=[], stats={}, announcements=[])
+        return render_template(
+            "visitor.html", is_member=True, trips=[], invitations=[], member_stats={},
+            announcements=[], public_trips=[], companions=[], trips_timeline_json={},
+            city_weather={}, notifications=[]
+        )
     cursor = connection.cursor(dictionary=True)
     try:
         user_id = session["user_id"]
@@ -201,6 +206,14 @@ def dashboard():
         """, (user_id,))
         invitations = cursor.fetchall()
         cursor.execute("""
+            SELECT notification_id, trip_id, title, message, target_url, created_at
+            FROM notifications
+            WHERE user_id=%s AND is_read=FALSE
+            ORDER BY created_at DESC
+            LIMIT 10
+        """, (user_id,))
+        notifications = cursor.fetchall()
+        cursor.execute("""
             SELECT announcement_id, title, content, is_pinned, publish_at, created_at
             FROM announcements
             WHERE status = 'published'
@@ -209,11 +222,191 @@ def dashboard():
             LIMIT 6
         """)
         announcements = cursor.fetchall()
-        stats = {"total": len(trips), "upcoming": sum(t["start_date"] >= date.today() for t in trips),
-                 "planning": sum(t["status"] == "planning" for t in trips), "pending": len(invitations)}
+        member_stats = {"total": len(trips), "upcoming": sum(t["start_date"] >= date.today() for t in trips),
+                        "planning": sum(t["status"] == "planning" for t in trips), "pending": len(invitations)}
+
+        cursor.execute("""
+            SELECT t.trip_id, t.owner_id, t.trip_name, co.name AS country, ci.name AS city,
+                   t.start_date, t.end_date, t.people_count,
+                   t.total_budget, t.currency, t.introduction,
+                   t.cover_image_path, t.visibility, c.category_name,
+                   u.full_name AS owner_name, u.nickname AS owner_nickname,
+                   DATEDIFF(t.end_date, t.start_date) + 1 AS days_count
+            FROM trips t
+            JOIN users u ON u.user_id = t.owner_id
+            JOIN countries co ON co.country_id = t.country_id
+            JOIN cities ci ON ci.city_id = t.city_id
+            LEFT JOIN categories c ON c.category_id = t.category_id
+            WHERE t.visibility = 'public'
+              AND NOT EXISTS (
+                  SELECT 1 FROM reports active_report
+                  WHERE active_report.target_type = 'trip'
+                    AND active_report.target_id = t.trip_id
+                    AND active_report.status IN ('pending', 'processing')
+              )
+            ORDER BY t.trip_id DESC
+        """)
+        public_trips = cursor.fetchall()
+        city_weather = weather.get_weather_by_cities(
+            [trip["city"] for trip in public_trips if trip.get("city")]
+        )
+
+        cursor.execute("""
+            SELECT t.trip_id, t.trip_name, co.name AS country, ci.name AS city,
+                   t.people_count, t.total_budget, t.currency, t.introduction,
+                   u.full_name AS owner_name, u.nickname AS owner_nickname,
+                   COUNT(tm.user_id) AS joined_count
+            FROM trips t
+            JOIN users u ON u.user_id = t.owner_id
+            JOIN countries co ON co.country_id = t.country_id
+            JOIN cities ci ON ci.city_id = t.city_id
+            LEFT JOIN trip_members tm ON tm.trip_id = t.trip_id AND tm.join_status = 'accepted'
+            WHERE (t.visibility = 'public' OR t.people_count > 1)
+              AND NOT EXISTS (
+                  SELECT 1 FROM reports active_report
+                  WHERE active_report.target_type = 'trip'
+                    AND active_report.target_id = t.trip_id
+                    AND active_report.status IN ('pending', 'processing')
+              )
+            GROUP BY t.trip_id, t.trip_name, co.name, ci.name, t.people_count,
+                     t.total_budget, t.currency, t.introduction, u.full_name, u.nickname
+            ORDER BY t.trip_id DESC
+            LIMIT 6
+        """)
+        companions = cursor.fetchall()
+
+        trips_timeline_json = {}
+        if public_trips:
+            trip_ids = [trip["trip_id"] for trip in public_trips]
+            placeholders = ",".join(["%s"] * len(trip_ids))
+            cursor.execute(f"""
+                SELECT trip_id, itinerary_date, title, start_time, end_time,
+                       address, estimated_cost
+                FROM itineraries
+                WHERE trip_id IN ({placeholders})
+                ORDER BY itinerary_date ASC, start_time ASC
+            """, tuple(trip_ids))
+            all_itineraries = cursor.fetchall()
+            for trip in public_trips:
+                timeline = []
+                items = [item for item in all_itineraries if item["trip_id"] == trip["trip_id"]]
+                for index, item in enumerate(items, 1):
+                    date_text = str(item["itinerary_date"]) if item["itinerary_date"] else f"第 {index} 天"
+                    time_text = f" ({item['start_time']} - {item['end_time']})" if item["start_time"] else ""
+                    address_text = f" ｜ 地址: {item['address']}" if item["address"] else ""
+                    cost_text = f" (預估金額: NT$ {item['estimated_cost']:,.0f})" if item["estimated_cost"] else ""
+                    timeline.append({"day": f"📍 {date_text}{time_text}",
+                                     "desc": f"{item['title']}{address_text}{cost_text}"})
+                trips_timeline_json[str(trip["trip_id"])] = {
+                    "title": trip["trip_name"],
+                    "author": trip["owner_nickname"] or trip["owner_name"],
+                    "days": f"{trip['days_count']} 天",
+                    "budget": (f"{trip['currency']} {trip['total_budget']:,.0f}"
+                               if trip["total_budget"] is not None else "未提供預算"),
+                    "timeline": timeline,
+                    "can_report": trip["owner_id"] != user_id,
+                }
     finally:
         cursor.close(); connection.close()
-    return render_template("member/dashboard.html", trips=trips, invitations=invitations, stats=stats, announcements=announcements)
+    return render_template(
+        "visitor.html", is_member=True, trips=trips, invitations=invitations,
+        member_stats=member_stats, announcements=announcements,
+        public_trips=public_trips, companions=companions,
+        trips_timeline_json=trips_timeline_json, city_weather=city_weather,
+        notifications=notifications
+    )
+
+
+@member_bp.route("/public-trips/<int:trip_id>/report", methods=["POST"])
+@login_required("member")
+def report_public_trip(trip_id):
+    reason = request.form.get("reason", "").strip()
+    description = request.form.get("description", "").strip()
+    allowed_reasons = {"不當或違規內容", "疑似詐騙資訊", "騷擾或仇恨內容", "錯誤或誤導資訊", "其他"}
+
+    if reason not in allowed_reasons:
+        flash("請選擇舉報原因。", "error")
+        return redirect(url_for("member.dashboard") + "#trips")
+    if reason == "其他" and not description:
+        flash("選擇其他原因時，請填寫詳細說明。", "error")
+        return redirect(url_for("member.dashboard") + "#trips")
+
+    connection = _connection_or_home()
+    if connection is None:
+        return redirect(url_for("member.dashboard") + "#trips")
+    cursor = connection.cursor(dictionary=True)
+    try:
+        cursor.execute("""
+            SELECT trip_id, owner_id, trip_name
+            FROM trips
+            WHERE trip_id = %s AND visibility = 'public'
+        """, (trip_id,))
+        trip = cursor.fetchone()
+        if not trip:
+            flash("找不到這筆公開行程。", "error")
+        elif trip["owner_id"] == session["user_id"]:
+            flash("不能舉報自己建立的行程。", "error")
+        else:
+            cursor.execute("""
+                SELECT report_id
+                FROM reports
+                WHERE reporter_id = %s AND target_type = 'trip' AND target_id = %s
+                  AND status IN ('pending', 'processing')
+                LIMIT 1
+            """, (session["user_id"], trip_id))
+            if cursor.fetchone():
+                flash("你已經舉報過這筆行程，目前正在處理中。", "error")
+            else:
+                cursor.execute("""
+                    INSERT INTO reports
+                    (reporter_id, target_type, target_id, reason, description)
+                    VALUES (%s, 'trip', %s, %s, %s)
+                """, (session["user_id"], trip_id, reason, description or None))
+                message = f"你的公開行程「{trip['trip_name']}」收到舉報。原因：{reason}"
+                if description:
+                    message += f"；補充說明：{description}"
+                cursor.execute("""
+                    INSERT INTO notifications
+                    (user_id, trip_id, notification_type, title, message, target_url)
+                    VALUES (%s, %s, 'system', '你的公開行程被舉報', %s, %s)
+                """, (
+                    trip["owner_id"], trip_id, message,
+                    url_for("member.trip_detail", trip_id=trip_id),
+                ))
+                connection.commit()
+                flash("舉報已送出，系統管理員會進行審查。", "success")
+    except Exception as error:
+        connection.rollback()
+        print("送出行程舉報失敗：", error)
+        flash("舉報送出失敗，請稍後再試。", "error")
+    finally:
+        cursor.close()
+        connection.close()
+    return redirect(url_for("member.dashboard") + "#trips")
+
+
+@member_bp.route("/notifications/<int:notification_id>/read", methods=["POST"])
+@login_required("member")
+def mark_notification_read(notification_id):
+    connection = _connection_or_home()
+    if connection is None:
+        return redirect(url_for("member.dashboard"))
+    cursor = connection.cursor()
+    try:
+        cursor.execute("""
+            UPDATE notifications
+            SET is_read=TRUE, read_at=NOW()
+            WHERE notification_id=%s AND user_id=%s
+        """, (notification_id, session["user_id"]))
+        connection.commit()
+    except Exception as error:
+        connection.rollback()
+        print("更新通知狀態失敗：", error)
+        flash("通知狀態更新失敗。", "error")
+    finally:
+        cursor.close()
+        connection.close()
+    return redirect(url_for("member.dashboard") + "#member-notifications")
 
 
 @member_bp.route("/attractions")
@@ -375,6 +568,40 @@ def edit_trip(trip_id):
         return render_template("member/trip_form.html", trip=trip, mode="edit", countries=countries, cities=cities)
     finally:
         cursor.close(); connection.close()
+
+
+@member_bp.route("/trips/<int:trip_id>/delete", methods=["POST"])
+@login_required("member")
+def delete_trip(trip_id):
+    connection = _connection_or_home()
+    if connection is None:
+        return redirect(url_for("member.dashboard"))
+    cursor = connection.cursor(dictionary=True)
+    try:
+        cursor.execute(
+            "SELECT trip_name FROM trips WHERE trip_id=%s AND owner_id=%s",
+            (trip_id, session["user_id"]),
+        )
+        trip = cursor.fetchone()
+        if not trip:
+            flash("只有行程建立者可以刪除行程。", "error")
+            return redirect(url_for("member.dashboard"))
+
+        cursor.execute(
+            "DELETE FROM trips WHERE trip_id=%s AND owner_id=%s",
+            (trip_id, session["user_id"]),
+        )
+        connection.commit()
+        flash(f"行程「{trip['trip_name']}」已刪除。", "success")
+    except Exception as error:
+        connection.rollback()
+        print("刪除行程失敗：", error)
+        flash("刪除行程失敗，請稍後再試。", "error")
+        return redirect(url_for("member.trip_detail", trip_id=trip_id))
+    finally:
+        cursor.close()
+        connection.close()
+    return redirect(url_for("member.dashboard") + "#member-workspace")
 
 
 @member_bp.route("/trips/<int:trip_id>/itinerary", methods=["POST"])

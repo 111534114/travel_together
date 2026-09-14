@@ -1126,6 +1126,36 @@ body {
     border-color: #5f4b8b;
 }
 
+.member-btn.danger {
+    color: #fff;
+    background: #b74343;
+    border: 1px solid #b74343;
+}
+
+.member-btn.danger:hover {
+    background: #963535;
+    border-color: #963535;
+}
+
+.trip-danger-zone {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 24px;
+    margin-top: 28px;
+    border: 1px solid #edc6c6;
+}
+
+.trip-danger-zone h2 {
+    margin: 5px 0 6px;
+    color: #932f2f;
+}
+
+.trip-danger-zone p:last-child {
+    margin: 0;
+    color: #796d7c;
+}
+
 .member-btn.small {
     min-height: 34px;
     padding: 7px 12px;

@@ -100,6 +100,7 @@
     .companion-card h3 { margin: 0 0 7px; font-size: 18px; }
     .companion-card p { margin: 0; color: var(--muted); font-size: 14px; }
     .companion-card .intro { min-height: 42px; margin: 14px 0; color: #443d54; }
+    .companion-card .view-button { margin-top: 14px; }
     .member-unlock { display: flex; align-items: center; justify-content: space-between; gap: 22px; margin-top: 54px; padding: 26px 30px; color: #fff; background: var(--purple); border-radius: 8px; }
     .member-unlock h2 { margin: 0 0 6px; font-size: 23px; }
     .member-unlock p { margin: 0; color: #e9e3f5; font-size: 14px; }
@@ -329,6 +330,7 @@
             <p>{{ comp.country or '未設定國家' }}{% if comp.city %} · {{ comp.city }}{% endif %} · {{ comp.owner_nickname or comp.owner_name or '未提供' }}</p>
             {% if comp.introduction %}<p class="intro">{{ comp.introduction }}</p>{% endif %}
             <p>預計 {{ comp.people_count }} 人{% if comp.joined_count is not none %} · 已加入 {{ comp.joined_count }} 人{% endif %}</p>
+            {% if trips_timeline_json.get(comp.trip_id|string) %}<button class="view-button" type="button" onclick="openTripModal('{{ comp.trip_id }}')">查看行程</button>{% endif %}
           </article>
         {% else %}
           <div class="empty">目前沒有公開的旅伴揪團資訊。</div>

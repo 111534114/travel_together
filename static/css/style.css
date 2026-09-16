@@ -2300,8 +2300,7 @@ body {
     white-space: nowrap;
 }
 
-.trip-status,
-.report-count {
+.trip-status {
     display: inline-block;
     padding: 5px 9px;
     border-radius: 999px;
@@ -2324,8 +2323,7 @@ body {
     background: #e2f1e6;
 }
 
-.status-cancelled,
-.report-count {
+.status-cancelled {
     color: #9d2f38;
     background: #fde7e9;
 }

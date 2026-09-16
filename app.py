@@ -118,12 +118,6 @@ def visitor():
                 JOIN cities ci ON ci.city_id = t.city_id
                 LEFT JOIN categories c ON c.category_id = t.category_id
                 WHERE t.visibility = 'public'
-                  AND NOT EXISTS (
-                      SELECT 1 FROM reports active_report
-                      WHERE active_report.target_type = 'trip'
-                        AND active_report.target_id = t.trip_id
-                        AND active_report.status IN ('pending', 'processing')
-                  )
                 ORDER BY t.trip_id DESC
             """)
             public_trips = cursor.fetchall()
@@ -144,12 +138,6 @@ def visitor():
                 JOIN cities ci ON ci.city_id = t.city_id
                 LEFT JOIN trip_members tm ON tm.trip_id = t.trip_id AND tm.join_status = 'accepted'
                 WHERE (t.visibility = 'public' OR t.people_count > 1)
-                  AND NOT EXISTS (
-                      SELECT 1 FROM reports active_report
-                      WHERE active_report.target_type = 'trip'
-                        AND active_report.target_id = t.trip_id
-                        AND active_report.status IN ('pending', 'processing')
-                  )
                 GROUP BY t.trip_id, t.trip_name, co.name, ci.name, t.people_count, t.total_budget, t.currency, t.introduction, u.full_name, u.nickname
                 ORDER BY t.trip_id DESC
                 LIMIT 6
@@ -562,8 +550,7 @@ def system_admin_home():  # 定義系統管理員儀表板函式
             member_count=0,
             content_admin_count=0,
             trip_count=0,
-            public_trip_count=0,
-            report_count=0
+            public_trip_count=0
         )
 
     cursor = connection.cursor(dictionary=True)  # 建立字典格式游標
@@ -607,15 +594,6 @@ def system_admin_home():  # 定義系統管理員儀表板函式
 
         public_trip_count = cursor.fetchone()["total"]  # 取出公開行程總數
 
-        # 待處理檢舉
-        cursor.execute("""
-            SELECT COUNT(*) AS total
-            FROM reports
-            WHERE status = 'pending'
-        """)  # 統計狀態為待處理的檢舉數量
-
-        report_count = cursor.fetchone()["total"]  # 取出待處理檢舉數
-
         # 最近加入會員
         cursor.execute("""
             SELECT user_id,
@@ -643,7 +621,6 @@ def system_admin_home():  # 定義系統管理員儀表板函式
         content_admin_count=content_admin_count,  # 內容管理員總數
         trip_count=trip_count,  # 行程總數
         public_trip_count=public_trip_count,  # 公開行程總數
-        report_count=report_count,  # 待處理檢舉數
         recent_users=recent_users  # 最近加入會員清單
     )
 @app.route("/system-admin/users")  # 設定會員管理列表頁路由
@@ -782,7 +759,7 @@ def admin_public_trips():  # 定義公開行程管理列表函式
         return render_template(  # 回傳空清單頁面
             "admin_public_trips.html",
             trips=[], keyword=keyword, trip_status=trip_status,
-            public_count=0, pending_report_count=0
+            public_count=0
         )
 
     cursor = connection.cursor(dictionary=True)  # 建立字典格式游標
@@ -809,36 +786,24 @@ def admin_public_trips():  # 定義公開行程管理列表函式
                    u.username AS owner_username, u.full_name AS owner_name,
                    COUNT(DISTINCT CASE WHEN tm.join_status = 'accepted'
                                       THEN tm.trip_member_id END) AS member_count,
-                   COUNT(DISTINCT i.itinerary_id) AS itinerary_count,
-                   COUNT(DISTINCT CASE WHEN r.status IN ('pending', 'processing')
-                                      THEN r.report_id END) AS report_count
+                   COUNT(DISTINCT i.itinerary_id) AS itinerary_count
             FROM trips t
             JOIN users u ON u.user_id = t.owner_id
             JOIN countries co ON co.country_id = t.country_id
             JOIN cities ci ON ci.city_id = t.city_id
             LEFT JOIN trip_members tm ON tm.trip_id = t.trip_id
             LEFT JOIN itineraries i ON i.trip_id = t.trip_id
-            LEFT JOIN reports r ON r.target_type = 'trip' AND r.target_id = t.trip_id
             WHERE {where_clause}
             GROUP BY t.trip_id, t.trip_name, co.name, ci.name,
                      t.start_date, t.end_date, t.status, t.created_at,
                      u.username, u.full_name
             ORDER BY t.created_at DESC
-        """, tuple(params))  # 查詢公開行程清單，附帶成員數、行程項目數、待處理檢舉數
+        """, tuple(params))  # 查詢公開行程清單，附帶成員數、行程項目數
         trips = cursor.fetchall()  # 取出公開行程清單
 
         cursor.execute("SELECT COUNT(*) AS total FROM trips WHERE visibility = 'public'")  # 查詢公開行程總數
         public_count = cursor.fetchone()["total"]  # 取出公開行程總數
 
-        cursor.execute("""
-            SELECT COUNT(*) AS total
-            FROM reports r
-            JOIN trips t ON t.trip_id = r.target_id
-            WHERE r.target_type = 'trip'
-              AND r.status IN ('pending', 'processing')
-              AND t.visibility = 'public'
-        """)  # 查詢公開行程中待處理的檢舉總數
-        pending_report_count = cursor.fetchone()["total"]  # 取出待處理檢舉總數
     finally:  # 不論成功或失敗都要執行
         cursor.close()  # 關閉游標
         connection.close()  # 關閉資料庫連線
@@ -849,7 +814,6 @@ def admin_public_trips():  # 定義公開行程管理列表函式
         keyword=keyword,  # 搜尋關鍵字
         trip_status=trip_status,  # 狀態篩選值
         public_count=public_count,  # 公開行程總數
-        pending_report_count=pending_report_count,  # 待處理檢舉總數
     )
 
 
@@ -1014,104 +978,6 @@ def system_admin_required():
     return None
 
 
-@app.route("/system-admin/reports")
-def admin_reports():
-    denied = system_admin_required()
-    if denied:
-        return denied
-
-    keyword = request.args.get("keyword", "").strip()
-    report_status = request.args.get("status", "").strip()
-    if report_status not in {"pending", "processing", "resolved", "rejected"}:
-        report_status = ""
-
-    connection = get_db_connection()
-    reports = []
-    counts = {"pending": 0, "processing": 0, "resolved": 0, "rejected": 0}
-    if connection is None:
-        flash("資料庫連線失敗", "error")
-    else:
-        cursor = connection.cursor(dictionary=True)
-        try:
-            conditions = []
-            params = []
-            if report_status:
-                conditions.append("r.status = %s")
-                params.append(report_status)
-            if keyword:
-                search = f"%{keyword}%"
-                conditions.append("(u.username LIKE %s OR u.full_name LIKE %s OR r.reason LIKE %s OR r.description LIKE %s)")
-                params.extend([search, search, search, search])
-            where_clause = f"WHERE {' AND '.join(conditions)}" if conditions else ""
-            cursor.execute(f"""
-                SELECT r.*, u.username AS reporter_username, u.full_name AS reporter_name,
-                       h.full_name AS handler_name
-                FROM reports r
-                JOIN users u ON u.user_id = r.reporter_id
-                LEFT JOIN users h ON h.user_id = r.handled_by
-                {where_clause}
-                ORDER BY FIELD(r.status, 'pending', 'processing', 'resolved', 'rejected'),
-                         r.created_at DESC
-                LIMIT 200
-            """, tuple(params))
-            reports = cursor.fetchall()
-            cursor.execute("SELECT status, COUNT(*) AS total FROM reports GROUP BY status")
-            for row in cursor.fetchall():
-                counts[row["status"]] = row["total"]
-        finally:
-            cursor.close()
-            connection.close()
-    return render_template("admin_reports.html", reports=reports, counts=counts,
-                           keyword=keyword, report_status=report_status)
-
-
-@app.route("/system-admin/reports/<int:report_id>/handle", methods=["POST"])
-def handle_admin_report(report_id):
-    denied = system_admin_required()
-    if denied:
-        return denied
-    new_status = request.form.get("status", "processing")
-    result = request.form.get("handling_result", "").strip()
-    if new_status not in {"processing", "resolved", "rejected"}:
-        flash("檢舉狀態不正確", "error")
-        return redirect(url_for("admin_reports"))
-    if new_status in {"resolved", "rejected"} and not result:
-        flash("結案或駁回時請填寫處理結果", "error")
-        return redirect(url_for("admin_reports"))
-
-    connection = get_db_connection()
-    if connection is None:
-        flash("資料庫連線失敗", "error")
-        return redirect(url_for("admin_reports"))
-    cursor = connection.cursor()
-    try:
-        cursor.execute("""
-            UPDATE reports
-            SET status = %s, handling_result = %s, handled_by = %s,
-                handled_at = CASE WHEN %s IN ('resolved', 'rejected') THEN NOW() ELSE NULL END
-            WHERE report_id = %s
-        """, (new_status, result or None, session["user_id"], new_status, report_id))
-        if new_status == "resolved":
-            cursor.execute("""
-                UPDATE trips t
-                JOIN reports r ON r.target_type = 'trip' AND r.target_id = t.trip_id
-                SET t.visibility = 'private'
-                WHERE r.report_id = %s
-            """, (report_id,))
-        log_action(cursor, "handle_report", "report", report_id,
-                   f"檢舉狀態更新為 {new_status}：{result or '未填寫備註'}")
-        connection.commit()
-        flash("檢舉處理狀態已更新", "success")
-    except Exception as error:
-        connection.rollback()
-        print("更新檢舉失敗：", error)
-        flash("更新檢舉失敗", "error")
-    finally:
-        cursor.close()
-        connection.close()
-    return redirect(url_for("admin_reports"))
-
-
 @app.route("/system-admin/announcements", methods=["GET", "POST"])
 def admin_announcements():
     denied = system_admin_required()
@@ -1202,7 +1068,7 @@ def admin_statistics():
     if denied:
         return denied
     totals = {"members": 0, "active_members": 0, "trips": 0, "public_trips": 0,
-              "reports": 0, "resolved_reports": 0, "announcements": 0}
+              "announcements": 0}
     monthly = []
     trip_statuses = []
     connection = get_db_connection()
@@ -1217,8 +1083,6 @@ def admin_statistics():
                   (SELECT COUNT(*) FROM users WHERE role='member' AND status='active') AS active_members,
                   (SELECT COUNT(*) FROM trips) AS trips,
                   (SELECT COUNT(*) FROM trips WHERE visibility='public') AS public_trips,
-                  (SELECT COUNT(*) FROM reports) AS reports,
-                  (SELECT COUNT(*) FROM reports WHERE status='resolved') AS resolved_reports,
                   (SELECT COUNT(*) FROM announcements) AS announcements
             """)
             totals.update(cursor.fetchone())
@@ -1276,7 +1140,7 @@ def admin_logs():
             cursor.close()
             connection.close()
     labels = dict(ACTION_LABELS)
-    labels.update({"handle_report": "處理檢舉", "create_announcement": "新增公告",
+    labels.update({"create_announcement": "新增公告",
                    "update_announcement": "更新公告"})
     return render_template("admin_logs.html", logs=logs, actions=actions,
                            labels=labels, keyword=keyword, selected_action=action)

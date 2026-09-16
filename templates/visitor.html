@@ -137,13 +137,6 @@
     .modal-close { float: right; padding: 0; color: var(--muted); background: transparent; border: 0; cursor: pointer; font-size: 25px; }
     .modal-card h2 { margin: 0 0 8px; font-size: 25px; }
     .modal-meta { margin: 0 0 22px; color: var(--muted); }
-    .trip-report-toggle { margin-top: 22px; color: #a52d2d; background: #fff; border-color: #d9aaaa; }
-    .trip-report-toggle:hover { color: #fff; background: #b74343; border-color: #b74343; }
-    .trip-report-form { display: grid; gap: 11px; margin-top: 14px; padding: 18px; background: #fff7f7; border: 1px solid #edcccc; border-radius: 8px; }
-    .trip-report-form[hidden] { display: none; }
-    .trip-report-form label { display: grid; gap: 6px; color: #665d70; font-size: 13px; font-weight: 600; }
-    .trip-report-form select, .trip-report-form textarea { width: 100%; padding: 10px 12px; background: #fff; border: 1px solid #cabfd0; border-radius: 6px; font: inherit; }
-    .trip-report-submit { justify-self: start; padding: 9px 16px; color: #fff; background: #b74343; border: 0; border-radius: 6px; cursor: pointer; font-weight: 700; }
     .timeline { display: grid; gap: 12px; }
     .timeline-item { padding: 13px 15px; background: var(--purple-soft); border-left: 3px solid var(--purple); border-radius: 0 6px 6px 0; }
     .timeline-item b, .timeline-item span { display: block; }
@@ -384,25 +377,6 @@
     <div class="modal-card">
       <button class="modal-close" type="button" onclick="closeTripModal()" aria-label="關閉">×</button>
       <div id="modalBody"></div>
-      {% if is_member %}
-      <button id="tripReportToggle" class="view-button trip-report-toggle" type="button" onclick="toggleTripReport()">🚨 舉報這個行程</button>
-      <form id="tripReportForm" class="trip-report-form" method="post" hidden>
-        <label>舉報原因
-          <select name="reason" required>
-            <option value="">請選擇原因</option>
-            <option value="不當或違規內容">不當或違規內容</option>
-            <option value="疑似詐騙資訊">疑似詐騙資訊</option>
-            <option value="騷擾或仇恨內容">騷擾或仇恨內容</option>
-            <option value="錯誤或誤導資訊">錯誤或誤導資訊</option>
-            <option value="其他">其他</option>
-          </select>
-        </label>
-        <label>詳細說明（選填）
-          <textarea name="description" rows="3" maxlength="1000" placeholder="請描述需要管理員注意的內容"></textarea>
-        </label>
-        <button class="trip-report-submit" type="submit">確認送出舉報</button>
-      </form>
-      {% endif %}
     </div>
   </div>
   <div class="modal" id="weatherModal" onclick="if (event.target === this) closeWeatherModal()">
@@ -498,18 +472,6 @@
         '<p class="modal-meta">發起者：' + escapeHtml(trip.author || '未提供') + '　·　' + escapeHtml(trip.days) + '　·　' + escapeHtml(trip.budget) + '</p>' +
         '<h3>行程明細</h3><div class="timeline">' + timeline + '</div>';
       document.getElementById('tripModal').classList.add('open');
-      const reportForm = document.getElementById('tripReportForm');
-      const reportToggle = document.getElementById('tripReportToggle');
-      if (reportForm) {
-        reportForm.action = '/member/public-trips/' + encodeURIComponent(id) + '/report';
-        reportForm.hidden = true;
-        reportForm.reset();
-      }
-      if (reportToggle) reportToggle.hidden = !trip.can_report;
-    }
-    function toggleTripReport() {
-      const form = document.getElementById('tripReportForm');
-      if (form) form.hidden = !form.hidden;
     }
     function closeTripModal() {
       document.getElementById('tripModal').classList.remove('open');

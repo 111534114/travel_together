@@ -248,12 +248,6 @@ def dashboard():
             JOIN cities ci ON ci.city_id = t.city_id
             LEFT JOIN categories c ON c.category_id = t.category_id
             WHERE t.visibility = 'public'
-              AND NOT EXISTS (
-                  SELECT 1 FROM reports active_report
-                  WHERE active_report.target_type = 'trip'
-                    AND active_report.target_id = t.trip_id
-                    AND active_report.status IN ('pending', 'processing')
-              )
             ORDER BY t.trip_id DESC
         """)
         public_trips = cursor.fetchall()
@@ -272,12 +266,6 @@ def dashboard():
             JOIN cities ci ON ci.city_id = t.city_id
             LEFT JOIN trip_members tm ON tm.trip_id = t.trip_id AND tm.join_status = 'accepted'
             WHERE (t.visibility = 'public' OR t.people_count > 1)
-              AND NOT EXISTS (
-                  SELECT 1 FROM reports active_report
-                  WHERE active_report.target_type = 'trip'
-                    AND active_report.target_id = t.trip_id
-                    AND active_report.status IN ('pending', 'processing')
-              )
             GROUP BY t.trip_id, t.trip_name, co.name, ci.name, t.people_count,
                      t.total_budget, t.currency, t.introduction, u.full_name, u.nickname
             ORDER BY t.trip_id DESC
@@ -314,7 +302,6 @@ def dashboard():
                     "budget": (f"{trip['currency']} {trip['total_budget']:,.0f}"
                                if trip["total_budget"] is not None else "未提供預算"),
                     "timeline": timeline,
-                    "can_report": trip["owner_id"] != user_id,
                 }
     finally:
         cursor.close(); connection.close()
@@ -325,74 +312,6 @@ def dashboard():
         trips_timeline_json=trips_timeline_json, city_weather=city_weather,
         notifications=notifications
     )
-
-
-@member_bp.route("/public-trips/<int:trip_id>/report", methods=["POST"])
-@login_required("member")
-def report_public_trip(trip_id):
-    reason = request.form.get("reason", "").strip()
-    description = request.form.get("description", "").strip()
-    allowed_reasons = {"不當或違規內容", "疑似詐騙資訊", "騷擾或仇恨內容", "錯誤或誤導資訊", "其他"}
-
-    if reason not in allowed_reasons:
-        flash("請選擇舉報原因。", "error")
-        return redirect(url_for("member.dashboard") + "#trips")
-    if reason == "其他" and not description:
-        flash("選擇其他原因時，請填寫詳細說明。", "error")
-        return redirect(url_for("member.dashboard") + "#trips")
-
-    connection = _connection_or_home()
-    if connection is None:
-        return redirect(url_for("member.dashboard") + "#trips")
-    cursor = connection.cursor(dictionary=True)
-    try:
-        cursor.execute("""
-            SELECT trip_id, owner_id, trip_name
-            FROM trips
-            WHERE trip_id = %s AND visibility = 'public'
-        """, (trip_id,))
-        trip = cursor.fetchone()
-        if not trip:
-            flash("找不到這筆公開行程。", "error")
-        elif trip["owner_id"] == session["user_id"]:
-            flash("不能舉報自己建立的行程。", "error")
-        else:
-            cursor.execute("""
-                SELECT report_id
-                FROM reports
-                WHERE reporter_id = %s AND target_type = 'trip' AND target_id = %s
-                  AND status IN ('pending', 'processing')
-                LIMIT 1
-            """, (session["user_id"], trip_id))
-            if cursor.fetchone():
-                flash("你已經舉報過這筆行程，目前正在處理中。", "error")
-            else:
-                cursor.execute("""
-                    INSERT INTO reports
-                    (reporter_id, target_type, target_id, reason, description)
-                    VALUES (%s, 'trip', %s, %s, %s)
-                """, (session["user_id"], trip_id, reason, description or None))
-                message = f"你的公開行程「{trip['trip_name']}」收到舉報。原因：{reason}"
-                if description:
-                    message += f"；補充說明：{description}"
-                cursor.execute("""
-                    INSERT INTO notifications
-                    (user_id, trip_id, notification_type, title, message, target_url)
-                    VALUES (%s, %s, 'system', '你的公開行程被舉報', %s, %s)
-                """, (
-                    trip["owner_id"], trip_id, message,
-                    url_for("member.trip_detail", trip_id=trip_id),
-                ))
-                connection.commit()
-                flash("舉報已送出，系統管理員會進行審查。", "success")
-    except Exception as error:
-        connection.rollback()
-        print("送出行程舉報失敗：", error)
-        flash("舉報送出失敗，請稍後再試。", "error")
-    finally:
-        cursor.close()
-        connection.close()
-    return redirect(url_for("member.dashboard") + "#trips")
 
 
 @member_bp.route("/notifications/<int:notification_id>/read", methods=["POST"])

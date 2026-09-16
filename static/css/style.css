@@ -1593,6 +1593,25 @@ body {
     grid-template-columns: 52px minmax(0, 1fr) auto;
 }
 
+.itinerary-row.has-weather {
+    grid-template-columns: 52px 52px minmax(0, 1fr) auto;
+}
+
+.weather-badge {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 2px;
+    color: #777084;
+    font-size: 11px;
+    white-space: nowrap;
+}
+
+.weather-badge span {
+    font-size: 18px;
+}
+
 .date-badge span {
     font-size: 11px;
 }
@@ -1846,6 +1865,51 @@ body {
     color: #26763a;
 }
 
+.attachment-row {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    padding: 12px 0;
+    border-bottom: 1px solid #ece9f1;
+}
+
+.attachment-icon {
+    flex: 0 0 auto;
+    font-size: 22px;
+}
+
+.attachment-body {
+    flex: 1;
+    min-width: 0;
+}
+
+.attachment-body a {
+    color: #443d54;
+    font-weight: 600;
+    text-decoration: none;
+    word-break: break-word;
+}
+
+.attachment-body a:hover {
+    color: #5f4b8b;
+    text-decoration: underline;
+}
+
+.attachment-body small {
+    display: block;
+    margin-top: 4px;
+    color: #918a9e;
+    font-size: 12px;
+}
+
+.attachment-form {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-top: 16px;
+    flex-wrap: wrap;
+}
+
 .budget-bar span {
     display: block;
     height: 100%;
@@ -1944,6 +2008,14 @@ body {
 
     .itinerary-row > strong {
         grid-column: 2;
+    }
+
+    .itinerary-row.has-weather {
+        grid-template-columns: 44px minmax(0, 1fr);
+    }
+
+    .itinerary-row.has-weather .weather-badge {
+        display: none;
     }
 }
 

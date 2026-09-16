@@ -46,6 +46,77 @@
 <div class="admin-section">
 
     <div class="section-title">
+        <h2>資料狀態分布</h2>
+    </div>
+
+    {% if status_distribution %}
+    {% set status_max = namespace(value=1) %}
+    {% for row in status_distribution %}
+        {% set row_total = row.active + row.pending + row.hidden %}
+        {% if row_total > status_max.value %}{% set status_max.value = row_total %}{% endif %}
+    {% endfor %}
+
+    <div class="chart-legend">
+        <span class="chart-legend-item"><span class="chart-legend-swatch status-series-active"></span>啟用</span>
+        <span class="chart-legend-item"><span class="chart-legend-swatch status-series-pending"></span>待確認</span>
+        <span class="chart-legend-item"><span class="chart-legend-swatch status-series-hidden"></span>隱藏</span>
+    </div>
+
+    <div class="chart-rows">
+        {% for row in status_distribution %}
+            {% set active_pct = (row.active / status_max.value * 100) | round(2) %}
+            {% set pending_pct = (row.pending / status_max.value * 100) | round(2) %}
+            {% set hidden_pct = (row.hidden / status_max.value * 100) | round(2) %}
+            <div class="chart-row">
+                <div class="chart-label">{{ row.label }}</div>
+                <div class="chart-bar-track">
+                    <div class="chart-bar-segment status-series-active" style="width: {{ active_pct }}%"
+                         tabindex="0" title="啟用：{{ row.active }}"></div>
+                    <div class="chart-bar-segment status-series-pending" style="width: {{ pending_pct }}%"
+                         tabindex="0" title="待確認：{{ row.pending }}"></div>
+                    <div class="chart-bar-segment status-series-hidden" style="width: {{ hidden_pct }}%"
+                         tabindex="0" title="隱藏：{{ row.hidden }}"></div>
+                </div>
+                <div class="chart-value">{{ row.active + row.pending + row.hidden }}</div>
+            </div>
+        {% endfor %}
+    </div>
+    {% else %}
+        <p class="empty-data">目前沒有資料</p>
+    {% endif %}
+
+    <div class="table-container" style="margin-top:22px;">
+        <table class="admin-table">
+            <thead>
+            <tr>
+                <th>類型</th>
+                <th>啟用</th>
+                <th>待確認</th>
+                <th>隱藏</th>
+                <th>總計</th>
+            </tr>
+            </thead>
+            <tbody>
+            {% for row in status_distribution %}
+            <tr>
+                <td>{{ row.label }}</td>
+                <td>{{ row.active }}</td>
+                <td>{{ row.pending }}</td>
+                <td>{{ row.hidden }}</td>
+                <td>{{ row.active + row.pending + row.hidden }}</td>
+            </tr>
+            {% else %}
+            <tr><td colspan="5" class="empty-data">目前沒有資料</td></tr>
+            {% endfor %}
+            </tbody>
+        </table>
+    </div>
+
+</div>
+
+<div class="admin-section">
+
+    <div class="section-title">
         <h2>熱門景點 Top 5</h2>
         <a href="{{ url_for('reports.export_attractions') }}" class="export-button">⬇ 匯出景點統計 CSV</a>
     </div>

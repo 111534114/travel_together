@@ -121,7 +121,7 @@ def list_accommodations():  # 定義住宿列表頁函式
     cursor = connection.cursor(dictionary=True)  # 建立字典格式游標
 
     try:  # 開始查詢資料
-        conditions = []  # 建立 SQL WHERE 條件清單
+        conditions = ["ac.deleted_at IS NULL"]  # 建立 SQL WHERE 條件清單，一律排除已軟刪除(在回收桶裡)的住宿
         params = []  # 建立對應的參數清單
 
         if keyword:  # 如果有輸入關鍵字
@@ -285,8 +285,8 @@ def edit_accommodation(accommodation_id):  # 定義編輯住宿函式
     try:  # 開始處理表單/資料庫操作
         options = _load_options(cursor)  # 取得下拉選單資料
 
-        cursor.execute(  # 依 ID 查詢住宿目前的完整資料
-            "SELECT * FROM accommodations WHERE accommodation_id = %s",
+        cursor.execute(  # 依 ID 查詢住宿目前的完整資料(已軟刪除的不能直接編輯)
+            "SELECT * FROM accommodations WHERE accommodation_id = %s AND deleted_at IS NULL",
             (accommodation_id,)
         )
         existing = cursor.fetchone()  # 取得查詢結果
@@ -381,15 +381,15 @@ def delete_accommodation(accommodation_id):  # 定義刪除住宿函式
 
     cursor = connection.cursor(dictionary=True)  # 建立字典格式游標
 
-    try:  # 開始執行刪除
-        cursor.execute(  # 先查出這筆住宿目前的名稱與圖片路徑，等下操作紀錄與刪除檔案要用
-            "SELECT name, image_path FROM accommodations WHERE accommodation_id = %s",
+    try:  # 開始執行刪除(軟刪除：只標記刪除時間，資料列與圖片都還在，可從回收桶復原)
+        cursor.execute(  # 先查出這筆住宿目前的名稱，等下操作紀錄要用
+            "SELECT name FROM accommodations WHERE accommodation_id = %s AND deleted_at IS NULL",
             (accommodation_id,)
         )
         existing = cursor.fetchone()  # 取得查詢結果(可能為 None)
 
-        cursor.execute(  # 執行刪除住宿資料列
-            "DELETE FROM accommodations WHERE accommodation_id = %s",
+        cursor.execute(  # 標記刪除時間，不真的砍掉資料列
+            "UPDATE accommodations SET deleted_at = NOW() WHERE accommodation_id = %s AND deleted_at IS NULL",
             (accommodation_id,)
         )
 
@@ -399,17 +399,14 @@ def delete_accommodation(accommodation_id):  # 定義刪除住宿函式
                 f"刪除住宿：{existing['name']}"
             )
 
-        connection.commit()  # 提交交易，正式從資料庫刪除(住宿資料與操作紀錄一起寫入)
+        connection.commit()  # 提交交易，正式標記刪除(住宿資料與操作紀錄一起寫入)
 
-        if existing:  # 如果原本有查到這筆資料
-            delete_uploaded_image(existing["image_path"])  # 一併刪除硬碟上的圖片檔案
+        flash("住宿已移入回收桶，可以隨時復原", "success")  # 顯示成功訊息
 
-        flash("住宿已刪除", "success")  # 顯示成功訊息
-
-    except Exception as error:  # 如果刪除過程發生例外(例如仍有其他資料參照這筆住宿)
+    except Exception as error:  # 如果刪除過程發生例外
         connection.rollback()  # 回復交易
         print("刪除住宿失敗：", error)  # 在伺服器端印出錯誤內容
-        flash("刪除住宿失敗，請確認沒有其他資料仍在使用此住宿", "error")  # 顯示錯誤提示
+        flash("刪除住宿失敗，請再試一次", "error")  # 顯示錯誤提示
 
     finally:  # 不論成功或失敗都要執行
         cursor.close()  # 關閉游標
@@ -482,17 +479,11 @@ def bulk_delete_accommodations():  # 定義批次刪除住宿函式
 
     cursor = connection.cursor(dictionary=True)  # 建立字典格式游標
 
-    try:  # 嘗試批次刪除
+    try:  # 嘗試批次刪除(軟刪除：只標記刪除時間，資料列與圖片都還在，可從回收桶復原)
         placeholders = ",".join(["%s"] * len(ids))  # 組成跟 ID 數量一樣多的 %s 佔位符
 
-        cursor.execute(  # 先查出這些住宿目前的圖片路徑，等下要一併刪除檔案
-            f"SELECT accommodation_id, image_path FROM accommodations WHERE accommodation_id IN ({placeholders})",
-            tuple(ids)
-        )
-        existing_rows = cursor.fetchall()  # 取得查詢結果
-
-        cursor.execute(  # 執行批次刪除的 SQL
-            f"DELETE FROM accommodations WHERE accommodation_id IN ({placeholders})",
+        cursor.execute(  # 執行批次軟刪除的 SQL
+            f"UPDATE accommodations SET deleted_at = NOW() WHERE accommodation_id IN ({placeholders}) AND deleted_at IS NULL",
             tuple(ids)
         )
         deleted_count = cursor.rowcount  # 取得實際被刪除的筆數
@@ -503,19 +494,130 @@ def bulk_delete_accommodations():  # 定義批次刪除住宿函式
         )
         connection.commit()  # 提交交易(刪除與操作紀錄一起寫入)
 
-        for row in existing_rows:  # 逐一刪除硬碟上對應的圖片檔案
-            delete_uploaded_image(row["image_path"])
-
-        flash(f"已刪除 {deleted_count} 筆住宿", "success")  # 顯示成功訊息
-    except Exception as error:  # 如果刪除過程發生例外(例如仍有其他資料參照這些住宿)
+        flash(f"已將 {deleted_count} 筆住宿移入回收桶", "success")  # 顯示成功訊息
+    except Exception as error:  # 如果刪除過程發生例外
         connection.rollback()  # 回復交易
         print("批次刪除住宿失敗：", error)  # 在伺服器端印出錯誤內容
-        flash("批次刪除失敗，請確認沒有其他資料仍在使用這些住宿", "error")  # 顯示錯誤提示
+        flash("批次刪除失敗，請再試一次", "error")  # 顯示錯誤提示
     finally:  # 不論成功或失敗都要執行
         cursor.close()  # 關閉游標
         connection.close()  # 關閉資料庫連線
 
     return redirect(url_for("accommodations.list_accommodations"))  # 導回住宿列表頁
+
+
+@accommodations_bp.route("/trash")  # 設定住宿回收桶頁路由
+@login_required("content_admin")  # 限制只有內容管理員登入後才能存取
+def list_trash():  # 定義住宿回收桶函式
+    connection = get_db_connection()  # 建立資料庫連線
+
+    if connection is None:  # 如果連線失敗
+        flash("資料庫連線失敗", "error")  # 顯示錯誤提示
+        return render_template("content_admin/accommodations/trash.html", accommodations=[])  # 回傳空回收桶頁面
+
+    cursor = connection.cursor(dictionary=True)  # 建立字典格式游標
+
+    try:  # 開始查詢資料
+        cursor.execute(  # 查詢所有已軟刪除的住宿，關聯分類、國家、城市名稱
+            """
+            SELECT ac.accommodation_id, ac.name, ac.deleted_at, ac.image_path,
+                   cat.category_name, co.name AS country_name, ci.name AS city_name
+            FROM accommodations ac
+            LEFT JOIN categories cat ON cat.category_id = ac.category_id
+            JOIN countries co ON co.country_id = ac.country_id
+            JOIN cities ci ON ci.city_id = ac.city_id
+            WHERE ac.deleted_at IS NOT NULL
+            ORDER BY ac.deleted_at DESC
+            """
+        )
+        accommodations = cursor.fetchall()  # 取出回收桶裡的住宿清單
+    finally:  # 不論成功或失敗都要執行
+        cursor.close()  # 關閉游標
+        connection.close()  # 關閉資料庫連線
+
+    return render_template(  # 渲染回收桶頁面
+        "content_admin/accommodations/trash.html",
+        accommodations=accommodations,  # 回收桶裡的住宿清單
+    )
+
+
+@accommodations_bp.route("/<int:accommodation_id>/restore", methods=["POST"])  # 設定從回收桶復原住宿的路由
+@login_required("content_admin")  # 限制只有內容管理員登入後才能存取
+def restore_accommodation(accommodation_id):  # 定義復原住宿函式
+    connection = get_db_connection()  # 建立資料庫連線
+
+    if connection is None:  # 如果連線失敗
+        flash("資料庫連線失敗", "error")  # 顯示錯誤提示
+        return redirect(url_for("accommodations.list_trash"))  # 導回回收桶頁面
+
+    cursor = connection.cursor(dictionary=True)  # 建立字典格式游標
+
+    try:  # 開始執行復原
+        cursor.execute("SELECT name FROM accommodations WHERE accommodation_id = %s AND deleted_at IS NOT NULL", (accommodation_id,))  # 查出這筆住宿的名稱(要在回收桶裡才能復原)
+        existing = cursor.fetchone()  # 取得查詢結果
+
+        if not existing:  # 如果找不到(不在回收桶裡)
+            flash("找不到這筆住宿資料", "error")  # 顯示錯誤提示
+        else:
+            cursor.execute("UPDATE accommodations SET deleted_at = NULL WHERE accommodation_id = %s", (accommodation_id,))  # 清空刪除時間，等於復原
+            log_action(  # 把這次復原動作寫入操作紀錄
+                cursor, "restore_accommodation", "accommodation", accommodation_id,
+                f"從回收桶復原住宿：{existing['name']}"
+            )
+            connection.commit()  # 提交交易
+            flash("住宿已復原", "success")  # 顯示成功訊息
+    except Exception as error:  # 如果復原過程發生例外
+        connection.rollback()  # 回復交易
+        print("復原住宿失敗：", error)  # 在伺服器端印出錯誤內容
+        flash("復原失敗，請再試一次", "error")  # 顯示錯誤提示
+    finally:  # 不論成功或失敗都要執行
+        cursor.close()  # 關閉游標
+        connection.close()  # 關閉資料庫連線
+
+    return redirect(url_for("accommodations.list_trash"))  # 導回回收桶頁面
+
+
+@accommodations_bp.route("/<int:accommodation_id>/permanent-delete", methods=["POST"])  # 設定從回收桶永久刪除住宿的路由
+@login_required("content_admin")  # 限制只有內容管理員登入後才能存取
+def permanently_delete_accommodation(accommodation_id):  # 定義永久刪除住宿函式
+    connection = get_db_connection()  # 建立資料庫連線
+
+    if connection is None:  # 如果連線失敗
+        flash("資料庫連線失敗", "error")  # 顯示錯誤提示
+        return redirect(url_for("accommodations.list_trash"))  # 導回回收桶頁面
+
+    cursor = connection.cursor(dictionary=True)  # 建立字典格式游標
+
+    try:  # 開始執行永久刪除
+        cursor.execute(  # 先查出這筆住宿目前的名稱與圖片路徑(必須在回收桶裡才能永久刪除)
+            "SELECT name, image_path FROM accommodations WHERE accommodation_id = %s AND deleted_at IS NOT NULL",
+            (accommodation_id,)
+        )
+        existing = cursor.fetchone()  # 取得查詢結果(可能為 None)
+
+        if not existing:  # 如果找不到(不在回收桶裡)
+            flash("找不到這筆住宿資料", "error")  # 顯示錯誤提示
+        else:
+            cursor.execute("DELETE FROM accommodations WHERE accommodation_id = %s", (accommodation_id,))  # 真的從資料庫刪除這筆資料列
+
+            log_action(  # 把這次永久刪除動作寫入操作紀錄
+                cursor, "permanent_delete_accommodation", "accommodation", accommodation_id,
+                f"永久刪除住宿：{existing['name']}"
+            )
+            connection.commit()  # 提交交易，正式從資料庫刪除
+
+            delete_uploaded_image(existing["image_path"])  # 一併刪除硬碟上的圖片檔案
+
+            flash("住宿已永久刪除，無法復原", "success")  # 顯示成功訊息
+    except Exception as error:  # 如果刪除過程發生例外(例如仍有其他資料參照這筆住宿)
+        connection.rollback()  # 回復交易
+        print("永久刪除住宿失敗：", error)  # 在伺服器端印出錯誤內容
+        flash("永久刪除失敗，請確認沒有其他資料仍在使用此住宿", "error")  # 顯示錯誤提示
+    finally:  # 不論成功或失敗都要執行
+        cursor.close()  # 關閉游標
+        connection.close()  # 關閉資料庫連線
+
+    return redirect(url_for("accommodations.list_trash"))  # 導回回收桶頁面
 
 
 @accommodations_bp.route("/backfill-descriptions", methods=["POST"])  # 設定批次補上缺少住宿描述的路由
@@ -538,9 +640,10 @@ def backfill_descriptions():  # 定義批次補上住宿描述函式
             LEFT JOIN categories cat ON cat.category_id = ac.category_id
             JOIN countries co ON co.country_id = ac.country_id
             JOIN cities ci ON ci.city_id = ac.city_id
-            WHERE ac.description IS NULL
+            WHERE ac.deleted_at IS NULL
+              AND (ac.description IS NULL
                OR ac.description = ''
-               OR ac.description LIKE '%，是當地值得一遊的景點。'
+               OR ac.description LIKE '%，是當地值得一遊的景點。')
             """
         )
         rows = cursor.fetchall()  # 取出所有缺少描述、或描述太單調要重新產生的住宿

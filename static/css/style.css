@@ -635,6 +635,18 @@ body {
     background: #eb6834;
 }
 
+.status-series-active {
+    background: #0ca30c;
+}
+
+.status-series-pending {
+    background: #fab219;
+}
+
+.status-series-hidden {
+    background: #898781;
+}
+
 .chart-rows {
     display: flex;
     flex-direction: column;

@@ -433,7 +433,7 @@ def browse_attractions():
                                 keyword=keyword, country_id=country_id, city_id=city_id, favorites_only=favorites_only)
     cursor = connection.cursor(dictionary=True)
     try:
-        conditions = ["a.status = 'active'"]
+        conditions = ["a.status = 'active'", "a.deleted_at IS NULL"]
         params = [session["user_id"]]
 
         if keyword:

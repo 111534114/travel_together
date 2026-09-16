@@ -1,0 +1,67 @@
+{% extends "content_admin/base.html" %}
+{% set active_menu = "restaurants" %}
+
+{% block title %}餐廳回收桶｜Travel Together{% endblock %}
+{% block page_title %}餐廳回收桶{% endblock %}
+{% block page_subtitle %}已刪除的餐廳會保留在這裡，可以復原或永久刪除{% endblock %}
+
+{% block content %}
+
+<div class="admin-section">
+
+    <div class="section-title">
+        <h2>回收桶</h2>
+        <div>
+            <span>共 {{ restaurants|length }} 筆　</span>
+            <a href="{{ url_for('restaurants.list_restaurants') }}" class="small-button">← 返回餐廳列表</a>
+        </div>
+    </div>
+
+    <div class="table-container">
+        <table class="admin-table">
+            <thead>
+            <tr>
+                <th>圖片</th>
+                <th>名稱</th>
+                <th>分類</th>
+                <th>國家/城市</th>
+                <th>刪除時間</th>
+                <th>操作</th>
+            </tr>
+            </thead>
+            <tbody>
+            {% for restaurant in restaurants %}
+            <tr>
+                <td>
+                    {% if restaurant.image_path %}
+                        <img class="thumb" src="{{ url_for('static', filename=restaurant.image_path) }}" alt="{{ restaurant.name }}">
+                    {% else %}
+                        <div class="thumb-placeholder">無圖片</div>
+                    {% endif %}
+                </td>
+                <td>{{ restaurant.name }}</td>
+                <td>{{ restaurant.category_name or '-' }}</td>
+                <td>{{ restaurant.country_name }} / {{ restaurant.city_name }}</td>
+                <td>{{ restaurant.deleted_at }}</td>
+                <td>
+                    <form method="POST" action="{{ url_for('restaurants.restore_restaurant', restaurant_id=restaurant.restaurant_id) }}" class="inline-form">
+                        <button type="submit" class="small-button">復原</button>
+                    </form>
+                    <form method="POST"
+                          action="{{ url_for('restaurants.permanently_delete_restaurant', restaurant_id=restaurant.restaurant_id) }}"
+                          class="inline-form"
+                          onsubmit="return confirm('確定要永久刪除這間餐廳嗎？刪除後無法復原！');">
+                        <button type="submit" class="disable-button">永久刪除</button>
+                    </form>
+                </td>
+            </tr>
+            {% else %}
+            <tr><td colspan="6" class="empty-data">回收桶目前是空的</td></tr>
+            {% endfor %}
+            </tbody>
+        </table>
+    </div>
+
+</div>
+
+{% endblock %}

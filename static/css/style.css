@@ -702,8 +702,10 @@ body {
 }
 
 .admin-filter select,
+.admin-search select,
 .stack-form select,
 .stack-form input,
+.stack-form textarea,
 .announcement-actions select,
 .admin-form-grid input,
 .admin-form-grid select,
@@ -733,6 +735,14 @@ body {
     display: grid;
     min-width: 175px;
     gap: 7px;
+}
+
+.issue-description {
+    display: block;
+    max-width: 320px;
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+    color: #5d5866;
 }
 
 .stack-form .small-button,

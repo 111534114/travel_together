@@ -59,6 +59,12 @@
 
             </a>
 
+            <a href="{{ url_for('admin_issues') }}">
+
+                📨 問題回報
+
+            </a>
+
 
             <a href="{{ url_for('admin_announcements') }}">
 
@@ -183,6 +189,11 @@
 
                 </div>
 
+            </div>
+
+            <div class="dashboard-card">
+                <div class="card-icon">📨</div>
+                <div><p>待處理問題回報</p><h2>{{ issue_count }}</h2></div>
             </div>
 
 

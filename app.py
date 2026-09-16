@@ -14,7 +14,7 @@ from blueprints.ai_data import ai_data_bp  # 匯入 AI 使用資料維護的藍�
 from blueprints.reports import reports_bp  # 匯入統計報表匯出的藍圖
 from blueprints.logs import logs_bp  # 匯入操作紀錄查詢的藍圖
 from blueprints.ai_chat import ai_chat_bp  # 匯入 AI 助理對話的藍圖
-from blueprints.member import member_bp  # 匯入會員功能的藍圖
+from blueprints.member import ISSUE_PREFIX, member_bp  # 匯入會員功能的藍圖
 from activity_log import ACTION_LABELS, log_action
 import weather  # 匯入中央氣象署天氣預報模組(訪客頁面「目的地天氣」功能用)
 
@@ -550,7 +550,8 @@ def system_admin_home():  # 定義系統管理員儀表板函式
             member_count=0,
             content_admin_count=0,
             trip_count=0,
-            public_trip_count=0
+            public_trip_count=0,
+            issue_count=0
         )
 
     cursor = connection.cursor(dictionary=True)  # 建立字典格式游標
@@ -594,6 +595,12 @@ def system_admin_home():  # 定義系統管理員儀表板函式
 
         public_trip_count = cursor.fetchone()["total"]  # 取出公開行程總數
 
+        cursor.execute("""
+            SELECT COUNT(*) AS total FROM reports
+            WHERE target_type = 'trip' AND reason LIKE %s AND status = 'pending'
+        """, (ISSUE_PREFIX + "%",))
+        issue_count = cursor.fetchone()["total"]
+
         # 最近加入會員
         cursor.execute("""
             SELECT user_id,
@@ -621,6 +628,7 @@ def system_admin_home():  # 定義系統管理員儀表板函式
         content_admin_count=content_admin_count,  # 內容管理員總數
         trip_count=trip_count,  # 行程總數
         public_trip_count=public_trip_count,  # 公開行程總數
+        issue_count=issue_count,
         recent_users=recent_users  # 最近加入會員清單
     )
 @app.route("/system-admin/users")  # 設定會員管理列表頁路由
@@ -978,6 +986,96 @@ def system_admin_required():
     return None
 
 
+@app.route("/system-admin/issues")
+def admin_issues():
+    denied = system_admin_required()
+    if denied:
+        return denied
+    status = request.args.get("status", "").strip()
+    if status not in {"pending", "processing", "resolved", "rejected"}:
+        status = ""
+    issues = []
+    counts = {"pending": 0, "processing": 0, "resolved": 0, "rejected": 0}
+    connection = get_db_connection()
+    if connection is None:
+        flash("資料庫連線失敗", "error")
+    else:
+        cursor = connection.cursor(dictionary=True)
+        try:
+            cursor.execute("""
+                SELECT status, COUNT(*) AS total FROM reports
+                WHERE target_type = 'trip' AND reason LIKE %s
+                GROUP BY status
+            """, (ISSUE_PREFIX + "%",))
+            for row in cursor.fetchall():
+                counts[row["status"]] = row["total"]
+            cursor.execute("""
+                SELECT r.report_id, r.target_id AS trip_id, r.reason, r.description,
+                       r.status, r.created_at, r.handling_result, r.handled_at,
+                       t.trip_name, t.visibility, u.username AS reporter_username,
+                       u.full_name AS reporter_name
+                FROM reports r
+                LEFT JOIN trips t ON t.trip_id = r.target_id
+                JOIN users u ON u.user_id = r.reporter_id
+                WHERE r.target_type = 'trip' AND r.reason LIKE %s
+                  AND (%s = '' OR r.status = %s)
+                ORDER BY FIELD(r.status, 'pending', 'processing', 'resolved', 'rejected'),
+                         r.created_at DESC
+                LIMIT 200
+            """, (ISSUE_PREFIX + "%", status, status))
+            issues = cursor.fetchall()
+            for issue in issues:
+                issue["reason"] = issue["reason"][len(ISSUE_PREFIX):]
+        finally:
+            cursor.close()
+            connection.close()
+    return render_template("admin_issues.html", issues=issues, counts=counts, issue_status=status)
+
+
+@app.route("/system-admin/issues/<int:issue_id>/handle", methods=["POST"])
+def handle_admin_issue(issue_id):
+    denied = system_admin_required()
+    if denied:
+        return denied
+    status = request.form.get("status", "").strip()
+    result = request.form.get("handling_result", "").strip()
+    if status not in {"processing", "resolved", "rejected"}:
+        flash("問題狀態不正確。", "error")
+        return redirect(url_for("admin_issues"))
+    if len(result) > 1000 or (status in {"resolved", "rejected"} and not result):
+        flash("結案或駁回時請填寫不超過 1000 字的處理結果。", "error")
+        return redirect(url_for("admin_issues"))
+    connection = get_db_connection()
+    if connection is None:
+        flash("資料庫連線失敗", "error")
+        return redirect(url_for("admin_issues"))
+    cursor = connection.cursor()
+    try:
+        cursor.execute("""
+            SELECT report_id FROM reports
+            WHERE report_id = %s AND target_type = 'trip' AND reason LIKE %s
+        """, (issue_id, ISSUE_PREFIX + "%"))
+        if not cursor.fetchone():
+            flash("找不到這筆問題回報。", "error")
+            return redirect(url_for("admin_issues"))
+        cursor.execute("""
+            UPDATE reports SET status = %s, handling_result = %s, handled_by = %s,
+                handled_at = CASE WHEN %s IN ('resolved', 'rejected') THEN NOW() ELSE NULL END
+            WHERE report_id = %s AND target_type = 'trip' AND reason LIKE %s
+        """, (status, result or None, session["user_id"], status, issue_id, ISSUE_PREFIX + "%"))
+        log_action(cursor, "handle_issue", "report", issue_id, f"問題回報狀態更新為 {status}")
+        connection.commit()
+        flash("問題回報已更新。", "success")
+    except Exception as error:
+        connection.rollback()
+        print("更新問題回報失敗：", error)
+        flash("更新問題回報失敗。", "error")
+    finally:
+        cursor.close()
+        connection.close()
+    return redirect(url_for("admin_issues"))
+
+
 @app.route("/system-admin/announcements", methods=["GET", "POST"])
 def admin_announcements():
     denied = system_admin_required()
@@ -1140,7 +1238,7 @@ def admin_logs():
             cursor.close()
             connection.close()
     labels = dict(ACTION_LABELS)
-    labels.update({"create_announcement": "新增公告",
+    labels.update({"handle_issue": "處理問題回報", "create_announcement": "新增公告",
                    "update_announcement": "更新公告"})
     return render_template("admin_logs.html", logs=logs, actions=actions,
                            labels=labels, keyword=keyword, selected_action=action)

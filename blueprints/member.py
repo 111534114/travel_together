@@ -13,6 +13,17 @@ import weather
 
 member_bp = Blueprint("member", __name__, url_prefix="/member")
 
+ISSUE_REASONS = (
+    "內容品質不佳／資訊太少",
+    "資訊錯誤或誤導",
+    "含有不當內容（暴力、色情、仇恨言論等）",
+    "疑似抄襲或未經授權使用",
+    "含有個資或敏感資訊",
+    "內容含有商業宣傳或廣告導流",
+    "其它",
+)
+ISSUE_PREFIX = "問題回報："
+
 
 def _connection_or_home():
     connection = get_db_connection()
@@ -191,7 +202,7 @@ def dashboard():
         return render_template(
             "visitor.html", is_member=True, trips=[], invitations=[], member_stats={},
             announcements=[], public_trips=[], companions=[], trips_timeline_json={},
-            city_weather={}, notifications=[]
+            city_weather={}, notifications=[], issue_reasons=ISSUE_REASONS
         )
     cursor = connection.cursor(dictionary=True)
     try:
@@ -303,6 +314,7 @@ def dashboard():
                     "budget": (f"{trip['currency']} {trip['total_budget']:,.0f}"
                                if trip["total_budget"] is not None else "未提供預算"),
                     "timeline": timeline,
+                    "can_issue": trip["owner_id"] != user_id,
                 }
     finally:
         cursor.close(); connection.close()
@@ -311,8 +323,60 @@ def dashboard():
         member_stats=member_stats, announcements=announcements,
         public_trips=public_trips, companions=companions,
         trips_timeline_json=trips_timeline_json, city_weather=city_weather,
-        notifications=notifications
+        notifications=notifications, issue_reasons=ISSUE_REASONS
     )
+
+
+@member_bp.route("/public-trips/<int:trip_id>/issues", methods=["POST"])
+@login_required("member")
+def submit_trip_issue(trip_id):
+    reason = request.form.get("reason", "").strip()
+    description = request.form.get("description", "").strip()
+    if reason not in ISSUE_REASONS:
+        flash("請選擇問題類型。", "error")
+        return redirect(url_for("member.dashboard") + "#trips")
+    if len(description) > 1000 or (reason == "其它" and not description):
+        flash("請填寫其它問題的詳細說明，且不得超過 1000 字。", "error")
+        return redirect(url_for("member.dashboard") + "#trips")
+
+    connection = _connection_or_home()
+    if connection is None:
+        return redirect(url_for("member.dashboard") + "#trips")
+    cursor = connection.cursor(dictionary=True)
+    try:
+        cursor.execute("""
+            SELECT trip_id, owner_id FROM trips
+            WHERE trip_id = %s AND visibility = 'public'
+        """, (trip_id,))
+        trip = cursor.fetchone()
+        if not trip:
+            flash("找不到這筆公開行程。", "error")
+        elif trip["owner_id"] == session["user_id"]:
+            flash("不能回報自己建立的行程。", "error")
+        else:
+            cursor.execute("""
+                SELECT report_id FROM reports
+                WHERE reporter_id = %s AND target_type = 'trip' AND target_id = %s
+                  AND reason LIKE %s AND status IN ('pending', 'processing')
+                LIMIT 1
+            """, (session["user_id"], trip_id, ISSUE_PREFIX + "%"))
+            if cursor.fetchone():
+                flash("你已回報這筆行程，管理員正在處理。", "error")
+            else:
+                cursor.execute("""
+                    INSERT INTO reports (reporter_id, target_type, target_id, reason, description)
+                    VALUES (%s, 'trip', %s, %s, %s)
+                """, (session["user_id"], trip_id, ISSUE_PREFIX + reason, description or None))
+                connection.commit()
+                flash("問題已送出，系統管理員會查看。", "success")
+    except Exception as error:
+        connection.rollback()
+        print("送出問題回報失敗：", error)
+        flash("問題送出失敗，請稍後再試。", "error")
+    finally:
+        cursor.close()
+        connection.close()
+    return redirect(url_for("member.dashboard") + "#trips")
 
 
 @member_bp.route("/notifications/<int:notification_id>/read", methods=["POST"])

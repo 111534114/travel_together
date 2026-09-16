@@ -7,7 +7,7 @@ from werkzeug.security import check_password_hash, generate_password_hash
 
 from auth import login_required
 from db import get_db_connection
-from utils import get_cities, get_countries
+from utils import delete_uploaded_image, get_cities, get_countries, save_uploaded_attachment
 import weather
 
 
@@ -114,6 +114,16 @@ def _load_expenses(cursor, trip_id):
         e["splits"] = cursor.fetchall()
 
     return expenses
+
+
+def _load_attachments(cursor, trip_id):
+    cursor.execute("""
+        SELECT a.*, u.full_name, u.nickname
+        FROM attachments a JOIN users u ON u.user_id = a.uploaded_by
+        WHERE a.trip_id=%s AND a.itinerary_id IS NULL AND a.proposal_id IS NULL
+        ORDER BY a.created_at DESC
+    """, (trip_id,))
+    return cursor.fetchall()
 
 
 def _load_balance_summary(cursor, trip_id):
@@ -532,6 +542,10 @@ def trip_detail(trip_id):
             flash("你沒有查看此行程的權限。", "error"); return redirect(url_for("member.dashboard"))
         cursor.execute("""SELECT i.*, u.nickname, u.full_name FROM itineraries i JOIN users u ON u.user_id=i.created_by
                           WHERE i.trip_id=%s ORDER BY i.itinerary_date,i.start_time,i.sort_order""", (trip_id,)); itinerary = cursor.fetchall()
+        city_weather_days = {}
+        city_weather = weather.get_weather_by_cities([trip["city"]]) if trip.get("city") else {}
+        if trip.get("city") in city_weather:
+            city_weather_days = {day["date"]: day for day in city_weather[trip["city"]]["days"]}
         cursor.execute("""SELECT tm.*, u.full_name,u.nickname,u.username FROM trip_members tm JOIN users u ON u.user_id=tm.user_id
                           WHERE tm.trip_id=%s ORDER BY FIELD(tm.member_role,'owner','editor','viewer'),u.full_name""", (trip_id,)); members = cursor.fetchall()
         cursor.execute("""SELECT p.*,u.full_name AS proposer_name FROM proposals p JOIN users u ON u.user_id=p.proposer_id
@@ -540,10 +554,11 @@ def trip_detail(trip_id):
         comments = _load_comments(cursor, trip_id)
         expenses = _load_expenses(cursor, trip_id)
         balance_summary = _load_balance_summary(cursor, trip_id)
+        attachments = _load_attachments(cursor, trip_id)
         cursor.execute("SELECT COALESCE(SUM(amount),0) AS actual FROM expenses WHERE trip_id=%s AND expense_type='actual'", (trip_id,)); actual = cursor.fetchone()["actual"]
     finally:
         cursor.close(); connection.close()
-    return render_template("member/trip_detail.html", trip=trip, itinerary=itinerary, members=members, proposals=proposals, votes=votes, comments=comments, expenses=expenses, balance_summary=balance_summary, actual=actual, can_edit=_can_edit(trip), is_owner=trip["member_role"] == "owner", now=datetime.now())
+    return render_template("member/trip_detail.html", trip=trip, itinerary=itinerary, city_weather_days=city_weather_days, members=members, proposals=proposals, votes=votes, comments=comments, expenses=expenses, balance_summary=balance_summary, attachments=attachments, actual=actual, can_edit=_can_edit(trip), is_owner=trip["member_role"] == "owner", now=datetime.now())
 
 
 @member_bp.route("/trips/<int:trip_id>/edit", methods=["GET", "POST"])
@@ -901,6 +916,68 @@ def mark_split_paid(trip_id, split_id):
     finally:
         cursor.close(); connection.close()
     return redirect(url_for("member.trip_detail", trip_id=trip_id) + "#budget")
+
+
+@member_bp.route("/trips/<int:trip_id>/attachments", methods=["POST"])
+@login_required("member")
+def add_attachment(trip_id):
+    connection = _connection_or_home()
+    if connection is None: return redirect(url_for("member.dashboard"))
+    cursor = connection.cursor(dictionary=True)
+    try:
+        trip = _member_access(cursor, trip_id, session["user_id"])
+        file_storage = request.files.get("file")
+
+        if not trip:
+            flash("你沒有查看此行程的權限。", "error")
+        elif not file_storage or not file_storage.filename:
+            flash("請選擇要上傳的檔案。", "error")
+        else:
+            try:
+                saved = save_uploaded_attachment(file_storage, "attachments")
+            except ValueError as error:
+                flash(str(error), "error")
+                saved = None
+
+            if saved:
+                cursor.execute("""
+                    INSERT INTO attachments (uploaded_by,trip_id,file_name,stored_name,file_path,file_type,file_size)
+                    VALUES (%s,%s,%s,%s,%s,%s,%s)
+                """, (session["user_id"], trip_id, saved["file_name"], saved["stored_name"], saved["relative_path"], saved["file_type"], saved["file_size"]))
+                connection.commit()
+                flash("檔案已上傳。", "success")
+    except Exception:
+        connection.rollback(); flash("上傳失敗，請再試一次。", "error")
+    finally:
+        cursor.close(); connection.close()
+    return redirect(url_for("member.trip_detail", trip_id=trip_id) + "#attachments")
+
+
+@member_bp.route("/trips/<int:trip_id>/attachments/<int:attachment_id>/delete", methods=["POST"])
+@login_required("member")
+def delete_attachment(trip_id, attachment_id):
+    connection = _connection_or_home()
+    if connection is None: return redirect(url_for("member.dashboard"))
+    cursor = connection.cursor(dictionary=True)
+    try:
+        trip = _member_access(cursor, trip_id, session["user_id"])
+        cursor.execute("SELECT * FROM attachments WHERE attachment_id=%s AND trip_id=%s", (attachment_id, trip_id))
+        attachment = cursor.fetchone()
+
+        if not trip or not attachment:
+            flash("找不到這個附件。", "error")
+        elif attachment["uploaded_by"] != session["user_id"] and trip["member_role"] != "owner":
+            flash("只有上傳者本人或行程建立者可以刪除附件。", "error")
+        else:
+            cursor.execute("DELETE FROM attachments WHERE attachment_id=%s", (attachment_id,))
+            connection.commit()
+            delete_uploaded_image(attachment["file_path"])
+            flash("附件已刪除。", "success")
+    except Exception:
+        connection.rollback(); flash("刪除失敗，請再試一次。", "error")
+    finally:
+        cursor.close(); connection.close()
+    return redirect(url_for("member.trip_detail", trip_id=trip_id) + "#attachments")
 
 
 @member_bp.route("/trips/<int:trip_id>/invite", methods=["POST"])

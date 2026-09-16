@@ -201,6 +201,55 @@ def list_attractions():  # 定義景點列表頁函式
     )
 
 
+@attractions_bp.route("/map")  # 設定景點地圖檢視頁路由
+@login_required("content_admin")  # 限制只有內容管理員登入後才能存取
+def map_view():  # 定義景點地圖檢視函式
+    connection = get_db_connection()  # 建立資料庫連線
+
+    if connection is None:  # 如果連線失敗
+        flash("資料庫連線失敗", "error")  # 顯示錯誤提示
+        return render_template("content_admin/attractions/map.html", attractions=[], missing_count=0)  # 回傳空地圖頁面
+
+    cursor = connection.cursor(dictionary=True)  # 建立字典格式游標
+
+    try:  # 開始查詢資料
+        cursor.execute(  # 查詢所有啟用中、且有經緯度的景點(沒有座標的無法標在地圖上)
+            """
+            SELECT a.attraction_id, a.name, a.address, a.latitude, a.longitude,
+                   a.ticket_price, cat.category_name,
+                   co.name AS country_name, ci.name AS city_name
+            FROM attractions a
+            LEFT JOIN categories cat ON cat.category_id = a.category_id
+            JOIN countries co ON co.country_id = a.country_id
+            JOIN cities ci ON ci.city_id = a.city_id
+            WHERE a.status = 'active' AND a.latitude IS NOT NULL AND a.longitude IS NOT NULL
+            ORDER BY a.attraction_id DESC
+            """
+        )
+        attractions = cursor.fetchall()  # 取出有座標的啟用景點清單
+
+        for attraction in attractions:  # 把經緯度轉成一般浮點數，才能安全序列化成 JSON 給地圖 JS 使用
+            attraction["latitude"] = float(attraction["latitude"])
+            attraction["longitude"] = float(attraction["longitude"])
+            attraction["ticket_price"] = float(attraction["ticket_price"] or 0)
+            attraction["edit_url"] = url_for("attractions.edit_attraction", attraction_id=attraction["attraction_id"])  # 預先組好編輯連結，地圖彈出視窗直接可用
+
+        cursor.execute(  # 查詢啟用中但沒有座標的景點數量(提示要補上經緯度才能顯示在地圖上)
+            "SELECT COUNT(*) AS total FROM attractions WHERE status = 'active' AND (latitude IS NULL OR longitude IS NULL)"
+        )
+        missing_count = cursor.fetchone()["total"]  # 取出沒有座標的景點數量
+
+    finally:  # 不論成功或失敗都要執行
+        cursor.close()  # 關閉游標
+        connection.close()  # 關閉資料庫連線
+
+    return render_template(  # 渲染地圖檢視頁面
+        "content_admin/attractions/map.html",
+        attractions=attractions,  # 有座標的景點清單(給地圖標記使用)
+        missing_count=missing_count,  # 沒有座標、無法顯示在地圖上的景點數量
+    )
+
+
 @attractions_bp.route("/new", methods=["GET", "POST"])  # 設定新增景點頁路由，GET 顯示表單、POST 送出表單
 @login_required("content_admin")  # 限制只有內容管理員登入後才能存取
 def create_attraction():  # 定義新增景點函式

@@ -115,6 +115,36 @@ def save_uploaded_image(file_storage, subfolder):  # 定義儲存上傳圖片的
     return f"uploads/{subfolder}/{safe_name}"  # 回傳相對路徑，方便存進資料庫的 image_path 欄位
 
 
+ALLOWED_ATTACHMENT_EXTENSIONS = ALLOWED_IMAGE_EXTENSIONS | {"pdf", "doc", "docx"}  # 附件允許的副檔名(圖片再加上常見文件格式)
+
+
+def save_uploaded_attachment(file_storage, subfolder):  # 定義儲存上傳附件的函式(圖片或文件皆可)，subfolder 是要存到哪個子資料夾
+    if file_storage is None or file_storage.filename == "":  # 如果沒有選擇檔案
+        return None  # 回傳 None，代表沒有檔案要處理
+
+    extension = _extension(file_storage.filename)  # 取得上傳檔案的副檔名
+
+    if extension not in ALLOWED_ATTACHMENT_EXTENSIONS:  # 如果副檔名不在允許清單內
+        raise ValueError("不支援的檔案格式，請上傳 png、jpg、jpeg、gif、webp、pdf、doc 或 docx")  # 拋出例外，讓呼叫端顯示錯誤訊息
+
+    stored_name = f"{uuid.uuid4().hex}.{extension}"  # 用亂數產生的 uuid 當檔名，避免不同使用者上傳同名檔案互相覆蓋
+    safe_name = secure_filename(stored_name)  # 再用 secure_filename 過濾一次，確保檔名安全
+
+    upload_dir = os.path.join(current_app.static_folder, "uploads", subfolder)  # 組成實際要存放的資料夾路徑
+    os.makedirs(upload_dir, exist_ok=True)  # 建立資料夾，如果已存在就不報錯
+
+    saved_path = os.path.join(upload_dir, safe_name)  # 組成檔案實際要寫入的完整路徑
+    file_storage.save(saved_path)  # 把上傳的檔案實際寫入硬碟
+
+    return {  # 回傳存檔後的相關資訊，方便呼叫端寫入 attachments 資料表
+        "relative_path": f"uploads/{subfolder}/{safe_name}",  # 相對路徑，存進資料庫的 file_path 欄位
+        "stored_name": safe_name,  # 實際存在硬碟上的檔名(亂數產生，避免互相覆蓋)
+        "file_name": file_storage.filename,  # 使用者上傳時的原始檔名(顯示用)
+        "file_type": extension,  # 副檔名(用來挑選顯示的圖示)
+        "file_size": os.path.getsize(saved_path),  # 實際檔案大小(位元組)
+    }
+
+
 def save_image_from_url(url, subfolder):  # 定義函式：從網址下載圖片並存到 static/uploads/子資料夾，回傳相對路徑
     url = (url or "").strip()  # 去除頭尾空白
 

@@ -1,0 +1,78 @@
+{% extends "content_admin/base.html" %}
+{% set active_menu = "attractions" %}
+
+{% block title %}景點地圖檢視｜Travel Together{% endblock %}
+{% block page_title %}景點地圖檢視{% endblock %}
+{% block page_subtitle %}地圖上顯示 {{ attractions|length }} 個已啟用且有座標的景點{% if missing_count %}，另有 {{ missing_count }} 個啟用中景點尚未設定座標，不會顯示在地圖上{% endif %}{% endblock %}
+
+{% block content %}
+
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+      integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="" />
+
+<div class="admin-section">
+    <a href="{{ url_for('attractions.list_attractions') }}" class="small-button">← 返回景點列表</a>
+    <div id="attraction-map" style="height: 620px; margin-top: 15px; border-radius: 12px; overflow: hidden;"></div>
+    {% if not attractions %}
+    <p style="margin-top: 15px; color: #777;">目前沒有已啟用且已設定座標的景點，地圖上不會顯示任何標記。座標會在用 Google 地圖匯入景點時自動帶入，手動新增的景點需要另外補上經緯度。</p>
+    {% endif %}
+</div>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+        integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+<script>
+    var attractions = {{ attractions | tojson }};
+    var defaultCenter = [23.6978, 120.9605]; // 台灣地理中心，沒有任何景點資料時的預設地圖中心點
+
+    var map = L.map('attraction-map').setView(defaultCenter, 7);
+
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+        maxZoom: 19
+    }).addTo(map);
+
+    var bounds = [];
+
+    attractions.forEach(function (attraction) {
+        var marker = L.marker([attraction.latitude, attraction.longitude]).addTo(map);
+
+        var popup = document.createElement('div');
+
+        var title = document.createElement('strong');
+        title.textContent = attraction.name;
+        popup.appendChild(title);
+        popup.appendChild(document.createElement('br'));
+
+        var meta = document.createElement('span');
+        meta.textContent = [attraction.country_name, attraction.city_name, attraction.category_name]
+            .filter(Boolean).join(' · ');
+        popup.appendChild(meta);
+
+        if (attraction.address) {
+            popup.appendChild(document.createElement('br'));
+            var address = document.createElement('span');
+            address.textContent = attraction.address;
+            popup.appendChild(address);
+        }
+
+        popup.appendChild(document.createElement('br'));
+        var price = document.createElement('span');
+        price.textContent = attraction.ticket_price ? ('票價 NT$ ' + attraction.ticket_price) : '免費';
+        popup.appendChild(price);
+
+        popup.appendChild(document.createElement('br'));
+        var editLink = document.createElement('a');
+        editLink.href = attraction.edit_url;
+        editLink.textContent = '編輯這個景點';
+        popup.appendChild(editLink);
+
+        marker.bindPopup(popup);
+        bounds.push([attraction.latitude, attraction.longitude]);
+    });
+
+    if (bounds.length > 0) {
+        map.fitBounds(bounds, { padding: [30, 30] });
+    }
+</script>
+
+{% endblock %}

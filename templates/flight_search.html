@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>住宿搜尋結果｜走吧揪團</title>
+  <title>機票搜尋結果｜走吧揪團</title>
   <link rel="icon" type="image/png" href="{{ url_for('static', filename='images/logo.png') }}">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -47,26 +47,30 @@
     .section-header { display: flex; align-items: end; justify-content: space-between; gap: 18px; margin-bottom: 18px; }
     .section-header h2 { margin: 0; font-size: 26px; }
     .section-header p { margin: 5px 0 0; color: var(--muted); font-size: 14px; }
-    .hotel-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 18px; }
-    .hotel-card { display: flex; flex-direction: column; overflow: hidden; background: #fff; border: 1px solid var(--line); border-radius: 8px; box-shadow: 0 8px 22px rgba(45, 37, 68, .06); transition: transform 160ms ease, box-shadow 160ms ease; }
-    .hotel-card:hover { transform: translateY(-3px); box-shadow: 0 12px 28px rgba(45, 37, 68, .12); }
-    .hotel-art { position: relative; display: grid; min-height: 142px; place-items: center; color: #fff; background: #5f4b8b; background-position: center; background-size: cover; font-size: 36px; font-weight: 700; }
-    .hotel-art.with-image::after { content: ""; position: absolute; inset: 0; background: rgba(25, 35, 55, .16); }
-    .hotel-art span { position: relative; z-index: 1; }
-    .hotel-art .type-badge { position: absolute; z-index: 2; top: 12px; right: 12px; padding: 5px 8px; color: #45365f; background: rgba(255, 255, 255, .92); border-radius: 999px; font-size: 12px; font-weight: 600; }
-    .hotel-content { display: flex; flex: 1; flex-direction: column; padding: 18px; }
-    .hotel-content h3 { margin: 0 0 8px; font-size: 20px; line-height: 1.4; }
-    .location { min-height: 22px; margin: 0 0 10px; color: var(--muted); font-size: 14px; }
-    .hotel-desc { margin: 0 0 14px; color: #514b60; font-size: 13px; line-height: 1.6; }
-    .hotel-details { display: flex; flex-wrap: wrap; gap: 7px 12px; padding: 13px 0; color: var(--muted); border-top: 1px solid #ece9f1; border-bottom: 1px solid #ece9f1; font-size: 13px; }
-    .hotel-footer { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-top: auto; padding-top: 14px; }
-    .price { color: var(--purple); font-size: 18px; font-weight: 800; }
-    .price small { color: var(--muted); font-size: 12px; font-weight: 500; }
-    .view-button { padding: 7px 12px; color: var(--purple); background: #fff; border: 1px solid #cfc6df; border-radius: 6px; cursor: pointer; font-weight: 700; }
+    .flight-leg { margin-bottom: 32px; }
+    .flight-leg:last-child { margin-bottom: 0; }
+    .flight-list { display: flex; flex-direction: column; gap: 14px; }
+    .flight-card { display: flex; flex-wrap: wrap; align-items: center; gap: 18px; padding: 18px 20px; background: #fff; border: 1px solid var(--line); border-radius: 10px; box-shadow: 0 8px 22px rgba(45, 37, 68, .06); transition: transform 160ms ease, box-shadow 160ms ease; }
+    .flight-card:hover { transform: translateY(-2px); box-shadow: 0 12px 28px rgba(45, 37, 68, .12); }
+    .flight-airline { display: flex; flex: 0 0 150px; flex-direction: column; gap: 4px; }
+    .flight-airline b { font-size: 15px; }
+    .flight-airline span { color: var(--muted); font-size: 12px; }
+    .flight-route { display: flex; flex: 1 1 300px; align-items: center; gap: 16px; }
+    .flight-time { display: flex; flex-direction: column; align-items: center; gap: 2px; min-width: 72px; }
+    .flight-time b { font-size: 20px; }
+    .flight-time span { color: var(--muted); font-size: 12px; }
+    .flight-path { display: flex; flex: 1; flex-direction: column; align-items: center; gap: 4px; color: var(--muted); font-size: 12px; }
+    .flight-path .line { position: relative; width: 100%; height: 1px; background: #d9d3e6; }
+    .flight-path .line::after { content: "✈"; position: absolute; top: 50%; left: 50%; color: var(--purple-light); font-size: 13px; transform: translate(-50%, -50%); background: #fff; padding: 0 4px; }
+    .flight-meta { display: flex; flex: 0 0 auto; flex-direction: column; gap: 4px; color: var(--muted); font-size: 12px; }
+    .flight-footer { display: flex; flex: 0 0 auto; align-items: center; gap: 14px; margin-left: auto; }
+    .price { color: var(--purple); font-size: 18px; font-weight: 800; text-align: right; }
+    .price small { display: block; color: var(--muted); font-size: 12px; font-weight: 500; }
+    .view-button { padding: 7px 12px; color: var(--purple); background: #fff; border: 1px solid #cfc6df; border-radius: 6px; cursor: pointer; font-weight: 700; white-space: nowrap; }
     .view-button:hover { color: #fff; background: var(--purple); border-color: var(--purple); }
-    .empty { grid-column: 1 / -1; padding: 36px; color: var(--muted); text-align: center; background: #fff; border: 1px dashed #cfc6df; border-radius: 8px; }
-    @media (max-width: 850px) { .site-nav { align-items: flex-start; flex-direction: column; gap: 6px; padding: 8px 18px 12px; } .nav-links { width: 100%; margin-left: 0; overflow-x: auto; } main { width: min(100% - 28px, 680px); padding-top: 24px; } .search-panel { padding: 16px 18px 20px; } .search-tabs { flex-wrap: nowrap; overflow-x: auto; } .search-tab { flex: 0 0 auto; } .tab-badge { flex: 0 0 auto; margin-left: 10px; } .hotel-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
-    @media (max-width: 560px) { .brand { width: 108px; height: 48px; } .nav-links { gap: 2px; } .nav-links a { padding: 8px; font-size: 14px; white-space: nowrap; } .search-tab { padding: 8px 10px; font-size: 14px; } .search-submit { width: 100%; } .section-header { align-items: stretch; flex-direction: column; } .hotel-grid { grid-template-columns: 1fr; } .section-header h2 { font-size: 22px; } }
+    .empty { padding: 36px; color: var(--muted); text-align: center; background: #fff; border: 1px dashed #cfc6df; border-radius: 8px; }
+    @media (max-width: 850px) { .site-nav { align-items: flex-start; flex-direction: column; gap: 6px; padding: 8px 18px 12px; } .nav-links { width: 100%; margin-left: 0; overflow-x: auto; } main { width: min(100% - 28px, 680px); padding-top: 24px; } .search-panel { padding: 16px 18px 20px; } .search-tabs { flex-wrap: nowrap; overflow-x: auto; } .search-tab { flex: 0 0 auto; } .tab-badge { flex: 0 0 auto; margin-left: 10px; } .flight-card { flex-direction: column; align-items: stretch; } .flight-footer { margin-left: 0; justify-content: space-between; } }
+    @media (max-width: 560px) { .brand { width: 108px; height: 48px; } .nav-links { gap: 2px; } .nav-links a { padding: 8px; font-size: 14px; white-space: nowrap; } .search-tab { padding: 8px 10px; font-size: 14px; } .search-submit { width: 100%; } .section-header { align-items: stretch; flex-direction: column; } .section-header h2 { font-size: 22px; } .flight-route { flex-direction: column; align-items: stretch; } .flight-path { display: none; } }
   </style>
 </head>
 <body>
@@ -93,18 +97,18 @@
       </div>
       <form onsubmit="handleBookingSearch(event)">
         <div class="search-fields-row" data-tab-fields="hotel">
-          <div class="field"><label for="hotelDest">目的地</label><input id="hotelDest" type="text" placeholder="城市、飯店名稱" value="{{ destination }}"></div>
-          <div class="field"><label for="hotelCheckin">入住</label><input id="hotelCheckin" type="date" value="{{ checkin }}"></div>
-          <div class="field"><label for="hotelCheckout">退房</label><input id="hotelCheckout" type="date" value="{{ checkout }}"></div>
-          <div class="field"><label for="hotelGuests">人數</label><input id="hotelGuests" type="number" min="1" value="{{ guests }}"></div>
+          <div class="field"><label for="hotelDest">目的地</label><input id="hotelDest" type="text" placeholder="城市、飯店名稱"></div>
+          <div class="field"><label for="hotelCheckin">入住</label><input id="hotelCheckin" type="date"></div>
+          <div class="field"><label for="hotelCheckout">退房</label><input id="hotelCheckout" type="date"></div>
+          <div class="field"><label for="hotelGuests">人數</label><input id="hotelGuests" type="number" min="1" value="2"></div>
         </div>
         <div class="search-fields-row" data-tab-fields="flight" hidden>
-          <div class="field"><label for="flightFrom">出發地</label><input id="flightFrom" type="text" placeholder="台北"></div>
+          <div class="field"><label for="flightFrom">出發地</label><input id="flightFrom" type="text" placeholder="台北" value="{{ origin }}"></div>
           <div class="field-sep">→</div>
-          <div class="field"><label for="flightTo">目的地</label><input id="flightTo" type="text" placeholder="東京"></div>
-          <div class="field"><label for="flightDepart">去程日期</label><input id="flightDepart" type="date"></div>
-          <div class="field"><label for="flightReturn">回程日期</label><input id="flightReturn" type="date"></div>
-          <div class="field"><label for="flightPax">人數</label><input id="flightPax" type="number" min="1" value="1"></div>
+          <div class="field"><label for="flightTo">目的地</label><input id="flightTo" type="text" placeholder="東京" value="{{ destination }}"></div>
+          <div class="field"><label for="flightDepart">去程日期</label><input id="flightDepart" type="date" value="{{ depart_date }}"></div>
+          <div class="field"><label for="flightReturn">回程日期</label><input id="flightReturn" type="date" value="{{ return_date }}"></div>
+          <div class="field"><label for="flightPax">人數</label><input id="flightPax" type="number" min="1" value="{{ pax }}"></div>
         </div>
         <div class="search-fields-row" data-tab-fields="train" hidden>
           <div class="field"><label for="trainFrom">出發站</label><input id="trainFrom" type="text" placeholder="台北"></div>
@@ -122,49 +126,64 @@
       </form>
       <p class="search-note" id="searchNote">＊住宿搜尋已串接真實資料，送出後將依您填寫的目的地與日期顯示搜尋結果。</p>
     </section>
-    <section id="hotel-results">
+    <section id="flight-results">
       <div class="section-header">
         <div>
-          <h2>住宿搜尋結果</h2>
+          <h2>機票搜尋結果</h2>
           <p>
-            {% if destination %}目的地：{{ destination }}{% else %}顯示全部目的地{% endif %}
-            {% if checkin and checkout %} ・ {{ checkin }} ～ {{ checkout }}{% if nights %}（{{ nights }} 晚）{% endif %}{% endif %}
-            ・ {{ guests }} 人
-            ・ 共 {{ accommodations|length }} 筆結果
+            {% if origin or destination %}{{ origin or '任何出發地' }} → {{ destination or '任何目的地' }}{% else %}顯示全部航點{% endif %}
+            {% if depart_date %} ・ 去程 {{ depart_date }}{% endif %}
+            {% if return_date %} ・ 回程 {{ return_date }}{% endif %}
+            ・ {{ pax }} 人
           </p>
         </div>
       </div>
-      <div class="hotel-grid">
-        {% for hotel in accommodations %}
-          <article class="hotel-card">
-            <div class="hotel-art {% if hotel.image_path %}with-image{% endif %}" {% if hotel.image_path %}style="background-image: url('{{ url_for('static', filename=hotel.image_path) }}')"{% endif %}>
-              {% if not hotel.image_path %}<span>🏨</span>{% endif %}
-              {% if hotel.accommodation_type %}<span class="type-badge">{{ hotel.accommodation_type }}</span>{% endif %}
-            </div>
-            <div class="hotel-content">
-              <h3>{{ hotel.name }}</h3>
-              <p class="location">{{ hotel.country_name or '未設定國家' }}{% if hotel.city_name %} · {{ hotel.city_name }}{% endif %}{% if hotel.address %} · {{ hotel.address }}{% endif %}</p>
-              {% if hotel.description %}<p class="hotel-desc">{{ hotel.description }}</p>{% endif %}
-              <div class="hotel-details">
-                {% if hotel.check_in_time %}<span>入住 {{ hotel.check_in_time }}</span>{% endif %}
-                {% if hotel.check_out_time %}<span>退房 {{ hotel.check_out_time }}</span>{% endif %}
+      <div class="flight-leg">
+        <h3>去程{% if depart_date %}｜{{ depart_date }}{% endif %}</h3>
+        <div class="flight-list">
+          {% for flight in outbound_flights %}
+            <article class="flight-card">
+              <div class="flight-airline"><b>{{ flight.airline_name }}</b><span>{{ flight.flight_number }}・{{ flight.cabin_class }}</span></div>
+              <div class="flight-route">
+                <div class="flight-time"><b>{{ flight.departure_time }}</b><span>{{ flight.origin_city }}</span></div>
+                <div class="flight-path"><div class="line"></div><span>{{ (flight.duration_minutes // 60) }} 小時 {{ (flight.duration_minutes % 60) }} 分</span></div>
+                <div class="flight-time"><b>{{ flight.arrival_time }}</b><span>{{ flight.destination_city }}</span></div>
               </div>
-              <div class="hotel-footer">
-                <span class="price">
-                  {% if hotel.price_per_night %}NT$ {{ "{:,.0f}".format(hotel.price_per_night) }}<small> / 晚{% if nights %}・約 NT$ {{ "{:,.0f}".format(hotel.price_per_night * nights) }}（{{ nights }} 晚）{% endif %}</small>{% else %}<small>價格洽詢</small>{% endif %}
-                </span>
-                {% if hotel.website_url %}
-                  <a class="view-button" href="{{ hotel.website_url }}" target="_blank" rel="noopener">查看詳情</a>
-                {% else %}
-                  <button class="view-button" type="button" onclick="showToast('此住宿尚未提供官網連結')">查看詳情</button>
-                {% endif %}
+              <div class="flight-meta"><span>{{ flight.origin_country }} → {{ flight.destination_country }}</span><span>剩餘 {{ flight.seats_available }} 席</span></div>
+              <div class="flight-footer">
+                <span class="price">NT$ {{ "{:,.0f}".format(flight.price * pax) }}<small>{{ pax }} 人・NT$ {{ "{:,.0f}".format(flight.price) }} /人</small></span>
+                <button class="view-button" type="button" onclick="showToast('機票線上訂購功能開發中，敬請期待！')">選擇航班</button>
               </div>
-            </div>
-          </article>
-        {% else %}
-          <div class="empty">找不到符合「{{ destination }}」的住宿，換個關鍵字試試，或<a href="{{ url_for('visitor_hotel_search') }}" style="color: var(--purple); font-weight: 700;">清除目的地看全部住宿</a>。</div>
-        {% endfor %}
+            </article>
+          {% else %}
+            <div class="empty">找不到符合「{{ origin or '任意出發地' }} → {{ destination or '任意目的地' }}」的去程班機，換個城市關鍵字試試，或<a href="{{ url_for('visitor_flight_search') }}" style="color: var(--purple); font-weight: 700;">清除條件看全部航點</a>。</div>
+          {% endfor %}
+        </div>
       </div>
+      {% if return_date %}
+      <div class="flight-leg">
+        <h3>回程｜{{ return_date }}</h3>
+        <div class="flight-list">
+          {% for flight in return_flights %}
+            <article class="flight-card">
+              <div class="flight-airline"><b>{{ flight.airline_name }}</b><span>{{ flight.flight_number }}・{{ flight.cabin_class }}</span></div>
+              <div class="flight-route">
+                <div class="flight-time"><b>{{ flight.departure_time }}</b><span>{{ flight.origin_city }}</span></div>
+                <div class="flight-path"><div class="line"></div><span>{{ (flight.duration_minutes // 60) }} 小時 {{ (flight.duration_minutes % 60) }} 分</span></div>
+                <div class="flight-time"><b>{{ flight.arrival_time }}</b><span>{{ flight.destination_city }}</span></div>
+              </div>
+              <div class="flight-meta"><span>{{ flight.origin_country }} → {{ flight.destination_country }}</span><span>剩餘 {{ flight.seats_available }} 席</span></div>
+              <div class="flight-footer">
+                <span class="price">NT$ {{ "{:,.0f}".format(flight.price * pax) }}<small>{{ pax }} 人・NT$ {{ "{:,.0f}".format(flight.price) }} /人</small></span>
+                <button class="view-button" type="button" onclick="showToast('機票線上訂購功能開發中，敬請期待！')">選擇航班</button>
+              </div>
+            </article>
+          {% else %}
+            <div class="empty">找不到符合「{{ destination or '任意出發地' }} → {{ origin or '任意目的地' }}」的回程班機，換個城市關鍵字試試，或<a href="{{ url_for('visitor_flight_search') }}" style="color: var(--purple); font-weight: 700;">清除條件看全部航點</a>。</div>
+          {% endfor %}
+        </div>
+      </div>
+      {% endif %}
     </section>
   </main>
   <script>

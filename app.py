@@ -282,6 +282,134 @@ def visitor_hotel_search():
     )
 
 
+@app.route("/visitor/flights")  # 設定訪客機票搜尋結果頁路由(從訪客頁面的機票搜尋表單導入，帶入出發地/目的地/日期/人數)
+def visitor_flight_search():
+    origin = request.args.get("from", "").strip()  # 取得出發地關鍵字
+    destination = request.args.get("to", "").strip()  # 取得目的地關鍵字
+    depart_date = request.args.get("depart", "").strip()  # 取得去程日期(YYYY-MM-DD)
+    return_date = request.args.get("return", "").strip()  # 取得回程日期(YYYY-MM-DD)，有填才會查回程班機
+
+    pax_raw = request.args.get("pax", "1").strip()  # 取得人數參數(字串)
+    pax = int(pax_raw) if pax_raw.isdigit() and int(pax_raw) > 0 else 1  # 驗證人數為正整數，否則預設 1 人
+
+    def search_flights(from_keyword, to_keyword):
+        results = []  # 預設搜尋結果為空清單
+        connection = get_db_connection()
+        if connection:
+            cursor = connection.cursor(dictionary=True)
+            try:
+                conditions = ["f.status = 'active'", "f.seats_available >= %s"]  # 只搜尋已啟用且座位足夠的班機
+                params = [pax]
+
+                if from_keyword:  # 如果有輸入出發地關鍵字，依城市/國家名稱模糊搜尋
+                    conditions.append("(oc.name LIKE %s OR ocn.name LIKE %s)")
+                    like = f"%{from_keyword}%"
+                    params.extend([like, like])
+
+                if to_keyword:  # 如果有輸入目的地關鍵字，依城市/國家名稱模糊搜尋
+                    conditions.append("(dc.name LIKE %s OR dcn.name LIKE %s)")
+                    like = f"%{to_keyword}%"
+                    params.extend([like, like])
+
+                where_clause = "WHERE " + " AND ".join(conditions)
+
+                cursor.execute(
+                    f"""
+                    SELECT f.flight_id, f.airline_name, f.flight_number,
+                           f.departure_time, f.arrival_time, f.duration_minutes,
+                           f.price, f.cabin_class, f.seats_available,
+                           ocn.name AS origin_country, oc.name AS origin_city,
+                           dcn.name AS destination_country, dc.name AS destination_city
+                    FROM flights f
+                    JOIN countries ocn ON ocn.country_id = f.origin_country_id
+                    JOIN cities oc ON oc.city_id = f.origin_city_id
+                    JOIN countries dcn ON dcn.country_id = f.destination_country_id
+                    JOIN cities dc ON dc.city_id = f.destination_city_id
+                    {where_clause}
+                    ORDER BY f.departure_time
+                    """,
+                    params
+                )
+                results = cursor.fetchall()
+            except Exception as error:  # 如果查詢過程發生錯誤
+                print("機票搜尋查詢失敗：", error)
+            finally:
+                cursor.close()
+                connection.close()
+        return results
+
+    outbound_flights = search_flights(origin, destination)  # 去程：出發地 -> 目的地
+    return_flights = search_flights(destination, origin) if return_date else []  # 回程：目的地 -> 出發地(有填回程日期才查)
+
+    return render_template(
+        "flight_search.html",
+        origin=origin,
+        destination=destination,
+        depart_date=depart_date,
+        return_date=return_date,
+        pax=pax,
+        outbound_flights=outbound_flights,
+        return_flights=return_flights,
+    )
+
+
+@app.route("/visitor/trains")  # 設定訪客高鐵／台鐵搜尋結果頁路由(從訪客頁面的高鐵/火車票搜尋表單導入，帶入出發站/到達站/日期/人數)
+def visitor_train_search():
+    origin = request.args.get("from", "").strip()  # 取得出發站關鍵字
+    destination = request.args.get("to", "").strip()  # 取得到達站關鍵字
+    travel_date = request.args.get("date", "").strip()  # 取得查詢日期(YYYY-MM-DD)，班表為固定每日時刻，日期僅供顯示用
+
+    pax_raw = request.args.get("pax", "1").strip()  # 取得人數參數(字串)
+    pax = int(pax_raw) if pax_raw.isdigit() and int(pax_raw) > 0 else 1  # 驗證人數為正整數，否則預設 1 人
+
+    trains = []  # 預設搜尋結果為空清單
+    connection = get_db_connection()
+
+    if connection:
+        cursor = connection.cursor(dictionary=True)
+        try:
+            conditions = ["t.status = 'active'", "t.seats_available >= %s"]  # 只搜尋已啟用且座位足夠的車次
+            params = [pax]
+
+            if origin:  # 如果有輸入出發站關鍵字，依站名模糊搜尋
+                conditions.append("t.origin_station LIKE %s")
+                params.append(f"%{origin}%")
+
+            if destination:  # 如果有輸入到達站關鍵字，依站名模糊搜尋
+                conditions.append("t.destination_station LIKE %s")
+                params.append(f"%{destination}%")
+
+            where_clause = "WHERE " + " AND ".join(conditions)
+
+            cursor.execute(
+                f"""
+                SELECT t.train_id, t.train_type, t.train_number, t.car_class,
+                       t.origin_station, t.destination_station,
+                       t.departure_time, t.arrival_time, t.duration_minutes,
+                       t.price, t.seats_available
+                FROM trains t
+                {where_clause}
+                ORDER BY t.departure_time
+                """,
+                params
+            )
+            trains = cursor.fetchall()
+        except Exception as error:  # 如果查詢過程發生錯誤(例如資料表尚未建立)
+            print("高鐵／台鐵搜尋查詢失敗：", error)
+        finally:
+            cursor.close()
+            connection.close()
+
+    return render_template(
+        "train_search.html",
+        origin=origin,
+        destination=destination,
+        travel_date=travel_date,
+        pax=pax,
+        trains=trains,
+    )
+
+
 @app.route("/login", methods=["GET", "POST"])  # 設定登入頁路由，允許 GET(顯示表單) 與 POST(送出表單)
 def login():  # 定義登入功能函式
     if "user_id" in session:  # 如果已經登入

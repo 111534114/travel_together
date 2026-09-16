@@ -209,7 +209,7 @@
         </div>
         <button class="search-submit" type="submit">🔍 搜尋</button>
       </form>
-      <p class="search-note" id="searchNote">＊住宿搜尋已串接真實資料；機票／高鐵／體驗搜尋為介面預覽，實際資料串接開發中，您可以先探索下方的公開行程與旅伴揪團。</p>
+      <p class="search-note" id="searchNote">＊住宿搜尋已串接真實資料，送出後將依您填寫的目的地與日期顯示搜尋結果。</p>
     </section>
     <section class="hero-intro">
       <p class="eyebrow" style="color: var(--purple-light)">TRAVEL TOGETHER</p>
@@ -419,14 +419,39 @@
         row.hidden = row.dataset.tabFields !== tab;
       });
       const badge = document.querySelector('.tab-badge');
-      if (badge) badge.hidden = tab === 'hotel';
+      if (badge) badge.hidden = tab === 'hotel' || tab === 'flight' || tab === 'train';
       const note = document.getElementById('searchNote');
       if (note) {
-        note.textContent = tab === 'hotel'
-          ? '＊住宿搜尋已串接真實資料，送出後將依您填寫的目的地與日期顯示搜尋結果。'
-          : '＊機票／高鐵／體驗搜尋為介面預覽，實際資料串接開發中；您可以先探索下方的公開行程與旅伴揪團。';
+        if (tab === 'hotel') {
+          note.textContent = '＊住宿搜尋已串接真實資料，送出後將依您填寫的目的地與日期顯示搜尋結果。';
+        } else if (tab === 'flight') {
+          note.textContent = '＊機票搜尋已串接範例航班資料，送出後將依您填寫的出發地、目的地與日期顯示搜尋結果。';
+        } else if (tab === 'train') {
+          note.textContent = '＊高鐵／台鐵搜尋已串接真實班表與票價資料，送出後將依您填寫的出發站與到達站顯示搜尋結果。';
+        } else {
+          note.textContent = '＊當地體驗搜尋為介面預覽，實際資料串接開發中；您可以先探索下方的公開行程與旅伴揪團。';
+        }
       }
     }
+    (function restrictPastDates() {
+      const todayStr = new Date().toISOString().slice(0, 10);
+      document.querySelectorAll('.search-panel input[type="date"]').forEach((input) => {
+        input.min = todayStr;
+      });
+      const linkMin = (startId, endId) => {
+        const startInput = document.getElementById(startId);
+        const endInput = document.getElementById(endId);
+        if (!startInput || !endInput) return;
+        startInput.addEventListener('change', () => {
+          endInput.min = startInput.value || todayStr;
+          if (endInput.value && endInput.value < endInput.min) {
+            endInput.value = endInput.min;
+          }
+        });
+      };
+      linkMin('hotelCheckin', 'hotelCheckout');
+      linkMin('flightDepart', 'flightReturn');
+    })();
     let toastTimer;
     function showToast(message) {
       let toast = document.getElementById('siteToast');
@@ -455,6 +480,34 @@
         if (checkout) params.set('checkout', checkout);
         if (guests) params.set('guests', guests);
         window.location.href = '/visitor/hotels?' + params.toString();
+        return;
+      }
+      if (activeTab === 'flight') {
+        const params = new URLSearchParams();
+        const from = document.getElementById('flightFrom').value.trim();
+        const to = document.getElementById('flightTo').value.trim();
+        const depart = document.getElementById('flightDepart').value;
+        const ret = document.getElementById('flightReturn').value;
+        const pax = document.getElementById('flightPax').value;
+        if (from) params.set('from', from);
+        if (to) params.set('to', to);
+        if (depart) params.set('depart', depart);
+        if (ret) params.set('return', ret);
+        if (pax) params.set('pax', pax);
+        window.location.href = '/visitor/flights?' + params.toString();
+        return;
+      }
+      if (activeTab === 'train') {
+        const params = new URLSearchParams();
+        const from = document.getElementById('trainFrom').value.trim();
+        const to = document.getElementById('trainTo').value.trim();
+        const date = document.getElementById('trainDate').value;
+        const pax = document.getElementById('trainPax').value;
+        if (from) params.set('from', from);
+        if (to) params.set('to', to);
+        if (date) params.set('date', date);
+        if (pax) params.set('pax', pax);
+        window.location.href = '/visitor/trains?' + params.toString();
         return;
       }
       showToast('此搜尋功能開發中，敬請期待！可以先看看下方的公開行程與旅伴揪團 🙂');

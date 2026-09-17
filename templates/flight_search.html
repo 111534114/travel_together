@@ -27,10 +27,11 @@
     .breadcrumb a { color: var(--purple); font-weight: 600; }
     .search-panel { margin: 0 0 32px; padding: 20px 24px 24px; background: #fff; border: 1px solid var(--line); border-radius: 14px; box-shadow: 0 12px 30px rgba(45, 37, 68, .08); }
     .search-tabs { display: flex; align-items: center; gap: 2px; margin-bottom: 16px; border-bottom: 1px solid var(--line); }
-    .search-tab { display: flex; align-items: center; gap: 6px; padding: 10px 16px; color: var(--muted); background: transparent; border: 0; border-bottom: 2px solid transparent; cursor: pointer; font-size: 15px; font-weight: 600; }
-    .search-tab .tab-icon { font-size: 17px; }
+    .search-tab { position: relative; display: flex; align-items: center; justify-content: center; gap: 6px; min-width: 132px; padding: 10px 16px; color: var(--muted); background: transparent; border: 0; cursor: pointer; font-size: 15px; font-weight: 600; }
+    .search-tab::after { content: ""; position: absolute; left: 0; right: 0; bottom: -1px; height: 2px; background: transparent; }
     .search-tab:hover { color: var(--purple); }
-    .search-tab.active { color: var(--purple); border-bottom-color: var(--purple); }
+    .search-tab.active { color: var(--purple); }
+    .search-tab.active::after { background: var(--purple); }
     .tab-badge { padding: 3px 9px; margin-left: auto; color: #9c6b1f; background: #fdf1dd; border-radius: 999px; font-size: 11px; font-weight: 700; white-space: nowrap; }
     .search-fields-row { display: flex; flex-wrap: wrap; align-items: end; gap: 12px; }
     .search-fields-row[hidden] { display: none; }
@@ -89,10 +90,10 @@
     <p class="breadcrumb"><a href="{{ url_for('visitor') }}">← 返回訪客首頁</a></p>
     <section class="search-panel">
       <div class="search-tabs" role="tablist">
-        <button class="search-tab active" type="button" data-tab="hotel" onclick="switchSearchTab('hotel', this)"><span class="tab-icon">🏨</span>住宿</button>
-        <button class="search-tab" type="button" data-tab="flight" onclick="switchSearchTab('flight', this)"><span class="tab-icon">✈️</span>機票</button>
-        <button class="search-tab" type="button" data-tab="train" onclick="switchSearchTab('train', this)"><span class="tab-icon">🚄</span>高鐵／火車票</button>
-        <button class="search-tab" type="button" data-tab="experience" onclick="switchSearchTab('experience', this)"><span class="tab-icon">🧭</span>當地體驗</button>
+        <button class="search-tab active" type="button" data-tab="hotel" onclick="switchSearchTab('hotel', this)">住宿</button>
+        <button class="search-tab" type="button" data-tab="flight" onclick="switchSearchTab('flight', this)">機票</button>
+        <button class="search-tab" type="button" data-tab="train" onclick="switchSearchTab('train', this)">高鐵／火車票</button>
+        <button class="search-tab" type="button" data-tab="experience" onclick="switchSearchTab('experience', this)">當地體驗</button>
         <span class="tab-badge" hidden>功能開發中</span>
       </div>
       <form onsubmit="handleBookingSearch(event)">
@@ -101,6 +102,7 @@
           <div class="field"><label for="hotelCheckin">入住</label><input id="hotelCheckin" type="date"></div>
           <div class="field"><label for="hotelCheckout">退房</label><input id="hotelCheckout" type="date"></div>
           <div class="field"><label for="hotelGuests">人數</label><input id="hotelGuests" type="number" min="1" value="2"></div>
+          <button class="search-submit" type="submit">搜尋</button>
         </div>
         <div class="search-fields-row" data-tab-fields="flight" hidden>
           <div class="field"><label for="flightFrom">出發地</label><input id="flightFrom" type="text" placeholder="台北" value="{{ origin }}"></div>
@@ -109,6 +111,7 @@
           <div class="field"><label for="flightDepart">去程日期</label><input id="flightDepart" type="date" value="{{ depart_date }}"></div>
           <div class="field"><label for="flightReturn">回程日期</label><input id="flightReturn" type="date" value="{{ return_date }}"></div>
           <div class="field"><label for="flightPax">人數</label><input id="flightPax" type="number" min="1" value="{{ pax }}"></div>
+          <button class="search-submit" type="submit">搜尋</button>
         </div>
         <div class="search-fields-row" data-tab-fields="train" hidden>
           <div class="field"><label for="trainFrom">出發站</label><input id="trainFrom" type="text" placeholder="台北"></div>
@@ -116,13 +119,14 @@
           <div class="field"><label for="trainTo">到達站</label><input id="trainTo" type="text" placeholder="高雄"></div>
           <div class="field"><label for="trainDate">日期</label><input id="trainDate" type="date"></div>
           <div class="field"><label for="trainPax">人數</label><input id="trainPax" type="number" min="1" value="1"></div>
+          <button class="search-submit" type="submit">搜尋</button>
         </div>
         <div class="search-fields-row" data-tab-fields="experience" hidden>
           <div class="field"><label for="expDest">目的地</label><input id="expDest" type="text" placeholder="城市或景點"></div>
           <div class="field"><label for="expDate">日期</label><input id="expDate" type="date"></div>
           <div class="field"><label for="expPax">人數</label><input id="expPax" type="number" min="1" value="1"></div>
+          <button class="search-submit" type="submit">搜尋</button>
         </div>
-        <button class="search-submit" type="submit">🔍 搜尋</button>
       </form>
       <p class="search-note" id="searchNote">＊住宿搜尋已串接真實資料，送出後將依您填寫的目的地與日期顯示搜尋結果。</p>
     </section>

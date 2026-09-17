@@ -14,7 +14,7 @@ from blueprints.ai_data import ai_data_bp  # 匯入 AI 使用資料維護的藍�
 from blueprints.reports import reports_bp  # 匯入統計報表匯出的藍圖
 from blueprints.logs import logs_bp  # 匯入操作紀錄查詢的藍圖
 from blueprints.ai_chat import ai_chat_bp  # 匯入 AI 助理對話的藍圖
-from blueprints.member import member_bp  # 匯入會員功能的藍圖
+from blueprints.member import ISSUE_PREFIX, member_bp  # 匯入會員功能的藍圖
 from activity_log import ACTION_LABELS, log_action
 import weather  # 匯入中央氣象署天氣預報模組(訪客頁面「目的地天氣」功能用)
 
@@ -118,12 +118,6 @@ def visitor():
                 JOIN cities ci ON ci.city_id = t.city_id
                 LEFT JOIN categories c ON c.category_id = t.category_id
                 WHERE t.visibility = 'public'
-                  AND NOT EXISTS (
-                      SELECT 1 FROM reports active_report
-                      WHERE active_report.target_type = 'trip'
-                        AND active_report.target_id = t.trip_id
-                        AND active_report.status IN ('pending', 'processing')
-                  )
                 ORDER BY t.trip_id DESC
             """)
             public_trips = cursor.fetchall()
@@ -144,12 +138,6 @@ def visitor():
                 JOIN cities ci ON ci.city_id = t.city_id
                 LEFT JOIN trip_members tm ON tm.trip_id = t.trip_id AND tm.join_status = 'accepted'
                 WHERE (t.visibility = 'public' OR t.people_count > 1)
-                  AND NOT EXISTS (
-                      SELECT 1 FROM reports active_report
-                      WHERE active_report.target_type = 'trip'
-                        AND active_report.target_id = t.trip_id
-                        AND active_report.status IN ('pending', 'processing')
-                  )
                 GROUP BY t.trip_id, t.trip_name, co.name, ci.name, t.people_count, t.total_budget, t.currency, t.introduction, u.full_name, u.nickname
                 ORDER BY t.trip_id DESC
                 LIMIT 6
@@ -238,7 +226,7 @@ def visitor_hotel_search():
     if connection:
         cursor = connection.cursor(dictionary=True)
         try:
-            conditions = ["ac.status = 'active'"]  # 只搜尋已啟用的住宿
+            conditions = ["ac.status = 'active'", "ac.deleted_at IS NULL"]  # 只搜尋已啟用、且不在回收桶裡的住宿
             params = []
 
             if destination:  # 如果有輸入目的地關鍵字，依名稱/城市/國家/地址模糊搜尋
@@ -279,6 +267,134 @@ def visitor_hotel_search():
         guests=guests,
         nights=nights,
         accommodations=accommodations,
+    )
+
+
+@app.route("/visitor/flights")  # 設定訪客機票搜尋結果頁路由(從訪客頁面的機票搜尋表單導入，帶入出發地/目的地/日期/人數)
+def visitor_flight_search():
+    origin = request.args.get("from", "").strip()  # 取得出發地關鍵字
+    destination = request.args.get("to", "").strip()  # 取得目的地關鍵字
+    depart_date = request.args.get("depart", "").strip()  # 取得去程日期(YYYY-MM-DD)
+    return_date = request.args.get("return", "").strip()  # 取得回程日期(YYYY-MM-DD)，有填才會查回程班機
+
+    pax_raw = request.args.get("pax", "1").strip()  # 取得人數參數(字串)
+    pax = int(pax_raw) if pax_raw.isdigit() and int(pax_raw) > 0 else 1  # 驗證人數為正整數，否則預設 1 人
+
+    def search_flights(from_keyword, to_keyword):
+        results = []  # 預設搜尋結果為空清單
+        connection = get_db_connection()
+        if connection:
+            cursor = connection.cursor(dictionary=True)
+            try:
+                conditions = ["f.status = 'active'", "f.seats_available >= %s"]  # 只搜尋已啟用且座位足夠的班機
+                params = [pax]
+
+                if from_keyword:  # 如果有輸入出發地關鍵字，依城市/國家名稱模糊搜尋
+                    conditions.append("(oc.name LIKE %s OR ocn.name LIKE %s)")
+                    like = f"%{from_keyword}%"
+                    params.extend([like, like])
+
+                if to_keyword:  # 如果有輸入目的地關鍵字，依城市/國家名稱模糊搜尋
+                    conditions.append("(dc.name LIKE %s OR dcn.name LIKE %s)")
+                    like = f"%{to_keyword}%"
+                    params.extend([like, like])
+
+                where_clause = "WHERE " + " AND ".join(conditions)
+
+                cursor.execute(
+                    f"""
+                    SELECT f.flight_id, f.airline_name, f.flight_number,
+                           f.departure_time, f.arrival_time, f.duration_minutes,
+                           f.price, f.cabin_class, f.seats_available,
+                           ocn.name AS origin_country, oc.name AS origin_city,
+                           dcn.name AS destination_country, dc.name AS destination_city
+                    FROM flights f
+                    JOIN countries ocn ON ocn.country_id = f.origin_country_id
+                    JOIN cities oc ON oc.city_id = f.origin_city_id
+                    JOIN countries dcn ON dcn.country_id = f.destination_country_id
+                    JOIN cities dc ON dc.city_id = f.destination_city_id
+                    {where_clause}
+                    ORDER BY f.departure_time
+                    """,
+                    params
+                )
+                results = cursor.fetchall()
+            except Exception as error:  # 如果查詢過程發生錯誤
+                print("機票搜尋查詢失敗：", error)
+            finally:
+                cursor.close()
+                connection.close()
+        return results
+
+    outbound_flights = search_flights(origin, destination)  # 去程：出發地 -> 目的地
+    return_flights = search_flights(destination, origin) if return_date else []  # 回程：目的地 -> 出發地(有填回程日期才查)
+
+    return render_template(
+        "flight_search.html",
+        origin=origin,
+        destination=destination,
+        depart_date=depart_date,
+        return_date=return_date,
+        pax=pax,
+        outbound_flights=outbound_flights,
+        return_flights=return_flights,
+    )
+
+
+@app.route("/visitor/trains")  # 設定訪客高鐵／台鐵搜尋結果頁路由(從訪客頁面的高鐵/火車票搜尋表單導入，帶入出發站/到達站/日期/人數)
+def visitor_train_search():
+    origin = request.args.get("from", "").strip()  # 取得出發站關鍵字
+    destination = request.args.get("to", "").strip()  # 取得到達站關鍵字
+    travel_date = request.args.get("date", "").strip()  # 取得查詢日期(YYYY-MM-DD)，班表為固定每日時刻，日期僅供顯示用
+
+    pax_raw = request.args.get("pax", "1").strip()  # 取得人數參數(字串)
+    pax = int(pax_raw) if pax_raw.isdigit() and int(pax_raw) > 0 else 1  # 驗證人數為正整數，否則預設 1 人
+
+    trains = []  # 預設搜尋結果為空清單
+    connection = get_db_connection()
+
+    if connection:
+        cursor = connection.cursor(dictionary=True)
+        try:
+            conditions = ["t.status = 'active'", "t.seats_available >= %s"]  # 只搜尋已啟用且座位足夠的車次
+            params = [pax]
+
+            if origin:  # 如果有輸入出發站關鍵字，依站名模糊搜尋
+                conditions.append("t.origin_station LIKE %s")
+                params.append(f"%{origin}%")
+
+            if destination:  # 如果有輸入到達站關鍵字，依站名模糊搜尋
+                conditions.append("t.destination_station LIKE %s")
+                params.append(f"%{destination}%")
+
+            where_clause = "WHERE " + " AND ".join(conditions)
+
+            cursor.execute(
+                f"""
+                SELECT t.train_id, t.train_type, t.train_number, t.car_class,
+                       t.origin_station, t.destination_station,
+                       t.departure_time, t.arrival_time, t.duration_minutes,
+                       t.price, t.seats_available
+                FROM trains t
+                {where_clause}
+                ORDER BY t.departure_time
+                """,
+                params
+            )
+            trains = cursor.fetchall()
+        except Exception as error:  # 如果查詢過程發生錯誤(例如資料表尚未建立)
+            print("高鐵／台鐵搜尋查詢失敗：", error)
+        finally:
+            cursor.close()
+            connection.close()
+
+    return render_template(
+        "train_search.html",
+        origin=origin,
+        destination=destination,
+        travel_date=travel_date,
+        pax=pax,
+        trains=trains,
     )
 
 
@@ -465,13 +581,13 @@ def content_admin_home():  # 定義內容管理員儀表板函式
     cursor = connection.cursor(dictionary=True)  # 建立字典格式游標
 
     try:  # 開始查詢各項統計資料
-        cursor.execute("SELECT COUNT(*) AS total FROM attractions")  # 查詢景點總數
+        cursor.execute("SELECT COUNT(*) AS total FROM attractions WHERE deleted_at IS NULL")  # 查詢景點總數(不含回收桶裡的)
         attraction_count = cursor.fetchone()["total"]  # 取出景點總數
 
-        cursor.execute("SELECT COUNT(*) AS total FROM restaurants")  # 查詢餐廳總數
+        cursor.execute("SELECT COUNT(*) AS total FROM restaurants WHERE deleted_at IS NULL")  # 查詢餐廳總數(不含回收桶裡的)
         restaurant_count = cursor.fetchone()["total"]  # 取出餐廳總數
 
-        cursor.execute("SELECT COUNT(*) AS total FROM accommodations")  # 查詢住宿總數
+        cursor.execute("SELECT COUNT(*) AS total FROM accommodations WHERE deleted_at IS NULL")  # 查詢住宿總數(不含回收桶裡的)
         accommodation_count = cursor.fetchone()["total"]  # 取出住宿總數
 
         cursor.execute("""
@@ -496,10 +612,11 @@ def content_admin_home():  # 定義內容管理員儀表板函式
             JOIN countries co ON co.country_id = r.country_id
             JOIN cities ci ON ci.city_id = r.city_id
             LEFT JOIN itineraries i ON i.restaurant_id = r.restaurant_id
+            WHERE r.deleted_at IS NULL
             GROUP BY r.restaurant_id, r.name, co.name, ci.name
             ORDER BY itinerary_count DESC, r.name
             LIMIT 5
-        """)  # 查詢餐廳被排入行程的次數，取使用次數最多的前5筆
+        """)  # 查詢餐廳被排入行程的次數，取使用次數最多的前5筆(不含回收桶裡的)
         top_restaurants = cursor.fetchall()  # 取出熱門餐廳清單
 
         cursor.execute("""
@@ -509,11 +626,23 @@ def content_admin_home():  # 定義內容管理員儀表板函式
             JOIN countries co ON co.country_id = ac.country_id
             JOIN cities ci ON ci.city_id = ac.city_id
             LEFT JOIN itineraries i ON i.accommodation_id = ac.accommodation_id
+            WHERE ac.deleted_at IS NULL
             GROUP BY ac.accommodation_id, ac.name, co.name, ci.name
             ORDER BY itinerary_count DESC, ac.name
             LIMIT 5
-        """)  # 查詢住宿被排入行程的次數，取使用次數最多的前5筆
+        """)  # 查詢住宿被排入行程的次數，取使用次數最多的前5筆(不含回收桶裡的)
         top_accommodations = cursor.fetchall()  # 取出熱門住宿清單
+
+        status_distribution = []  # 準備景點/餐廳/住宿各自的狀態分布統計
+        for label, table in [("景點", "attractions"), ("餐廳", "restaurants"), ("住宿", "accommodations")]:  # 依序查詢三種資源類型(資料表名稱固定寫死，非使用者輸入，可安全用於 SQL)
+            cursor.execute(f"SELECT status, COUNT(*) AS total FROM {table} WHERE deleted_at IS NULL GROUP BY status")  # 依狀態分組計算數量(不含回收桶裡的)
+            counts = {row["status"]: row["total"] for row in cursor.fetchall()}  # 整理成 {狀態: 數量} 字典
+            status_distribution.append({  # 加入這個資源類型的統計結果
+                "label": label,  # 中文顯示名稱
+                "active": counts.get("active", 0),  # 啟用數量，沒有就是 0
+                "pending": counts.get("pending", 0),  # 待確認數量，沒有就是 0
+                "hidden": counts.get("hidden", 0),  # 隱藏數量，沒有就是 0
+            })
 
     except Error as error:  # 如果查詢過程中資料庫報錯(例如資料表結構還沒更新)
         print("內容管理資料庫結構尚未更新：", error)  # 在伺服器端印出錯誤內容
@@ -525,6 +654,7 @@ def content_admin_home():  # 定義內容管理員儀表板函式
         top_attractions = []  # 熱門景點清單退回空陣列
         top_restaurants = []  # 熱門餐廳清單退回空陣列
         top_accommodations = []  # 熱門住宿清單退回空陣列
+        status_distribution = []  # 狀態分布統計退回空陣列
 
     finally:  # 不論成功或失敗都要執行
         cursor.close()  # 關閉游標
@@ -539,6 +669,7 @@ def content_admin_home():  # 定義內容管理員儀表板函式
         top_attractions=top_attractions,  # 熱門景點清單
         top_restaurants=top_restaurants,  # 熱門餐廳清單
         top_accommodations=top_accommodations,  # 熱門住宿清單
+        status_distribution=status_distribution,  # 景點/餐廳/住宿的狀態分布統計
     )
 
 
@@ -563,7 +694,7 @@ def system_admin_home():  # 定義系統管理員儀表板函式
             content_admin_count=0,
             trip_count=0,
             public_trip_count=0,
-            report_count=0
+            issue_count=0
         )
 
     cursor = connection.cursor(dictionary=True)  # 建立字典格式游標
@@ -607,14 +738,11 @@ def system_admin_home():  # 定義系統管理員儀表板函式
 
         public_trip_count = cursor.fetchone()["total"]  # 取出公開行程總數
 
-        # 待處理檢舉
         cursor.execute("""
-            SELECT COUNT(*) AS total
-            FROM reports
-            WHERE status = 'pending'
-        """)  # 統計狀態為待處理的檢舉數量
-
-        report_count = cursor.fetchone()["total"]  # 取出待處理檢舉數
+            SELECT COUNT(*) AS total FROM reports
+            WHERE target_type = 'trip' AND reason LIKE %s AND status = 'pending'
+        """, (ISSUE_PREFIX + "%",))
+        issue_count = cursor.fetchone()["total"]
 
         # 最近加入會員
         cursor.execute("""
@@ -643,7 +771,7 @@ def system_admin_home():  # 定義系統管理員儀表板函式
         content_admin_count=content_admin_count,  # 內容管理員總數
         trip_count=trip_count,  # 行程總數
         public_trip_count=public_trip_count,  # 公開行程總數
-        report_count=report_count,  # 待處理檢舉數
+        issue_count=issue_count,
         recent_users=recent_users  # 最近加入會員清單
     )
 @app.route("/system-admin/users")  # 設定會員管理列表頁路由
@@ -782,7 +910,7 @@ def admin_public_trips():  # 定義公開行程管理列表函式
         return render_template(  # 回傳空清單頁面
             "admin_public_trips.html",
             trips=[], keyword=keyword, trip_status=trip_status,
-            public_count=0, pending_report_count=0
+            public_count=0
         )
 
     cursor = connection.cursor(dictionary=True)  # 建立字典格式游標
@@ -809,36 +937,24 @@ def admin_public_trips():  # 定義公開行程管理列表函式
                    u.username AS owner_username, u.full_name AS owner_name,
                    COUNT(DISTINCT CASE WHEN tm.join_status = 'accepted'
                                       THEN tm.trip_member_id END) AS member_count,
-                   COUNT(DISTINCT i.itinerary_id) AS itinerary_count,
-                   COUNT(DISTINCT CASE WHEN r.status IN ('pending', 'processing')
-                                      THEN r.report_id END) AS report_count
+                   COUNT(DISTINCT i.itinerary_id) AS itinerary_count
             FROM trips t
             JOIN users u ON u.user_id = t.owner_id
             JOIN countries co ON co.country_id = t.country_id
             JOIN cities ci ON ci.city_id = t.city_id
             LEFT JOIN trip_members tm ON tm.trip_id = t.trip_id
             LEFT JOIN itineraries i ON i.trip_id = t.trip_id
-            LEFT JOIN reports r ON r.target_type = 'trip' AND r.target_id = t.trip_id
             WHERE {where_clause}
             GROUP BY t.trip_id, t.trip_name, co.name, ci.name,
                      t.start_date, t.end_date, t.status, t.created_at,
                      u.username, u.full_name
             ORDER BY t.created_at DESC
-        """, tuple(params))  # 查詢公開行程清單，附帶成員數、行程項目數、待處理檢舉數
+        """, tuple(params))  # 查詢公開行程清單，附帶成員數、行程項目數
         trips = cursor.fetchall()  # 取出公開行程清單
 
         cursor.execute("SELECT COUNT(*) AS total FROM trips WHERE visibility = 'public'")  # 查詢公開行程總數
         public_count = cursor.fetchone()["total"]  # 取出公開行程總數
 
-        cursor.execute("""
-            SELECT COUNT(*) AS total
-            FROM reports r
-            JOIN trips t ON t.trip_id = r.target_id
-            WHERE r.target_type = 'trip'
-              AND r.status IN ('pending', 'processing')
-              AND t.visibility = 'public'
-        """)  # 查詢公開行程中待處理的檢舉總數
-        pending_report_count = cursor.fetchone()["total"]  # 取出待處理檢舉總數
     finally:  # 不論成功或失敗都要執行
         cursor.close()  # 關閉游標
         connection.close()  # 關閉資料庫連線
@@ -849,7 +965,6 @@ def admin_public_trips():  # 定義公開行程管理列表函式
         keyword=keyword,  # 搜尋關鍵字
         trip_status=trip_status,  # 狀態篩選值
         public_count=public_count,  # 公開行程總數
-        pending_report_count=pending_report_count,  # 待處理檢舉總數
     )
 
 
@@ -1014,102 +1129,94 @@ def system_admin_required():
     return None
 
 
-@app.route("/system-admin/reports")
-def admin_reports():
+@app.route("/system-admin/issues")
+def admin_issues():
     denied = system_admin_required()
     if denied:
         return denied
-
-    keyword = request.args.get("keyword", "").strip()
-    report_status = request.args.get("status", "").strip()
-    if report_status not in {"pending", "processing", "resolved", "rejected"}:
-        report_status = ""
-
-    connection = get_db_connection()
-    reports = []
+    status = request.args.get("status", "").strip()
+    if status not in {"pending", "processing", "resolved", "rejected"}:
+        status = ""
+    issues = []
     counts = {"pending": 0, "processing": 0, "resolved": 0, "rejected": 0}
+    connection = get_db_connection()
     if connection is None:
         flash("資料庫連線失敗", "error")
     else:
         cursor = connection.cursor(dictionary=True)
         try:
-            conditions = []
-            params = []
-            if report_status:
-                conditions.append("r.status = %s")
-                params.append(report_status)
-            if keyword:
-                search = f"%{keyword}%"
-                conditions.append("(u.username LIKE %s OR u.full_name LIKE %s OR r.reason LIKE %s OR r.description LIKE %s)")
-                params.extend([search, search, search, search])
-            where_clause = f"WHERE {' AND '.join(conditions)}" if conditions else ""
-            cursor.execute(f"""
-                SELECT r.*, u.username AS reporter_username, u.full_name AS reporter_name,
-                       h.full_name AS handler_name
+            cursor.execute("""
+                SELECT status, COUNT(*) AS total FROM reports
+                WHERE target_type = 'trip' AND reason LIKE %s
+                GROUP BY status
+            """, (ISSUE_PREFIX + "%",))
+            for row in cursor.fetchall():
+                counts[row["status"]] = row["total"]
+            cursor.execute("""
+                SELECT r.report_id, r.target_id AS trip_id, r.reason, r.description,
+                       r.status, r.created_at, r.handling_result, r.handled_at,
+                       t.trip_name, t.visibility, u.username AS reporter_username,
+                       u.full_name AS reporter_name
                 FROM reports r
+                LEFT JOIN trips t ON t.trip_id = r.target_id
                 JOIN users u ON u.user_id = r.reporter_id
-                LEFT JOIN users h ON h.user_id = r.handled_by
-                {where_clause}
+                WHERE r.target_type = 'trip' AND r.reason LIKE %s
+                  AND (%s = '' OR r.status = %s)
                 ORDER BY FIELD(r.status, 'pending', 'processing', 'resolved', 'rejected'),
                          r.created_at DESC
                 LIMIT 200
-            """, tuple(params))
-            reports = cursor.fetchall()
-            cursor.execute("SELECT status, COUNT(*) AS total FROM reports GROUP BY status")
-            for row in cursor.fetchall():
-                counts[row["status"]] = row["total"]
+            """, (ISSUE_PREFIX + "%", status, status))
+            issues = cursor.fetchall()
+            for issue in issues:
+                issue["reason"] = issue["reason"][len(ISSUE_PREFIX):]
         finally:
             cursor.close()
             connection.close()
-    return render_template("admin_reports.html", reports=reports, counts=counts,
-                           keyword=keyword, report_status=report_status)
+    return render_template("admin_issues.html", issues=issues, counts=counts, issue_status=status)
 
 
-@app.route("/system-admin/reports/<int:report_id>/handle", methods=["POST"])
-def handle_admin_report(report_id):
+@app.route("/system-admin/issues/<int:issue_id>/handle", methods=["POST"])
+def handle_admin_issue(issue_id):
     denied = system_admin_required()
     if denied:
         return denied
-    new_status = request.form.get("status", "processing")
+    status = request.form.get("status", "").strip()
     result = request.form.get("handling_result", "").strip()
-    if new_status not in {"processing", "resolved", "rejected"}:
-        flash("檢舉狀態不正確", "error")
-        return redirect(url_for("admin_reports"))
-    if new_status in {"resolved", "rejected"} and not result:
-        flash("結案或駁回時請填寫處理結果", "error")
-        return redirect(url_for("admin_reports"))
-
+    if status not in {"processing", "resolved", "rejected"}:
+        flash("問題狀態不正確。", "error")
+        return redirect(url_for("admin_issues"))
+    if len(result) > 1000 or (status in {"resolved", "rejected"} and not result):
+        flash("結案或駁回時請填寫不超過 1000 字的處理結果。", "error")
+        return redirect(url_for("admin_issues"))
     connection = get_db_connection()
     if connection is None:
         flash("資料庫連線失敗", "error")
-        return redirect(url_for("admin_reports"))
+        return redirect(url_for("admin_issues"))
     cursor = connection.cursor()
     try:
         cursor.execute("""
-            UPDATE reports
-            SET status = %s, handling_result = %s, handled_by = %s,
+            SELECT report_id FROM reports
+            WHERE report_id = %s AND target_type = 'trip' AND reason LIKE %s
+        """, (issue_id, ISSUE_PREFIX + "%"))
+        if not cursor.fetchone():
+            flash("找不到這筆問題回報。", "error")
+            return redirect(url_for("admin_issues"))
+        cursor.execute("""
+            UPDATE reports SET status = %s, handling_result = %s, handled_by = %s,
                 handled_at = CASE WHEN %s IN ('resolved', 'rejected') THEN NOW() ELSE NULL END
-            WHERE report_id = %s
-        """, (new_status, result or None, session["user_id"], new_status, report_id))
-        if new_status == "resolved":
-            cursor.execute("""
-                UPDATE trips t
-                JOIN reports r ON r.target_type = 'trip' AND r.target_id = t.trip_id
-                SET t.visibility = 'private'
-                WHERE r.report_id = %s
-            """, (report_id,))
-        log_action(cursor, "handle_report", "report", report_id,
-                   f"檢舉狀態更新為 {new_status}：{result or '未填寫備註'}")
+            WHERE report_id = %s AND target_type = 'trip' AND reason LIKE %s
+        """, (status, result or None, session["user_id"], status, issue_id, ISSUE_PREFIX + "%"))
+        log_action(cursor, "handle_issue", "report", issue_id, f"問題回報狀態更新為 {status}")
         connection.commit()
-        flash("檢舉處理狀態已更新", "success")
+        flash("問題回報已更新。", "success")
     except Exception as error:
         connection.rollback()
-        print("更新檢舉失敗：", error)
-        flash("更新檢舉失敗", "error")
+        print("更新問題回報失敗：", error)
+        flash("更新問題回報失敗。", "error")
     finally:
         cursor.close()
         connection.close()
-    return redirect(url_for("admin_reports"))
+    return redirect(url_for("admin_issues"))
 
 
 @app.route("/system-admin/announcements", methods=["GET", "POST"])
@@ -1202,7 +1309,7 @@ def admin_statistics():
     if denied:
         return denied
     totals = {"members": 0, "active_members": 0, "trips": 0, "public_trips": 0,
-              "reports": 0, "resolved_reports": 0, "announcements": 0}
+              "announcements": 0}
     monthly = []
     trip_statuses = []
     connection = get_db_connection()
@@ -1217,8 +1324,6 @@ def admin_statistics():
                   (SELECT COUNT(*) FROM users WHERE role='member' AND status='active') AS active_members,
                   (SELECT COUNT(*) FROM trips) AS trips,
                   (SELECT COUNT(*) FROM trips WHERE visibility='public') AS public_trips,
-                  (SELECT COUNT(*) FROM reports) AS reports,
-                  (SELECT COUNT(*) FROM reports WHERE status='resolved') AS resolved_reports,
                   (SELECT COUNT(*) FROM announcements) AS announcements
             """)
             totals.update(cursor.fetchone())
@@ -1276,7 +1381,7 @@ def admin_logs():
             cursor.close()
             connection.close()
     labels = dict(ACTION_LABELS)
-    labels.update({"handle_report": "處理檢舉", "create_announcement": "新增公告",
+    labels.update({"handle_issue": "處理問題回報", "create_announcement": "新增公告",
                    "update_announcement": "更新公告"})
     return render_template("admin_logs.html", logs=logs, actions=actions,
                            labels=labels, keyword=keyword, selected_action=action)

@@ -9,8 +9,17 @@
 
 <div class="type-tabs">
     {% for key, config in type_config.items() %}
-        <a class="{{ 'active' if item_type == key else '' }}" href="{{ url_for('ai_data.list_ai_data', type=key) }}">{{ config.label }}</a>
+        <a class="{{ 'active' if item_type == key else '' }}" href="{{ url_for('ai_data.list_ai_data', type=key, keyword=keyword) }}">{{ config.label }}</a>
     {% endfor %}
+</div>
+
+<div class="admin-section">
+    <form method="GET" action="{{ url_for('ai_data.list_ai_data') }}" class="filter-form">
+        <input type="hidden" name="type" value="{{ item_type }}">
+        <input type="text" name="keyword" placeholder="搜尋名稱" value="{{ keyword or '' }}">
+        <button type="submit">🔍 搜尋</button>
+        <a href="{{ url_for('ai_data.list_ai_data', type=item_type) }}">清除篩選</a>
+    </form>
 </div>
 
 <div class="admin-section">
@@ -47,7 +56,7 @@
                 </td>
                 <td>{{ item.verified_by_name or '-' }}</td>
                 <td>
-                    <form method="POST" action="{{ url_for('ai_data.verify_item', item_type=item_type, item_id=item.item_id) }}" class="inline-form">
+                    <form method="POST" action="{{ url_for('ai_data.verify_item', item_type=item_type, item_id=item.item_id, keyword=keyword) }}" class="inline-form">
                         <button type="submit" class="small-button">標記今日已確認</button>
                     </form>
                 </td>

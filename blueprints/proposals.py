@@ -6,6 +6,8 @@ from db import get_db_connection  # 匯入取得資料庫連線的函式
 
 proposals_bp = Blueprint("proposals", __name__, url_prefix="/content-admin/proposals")  # 建立提案審核藍圖，網址前綴 /content-admin/proposals
 
+PAGE_SIZE = 20  # 定義列表頁每頁顯示筆數
+
 STATUS_CHOICES = ("pending", "approved", "returned", "not_required")  # 定義提案審核狀態允許的合法值
 
 STATUS_LABELS = {  # 定義審核狀態對應的中文顯示名稱
@@ -20,6 +22,8 @@ STATUS_LABELS = {  # 定義審核狀態對應的中文顯示名稱
 @login_required("content_admin")  # 限制只有內容管理員登入後才能存取
 def list_proposals():  # 定義提案列表頁函式
     status = request.args.get("status", "pending").strip()  # 取得網址上的狀態篩選參數，預設待審核
+    page = request.args.get("page", "1")  # 取得頁碼參數(字串)
+    page = int(page) if page.isdigit() and int(page) > 0 else 1  # 驗證頁碼為正整數，否則預設第 1 頁
 
     if status not in STATUS_CHOICES and status != "all":  # 如果狀態不合法也不是「全部」
         status = "pending"  # 強制改回預設值
@@ -30,7 +34,8 @@ def list_proposals():  # 定義提案列表頁函式
         flash("資料庫連線失敗", "error")  # 顯示錯誤提示
         return render_template(  # 回傳空清單頁面
             "content_admin/proposals/list.html",
-            proposals=[], status=status, status_labels=STATUS_LABELS
+            proposals=[], status=status, status_labels=STATUS_LABELS,
+            page=1, total_pages=1, total=0
         )
 
     cursor = connection.cursor(dictionary=True)  # 建立字典格式游標
@@ -43,7 +48,21 @@ def list_proposals():  # 定義提案列表頁函式
             where_clause = "WHERE p.content_review_status = %s"  # 加上依審核狀態篩選的條件
             params.append(status)  # 加入對應參數
 
-        cursor.execute(  # 查詢提案清單，並關聯所屬行程名稱與提案人姓名
+        cursor.execute(  # 查詢符合條件的提案總筆數(用來算分頁)
+            f"""
+            SELECT COUNT(*) AS total
+            FROM proposals p
+            {where_clause}
+            """,
+            params
+        )
+        total = cursor.fetchone()["total"]  # 取出總筆數
+
+        total_pages = max(1, (total + PAGE_SIZE - 1) // PAGE_SIZE)  # 計算總頁數(無條件進位，至少 1 頁)
+        page = min(page, total_pages)  # 如果頁碼超過總頁數，修正為最後一頁
+        offset = (page - 1) * PAGE_SIZE  # 計算 SQL 要跳過的筆數
+
+        cursor.execute(  # 查詢當頁的提案清單，並關聯所屬行程名稱與提案人姓名
             f"""
             SELECT p.proposal_id, p.proposal_type, p.title, p.location,
                    p.estimated_cost, p.proposed_date, p.content_review_status,
@@ -53,10 +72,11 @@ def list_proposals():  # 定義提案列表頁函式
             JOIN users u ON u.user_id = p.proposer_id
             {where_clause}
             ORDER BY p.created_at DESC
+            LIMIT %s OFFSET %s
             """,
-            params
+            params + [PAGE_SIZE, offset]  # 加上分頁用的 LIMIT、OFFSET 參數
         )
-        proposals = cursor.fetchall()  # 取出提案清單
+        proposals = cursor.fetchall()  # 取出當頁提案清單
 
     finally:  # 不論成功或失敗都要執行
         cursor.close()  # 關閉游標
@@ -64,9 +84,12 @@ def list_proposals():  # 定義提案列表頁函式
 
     return render_template(  # 渲染提案列表頁面
         "content_admin/proposals/list.html",
-        proposals=proposals,  # 提案清單
+        proposals=proposals,  # 當頁提案清單
         status=status,  # 目前篩選的狀態
-        status_labels=STATUS_LABELS  # 狀態對應的中文名稱
+        status_labels=STATUS_LABELS,  # 狀態對應的中文名稱
+        page=page,  # 目前頁碼
+        total_pages=total_pages,  # 總頁數
+        total=total,  # 符合條件的總筆數
     )
 
 

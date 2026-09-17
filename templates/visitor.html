@@ -137,13 +137,14 @@
     .modal-close { float: right; padding: 0; color: var(--muted); background: transparent; border: 0; cursor: pointer; font-size: 25px; }
     .modal-card h2 { margin: 0 0 8px; font-size: 25px; }
     .modal-meta { margin: 0 0 22px; color: var(--muted); }
-    .trip-report-toggle { margin-top: 22px; color: #a52d2d; background: #fff; border-color: #d9aaaa; }
-    .trip-report-toggle:hover { color: #fff; background: #b74343; border-color: #b74343; }
-    .trip-report-form { display: grid; gap: 11px; margin-top: 14px; padding: 18px; background: #fff7f7; border: 1px solid #edcccc; border-radius: 8px; }
-    .trip-report-form[hidden] { display: none; }
-    .trip-report-form label { display: grid; gap: 6px; color: #665d70; font-size: 13px; font-weight: 600; }
-    .trip-report-form select, .trip-report-form textarea { width: 100%; padding: 10px 12px; background: #fff; border: 1px solid #cabfd0; border-radius: 6px; font: inherit; }
-    .trip-report-submit { justify-self: start; padding: 9px 16px; color: #fff; background: #b74343; border: 0; border-radius: 6px; cursor: pointer; font-weight: 700; }
+    .issue-trigger { margin-top: 20px; }
+    .issue-options { display: grid; gap: 8px; margin: 12px 0 20px; }
+    .issue-option { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 14px 16px; background: #f5f6fa; border: 1px solid transparent; border-radius: 6px; cursor: pointer; line-height: 1.5; }
+    .issue-option:has(input:checked) { border-color: #685389; background: #f1edf7; }
+    .issue-option input { flex: 0 0 auto; width: 18px; height: 18px; accent-color: #685389; }
+    .issue-description-label { display: grid; gap: 8px; font-weight: 600; }
+    .issue-description-label textarea { width: 100%; min-height: 100px; padding: 12px; border: 1px solid #c9c5d3; border-radius: 6px; font: inherit; resize: vertical; }
+    .issue-submit { width: 100%; margin-top: 18px; padding: 12px; color: #fff; background: #685389; border: 0; border-radius: 6px; cursor: pointer; font: inherit; font-weight: 700; }
     .timeline { display: grid; gap: 12px; }
     .timeline-item { padding: 13px 15px; background: var(--purple-soft); border-left: 3px solid var(--purple); border-radius: 0 6px 6px 0; }
     .timeline-item b, .timeline-item span { display: block; }
@@ -209,7 +210,7 @@
         </div>
         <button class="search-submit" type="submit">🔍 搜尋</button>
       </form>
-      <p class="search-note" id="searchNote">＊住宿搜尋已串接真實資料；機票／高鐵／體驗搜尋為介面預覽，實際資料串接開發中，您可以先探索下方的公開行程與旅伴揪團。</p>
+      <p class="search-note" id="searchNote">＊住宿搜尋已串接真實資料，送出後將依您填寫的目的地與日期顯示搜尋結果。</p>
     </section>
     <section class="hero-intro">
       <p class="eyebrow" style="color: var(--purple-light)">TRAVEL TOGETHER</p>
@@ -384,27 +385,32 @@
     <div class="modal-card">
       <button class="modal-close" type="button" onclick="closeTripModal()" aria-label="關閉">×</button>
       <div id="modalBody"></div>
-      {% if is_member %}
-      <button id="tripReportToggle" class="view-button trip-report-toggle" type="button" onclick="toggleTripReport()">🚨 舉報這個行程</button>
-      <form id="tripReportForm" class="trip-report-form" method="post" hidden>
-        <label>舉報原因
-          <select name="reason" required>
-            <option value="">請選擇原因</option>
-            <option value="不當或違規內容">不當或違規內容</option>
-            <option value="疑似詐騙資訊">疑似詐騙資訊</option>
-            <option value="騷擾或仇恨內容">騷擾或仇恨內容</option>
-            <option value="錯誤或誤導資訊">錯誤或誤導資訊</option>
-            <option value="其他">其他</option>
-          </select>
-        </label>
-        <label>詳細說明（選填）
-          <textarea name="description" rows="3" maxlength="1000" placeholder="請描述需要管理員注意的內容"></textarea>
-        </label>
-        <button class="trip-report-submit" type="submit">確認送出舉報</button>
-      </form>
-      {% endif %}
+      {% if is_member %}<button id="issueTrigger" class="view-button issue-trigger" type="button" onclick="openIssueModal()">問題回報</button>{% endif %}
     </div>
   </div>
+  {% if is_member %}
+  <div class="modal" id="issueModal" onclick="if (event.target === this) closeIssueModal()">
+    <div class="modal-card">
+      <button class="modal-close" type="button" onclick="closeIssueModal()" aria-label="關閉">×</button>
+      <h2>問題回報</h2>
+      <p class="modal-meta" id="issueTripName"></p>
+      <form id="issueForm" method="post">
+        <fieldset style="border: 0; padding: 0; margin: 0">
+          <legend>這篇行程有什麼需要回報的地方？</legend>
+          <div class="issue-options">
+            {% for reason in issue_reasons %}
+            <label class="issue-option"><span>{{ reason }}</span><input type="radio" name="reason" value="{{ reason }}" required></label>
+            {% endfor %}
+          </div>
+        </fieldset>
+        <label class="issue-description-label">問題描述
+          <textarea name="description" maxlength="1000" placeholder="補充問題細節，幫助管理員了解情況"></textarea>
+        </label>
+        <button class="issue-submit" type="submit">送出回報</button>
+      </form>
+    </div>
+  </div>
+  {% endif %}
   <div class="modal" id="weatherModal" onclick="if (event.target === this) closeWeatherModal()">
     <div class="modal-card">
       <button class="modal-close" type="button" onclick="closeWeatherModal()" aria-label="關閉">×</button>
@@ -419,14 +425,39 @@
         row.hidden = row.dataset.tabFields !== tab;
       });
       const badge = document.querySelector('.tab-badge');
-      if (badge) badge.hidden = tab === 'hotel';
+      if (badge) badge.hidden = tab === 'hotel' || tab === 'flight' || tab === 'train';
       const note = document.getElementById('searchNote');
       if (note) {
-        note.textContent = tab === 'hotel'
-          ? '＊住宿搜尋已串接真實資料，送出後將依您填寫的目的地與日期顯示搜尋結果。'
-          : '＊機票／高鐵／體驗搜尋為介面預覽，實際資料串接開發中；您可以先探索下方的公開行程與旅伴揪團。';
+        if (tab === 'hotel') {
+          note.textContent = '＊住宿搜尋已串接真實資料，送出後將依您填寫的目的地與日期顯示搜尋結果。';
+        } else if (tab === 'flight') {
+          note.textContent = '＊機票搜尋已串接範例航班資料，送出後將依您填寫的出發地、目的地與日期顯示搜尋結果。';
+        } else if (tab === 'train') {
+          note.textContent = '＊高鐵／台鐵搜尋已串接真實班表與票價資料，送出後將依您填寫的出發站與到達站顯示搜尋結果。';
+        } else {
+          note.textContent = '＊當地體驗搜尋為介面預覽，實際資料串接開發中；您可以先探索下方的公開行程與旅伴揪團。';
+        }
       }
     }
+    (function restrictPastDates() {
+      const todayStr = new Date().toISOString().slice(0, 10);
+      document.querySelectorAll('.search-panel input[type="date"]').forEach((input) => {
+        input.min = todayStr;
+      });
+      const linkMin = (startId, endId) => {
+        const startInput = document.getElementById(startId);
+        const endInput = document.getElementById(endId);
+        if (!startInput || !endInput) return;
+        startInput.addEventListener('change', () => {
+          endInput.min = startInput.value || todayStr;
+          if (endInput.value && endInput.value < endInput.min) {
+            endInput.value = endInput.min;
+          }
+        });
+      };
+      linkMin('hotelCheckin', 'hotelCheckout');
+      linkMin('flightDepart', 'flightReturn');
+    })();
     let toastTimer;
     function showToast(message) {
       let toast = document.getElementById('siteToast');
@@ -455,6 +486,34 @@
         if (checkout) params.set('checkout', checkout);
         if (guests) params.set('guests', guests);
         window.location.href = '/visitor/hotels?' + params.toString();
+        return;
+      }
+      if (activeTab === 'flight') {
+        const params = new URLSearchParams();
+        const from = document.getElementById('flightFrom').value.trim();
+        const to = document.getElementById('flightTo').value.trim();
+        const depart = document.getElementById('flightDepart').value;
+        const ret = document.getElementById('flightReturn').value;
+        const pax = document.getElementById('flightPax').value;
+        if (from) params.set('from', from);
+        if (to) params.set('to', to);
+        if (depart) params.set('depart', depart);
+        if (ret) params.set('return', ret);
+        if (pax) params.set('pax', pax);
+        window.location.href = '/visitor/flights?' + params.toString();
+        return;
+      }
+      if (activeTab === 'train') {
+        const params = new URLSearchParams();
+        const from = document.getElementById('trainFrom').value.trim();
+        const to = document.getElementById('trainTo').value.trim();
+        const date = document.getElementById('trainDate').value;
+        const pax = document.getElementById('trainPax').value;
+        if (from) params.set('from', from);
+        if (to) params.set('to', to);
+        if (date) params.set('date', date);
+        if (pax) params.set('pax', pax);
+        window.location.href = '/visitor/trains?' + params.toString();
         return;
       }
       showToast('此搜尋功能開發中，敬請期待！可以先看看下方的公開行程與旅伴揪團 🙂');
@@ -487,6 +546,7 @@
       });
       document.getElementById('memberSearchResult').textContent = keyword ? '找到 ' + count + ' 個行程' : '';
     }
+    let activeTripId = null;
     function openTripModal(id) {
       const trip = trips[String(id)];
       if (!trip) return;
@@ -498,18 +558,23 @@
         '<p class="modal-meta">發起者：' + escapeHtml(trip.author || '未提供') + '　·　' + escapeHtml(trip.days) + '　·　' + escapeHtml(trip.budget) + '</p>' +
         '<h3>行程明細</h3><div class="timeline">' + timeline + '</div>';
       document.getElementById('tripModal').classList.add('open');
-      const reportForm = document.getElementById('tripReportForm');
-      const reportToggle = document.getElementById('tripReportToggle');
-      if (reportForm) {
-        reportForm.action = '/member/public-trips/' + encodeURIComponent(id) + '/report';
-        reportForm.hidden = true;
-        reportForm.reset();
-      }
-      if (reportToggle) reportToggle.hidden = !trip.can_report;
+      activeTripId = id;
+      const issueTrigger = document.getElementById('issueTrigger');
+      if (issueTrigger) issueTrigger.hidden = !trip.can_issue;
     }
-    function toggleTripReport() {
-      const form = document.getElementById('tripReportForm');
-      if (form) form.hidden = !form.hidden;
+    function openIssueModal() {
+      if (!activeTripId) return;
+      const trip = trips[String(activeTripId)];
+      if (!trip || !trip.can_issue) return;
+      const form = document.getElementById('issueForm');
+      form.action = '/member/public-trips/' + encodeURIComponent(activeTripId) + '/issues';
+      form.reset();
+      document.getElementById('issueTripName').textContent = trip.title;
+      closeTripModal();
+      document.getElementById('issueModal').classList.add('open');
+    }
+    function closeIssueModal() {
+      document.getElementById('issueModal').classList.remove('open');
     }
     function closeTripModal() {
       document.getElementById('tripModal').classList.remove('open');

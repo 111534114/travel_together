@@ -29,6 +29,7 @@ TYPE_CONFIG = {  # 定義每種資料類型對應的資料表名稱、主鍵欄�
 @login_required("content_admin")  # 限制只有內容管理員登入後才能存取
 def list_ai_data():  # 定義 AI 資料維護頁函式
     item_type = request.args.get("type", "attraction").strip()  # 取得網址上的資料類型參數，預設景點
+    keyword = request.args.get("keyword", "").strip()  # 取得搜尋關鍵字參數
 
     if item_type not in TYPE_CONFIG:  # 如果類型不在允許清單內(防止網址被亂改)
         item_type = "attraction"  # 強制改回預設值
@@ -41,13 +42,22 @@ def list_ai_data():  # 定義 AI 資料維護頁函式
         flash("資料庫連線失敗", "error")  # 顯示錯誤提示
         return render_template(  # 回傳空清單頁面
             "content_admin/ai_data.html",
-            items=[], item_type=item_type, type_config=TYPE_CONFIG
+            items=[], item_type=item_type, type_config=TYPE_CONFIG, keyword=keyword
         )
 
     cursor = connection.cursor(dictionary=True)  # 建立字典格式游標
 
     try:  # 開始查詢資料
-        cursor.execute(  # 查詢該類型所有資料，關聯國家、城市名稱及最後確認人姓名，未確認的排最前面
+        conditions = ["t.deleted_at IS NULL"]  # 一律排除已軟刪除(在回收桶裡)的資料
+        params = []  # 建立對應的參數清單
+
+        if keyword:  # 如果有輸入關鍵字
+            conditions.append("t.name LIKE %s")  # 加入依名稱模糊搜尋的條件
+            params.append(f"%{keyword}%")  # 加入對應參數
+
+        where_clause = "WHERE " + " AND ".join(conditions)  # 把所有條件組成 WHERE 子句
+
+        cursor.execute(  # 查詢該類型符合條件的資料，關聯國家、城市名稱及最後確認人姓名，未確認的排最前面
             f"""
             SELECT t.{config['pk']} AS item_id, t.name, t.updated_at,
                    t.ai_verified_at, co.name AS country_name, ci.name AS city_name,
@@ -56,8 +66,10 @@ def list_ai_data():  # 定義 AI 資料維護頁函式
             JOIN countries co ON co.country_id = t.country_id
             JOIN cities ci ON ci.city_id = t.city_id
             LEFT JOIN users v ON v.user_id = t.ai_verified_by
+            {where_clause}
             ORDER BY (t.ai_verified_at IS NULL) DESC, t.ai_verified_at ASC, t.name ASC
-            """
+            """,
+            params
         )
         items = cursor.fetchall()  # 取出資料清單
 
@@ -69,7 +81,8 @@ def list_ai_data():  # 定義 AI 資料維護頁函式
         "content_admin/ai_data.html",
         items=items,  # 資料清單
         item_type=item_type,  # 目前選擇的資料類型
-        type_config=TYPE_CONFIG  # 各類型的設定(用來畫分頁籤)
+        type_config=TYPE_CONFIG,  # 各類型的設定(用來畫分頁籤)
+        keyword=keyword,  # 搜尋關鍵字(回填搜尋框)
     )
 
 
@@ -86,7 +99,7 @@ def verify_item(item_type, item_id):  # 定義標記已確認函式
 
     if connection is None:  # 如果連線失敗
         flash("資料庫連線失敗", "error")  # 顯示錯誤提示
-        return redirect(url_for("ai_data.list_ai_data", type=item_type))  # 導回 AI 資料維護頁(保留原本類型)
+        return redirect(url_for("ai_data.list_ai_data", type=item_type, keyword=request.args.get("keyword", "")))  # 導回 AI 資料維護頁(保留原本類型與搜尋關鍵字)
 
     cursor = connection.cursor()  # 建立一般游標
 
@@ -113,4 +126,4 @@ def verify_item(item_type, item_id):  # 定義標記已確認函式
         cursor.close()  # 關閉游標
         connection.close()  # 關閉資料庫連線
 
-    return redirect(url_for("ai_data.list_ai_data", type=item_type))  # 導回 AI 資料維護頁(保留原本類型)
+    return redirect(url_for("ai_data.list_ai_data", type=item_type, keyword=request.args.get("keyword", "")))  # 導回 AI 資料維護頁(保留原本類型與搜尋關鍵字)

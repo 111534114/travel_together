@@ -59,10 +59,9 @@
 
             </a>
 
+            <a href="{{ url_for('admin_issues') }}">
 
-            <a href="{{ url_for('admin_reports') }}">
-
-                🚨 檢舉管理
+                📨 問題回報
 
             </a>
 
@@ -192,21 +191,9 @@
 
             </div>
 
-
             <div class="dashboard-card">
-
-                <div class="card-icon">
-                    🚨
-                </div>
-
-                <div>
-
-                    <p>待處理檢舉</p>
-
-                    <h2>{{ report_count }}</h2>
-
-                </div>
-
+                <div class="card-icon">📨</div>
+                <div><p>待處理問題回報</p><h2>{{ issue_count }}</h2></div>
             </div>
 
 

@@ -2,12 +2,11 @@
 {% set active_page = "statistics" %}
 {% block title %}統計報表{% endblock %}
 {% block page_title %}統計報表{% endblock %}
-{% block page_description %}快速掌握會員、行程與管理案件概況{% endblock %}
+{% block page_description %}快速掌握會員與行程概況{% endblock %}
 {% block content %}
 <div class="dashboard-cards admin-cards-compact">
     <div class="dashboard-card"><div class="card-icon">👥</div><div><p>會員／啟用</p><h2>{{ totals.members }} <small>/ {{ totals.active_members }}</small></h2></div></div>
     <div class="dashboard-card"><div class="card-icon">✈️</div><div><p>行程／公開</p><h2>{{ totals.trips }} <small>/ {{ totals.public_trips }}</small></h2></div></div>
-    <div class="dashboard-card"><div class="card-icon">🚨</div><div><p>檢舉／結案</p><h2>{{ totals.reports }} <small>/ {{ totals.resolved_reports }}</small></h2></div></div>
     <div class="dashboard-card"><div class="card-icon">📢</div><div><p>公告總數</p><h2>{{ totals.announcements }}</h2></div></div>
 </div>
 <div class="admin-report-grid">

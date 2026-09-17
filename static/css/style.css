@@ -635,6 +635,18 @@ body {
     background: #eb6834;
 }
 
+.status-series-active {
+    background: #0ca30c;
+}
+
+.status-series-pending {
+    background: #fab219;
+}
+
+.status-series-hidden {
+    background: #898781;
+}
+
 .chart-rows {
     display: flex;
     flex-direction: column;
@@ -702,8 +714,10 @@ body {
 }
 
 .admin-filter select,
+.admin-search select,
 .stack-form select,
 .stack-form input,
+.stack-form textarea,
 .announcement-actions select,
 .admin-form-grid input,
 .admin-form-grid select,
@@ -733,6 +747,14 @@ body {
     display: grid;
     min-width: 175px;
     gap: 7px;
+}
+
+.issue-description {
+    display: block;
+    max-width: 320px;
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+    color: #5d5866;
 }
 
 .stack-form .small-button,
@@ -2300,8 +2322,7 @@ body {
     white-space: nowrap;
 }
 
-.trip-status,
-.report-count {
+.trip-status {
     display: inline-block;
     padding: 5px 9px;
     border-radius: 999px;
@@ -2324,8 +2345,7 @@ body {
     background: #e2f1e6;
 }
 
-.status-cancelled,
-.report-count {
+.status-cancelled {
     color: #9d2f38;
     background: #fde7e9;
 }

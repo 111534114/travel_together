@@ -18,7 +18,7 @@
             <a href="{{ url_for('system_admin_home') }}">📊 儀表板</a>
             <a href="{{ url_for('admin_users') }}">👤 帳號管理</a>
             <a class="active" href="{{ url_for('admin_public_trips') }}">🧳 公開行程管理</a>
-            <a href="{{ url_for('admin_reports') }}">🚨 檢舉管理</a>
+            <a href="{{ url_for('admin_issues') }}">📨 問題回報</a>
             <a href="{{ url_for('admin_announcements') }}">📢 公告管理</a>
             <a href="{{ url_for('admin_statistics') }}">📈 統計報表</a>
             <a href="{{ url_for('admin_logs') }}">📝 操作紀錄</a>
@@ -44,10 +44,6 @@
             <div class="dashboard-card">
                 <div class="card-icon">🌍</div>
                 <div><p>目前公開</p><h2>{{ public_count }}</h2></div>
-            </div>
-            <div class="dashboard-card">
-                <div class="card-icon">🚨</div>
-                <div><p>待處理檢舉</p><h2>{{ pending_report_count }}</h2></div>
             </div>
         </div>
 
@@ -85,7 +81,6 @@
                         <th>日期</th>
                         <th>狀態</th>
                         <th>內容</th>
-                        <th>檢舉</th>
                         <th>操作</th>
                     </tr>
                     </thead>
@@ -102,11 +97,6 @@
                             {{ {'planning':'規劃中','upcoming':'即將出發','completed':'已完成','cancelled':'已取消'}[trip.status] }}
                         </span></td>
                         <td>{{ trip.member_count }} 位旅伴<small>{{ trip.itinerary_count }} 個項目</small></td>
-                        <td>
-                            {% if trip.report_count %}
-                                <span class="report-count">{{ trip.report_count }} 件</span>
-                            {% else %}0 件{% endif %}
-                        </td>
                         <td>
                             <form method="post"
                                   action="{{ url_for('unpublish_public_trip', trip_id=trip.trip_id) }}"

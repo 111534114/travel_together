@@ -106,7 +106,7 @@ def list_restaurants():  # 定義餐廳列表頁函式
     cursor = connection.cursor(dictionary=True)  # 建立字典格式游標
 
     try:  # 開始查詢資料
-        conditions = []  # 建立 SQL WHERE 條件清單
+        conditions = ["r.deleted_at IS NULL"]  # 建立 SQL WHERE 條件清單，一律排除已軟刪除(在回收桶裡)的餐廳
         params = []  # 建立對應的參數清單
 
         if keyword:  # 如果有輸入關鍵字
@@ -269,7 +269,7 @@ def edit_restaurant(restaurant_id):  # 定義編輯餐廳函式
     try:  # 開始處理表單/資料庫操作
         options = _load_options(cursor)  # 取得下拉選單資料
 
-        cursor.execute("SELECT * FROM restaurants WHERE restaurant_id = %s", (restaurant_id,))  # 依 ID 查詢餐廳目前的完整資料
+        cursor.execute("SELECT * FROM restaurants WHERE restaurant_id = %s AND deleted_at IS NULL", (restaurant_id,))  # 依 ID 查詢餐廳目前的完整資料(已軟刪除的不能直接編輯)
         existing = cursor.fetchone()  # 取得查詢結果
 
         if existing is None:  # 如果查無此餐廳(可能已被刪除)
@@ -362,14 +362,14 @@ def delete_restaurant(restaurant_id):  # 定義刪除餐廳函式
 
     cursor = connection.cursor(dictionary=True)  # 建立字典格式游標
 
-    try:  # 開始執行刪除
-        cursor.execute(  # 先查出這筆餐廳目前的名稱與圖片路徑，等下操作紀錄與刪除檔案要用
-            "SELECT name, image_path FROM restaurants WHERE restaurant_id = %s",
+    try:  # 開始執行刪除(軟刪除：只標記刪除時間，資料列與圖片都還在，可從回收桶復原)
+        cursor.execute(  # 先查出這筆餐廳目前的名稱，等下操作紀錄要用
+            "SELECT name FROM restaurants WHERE restaurant_id = %s AND deleted_at IS NULL",
             (restaurant_id,)
         )
         existing = cursor.fetchone()  # 取得查詢結果(可能為 None)
 
-        cursor.execute("DELETE FROM restaurants WHERE restaurant_id = %s", (restaurant_id,))  # 執行刪除餐廳資料列
+        cursor.execute("UPDATE restaurants SET deleted_at = NOW() WHERE restaurant_id = %s AND deleted_at IS NULL", (restaurant_id,))  # 標記刪除時間，不真的砍掉資料列
 
         if existing:  # 如果原本有查到這筆資料(代表確實刪除了某筆餐廳)
             log_action(  # 把這次刪除動作寫入操作紀錄
@@ -377,17 +377,14 @@ def delete_restaurant(restaurant_id):  # 定義刪除餐廳函式
                 f"刪除餐廳：{existing['name']}"
             )
 
-        connection.commit()  # 提交交易，正式從資料庫刪除(餐廳資料與操作紀錄一起寫入)
+        connection.commit()  # 提交交易，正式標記刪除(餐廳資料與操作紀錄一起寫入)
 
-        if existing:  # 如果原本有查到這筆資料
-            delete_uploaded_image(existing["image_path"])  # 一併刪除硬碟上的圖片檔案
+        flash("餐廳已移入回收桶，可以隨時復原", "success")  # 顯示成功訊息
 
-        flash("餐廳已刪除", "success")  # 顯示成功訊息
-
-    except Exception as error:  # 如果刪除過程發生例外(例如仍有其他資料參照這筆餐廳)
+    except Exception as error:  # 如果刪除過程發生例外
         connection.rollback()  # 回復交易
         print("刪除餐廳失敗：", error)  # 在伺服器端印出錯誤內容
-        flash("刪除餐廳失敗，請確認沒有其他資料仍在使用此餐廳", "error")  # 顯示錯誤提示
+        flash("刪除餐廳失敗，請再試一次", "error")  # 顯示錯誤提示
 
     finally:  # 不論成功或失敗都要執行
         cursor.close()  # 關閉游標
@@ -460,17 +457,11 @@ def bulk_delete_restaurants():  # 定義批次刪除餐廳函式
 
     cursor = connection.cursor(dictionary=True)  # 建立字典格式游標
 
-    try:  # 嘗試批次刪除
+    try:  # 嘗試批次刪除(軟刪除：只標記刪除時間，資料列與圖片都還在，可從回收桶復原)
         placeholders = ",".join(["%s"] * len(ids))  # 組成跟 ID 數量一樣多的 %s 佔位符
 
-        cursor.execute(  # 先查出這些餐廳目前的圖片路徑，等下要一併刪除檔案
-            f"SELECT restaurant_id, image_path FROM restaurants WHERE restaurant_id IN ({placeholders})",
-            tuple(ids)
-        )
-        existing_rows = cursor.fetchall()  # 取得查詢結果
-
-        cursor.execute(  # 執行批次刪除的 SQL
-            f"DELETE FROM restaurants WHERE restaurant_id IN ({placeholders})",
+        cursor.execute(  # 執行批次軟刪除的 SQL
+            f"UPDATE restaurants SET deleted_at = NOW() WHERE restaurant_id IN ({placeholders}) AND deleted_at IS NULL",
             tuple(ids)
         )
         deleted_count = cursor.rowcount  # 取得實際被刪除的筆數
@@ -481,19 +472,130 @@ def bulk_delete_restaurants():  # 定義批次刪除餐廳函式
         )
         connection.commit()  # 提交交易(刪除與操作紀錄一起寫入)
 
-        for row in existing_rows:  # 逐一刪除硬碟上對應的圖片檔案
-            delete_uploaded_image(row["image_path"])
-
-        flash(f"已刪除 {deleted_count} 筆餐廳", "success")  # 顯示成功訊息
-    except Exception as error:  # 如果刪除過程發生例外(例如仍有其他資料參照這些餐廳)
+        flash(f"已將 {deleted_count} 筆餐廳移入回收桶", "success")  # 顯示成功訊息
+    except Exception as error:  # 如果刪除過程發生例外
         connection.rollback()  # 回復交易
         print("批次刪除餐廳失敗：", error)  # 在伺服器端印出錯誤內容
-        flash("批次刪除失敗，請確認沒有其他資料仍在使用這些餐廳", "error")  # 顯示錯誤提示
+        flash("批次刪除失敗，請再試一次", "error")  # 顯示錯誤提示
     finally:  # 不論成功或失敗都要執行
         cursor.close()  # 關閉游標
         connection.close()  # 關閉資料庫連線
 
     return redirect(url_for("restaurants.list_restaurants"))  # 導回餐廳列表頁
+
+
+@restaurants_bp.route("/trash")  # 設定餐廳回收桶頁路由
+@login_required("content_admin")  # 限制只有內容管理員登入後才能存取
+def list_trash():  # 定義餐廳回收桶函式
+    connection = get_db_connection()  # 建立資料庫連線
+
+    if connection is None:  # 如果連線失敗
+        flash("資料庫連線失敗", "error")  # 顯示錯誤提示
+        return render_template("content_admin/restaurants/trash.html", restaurants=[])  # 回傳空回收桶頁面
+
+    cursor = connection.cursor(dictionary=True)  # 建立字典格式游標
+
+    try:  # 開始查詢資料
+        cursor.execute(  # 查詢所有已軟刪除的餐廳，關聯分類、國家、城市名稱
+            """
+            SELECT r.restaurant_id, r.name, r.deleted_at, r.image_path,
+                   cat.category_name, co.name AS country_name, ci.name AS city_name
+            FROM restaurants r
+            LEFT JOIN categories cat ON cat.category_id = r.category_id
+            JOIN countries co ON co.country_id = r.country_id
+            JOIN cities ci ON ci.city_id = r.city_id
+            WHERE r.deleted_at IS NOT NULL
+            ORDER BY r.deleted_at DESC
+            """
+        )
+        restaurants = cursor.fetchall()  # 取出回收桶裡的餐廳清單
+    finally:  # 不論成功或失敗都要執行
+        cursor.close()  # 關閉游標
+        connection.close()  # 關閉資料庫連線
+
+    return render_template(  # 渲染回收桶頁面
+        "content_admin/restaurants/trash.html",
+        restaurants=restaurants,  # 回收桶裡的餐廳清單
+    )
+
+
+@restaurants_bp.route("/<int:restaurant_id>/restore", methods=["POST"])  # 設定從回收桶復原餐廳的路由
+@login_required("content_admin")  # 限制只有內容管理員登入後才能存取
+def restore_restaurant(restaurant_id):  # 定義復原餐廳函式
+    connection = get_db_connection()  # 建立資料庫連線
+
+    if connection is None:  # 如果連線失敗
+        flash("資料庫連線失敗", "error")  # 顯示錯誤提示
+        return redirect(url_for("restaurants.list_trash"))  # 導回回收桶頁面
+
+    cursor = connection.cursor(dictionary=True)  # 建立字典格式游標
+
+    try:  # 開始執行復原
+        cursor.execute("SELECT name FROM restaurants WHERE restaurant_id = %s AND deleted_at IS NOT NULL", (restaurant_id,))  # 查出這筆餐廳的名稱(要在回收桶裡才能復原)
+        existing = cursor.fetchone()  # 取得查詢結果
+
+        if not existing:  # 如果找不到(不在回收桶裡)
+            flash("找不到這筆餐廳資料", "error")  # 顯示錯誤提示
+        else:
+            cursor.execute("UPDATE restaurants SET deleted_at = NULL WHERE restaurant_id = %s", (restaurant_id,))  # 清空刪除時間，等於復原
+            log_action(  # 把這次復原動作寫入操作紀錄
+                cursor, "restore_restaurant", "restaurant", restaurant_id,
+                f"從回收桶復原餐廳：{existing['name']}"
+            )
+            connection.commit()  # 提交交易
+            flash("餐廳已復原", "success")  # 顯示成功訊息
+    except Exception as error:  # 如果復原過程發生例外
+        connection.rollback()  # 回復交易
+        print("復原餐廳失敗：", error)  # 在伺服器端印出錯誤內容
+        flash("復原失敗，請再試一次", "error")  # 顯示錯誤提示
+    finally:  # 不論成功或失敗都要執行
+        cursor.close()  # 關閉游標
+        connection.close()  # 關閉資料庫連線
+
+    return redirect(url_for("restaurants.list_trash"))  # 導回回收桶頁面
+
+
+@restaurants_bp.route("/<int:restaurant_id>/permanent-delete", methods=["POST"])  # 設定從回收桶永久刪除餐廳的路由
+@login_required("content_admin")  # 限制只有內容管理員登入後才能存取
+def permanently_delete_restaurant(restaurant_id):  # 定義永久刪除餐廳函式
+    connection = get_db_connection()  # 建立資料庫連線
+
+    if connection is None:  # 如果連線失敗
+        flash("資料庫連線失敗", "error")  # 顯示錯誤提示
+        return redirect(url_for("restaurants.list_trash"))  # 導回回收桶頁面
+
+    cursor = connection.cursor(dictionary=True)  # 建立字典格式游標
+
+    try:  # 開始執行永久刪除
+        cursor.execute(  # 先查出這筆餐廳目前的名稱與圖片路徑(必須在回收桶裡才能永久刪除)
+            "SELECT name, image_path FROM restaurants WHERE restaurant_id = %s AND deleted_at IS NOT NULL",
+            (restaurant_id,)
+        )
+        existing = cursor.fetchone()  # 取得查詢結果(可能為 None)
+
+        if not existing:  # 如果找不到(不在回收桶裡)
+            flash("找不到這筆餐廳資料", "error")  # 顯示錯誤提示
+        else:
+            cursor.execute("DELETE FROM restaurants WHERE restaurant_id = %s", (restaurant_id,))  # 真的從資料庫刪除這筆資料列
+
+            log_action(  # 把這次永久刪除動作寫入操作紀錄
+                cursor, "permanent_delete_restaurant", "restaurant", restaurant_id,
+                f"永久刪除餐廳：{existing['name']}"
+            )
+            connection.commit()  # 提交交易，正式從資料庫刪除
+
+            delete_uploaded_image(existing["image_path"])  # 一併刪除硬碟上的圖片檔案
+
+            flash("餐廳已永久刪除，無法復原", "success")  # 顯示成功訊息
+    except Exception as error:  # 如果刪除過程發生例外(例如仍有其他資料參照這筆餐廳)
+        connection.rollback()  # 回復交易
+        print("永久刪除餐廳失敗：", error)  # 在伺服器端印出錯誤內容
+        flash("永久刪除失敗，請確認沒有其他資料仍在使用此餐廳", "error")  # 顯示錯誤提示
+    finally:  # 不論成功或失敗都要執行
+        cursor.close()  # 關閉游標
+        connection.close()  # 關閉資料庫連線
+
+    return redirect(url_for("restaurants.list_trash"))  # 導回回收桶頁面
 
 
 @restaurants_bp.route("/backfill-descriptions", methods=["POST"])  # 設定批次補上缺少餐廳描述的路由
@@ -516,9 +618,10 @@ def backfill_descriptions():  # 定義批次補上餐廳描述函式
             LEFT JOIN categories cat ON cat.category_id = r.category_id
             JOIN countries co ON co.country_id = r.country_id
             JOIN cities ci ON ci.city_id = r.city_id
-            WHERE r.description IS NULL
+            WHERE r.deleted_at IS NULL
+              AND (r.description IS NULL
                OR r.description = ''
-               OR r.description LIKE '%，是當地值得一遊的景點。'
+               OR r.description LIKE '%，是當地值得一遊的景點。')
             """
         )
         rows = cursor.fetchall()  # 取出所有缺少描述、或描述太單調要重新產生的餐廳

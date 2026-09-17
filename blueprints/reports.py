@@ -76,6 +76,7 @@ def export_restaurants():  # 定義匯出餐廳統計函式
             JOIN countries co ON co.country_id = r.country_id
             JOIN cities ci ON ci.city_id = r.city_id
             LEFT JOIN itineraries i ON i.restaurant_id = r.restaurant_id
+            WHERE r.deleted_at IS NULL
             GROUP BY r.restaurant_id, r.name, co.name, ci.name
             ORDER BY itinerary_count DESC, r.name
         """)  # 查詢每間餐廳被排入行程的次數，依使用次數排序
@@ -112,6 +113,7 @@ def export_accommodations():  # 定義匯出住宿統計函式
             JOIN countries co ON co.country_id = ac.country_id
             JOIN cities ci ON ci.city_id = ac.city_id
             LEFT JOIN itineraries i ON i.accommodation_id = ac.accommodation_id
+            WHERE ac.deleted_at IS NULL
             GROUP BY ac.accommodation_id, ac.name, co.name, ci.name
             ORDER BY itinerary_count DESC, ac.name
         """)  # 查詢每筆住宿被排入行程的次數，依使用次數排序

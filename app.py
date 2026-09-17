@@ -226,7 +226,7 @@ def visitor_hotel_search():
     if connection:
         cursor = connection.cursor(dictionary=True)
         try:
-            conditions = ["ac.status = 'active'"]  # 只搜尋已啟用的住宿
+            conditions = ["ac.status = 'active'", "ac.deleted_at IS NULL"]  # 只搜尋已啟用、且不在回收桶裡的住宿
             params = []
 
             if destination:  # 如果有輸入目的地關鍵字，依名稱/城市/國家/地址模糊搜尋
@@ -453,13 +453,13 @@ def content_admin_home():  # 定義內容管理員儀表板函式
     cursor = connection.cursor(dictionary=True)  # 建立字典格式游標
 
     try:  # 開始查詢各項統計資料
-        cursor.execute("SELECT COUNT(*) AS total FROM attractions")  # 查詢景點總數
+        cursor.execute("SELECT COUNT(*) AS total FROM attractions WHERE deleted_at IS NULL")  # 查詢景點總數(不含回收桶裡的)
         attraction_count = cursor.fetchone()["total"]  # 取出景點總數
 
-        cursor.execute("SELECT COUNT(*) AS total FROM restaurants")  # 查詢餐廳總數
+        cursor.execute("SELECT COUNT(*) AS total FROM restaurants WHERE deleted_at IS NULL")  # 查詢餐廳總數(不含回收桶裡的)
         restaurant_count = cursor.fetchone()["total"]  # 取出餐廳總數
 
-        cursor.execute("SELECT COUNT(*) AS total FROM accommodations")  # 查詢住宿總數
+        cursor.execute("SELECT COUNT(*) AS total FROM accommodations WHERE deleted_at IS NULL")  # 查詢住宿總數(不含回收桶裡的)
         accommodation_count = cursor.fetchone()["total"]  # 取出住宿總數
 
         cursor.execute("""
@@ -484,10 +484,11 @@ def content_admin_home():  # 定義內容管理員儀表板函式
             JOIN countries co ON co.country_id = r.country_id
             JOIN cities ci ON ci.city_id = r.city_id
             LEFT JOIN itineraries i ON i.restaurant_id = r.restaurant_id
+            WHERE r.deleted_at IS NULL
             GROUP BY r.restaurant_id, r.name, co.name, ci.name
             ORDER BY itinerary_count DESC, r.name
             LIMIT 5
-        """)  # 查詢餐廳被排入行程的次數，取使用次數最多的前5筆
+        """)  # 查詢餐廳被排入行程的次數，取使用次數最多的前5筆(不含回收桶裡的)
         top_restaurants = cursor.fetchall()  # 取出熱門餐廳清單
 
         cursor.execute("""
@@ -497,11 +498,23 @@ def content_admin_home():  # 定義內容管理員儀表板函式
             JOIN countries co ON co.country_id = ac.country_id
             JOIN cities ci ON ci.city_id = ac.city_id
             LEFT JOIN itineraries i ON i.accommodation_id = ac.accommodation_id
+            WHERE ac.deleted_at IS NULL
             GROUP BY ac.accommodation_id, ac.name, co.name, ci.name
             ORDER BY itinerary_count DESC, ac.name
             LIMIT 5
-        """)  # 查詢住宿被排入行程的次數，取使用次數最多的前5筆
+        """)  # 查詢住宿被排入行程的次數，取使用次數最多的前5筆(不含回收桶裡的)
         top_accommodations = cursor.fetchall()  # 取出熱門住宿清單
+
+        status_distribution = []  # 準備景點/餐廳/住宿各自的狀態分布統計
+        for label, table in [("景點", "attractions"), ("餐廳", "restaurants"), ("住宿", "accommodations")]:  # 依序查詢三種資源類型(資料表名稱固定寫死，非使用者輸入，可安全用於 SQL)
+            cursor.execute(f"SELECT status, COUNT(*) AS total FROM {table} WHERE deleted_at IS NULL GROUP BY status")  # 依狀態分組計算數量(不含回收桶裡的)
+            counts = {row["status"]: row["total"] for row in cursor.fetchall()}  # 整理成 {狀態: 數量} 字典
+            status_distribution.append({  # 加入這個資源類型的統計結果
+                "label": label,  # 中文顯示名稱
+                "active": counts.get("active", 0),  # 啟用數量，沒有就是 0
+                "pending": counts.get("pending", 0),  # 待確認數量，沒有就是 0
+                "hidden": counts.get("hidden", 0),  # 隱藏數量，沒有就是 0
+            })
 
     except Error as error:  # 如果查詢過程中資料庫報錯(例如資料表結構還沒更新)
         print("內容管理資料庫結構尚未更新：", error)  # 在伺服器端印出錯誤內容
@@ -513,6 +526,7 @@ def content_admin_home():  # 定義內容管理員儀表板函式
         top_attractions = []  # 熱門景點清單退回空陣列
         top_restaurants = []  # 熱門餐廳清單退回空陣列
         top_accommodations = []  # 熱門住宿清單退回空陣列
+        status_distribution = []  # 狀態分布統計退回空陣列
 
     finally:  # 不論成功或失敗都要執行
         cursor.close()  # 關閉游標
@@ -527,6 +541,7 @@ def content_admin_home():  # 定義內容管理員儀表板函式
         top_attractions=top_attractions,  # 熱門景點清單
         top_restaurants=top_restaurants,  # 熱門餐廳清單
         top_accommodations=top_accommodations,  # 熱門住宿清單
+        status_distribution=status_distribution,  # 景點/餐廳/住宿的狀態分布統計
     )
 
 

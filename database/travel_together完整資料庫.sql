@@ -67,6 +67,7 @@ CREATE TABLE attractions (
  image_path VARCHAR(255),
  is_popular BOOLEAN NOT NULL DEFAULT FALSE,
  status ENUM('active','hidden','pending') NOT NULL DEFAULT 'active',
+ deleted_at DATETIME,
  ai_verified_at DATETIME,
  ai_verified_by BIGINT UNSIGNED,
  created_by BIGINT UNSIGNED,
@@ -93,6 +94,7 @@ CREATE TABLE restaurants (
  website_url VARCHAR(500),
  image_path VARCHAR(255),
  status ENUM('active','hidden','pending') NOT NULL DEFAULT 'active',
+ deleted_at DATETIME,
  ai_verified_at DATETIME,
  ai_verified_by BIGINT UNSIGNED,
  created_by BIGINT UNSIGNED,
@@ -120,6 +122,7 @@ CREATE TABLE accommodations (
  website_url VARCHAR(500),
  image_path VARCHAR(255),
  status ENUM('active','hidden','pending') NOT NULL DEFAULT 'active',
+ deleted_at DATETIME,
  ai_verified_at DATETIME,
  ai_verified_by BIGINT UNSIGNED,
  created_by BIGINT UNSIGNED,
@@ -499,6 +502,7 @@ JOIN countries c ON c.country_id=a.country_id
 JOIN cities ci ON ci.city_id=a.city_id
 LEFT JOIN favorites f ON f.attraction_id=a.attraction_id
 LEFT JOIN itineraries i ON i.attraction_id=a.attraction_id
+WHERE a.deleted_at IS NULL
 GROUP BY a.attraction_id,a.name,c.name,ci.name;
 
 SELECT '資料庫建立完成' AS message;

@@ -18,7 +18,7 @@
 
     <div class="section-title">
         <h2>提案列表</h2>
-        <span>共 {{ proposals|length }} 筆</span>
+        <span>共 {{ total }} 筆</span>
     </div>
 
     <div class="table-container">
@@ -65,6 +65,18 @@
             </tbody>
         </table>
     </div>
+
+    {% if total_pages > 1 %}
+    <div class="pagination">
+        {% for p in range(1, total_pages + 1) %}
+            {% if p == page %}
+                <span class="current">{{ p }}</span>
+            {% else %}
+                <a href="{{ url_for('proposals.list_proposals', status=status, page=p) }}">{{ p }}</a>
+            {% endif %}
+        {% endfor %}
+    </div>
+    {% endif %}
 
 </div>
 

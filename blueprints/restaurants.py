@@ -18,6 +18,7 @@ from utils import (  # 匯入圖片、下拉選單、CSV 匯入匯出相關的�
     delete_uploaded_image,  # 刪除已上傳圖片
     get_categories,  # 取得分類清單
     get_cities,  # 取得城市清單
+    group_cities_by_region,  # 把城市清單依國家、地區分組，給下拉選單分組(optgroup)顯示用
     get_countries,  # 取得國家清單
     get_or_create_category,  # 依名稱找分類，找不到就自動新增
     get_or_create_city,  # 依名稱找城市，找不到就自動新增
@@ -74,9 +75,11 @@ def _parse_form(form_data):  # 定義內部函式：把表單資料解析成乾�
 
 
 def _load_options(cursor):  # 定義內部函式：一次取得新增/編輯表單需要的下拉選單資料
+    cities = get_cities(cursor)  # 取得城市清單(已依國家、地區排序)
     return {
         "countries": get_countries(cursor),  # 國家清單
-        "cities": get_cities(cursor),  # 城市清單
+        "cities": cities,  # 城市清單
+        "city_groups": group_cities_by_region(cities),  # 依國家、地區分組後的城市清單(給下拉選單分組顯示用)
         "categories": get_categories(cursor, "restaurant"),  # 餐廳分類清單
     }
 

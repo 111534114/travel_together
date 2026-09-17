@@ -34,6 +34,9 @@
                 </td>
                 <td>{{ country.city_count }}</td>
                 <td>
+                    <form method="POST" action="{{ url_for('locations.import_preset_cities', country_id=country.country_id) }}" class="inline-form">
+                        <button type="submit" class="small-button">⚡ 一鍵匯入所有城市</button>
+                    </form>
                     <form method="POST" action="{{ url_for('locations.delete_country', country_id=country.country_id) }}" class="inline-form" onsubmit="return confirm('確定要刪除這個國家嗎？');">
                         <button type="submit" class="disable-button">刪除</button>
                     </form>
@@ -60,40 +63,35 @@
         <span>共 {{ cities|length }} 筆</span>
     </div>
 
-    <div class="table-container">
-        <table class="admin-table">
-            <thead>
-            <tr>
-                <th>國家 / 城市名稱</th>
-                <th>操作</th>
-            </tr>
-            </thead>
-            <tbody>
-            {% for city in cities %}
-            <tr>
-                <td>
-                    <form method="POST" action="{{ url_for('locations.edit_city', city_id=city.city_id) }}" class="inline-form">
-                        <select name="country_id">
-                            {% for country in countries %}
-                                <option value="{{ country.country_id }}" {{ 'selected' if country.country_id == city.country_id else '' }}>{{ country.name }}</option>
-                            {% endfor %}
-                        </select>
-                        <input type="text" name="name" value="{{ city.name }}" required style="width:160px;">
-                        <button type="submit" class="small-button">更新</button>
-                    </form>
-                </td>
-                <td>
-                    <form method="POST" action="{{ url_for('locations.delete_city', city_id=city.city_id) }}" class="inline-form" onsubmit="return confirm('確定要刪除這個城市嗎？');">
-                        <button type="submit" class="disable-button">刪除</button>
-                    </form>
-                </td>
-            </tr>
-            {% else %}
-            <tr><td colspan="2" class="empty-data">尚未新增城市</td></tr>
+    {% for group in location_groups %}
+    <div class="location-country-group">
+        <div class="location-country-header">
+            <h3>{{ group.country.name }}</h3>
+            <span>{{ group.country.city_count }} 個城市</span>
+        </div>
+        {% if group.regions %}
+            {% for region in group.regions %}
+            <div class="location-region-block">
+                {% if region.name %}<div class="location-region-label">{{ region.name }}</div>{% endif %}
+                <div class="location-city-chips">
+                    {% for city in region.cities %}
+                    <span class="location-city-chip">
+                        {{ city.name }}
+                        <form method="POST" action="{{ url_for('locations.delete_city', city_id=city.city_id) }}" class="inline-form" onsubmit="return confirm('確定要刪除「{{ city.name }}」嗎？');">
+                            <button type="submit" title="刪除「{{ city.name }}」">×</button>
+                        </form>
+                    </span>
+                    {% endfor %}
+                </div>
+            </div>
             {% endfor %}
-            </tbody>
-        </table>
+        {% else %}
+        <p class="empty-data">這個國家還沒有城市</p>
+        {% endif %}
     </div>
+    {% else %}
+    <p class="empty-data">請先新增國家</p>
+    {% endfor %}
 
     <form method="POST" action="{{ url_for('locations.create_city') }}" class="filter-form" style="margin-top:18px;">
         <select name="country_id" required>
@@ -103,6 +101,7 @@
             {% endfor %}
         </select>
         <input type="text" name="name" placeholder="新增城市名稱" required>
+        <input type="text" name="region" placeholder="地區分類（選填，例如北部）">
         <button type="submit">＋ 新增城市</button>
     </form>
 

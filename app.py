@@ -1,3 +1,4 @@
+import re  # 匯入正規表示式模組，用來驗證註冊欄位格式
 from datetime import datetime  # 匯入 datetime，用來解析住宿搜尋的入住/退房日期字串
 from flask import Flask, render_template, request, redirect, url_for, session, flash  # 匯入 Flask 核心功能：建立 App、渲染樣板、取得請求、導向、產生網址、session、顯示訊息
 from mysql.connector import Error  # 匯入 MySQL 連線錯誤類別，用來捕捉資料庫例外
@@ -475,12 +476,20 @@ def register():  # 定義註冊功能函式
             flash("請填寫所有必填欄位。", "error")  # 顯示錯誤提示
             return render_template("register.html")  # 重新顯示註冊頁
 
-        if len(username) < 4:  # 檢查帳號長度是否至少 4 字元
-            flash("帳號至少需要4個字元。", "error")  # 顯示錯誤提示
+        if not re.fullmatch(r"[A-Za-z0-9]{1,9}", username):  # 帳號限制為 9 碼以內的英文或數字
+            flash("帳號請輸入9碼以內的英文或數字。", "error")  # 顯示錯誤提示
             return render_template("register.html")  # 重新顯示註冊頁
 
-        if len(password) < 6:  # 檢查密碼長度是否至少 6 字元
-            flash("密碼至少需要6個字元。", "error")  # 顯示錯誤提示
+        if not re.fullmatch(r"[A-Za-z一-龥][A-Za-z一-龥\s]*", full_name):  # 姓名僅允許中英文字與空白，不可包含數字或符號
+            flash("姓名請輸入真實姓名，不可包含數字或特殊符號。", "error")  # 顯示錯誤提示
+            return render_template("register.html")  # 重新顯示註冊頁
+
+        if not re.fullmatch(r"[^\s@]+@[^\s@]+\.[^\s@]+", email):  # Email 需符合含有 @ 與網域的基本格式
+            flash("請輸入正確的電子郵件格式。", "error")  # 顯示錯誤提示
+            return render_template("register.html")  # 重新顯示註冊頁
+
+        if not re.fullmatch(r"(?=.*[A-Za-z])(?=.*\d)\S{9,}", password):  # 密碼需 9 碼以上且同時包含英文與數字
+            flash("密碼至少需要9碼，並同時包含英文與數字。", "error")  # 顯示錯誤提示
             return render_template("register.html")  # 重新顯示註冊頁
 
         if password != confirm_password:  # 檢查兩次輸入的密碼是否一致

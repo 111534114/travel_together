@@ -213,27 +213,66 @@ def get_countries(cursor):  # 定義取得所有國家清單的共用函式，cu
     return cursor.fetchall()  # 回傳查詢結果(國家清單)
 
 
+REGION_DISPLAY_ORDER = {  # 定義地區的顯示順序(數字越小排越前面)，避免地區名稱依字串排序時順序很奇怪(例如「中部」排在「北部」前面)
+    "北部": 0, "中部": 1, "南部": 2, "東部": 3, "離島": 4,  # 台灣的分區順序
+    "北海道": 0, "東北地方": 1, "關東": 2, "中部地方": 3,  # 日本的分區順序(前半)
+    "關西": 4, "中國地方": 5, "四國": 6, "九州": 7,  # 日本的分區順序(後半)
+}
+
+
+def _region_sort_key(city):  # 定義內部函式：計算城市在排序時要用的 key，讓地區照慣用順序排列，沒有地區分類的排最後
+    region = city["region"]  # 取得這個城市的地區分類
+
+    if region is None:  # 如果沒有地區分類
+        return (1, 999, city["name"])  # 排在所有有地區分類的城市後面，同樣沒分類的再依名稱排序
+
+    return (0, REGION_DISPLAY_ORDER.get(region, 500), city["name"])  # 依預先定義的順序排列，沒列出的地區名稱排在中間，同地區再依名稱排序
+
+
 def get_cities(cursor, country_id=None):  # 定義取得城市清單的共用函式，可選擇只取某個國家底下的城市
     if country_id:  # 如果有指定國家 ID
         cursor.execute(
             """
-            SELECT city_id, country_id, name
+            SELECT city_id, country_id, name, region
             FROM cities
             WHERE country_id = %s
-            ORDER BY name
-            """,  # 只查詢屬於該國家的城市，依名稱排序
+            """,  # 只查詢屬於該國家的城市，排序交給 Python 端處理(SQL 依字串排地區順序會不符合慣用順序)
             (country_id,)  # 帶入國家 ID 參數
         )
-    else:  # 如果沒有指定國家 ID
-        cursor.execute(
-            """
-            SELECT city_id, country_id, name
-            FROM cities
-            ORDER BY name
-            """  # 查詢所有城市，依名稱排序
-        )
+        return sorted(cursor.fetchall(), key=_region_sort_key)  # 依地區慣用順序、城市名稱排序後回傳
 
-    return cursor.fetchall()  # 回傳查詢結果(城市清單)
+    cursor.execute(
+        """
+        SELECT city_id, country_id, name, region
+        FROM cities
+        ORDER BY country_id
+        """  # 查詢所有城市，先依國家排序，同一國家內的地區順序交給 Python 端處理
+    )
+    cities = cursor.fetchall()  # 取出查詢結果
+    cities.sort(key=lambda city: (city["country_id"],) + _region_sort_key(city))  # 先依國家、再依地區慣用順序、城市名稱排序(穩定排序，國家順序不會被打亂)
+
+    return cities  # 回傳查詢結果(城市清單)
+
+
+def group_cities_by_region(cities):  # 定義函式：把城市清單依國家、地區分組，方便樣板畫出分組(optgroup)的下拉選單
+    """
+    傳入 get_cities() 回傳的城市清單(必須已經照 country_id、region 排序過，get_cities() 預設就是這個排序)，
+    回傳依 (country_id, region) 分組後的清單，每組為 {"country_id", "region", "cities"}。
+    同一組內的城市保持原本順序；沒有地區分類的城市，region 會是 None。
+    """
+    groups = []  # 準備回傳的分組清單
+    current_key = None  # 記錄目前正在累積的分組 key(country_id, region)，用來判斷什麼時候要開新分組
+
+    for city in cities:  # 逐一處理每個城市(清單已經照國家、地區排序，同組的會連續出現)
+        key = (city["country_id"], city["region"])  # 這個城市所屬的分組 key
+
+        if key != current_key:  # 如果跟目前分組不同(換國家，或換地區)
+            groups.append({"country_id": city["country_id"], "region": city["region"], "cities": []})  # 開一個新分組
+            current_key = key  # 更新目前分組的 key
+
+        groups[-1]["cities"].append(city)  # 把這個城市加進目前分組
+
+    return groups  # 回傳分組結果
 
 
 def get_categories(cursor, category_type):  # 定義取得指定類型分類清單的共用函式(例如景點/餐廳/住宿分類)

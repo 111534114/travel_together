@@ -43,8 +43,18 @@
                 <label for="city_id">城市 *</label>
                 <select id="citySelect" name="city_id" required>
                     <option value="">請選擇城市</option>
-                    {% for city in cities %}
-                        <option value="{{ city.city_id }}" data-country="{{ city.country_id }}" {{ 'selected' if attraction.city_id|string == city.city_id|string else '' }}>{{ city.name }}</option>
+                    {% for group in city_groups %}
+                        {% if group.region %}
+                        <optgroup label="{{ group.region }}" data-country="{{ group.country_id }}">
+                            {% for city in group.cities %}
+                                <option value="{{ city.city_id }}" data-country="{{ city.country_id }}" {{ 'selected' if attraction.city_id|string == city.city_id|string else '' }}>{{ city.name }}</option>
+                            {% endfor %}
+                        </optgroup>
+                        {% else %}
+                            {% for city in group.cities %}
+                                <option value="{{ city.city_id }}" data-country="{{ city.country_id }}" {{ 'selected' if attraction.city_id|string == city.city_id|string else '' }}>{{ city.name }}</option>
+                            {% endfor %}
+                        {% endif %}
                     {% endfor %}
                 </select>
             </div>
@@ -128,9 +138,12 @@
 <script>
     function filterCitiesByCountry() {
         var countryId = document.getElementById('countrySelect').value;
-        var options = document.getElementById('citySelect').querySelectorAll('option[data-country]');
+        var citySelect = document.getElementById('citySelect');
 
-        options.forEach(function (option) {
+        citySelect.querySelectorAll('optgroup[data-country]').forEach(function (group) {
+            group.hidden = Boolean(countryId) && group.dataset.country !== countryId;
+        });
+        citySelect.querySelectorAll('option[data-country]').forEach(function (option) {
             option.hidden = Boolean(countryId) && option.dataset.country !== countryId;
         });
     }

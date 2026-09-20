@@ -65,6 +65,13 @@ body {
     box-shadow: 0 0 0 3px rgba(118, 87, 172, 0.12);
 }
 
+.form-hint {
+    display: block;
+    margin-top: 5px;
+    font-size: 12px;
+    color: #888;
+}
+
 .primary-button {
     width: 100%;
     padding: 13px;

@@ -230,7 +230,7 @@ def dashboard():
             SELECT notification_id, trip_id, title, message, target_url, created_at
             FROM notifications
             WHERE user_id=%s AND is_read=FALSE
-              AND title NOT IN ('你的公開行程被舉報', '你的公開行程被檢舉')
+              AND title NOT IN ('你的公開行程被回報', '你的公開行程被舉報', '你的公開行程被檢舉')
             ORDER BY created_at DESC
             LIMIT 10
         """, (user_id,))

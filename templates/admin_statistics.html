@@ -2,22 +2,38 @@
 {% set active_page = "statistics" %}
 {% block title %}統計報表{% endblock %}
 {% block page_title %}統計報表{% endblock %}
-{% block page_description %}快速掌握會員與行程概況{% endblock %}
+{% block page_description %}快速掌握會員、行程與問題回報概況{% endblock %}
 {% block content %}
 <div class="dashboard-cards admin-cards-compact">
     <div class="dashboard-card"><div class="card-icon">👥</div><div><p>會員／啟用</p><h2>{{ totals.members }} <small>/ {{ totals.active_members }}</small></h2></div></div>
     <div class="dashboard-card"><div class="card-icon">✈️</div><div><p>行程／公開</p><h2>{{ totals.trips }} <small>/ {{ totals.public_trips }}</small></h2></div></div>
     <div class="dashboard-card"><div class="card-icon">📢</div><div><p>公告總數</p><h2>{{ totals.announcements }}</h2></div></div>
 </div>
-<div class="admin-report-grid">
-    <section class="admin-section"><h2>近六個月新會員</h2><div class="simple-bars">
-        {% set max_members = monthly|map(attribute='total')|max if monthly else 1 %}
-        {% for row in monthly %}<div class="bar-row"><span>{{ row.month }}</span><div class="bar-track"><i style="width: {{ (row.total / max_members * 100)|round }}%"></i></div><strong>{{ row.total }}</strong></div>
-        {% else %}<p class="empty-data">尚無會員資料</p>{% endfor %}
-    </div></section>
-    <section class="admin-section"><h2>行程狀態分布</h2><table class="admin-table"><thead><tr><th>狀態</th><th>數量</th></tr></thead><tbody>
-        {% for row in trip_statuses %}<tr><td>{{ {'planning':'規劃中','upcoming':'即將出發','completed':'已完成','cancelled':'已取消'}.get(row.status, row.status) }}</td><td>{{ row.total }}</td></tr>
-        {% else %}<tr><td colspan="2" class="empty-data">尚無行程資料</td></tr>{% endfor %}
-    </tbody></table></section>
+<div class="statistics-chart-grid">
+    <section class="admin-section statistics-chart-card">
+        <div class="statistics-chart-heading"><div><p>ISSUE STATUS</p><h2>問題回報狀態</h2></div><span>即時統計</span></div>
+        <canvas id="issueDonut" class="statistics-canvas" aria-label="問題回報狀態環形圖"></canvas>
+        <div class="chart-legend">{% set issue_colors = ['#e6a04b', '#6f58a0', '#4fa778', '#d36a72'] %}{% for row in issue_statuses %}<div><i style="background:{{ issue_colors[loop.index0] }}"></i><span>{{ row.label }}</span><strong>{{ row.total }}</strong></div>{% endfor %}</div>
+    </section>
+    <section class="admin-section statistics-chart-card">
+        <div class="statistics-chart-heading"><div><p>TOP DESTINATIONS</p><h2>熱門旅遊目的地前五名</h2></div><span>依行程數</span></div>
+        <canvas id="destinationBars" class="statistics-canvas" aria-label="熱門目的地橫條圖"></canvas>
+        {% if not top_destinations %}<p class="empty-data">尚無行程資料</p>{% endif %}
+    </section>
+    <section class="admin-section statistics-chart-card statistics-chart-wide">
+        <div class="statistics-chart-heading"><div><p>SIX-MONTH GROWTH</p><h2>近六個月系統成長</h2></div><div class="line-chart-legend"><span><i class="member-line"></i>新增會員</span><span><i class="trip-line"></i>新增行程</span></div></div>
+        <canvas id="growthLines" class="statistics-canvas statistics-line-canvas" aria-label="近六個月會員與行程折線圖"></canvas>
+    </section>
 </div>
+<script>
+(() => {
+ const issues={{ issue_statuses|tojson }}, destinations={{ top_destinations|tojson }}, monthly={{ monthly|tojson }};
+ const colors=['#e6a04b','#6f58a0','#4fa778','#d36a72'];
+ function setup(canvas,height){const ratio=window.devicePixelRatio||1,width=Math.max(canvas.clientWidth,280);canvas.width=width*ratio;canvas.height=height*ratio;const ctx=canvas.getContext('2d');ctx.scale(ratio,ratio);return{ctx,width,height};}
+ function donut(){const c=document.getElementById('issueDonut'),{ctx,width,height}=setup(c,260),values=issues.map(x=>Number(x.total)),total=values.reduce((a,b)=>a+b,0),cx=width/2,cy=height/2,r=Math.min(width,height)*.34;ctx.lineWidth=28;let angle=-Math.PI/2;if(!total){ctx.strokeStyle='#eeeaf4';ctx.beginPath();ctx.arc(cx,cy,r,0,Math.PI*2);ctx.stroke();}else values.forEach((value,i)=>{const next=angle+value/total*Math.PI*2;ctx.strokeStyle=colors[i];ctx.beginPath();ctx.arc(cx,cy,r,angle,next);ctx.stroke();angle=next;});ctx.fillStyle='#2f2940';ctx.textAlign='center';ctx.font='700 32px sans-serif';ctx.fillText(total,cx,cy+3);ctx.fillStyle='#81798e';ctx.font='14px sans-serif';ctx.fillText('全部回報',cx,cy+28);}
+ function bars(){const c=document.getElementById('destinationBars'),{ctx,width}=setup(c,300),left=82,right=42,top=22,row=50,max=Math.max(1,...destinations.map(x=>Number(x.total)));ctx.font='14px sans-serif';ctx.textBaseline='middle';destinations.forEach((item,i)=>{const y=top+i*row,w=(width-left-right)*Number(item.total)/max;ctx.fillStyle='#4d4559';ctx.textAlign='right';ctx.fillText(item.city,left-12,y+13);ctx.fillStyle='#eeeaf4';ctx.beginPath();ctx.roundRect(left,y,width-left-right,26,7);ctx.fill();ctx.fillStyle='#6f58a0';ctx.beginPath();ctx.roundRect(left,y,Math.max(w,5),26,7);ctx.fill();ctx.fillStyle='#4d4559';ctx.textAlign='left';ctx.font='700 14px sans-serif';ctx.fillText(item.total,left+w+8,y+13);ctx.font='14px sans-serif';});}
+ function lines(){const c=document.getElementById('growthLines'),{ctx,width,height}=setup(c,330),p={l:46,r:24,t:24,b:48},values=monthly.flatMap(x=>[Number(x.members),Number(x.trips)]),max=Math.max(1,...values),cw=width-p.l-p.r,ch=height-p.t-p.b;ctx.font='12px sans-serif';ctx.strokeStyle='#e8e3ef';ctx.fillStyle='#81798e';ctx.lineWidth=1;for(let s=0;s<=4;s++){const y=p.t+ch*s/4;ctx.beginPath();ctx.moveTo(p.l,y);ctx.lineTo(width-p.r,y);ctx.stroke();ctx.textAlign='right';ctx.fillText(Math.round(max*(1-s/4)),p.l-10,y+4);}const xf=i=>p.l+(monthly.length===1?cw/2:cw*i/(monthly.length-1)),yf=v=>p.t+ch-Number(v)/max*ch;monthly.forEach((x,i)=>{ctx.textAlign='center';ctx.fillText(x.month.slice(5)+'月',xf(i),height-18);});function line(key,color){ctx.strokeStyle=color;ctx.lineWidth=3;ctx.lineJoin='round';ctx.beginPath();monthly.forEach((x,i)=>i?ctx.lineTo(xf(i),yf(x[key])):ctx.moveTo(xf(i),yf(x[key])));ctx.stroke();monthly.forEach((x,i)=>{ctx.fillStyle='#fff';ctx.strokeStyle=color;ctx.beginPath();ctx.arc(xf(i),yf(x[key]),5,0,Math.PI*2);ctx.fill();ctx.stroke();});}line('members','#6f58a0');line('trips','#3e9c91');}
+ function draw(){donut();bars();lines();} draw();let timer;window.addEventListener('resize',()=>{clearTimeout(timer);timer=setTimeout(draw,120);});
+})();
+</script>
 {% endblock %}

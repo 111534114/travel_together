@@ -1,5 +1,5 @@
 import re  # 匯入正規表示式模組，用來驗證註冊欄位格式
-from datetime import datetime  # 匯入 datetime，用來解析住宿搜尋的入住/退房日期字串
+from datetime import datetime, timedelta  # 匯入日期工具，用來解析日期與建立月份統計區間
 from flask import Flask, render_template, request, redirect, url_for, session, flash  # 匯入 Flask 核心功能：建立 App、渲染樣板、取得請求、導向、產生網址、session、顯示訊息
 from mysql.connector import Error  # 匯入 MySQL 連線錯誤類別，用來捕捉資料庫例外
 from werkzeug.security import check_password_hash, generate_password_hash  # 匯入密碼工具：驗證密碼、產生密碼雜湊值
@@ -1201,23 +1201,80 @@ def handle_admin_issue(issue_id):
     if connection is None:
         flash("資料庫連線失敗", "error")
         return redirect(url_for("admin_issues"))
-    cursor = connection.cursor()
+    cursor = connection.cursor(dictionary=True)
     try:
         cursor.execute("""
-            SELECT report_id FROM reports
-            WHERE report_id = %s AND target_type = 'trip' AND reason LIKE %s
+            SELECT r.report_id, r.reporter_id, r.status, r.target_id AS trip_id,
+                   t.owner_id, t.trip_name, t.visibility
+            FROM reports r
+            JOIN trips t ON t.trip_id = r.target_id
+            WHERE r.report_id = %s AND r.target_type = 'trip' AND r.reason LIKE %s
         """, (issue_id, ISSUE_PREFIX + "%"))
-        if not cursor.fetchone():
+        issue = cursor.fetchone()
+        if not issue:
             flash("找不到這筆問題回報。", "error")
             return redirect(url_for("admin_issues"))
+        was_unpublished = False
+        if status == "resolved" and issue["visibility"] == "public":
+            cursor.execute("""
+                UPDATE trips SET visibility = 'private'
+                WHERE trip_id = %s AND visibility = 'public'
+            """, (issue["trip_id"],))
+            was_unpublished = cursor.rowcount > 0
+        elif status == "rejected" and issue["visibility"] != "public":
+            cursor.execute("""
+                UPDATE trips SET visibility = 'public'
+                WHERE trip_id = %s AND visibility != 'public'
+            """, (issue["trip_id"],))
         cursor.execute("""
             UPDATE reports SET status = %s, handling_result = %s, handled_by = %s,
                 handled_at = CASE WHEN %s IN ('resolved', 'rejected') THEN NOW() ELSE NULL END
             WHERE report_id = %s AND target_type = 'trip' AND reason LIKE %s
         """, (status, result or None, session["user_id"], status, issue_id, ISSUE_PREFIX + "%"))
+        if issue["status"] != status:
+            status_text = {
+                "processing": "處理中",
+                "resolved": "已結案",
+                "rejected": "已駁回",
+            }[status]
+            if status == "processing":
+                notification_user_id = issue["owner_id"]
+                title = "問題回報處理中"
+                message = f"管理員正在處理你的公開行程「{issue['trip_name']}」的問題。"
+                target_url = url_for("member.trip_detail", trip_id=issue["trip_id"])
+            elif status == "resolved":
+                notification_user_id = issue["owner_id"]
+                title = "問題回報已結案"
+                message = (
+                    f"你的公開行程「{issue['trip_name']}」問題回報已結案。"
+                    f"處理結果：{result}"
+                )
+                if was_unpublished or issue["visibility"] != "public":
+                    message += " 此行程目前已取消公開。"
+                target_url = url_for("member.trip_detail", trip_id=issue["trip_id"])
+            else:
+                notification_user_id = issue["reporter_id"]
+                title = "你的問題回報已駁回"
+                message = (
+                    f"你對公開行程「{issue['trip_name']}」提出的問題回報已駁回。"
+                    f"處理結果：{result} 此行程目前為公開狀態。"
+                )
+                target_url = url_for("member.dashboard") + "#trips"
+            cursor.execute("""
+                INSERT INTO notifications
+                    (user_id, trip_id, notification_type, title, message, target_url)
+                VALUES (%s, %s, 'system', %s, %s, %s)
+            """, (
+                notification_user_id, issue["trip_id"], title, message, target_url,
+            ))
         log_action(cursor, "handle_issue", "report", issue_id, f"問題回報狀態更新為 {status}")
         connection.commit()
-        flash("問題回報已更新。", "success")
+        if was_unpublished:
+            flash("問題回報已結案，該行程已自動取消公開。", "success")
+        elif status == "rejected":
+            flash("問題回報已駁回，該行程已恢復公開並通知回報會員。", "success")
+        else:
+            flash("問題回報已更新。", "success")
     except Exception as error:
         connection.rollback()
         print("更新問題回報失敗：", error)
@@ -1321,6 +1378,8 @@ def admin_statistics():
               "announcements": 0}
     monthly = []
     trip_statuses = []
+    issue_statuses = []
+    top_destinations = []
     connection = get_db_connection()
     if connection is None:
         flash("資料庫連線失敗", "error")
@@ -1336,20 +1395,62 @@ def admin_statistics():
                   (SELECT COUNT(*) FROM announcements) AS announcements
             """)
             totals.update(cursor.fetchone())
+            month_starts = []
+            month_start = datetime.now().replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+            for _ in range(6):
+                month_starts.append(month_start)
+                month_start = (month_start - timedelta(days=1)).replace(day=1)
+            month_starts.reverse()
+            monthly = [{"month": value.strftime("%Y-%m"), "members": 0, "trips": 0}
+                       for value in month_starts]
+            monthly_by_key = {row["month"]: row for row in monthly}
             cursor.execute("""
                 SELECT DATE_FORMAT(created_at, '%%Y-%%m') AS month, COUNT(*) AS total
-                FROM users WHERE role='member'
+                FROM users
+                WHERE role='member' AND created_at >= %s
                 GROUP BY DATE_FORMAT(created_at, '%%Y-%%m')
-                ORDER BY month DESC LIMIT 6
-            """)
-            monthly = list(reversed(cursor.fetchall()))
+            """, (month_starts[0],))
+            for row in cursor.fetchall():
+                if row["month"] in monthly_by_key:
+                    monthly_by_key[row["month"]]["members"] = row["total"]
+            cursor.execute("""
+                SELECT DATE_FORMAT(created_at, '%%Y-%%m') AS month, COUNT(*) AS total
+                FROM trips
+                WHERE created_at >= %s
+                GROUP BY DATE_FORMAT(created_at, '%%Y-%%m')
+            """, (month_starts[0],))
+            for row in cursor.fetchall():
+                if row["month"] in monthly_by_key:
+                    monthly_by_key[row["month"]]["trips"] = row["total"]
             cursor.execute("SELECT status, COUNT(*) AS total FROM trips GROUP BY status ORDER BY total DESC")
             trip_statuses = cursor.fetchall()
+            cursor.execute("""
+                SELECT status, COUNT(*) AS total
+                FROM reports
+                WHERE target_type='trip' AND reason LIKE %s
+                GROUP BY status
+            """, (ISSUE_PREFIX + "%",))
+            issue_counts = {row["status"]: row["total"] for row in cursor.fetchall()}
+            issue_statuses = [
+                {"status": status, "label": label, "total": issue_counts.get(status, 0)}
+                for status, label in (("pending", "待處理"), ("processing", "處理中"),
+                                      ("resolved", "已結案"), ("rejected", "已駁回"))
+            ]
+            cursor.execute("""
+                SELECT ci.name AS city, COUNT(*) AS total
+                FROM trips t
+                JOIN cities ci ON ci.city_id = t.city_id
+                GROUP BY ci.city_id, ci.name
+                ORDER BY total DESC, ci.name ASC
+                LIMIT 5
+            """)
+            top_destinations = cursor.fetchall()
         finally:
             cursor.close()
             connection.close()
     return render_template("admin_statistics.html", totals=totals, monthly=monthly,
-                           trip_statuses=trip_statuses)
+                           trip_statuses=trip_statuses, issue_statuses=issue_statuses,
+                           top_destinations=top_destinations)
 
 
 @app.route("/system-admin/logs")

@@ -34,6 +34,9 @@
                 <td>
                     <form method="post" action="{{ url_for('handle_admin_issue', issue_id=issue.report_id) }}" class="stack-form">
                         <select name="status" aria-label="處理狀態">
+                            {% if issue.status == 'pending' %}
+                            <option value="" selected disabled>請選擇處理狀態</option>
+                            {% endif %}
                             <option value="processing" {{ 'selected' if issue.status == 'processing' }}>處理中</option>
                             <option value="resolved" {{ 'selected' if issue.status == 'resolved' }}>已結案</option>
                             <option value="rejected" {{ 'selected' if issue.status == 'rejected' }}>已駁回</option>

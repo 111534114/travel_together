@@ -4,10 +4,14 @@
 <script>
     function filterCitiesByCountry() {
         var countryId = document.getElementById('countrySelect').value;
-        var options = document.getElementById('citySelect').querySelectorAll('option[data-country]');
+        var citySelect = document.getElementById('citySelect');
+        var options = citySelect.querySelectorAll('option[data-country]');
         options.forEach(function (option) {
             option.hidden = Boolean(countryId) && option.dataset.country !== countryId;
+            option.disabled = option.hidden;
         });
+        var selected = citySelect.options[citySelect.selectedIndex];
+        if (selected && selected.value && selected.disabled) citySelect.value = '';
     }
     document.getElementById('countrySelect').addEventListener('change', filterCitiesByCountry);
     window.addEventListener('DOMContentLoaded', filterCitiesByCountry);

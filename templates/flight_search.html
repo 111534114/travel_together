@@ -75,19 +75,27 @@
   </style>
 </head>
 <body>
+  {% set is_member = session.get('user_id') and session.get('role') == 'member' %}
   <header class="site-nav">
-    <a class="brand" href="{{ url_for('visitor') }}"><img src="{{ url_for('static', filename='images/logo.png') }}" alt="走吧揪團"></a>
+    <a class="brand" href="{{ url_for('member.dashboard') if is_member else url_for('visitor') }}"><img src="{{ url_for('static', filename='images/logo.png') }}" alt="走吧揪團"></a>
     <nav class="nav-links">
-      <a href="{{ url_for('visitor') }}#announcements">公告事項</a>
-      <a href="{{ url_for('visitor') }}#weather">目的地天氣</a>
-      <a href="{{ url_for('visitor') }}#trips">探索行程</a>
-      <a href="{{ url_for('visitor') }}#companions">尋找旅伴</a>
+      <a href="{{ url_for('member.dashboard') if is_member else url_for('visitor') }}#announcements">公告事項</a>
+      <a href="{{ url_for('member.dashboard') if is_member else url_for('visitor') }}#weather">目的地天氣</a>
+      <a href="{{ url_for('member.dashboard') if is_member else url_for('visitor') }}#trips">探索行程</a>
+      <a href="{{ url_for('member.dashboard') if is_member else url_for('visitor') }}#companions">尋找旅伴</a>
+      {% if is_member %}
+      <a href="{{ url_for('member.dashboard') }}">我的旅程</a>
+      <a href="{{ url_for('member.browse_attractions') }}">探索景點</a>
+      <a href="{{ url_for('member.profile') }}">個人資料</a>
+      <a class="nav-register" href="{{ url_for('logout') }}">登出</a>
+      {% else %}
       <a href="/login">登入</a>
       <a class="nav-register" href="/register">免費註冊</a>
+      {% endif %}
     </nav>
   </header>
   <main>
-    <p class="breadcrumb"><a href="{{ url_for('visitor') }}">← 返回訪客首頁</a></p>
+    <p class="breadcrumb"><a href="{{ url_for('member.dashboard') if is_member else url_for('visitor') }}">{{ '← 返回會員首頁' if is_member else '← 返回訪客首頁' }}</a></p>
     <section class="search-panel">
       <div class="search-tabs" role="tablist">
         <button class="search-tab active" type="button" data-tab="hotel" onclick="switchSearchTab('hotel', this)">住宿</button>

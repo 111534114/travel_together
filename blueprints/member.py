@@ -153,6 +153,11 @@ def _load_balance_summary(cursor, trip_id):
     return cursor.fetchall()
 
 
+def _city_matches_country(cursor, country_id, city_id):
+    cursor.execute("SELECT 1 FROM cities WHERE city_id=%s AND country_id=%s", (city_id, country_id))
+    return cursor.fetchone() is not None
+
+
 def _parse_trip(form):
     values = {
         "trip_name": form.get("trip_name", "").strip(),
@@ -285,6 +290,13 @@ def dashboard():
         """)
         companions = cursor.fetchall()
 
+        cursor.execute("""
+            SELECT target_id FROM reports
+            WHERE reporter_id = %s AND target_type = 'trip' AND reason LIKE %s
+              AND status IN ('pending', 'processing')
+        """, (user_id, ISSUE_PREFIX + "%"))
+        reported_trip_ids = {row["target_id"] for row in cursor.fetchall()}
+
         trips_timeline_json = {}
         if public_trips:
             trip_ids = [trip["trip_id"] for trip in public_trips]
@@ -314,7 +326,7 @@ def dashboard():
                     "budget": (f"{trip['currency']} {trip['total_budget']:,.0f}"
                                if trip["total_budget"] is not None else "未提供預算"),
                     "timeline": timeline,
-                    "can_issue": trip["owner_id"] != user_id,
+                    "can_issue": trip["owner_id"] != user_id and trip["trip_id"] not in reported_trip_ids,
                 }
     finally:
         cursor.close(); connection.close()
@@ -495,6 +507,8 @@ def create_trip():
         cities = get_cities(cursor)
         if request.method == "POST":
             form, errors = _parse_trip(request.form)
+            if not errors and not _city_matches_country(cursor, form["country_id"], form["city_id"]):
+                errors.append("所選城市不屬於該國家，請重新選擇。")
             if errors:
                 for error in errors: flash(error, "error")
                 return render_template("member/trip_form.html", trip=form, mode="create", countries=countries, cities=cities)
@@ -559,6 +573,8 @@ def edit_trip(trip_id):
         cities = get_cities(cursor)
         if request.method == "POST":
             form, errors = _parse_trip(request.form)
+            if not errors and not _city_matches_country(cursor, form["country_id"], form["city_id"]):
+                errors.append("所選城市不屬於該國家，請重新選擇。")
             if errors:
                 for error in errors: flash(error, "error")
                 form["trip_id"] = trip_id; return render_template("member/trip_form.html", trip=form, mode="edit", countries=countries, cities=cities)

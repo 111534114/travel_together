@@ -135,12 +135,18 @@ body {
 
 .admin-sidebar {
     width: 250px;
-    background: #ffffff;
+    min-height: 100vh;
+    height: 100vh;
+    position: sticky;
+    top: 0;
+    display: flex;
+    flex-direction: column;
+    background: linear-gradient(180deg, #ffffff 0%, #fbf9fe 100%);
     color: #443463;
-    padding: 25px 18px;
+    padding: 24px 18px 20px;
     box-sizing: border-box;
     border-right: 1px solid #e8e3ef;
-    box-shadow: 4px 0 16px rgba(68, 52, 99, 0.06);
+    box-shadow: 8px 0 28px rgba(68, 52, 99, 0.07);
 }
 
 
@@ -186,29 +192,78 @@ body {
 
 
 .admin-menu {
-    margin-top: 25px;
+    display: flex;
+    flex: 1;
+    flex-direction: column;
+    gap: 6px;
+    margin-top: 22px;
+}
+
+.admin-menu::before {
+    content: "管理選單";
+    display: block;
+    margin: 0 10px 8px;
+    color: #9a90aa;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: .14em;
 }
 
 
 .admin-menu a {
-    display: block;
-    padding: 14px 15px;
-    margin-bottom: 8px;
-
+    position: relative;
+    display: flex;
+    align-items: center;
+    min-height: 46px;
+    padding: 0 16px;
     color: #443463;
-
     text-decoration: none;
-
-    border-radius: 9px;
-
-    transition: 0.2s;
+    border: 1px solid transparent;
+    border-radius: 12px;
+    box-sizing: border-box;
+    font-size: 15px;
+    font-weight: 600;
+    transition: background .18s ease, border-color .18s ease, color .18s ease, transform .18s ease, box-shadow .18s ease;
 }
 
 
-.admin-menu a:hover,
-.admin-menu a.active {
-    background: #eee9f8;
+.admin-menu a:hover {
+    background: #f2eef8;
+    border-color: #e5ddf1;
     color: #443463;
+    transform: translateX(3px);
+}
+
+.admin-menu a.active {
+    padding-left: 20px;
+    background: linear-gradient(135deg, #ede7f7 0%, #e4daf3 100%);
+    border-color: #ddd1ed;
+    color: #4f3977;
+    box-shadow: 0 7px 18px rgba(95, 75, 139, .13);
+    font-weight: 800;
+}
+
+.admin-menu a.active::before {
+    content: "";
+    position: absolute;
+    left: 8px;
+    width: 4px;
+    height: 22px;
+    background: #6f58a0;
+    border-radius: 999px;
+}
+
+.admin-menu a:last-child {
+    margin-top: auto;
+    border-top: 1px solid #e8e3ef;
+    border-radius: 0;
+    color: #776b86;
+}
+
+.admin-menu a:last-child:hover {
+    background: #f5f1f8;
+    border-color: #e8e3ef;
+    border-radius: 10px;
 }
 
 

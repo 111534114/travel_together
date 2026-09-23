@@ -41,55 +41,55 @@
             <a class="active"
                href="{{ url_for('system_admin_home') }}">
 
-                📊 主畫面
+                主畫面
 
             </a>
 
 
             <a href="{{ url_for('admin_users') }}">
 
-                👤 帳號管理
+                帳號管理
 
             </a>
 
 
             <a href="{{ url_for('admin_public_trips') }}">
 
-                🧳 公開行程管理
+                公開行程管理
 
             </a>
 
             <a href="{{ url_for('admin_issues') }}">
 
-                📨 問題回報
+                問題回報
 
             </a>
 
 
             <a href="{{ url_for('admin_announcements') }}">
 
-                📢 公告管理
+                公告管理
 
             </a>
 
 
             <a href="{{ url_for('admin_statistics') }}">
 
-                📈 統計報表
+                統計報表
 
             </a>
 
 
             <a href="{{ url_for('admin_logs') }}">
 
-                📝 操作紀錄
+                操作紀錄
 
             </a>
 
 
             <a href="{{ url_for('logout') }}">
 
-                🚪 登出
+                登出
 
             </a>
 
@@ -124,7 +124,7 @@
         <div class="dashboard-cards">
 
 
-            <div class="dashboard-card">
+            <a class="dashboard-card" href="{{ url_for('admin_users') }}" aria-label="前往帳號管理查看會員">
 
                 <div class="card-icon">
                     👤
@@ -138,10 +138,10 @@
 
                 </div>
 
-            </div>
+            </a>
 
 
-            <div class="dashboard-card">
+            <a class="dashboard-card" href="{{ url_for('admin_users') }}" aria-label="前往帳號管理查看內容管理員">
 
                 <div class="card-icon">
                     🧭
@@ -155,10 +155,10 @@
 
                 </div>
 
-            </div>
+            </a>
 
 
-            <div class="dashboard-card">
+            <a class="dashboard-card" href="{{ url_for('admin_public_trips') }}" aria-label="前往公開行程管理查看行程">
 
                 <div class="card-icon">
                     ✈️
@@ -172,10 +172,10 @@
 
                 </div>
 
-            </div>
+            </a>
 
 
-            <div class="dashboard-card">
+            <a class="dashboard-card" href="{{ url_for('admin_public_trips') }}" aria-label="前往公開行程管理">
 
                 <div class="card-icon">
                     🌍
@@ -189,12 +189,12 @@
 
                 </div>
 
-            </div>
+            </a>
 
-            <div class="dashboard-card">
+            <a class="dashboard-card" href="{{ url_for('admin_issues', status='pending') }}" aria-label="前往待處理問題回報">
                 <div class="card-icon">📨</div>
                 <div><p>待處理問題回報</p><h2>{{ issue_count }}</h2></div>
-            </div>
+            </a>
 
 
         </div>
@@ -210,7 +210,7 @@
                 <h2>最近加入會員</h2>
 
 
-                <a href="{{ url_for('admin_public_trips') }}"
+                <a href="{{ url_for('admin_users') }}"
                    class="small-button">
 
                     查看全部

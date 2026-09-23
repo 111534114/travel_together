@@ -16,7 +16,7 @@
         <h2>{{ user.nickname or user.full_name }}</h2>
         <span>@{{ user.username }}</span>
       </div>
-      <span class="account-status">帳號正常</span>
+      <span class="account-status{% if user.status != 'active' %} disabled{% endif %}">{{ user.status_label }}</span>
     </div>
 
     <form method="post" class="profile-form">
@@ -27,7 +27,7 @@
         <label>暱稱<input name="nickname" value="{{ user.nickname or '' }}" placeholder="輸入顯示名稱"></label>
         <label>電子郵件<input name="email" type="email" required value="{{ user.email }}"></label>
       </div>
-      <div class="profile-meta"><span>加入日期　{{ user.created_at.strftime('%Y 年 %m 月 %d 日') }}</span><span>帳號狀態　{{ user.status }}</span></div>
+      <div class="profile-meta"><span>加入日期　{{ user.created_at.strftime('%Y 年 %m 月 %d 日') }}</span><span>帳號狀態　{{ user.status_label }}</span></div>
       <div class="profile-actions"><a class="member-btn outline" href="{{ url_for('member.change_password') }}">修改密碼</a><button class="member-btn primary">儲存變更</button></div>
     </form>
   </section>

@@ -5,7 +5,7 @@ import random  # 匯入 random，用來隨機挑選不同句型，避免自動�
 import socket
 import uuid  # 匯入 uuid，用來產生不重複的檔名
 import csv  # 匯入 csv，用來寫出 CSV 格式的內容
-from urllib.parse import parse_qs, urljoin, urlparse  # 匯入網址解析工具，用來拆解 Google 圖片檢視頁網址
+from urllib.parse import parse_qs, quote_plus, urljoin, urlparse  # 匯入網址解析工具，用來拆解 Google 圖片檢視頁網址、組出地圖搜尋網址
 
 import requests  # 匯入 requests，用來下載網路上的圖片
 from flask import Response, current_app  # 匯入 Response(組成檔案下載回應)、current_app(取得目前執行中的 Flask 應用程式)
@@ -206,6 +206,30 @@ def delete_uploaded_image(relative_path):  # 定義刪除已上傳圖片的函�
             os.remove(full_path)  # 從硬碟刪除圖片檔案
         except OSError:  # 如果刪除過程發生系統錯誤(例如檔案被占用)
             pass  # 不中斷程式，直接略過(圖片頂多變成孤兒檔案，不影響資料庫資料)
+
+
+def google_maps_url(address=None, latitude=None, longitude=None):  # 定義函式：組出可以直接開啟 Google 地圖的搜尋網址，優先用經緯度(較精準)，沒有經緯度才退而求其次用地址文字搜尋
+    if latitude is not None and longitude is not None:  # 如果有經緯度資料(目前只有景點會填，比地址文字搜尋更精準)
+        return f"https://www.google.com/maps/search/?api=1&query={latitude},{longitude}"  # 直接用座標查詢
+
+    address = (address or "").strip()  # 去除地址頭尾空白
+
+    if not address:  # 如果連地址都沒有
+        return None  # 回傳 None，模板端不顯示地圖連結
+
+    return f"https://www.google.com/maps/search/?api=1&query={quote_plus(address)}"  # 用地址文字查詢(需要做 URL 編碼，避免中文、空白等字元讓網址失效)
+
+
+def google_maps_embed_url(address=None, latitude=None, longitude=None, zoom=16):  # 定義函式：組出可以放進 <iframe> 顯示縮圖地圖的網址，不需要 Google API 金鑰、不會產生費用
+    if latitude is not None and longitude is not None:  # 如果有經緯度資料，用座標定位(較精準)
+        query = f"{latitude},{longitude}"
+    else:
+        address = (address or "").strip()  # 去除地址頭尾空白
+        if not address:  # 連地址都沒有就不顯示地圖
+            return None
+        query = address
+
+    return f"https://maps.google.com/maps?q={quote_plus(query)}&z={zoom}&output=embed"  # 用 output=embed 這個免金鑰的嵌入格式(Google 沒有正式文件保證，但長年穩定被廣泛使用)
 
 
 def get_countries(cursor):  # 定義取得所有國家清單的共用函式，cursor 是已開啟的資料庫游標

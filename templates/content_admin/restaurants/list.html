@@ -105,7 +105,11 @@
                         <div class="thumb-placeholder">無圖片</div>
                     {% endif %}
                 </td>
-                <td>{{ restaurant.name }}</td>
+                <td>
+                    {{ restaurant.name }}
+                    {% set map_url = google_maps_url(restaurant.address) %}
+                    {% if map_url %}<a href="{{ map_url }}" target="_blank" rel="noopener" class="map-link">🗺️ 地圖</a>{% endif %}
+                </td>
                 <td>{{ restaurant.category_name or '-' }}</td>
                 <td>{{ restaurant.cuisine_type or '-' }}</td>
                 <td>{{ restaurant.price_level }}</td>

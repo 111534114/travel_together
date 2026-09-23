@@ -1,0 +1,49 @@
+{% extends 'member/base.html' %}{% block title %}{{ a.name }}｜走吧揪團{% endblock %}{% block content %}
+<div class="trip-form-page">
+    <div class="page-heading trip-form-heading">
+        <a href="{{ url_for('member.browse_attractions') }}">← 返回探索景點</a>
+    </div>
+    <div class="panel">
+        <div class="attraction-hero">
+            {% if a.image_path %}
+                <img src="{{ url_for('static', filename=a.image_path) }}" alt="{{ a.name }}">
+            {% else %}
+                <span class="art-fallback">{{ a.name[:1] }}</span>
+            {% endif %}
+            <form method="post" action="{{ url_for('member.toggle_favorite', attraction_id=a.attraction_id) }}" class="favorite-form">
+                <input type="hidden" name="next" value="{{ request.full_path }}">
+                <button type="submit" class="favorite-btn {{ 'is-favorited' if a.is_favorited else '' }}" title="{{ '取消收藏' if a.is_favorited else '收藏景點' }}">{{ '♥' if a.is_favorited else '♡' }}</button>
+            </form>
+        </div>
+
+        <p class="attraction-detail-breadcrumb">{{ a.country }} · {{ a.city }}{% if a.category_name %} · {{ a.category_name }}{% endif %}</p>
+        <h1>{{ a.name }}</h1>
+
+        <div class="attraction-detail-stats">
+            <div><span>票價</span><strong>{{ 'NT$ {:,.0f}'.format(a.ticket_price) if a.ticket_price else '免費' }}</strong></div>
+            <div><span>營業時間</span><strong>{{ a.opening_hours or '未提供' }}</strong></div>
+            <div><span>建議停留時間</span><strong>{{ (a.suggested_duration_minutes ~ ' 分鐘') if a.suggested_duration_minutes else '未提供' }}</strong></div>
+        </div>
+
+        <div class="attraction-detail-location">
+            <span>📍 {{ a.address or '地址未提供' }}</span>
+            {% set map_url = google_maps_url(a.address, a.latitude, a.longitude) %}
+            {% if map_url %}<a href="{{ map_url }}" target="_blank" rel="noopener" class="member-btn light">🗺️ 在 Google 地圖上查看</a>{% endif %}
+        </div>
+
+        {% set embed_url = google_maps_embed_url(a.address, a.latitude, a.longitude) %}
+        {% if embed_url %}
+        <div class="attraction-map-embed">
+            <iframe src="{{ embed_url }}" loading="lazy" referrerpolicy="no-referrer-when-downgrade" allowfullscreen></iframe>
+        </div>
+        {% endif %}
+
+        <div class="attraction-detail-intro">
+            <h2>景點介紹</h2>
+            <p>{{ a.description or '這個景點還沒有介紹。' }}</p>
+        </div>
+
+        {% if a.website_url %}<a href="{{ a.website_url }}" target="_blank" rel="noopener" class="member-btn ghost">官方網站</a>{% endif %}
+    </div>
+</div>
+{% endblock %}

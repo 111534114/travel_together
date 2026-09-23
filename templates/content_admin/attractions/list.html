@@ -106,7 +106,11 @@
                         <div class="thumb-placeholder">無圖片</div>
                     {% endif %}
                 </td>
-                <td>{{ attraction.name }}{% if attraction.is_popular %} ⭐{% endif %}</td>
+                <td>
+                    {{ attraction.name }}{% if attraction.is_popular %} ⭐{% endif %}
+                    {% set map_url = google_maps_url(attraction.address, attraction.latitude, attraction.longitude) %}
+                    {% if map_url %}<a href="{{ map_url }}" target="_blank" rel="noopener" class="map-link">🗺️ 地圖</a>{% endif %}
+                </td>
                 <td>{{ attraction.category_name or '-' }}</td>
                 <td>{{ attraction.country_name }} / {{ attraction.city_name }}</td>
                 <td>{{ attraction.ticket_price }}</td>

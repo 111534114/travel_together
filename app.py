@@ -17,6 +17,7 @@ from blueprints.logs import logs_bp  # 匯入操作紀錄查詢的藍圖
 from blueprints.ai_chat import ai_chat_bp  # 匯入 AI 助理對話的藍圖
 from blueprints.member import ISSUE_PREFIX, member_bp  # 匯入會員功能的藍圖
 from activity_log import ACTION_LABELS, log_action
+from utils import google_maps_url, google_maps_embed_url  # 匯入組 Google 地圖連結/嵌入縮圖地圖的共用函式，註冊成樣板全域函式讓所有頁面都能直接呼叫
 import weather  # 匯入中央氣象署天氣預報模組(訪客頁面「目的地天氣」功能用)
 
 app = Flask(__name__)  # 建立 Flask 應用程式實例
@@ -26,6 +27,9 @@ app.secret_key = "travel-together-secret-key"  # 設定 session 加密金鑰，�
 
 # 上傳圖片大小限制（8MB）
 app.config["MAX_CONTENT_LENGTH"] = 8 * 1024 * 1024  # 限制單次請求上傳資料的最大位元組數為 8MB
+
+app.jinja_env.globals["google_maps_url"] = google_maps_url  # 註冊成樣板全域函式，任何頁面都能直接用 google_maps_url(...) 組地圖連結
+app.jinja_env.globals["google_maps_embed_url"] = google_maps_embed_url  # 註冊成樣板全域函式，任何頁面都能直接用 google_maps_embed_url(...) 組嵌入縮圖地圖的網址
 
 app.register_blueprint(attractions_bp)  # 註冊景點管理路由
 app.register_blueprint(restaurants_bp)  # 註冊餐廳管理路由

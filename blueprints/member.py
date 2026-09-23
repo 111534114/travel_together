@@ -446,7 +446,7 @@ def browse_attractions():
 
         where_clause = " AND ".join(conditions)
         cursor.execute(f"""
-            SELECT a.attraction_id, a.name, a.address, a.ticket_price, a.image_path,
+            SELECT a.attraction_id, a.name, a.address, a.latitude, a.longitude, a.ticket_price, a.image_path,
                    cat.category_name, co.name AS country, ci.name AS city,
                    (f.favorite_id IS NOT NULL) AS is_favorited
             FROM attractions a
@@ -465,6 +465,34 @@ def browse_attractions():
 
     return render_template("member/attractions.html", attractions=attractions, countries=countries, cities=cities,
                             keyword=keyword, country_id=country_id, city_id=city_id, favorites_only=favorites_only)
+
+
+@member_bp.route("/attractions/<int:attraction_id>")
+@login_required("member")
+def attraction_detail(attraction_id):
+    connection = _connection_or_home()
+    if connection is None: return redirect(url_for("member.browse_attractions"))
+    cursor = connection.cursor(dictionary=True)
+    try:
+        cursor.execute("""
+            SELECT a.*, cat.category_name, co.name AS country, ci.name AS city,
+                   (f.favorite_id IS NOT NULL) AS is_favorited
+            FROM attractions a
+            LEFT JOIN categories cat ON cat.category_id = a.category_id
+            JOIN countries co ON co.country_id = a.country_id
+            JOIN cities ci ON ci.city_id = a.city_id
+            LEFT JOIN favorites f ON f.attraction_id = a.attraction_id AND f.user_id = %s
+            WHERE a.attraction_id = %s AND a.status = 'active' AND a.deleted_at IS NULL
+        """, (session["user_id"], attraction_id))
+        attraction = cursor.fetchone()
+    finally:
+        cursor.close(); connection.close()
+
+    if not attraction:
+        flash("找不到這個景點，或已被下架。", "error")
+        return redirect(url_for("member.browse_attractions"))
+
+    return render_template("member/attraction_detail.html", a=attraction)
 
 
 @member_bp.route("/attractions/<int:attraction_id>/favorite", methods=["POST"])

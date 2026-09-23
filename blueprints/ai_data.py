@@ -11,18 +11,45 @@ TYPE_CONFIG = {  # 定義每種資料類型對應的資料表名稱、主鍵欄�
         "table": "attractions",  # 景點資料表名稱
         "pk": "attraction_id",  # 景點主鍵欄位名稱
         "label": "景點",  # 中文標籤
+        "check_fields": [  # 自動審核要檢查「是否有填」的欄位，及顯示用的中文名稱
+            ("address", "地址"),
+            ("opening_hours", "營業時間"),
+            ("description", "介紹"),
+            ("image_path", "圖片"),
+        ],
     },
     "restaurant": {
         "table": "restaurants",  # 餐廳資料表名稱
         "pk": "restaurant_id",  # 餐廳主鍵欄位名稱
         "label": "餐廳",  # 中文標籤
+        "check_fields": [
+            ("address", "地址"),
+            ("opening_hours", "營業時間"),
+            ("description", "介紹"),
+            ("image_path", "圖片"),
+        ],
     },
     "accommodation": {
         "table": "accommodations",  # 住宿資料表名稱
         "pk": "accommodation_id",  # 住宿主鍵欄位名稱
         "label": "住宿",  # 中文標籤
+        "check_fields": [
+            ("address", "地址"),
+            ("description", "介紹"),
+            ("image_path", "圖片"),
+            ("accommodation_type", "住宿類型"),
+        ],
     },
 }
+
+
+def _missing_fields(row, check_fields):  # 檢查一筆資料哪些欄位是空的，回傳缺少欄位的中文名稱清單
+    missing = []  # 準備存放缺少欄位的中文名稱
+    for column, label in check_fields:  # 逐一檢查每個要求的欄位
+        value = row.get(column)  # 取得該欄位目前的值
+        if value is None or (isinstance(value, str) and not value.strip()):  # 空值或空白字串都算沒填
+            missing.append(label)  # 記錄缺少的欄位中文名稱
+    return missing  # 回傳缺少欄位清單(空清單代表資料完整)
 
 
 @ai_data_bp.route("/")  # 設定 AI 資料維護頁路由
@@ -56,12 +83,13 @@ def list_ai_data():  # 定義 AI 資料維護頁函式
             params.append(f"%{keyword}%")  # 加入對應參數
 
         where_clause = "WHERE " + " AND ".join(conditions)  # 把所有條件組成 WHERE 子句
+        check_columns = ", ".join(f"t.{column}" for column, _label in config["check_fields"])  # 組出自動審核要用的欄位清單
 
         cursor.execute(  # 查詢該類型符合條件的資料，關聯國家、城市名稱及最後確認人姓名，未確認的排最前面
             f"""
             SELECT t.{config['pk']} AS item_id, t.name, t.updated_at,
                    t.ai_verified_at, co.name AS country_name, ci.name AS city_name,
-                   v.full_name AS verified_by_name
+                   v.full_name AS verified_by_name, {check_columns}
             FROM {config['table']} t
             JOIN countries co ON co.country_id = t.country_id
             JOIN cities ci ON ci.city_id = t.city_id
@@ -72,6 +100,43 @@ def list_ai_data():  # 定義 AI 資料維護頁函式
             params
         )
         items = cursor.fetchall()  # 取出資料清單
+
+        auto_verified_ids = []  # 記錄這次自動審核通過、要標記已確認的資料 ID
+        for item in items:  # 逐筆檢查尚未確認的資料是否已經填寫完整
+            if item["ai_verified_at"] is not None:  # 已經確認過(不論人工或系統)就不用再檢查
+                item["missing_fields"] = []  # 已確認資料不顯示缺漏欄位
+                continue
+            missing = _missing_fields(item, config["check_fields"])  # 檢查這筆資料缺少哪些欄位
+            item["missing_fields"] = missing  # 存到這筆資料上，模板要顯示缺少什麼
+            if not missing:  # 資料填寫完整 -> 系統自動審核通過
+                auto_verified_ids.append(item["item_id"])  # 記下這筆的 ID，等等一次寫入資料庫
+
+        if auto_verified_ids:  # 如果有資料這次要被系統自動審核通過
+            write_cursor = connection.cursor()  # 另開一個一般游標執行更新
+            for item_id in auto_verified_ids:  # 逐筆把系統自動審核結果寫入資料庫
+                write_cursor.execute(  # 標記為已確認，確認人留空代表是系統自動審核，而非人工點擊
+                    f"""
+                    UPDATE {config['table']}
+                    SET ai_verified_at = NOW(), ai_verified_by = NULL
+                    WHERE {config['pk']} = %s
+                    """,
+                    (item_id,)
+                )
+                log_action(  # 把系統自動審核動作寫入操作紀錄
+                    write_cursor, "auto_verify_ai_data", item_type, item_id,
+                    f"系統自動審核通過{config['label']}資料(欄位皆已填寫)"
+                )
+            connection.commit()  # 一次提交所有自動審核結果
+            write_cursor.close()  # 關閉寫入用游標
+
+            cursor.execute(  # 重新查詢確認時間，讓畫面顯示剛剛系統自動審核的時間
+                f"SELECT {config['pk']} AS item_id, ai_verified_at FROM {config['table']} WHERE {config['pk']} IN ({','.join(['%s'] * len(auto_verified_ids))})",
+                auto_verified_ids
+            )
+            refreshed = {row["item_id"]: row["ai_verified_at"] for row in cursor.fetchall()}  # 建立 ID 對應最新確認時間的字典
+            for item in items:  # 把最新的確認時間更新回原本要顯示的清單
+                if item["item_id"] in refreshed:  # 如果這筆是這次自動審核的資料
+                    item["ai_verified_at"] = refreshed[item["item_id"]]  # 更新顯示用的確認時間
 
     finally:  # 不論成功或失敗都要執行
         cursor.close()  # 關閉游標

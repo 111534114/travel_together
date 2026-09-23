@@ -155,7 +155,7 @@
             </div>
             <div class="hotel-content">
               <h3>{{ hotel.name }}</h3>
-              <p class="location">{{ hotel.country_name or '未設定國家' }}{% if hotel.city_name %} · {{ hotel.city_name }}{% endif %}{% if hotel.address %} · {{ hotel.address }}{% endif %}</p>
+              <p class="location">{{ hotel.country_name or '未設定國家' }}{% if hotel.city_name %} · {{ hotel.city_name }}{% endif %}{% if hotel.address %} · {{ hotel.address }}{% endif %}{% set map_url = google_maps_url(hotel.address) %}{% if map_url %} <a href="{{ map_url }}" target="_blank" rel="noopener" class="map-link">🗺️ 地圖</a>{% endif %}</p>
               {% if hotel.description %}<p class="hotel-desc">{{ hotel.description }}</p>{% endif %}
               <div class="hotel-details">
                 {% if hotel.check_in_time %}<span>入住 {{ hotel.check_in_time }}</span>{% endif %}

@@ -165,7 +165,7 @@ def list_attractions():  # 定義景點列表頁函式
 
         cursor.execute(  # 查詢當頁的景點資料，並關聯分類、國家、城市名稱
             f"""
-            SELECT a.attraction_id, a.name, a.address, a.ticket_price,
+            SELECT a.attraction_id, a.name, a.address, a.latitude, a.longitude, a.ticket_price,
                    a.suggested_duration_minutes, a.image_path, a.status,
                    a.is_popular, a.ai_verified_at,
                    cat.category_name, co.name AS country_name, ci.name AS city_name

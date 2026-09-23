@@ -3,7 +3,7 @@
 
 {% block title %}AI使用資料維護｜Travel Together{% endblock %}
 {% block page_title %}AI使用資料維護{% endblock %}
-{% block page_subtitle %}更新提供AI排行程使用的景點、餐廳、住宿資訊，標記資料確認日期{% endblock %}
+{% block page_subtitle %}系統會自動檢查資料是否填寫完整，完整的會自動標記已確認；不完整的會列出缺少欄位，需要人工補齊或手動確認{% endblock %}
 
 {% block content %}
 
@@ -52,9 +52,18 @@
                         <span class="status-active">{{ item.ai_verified_at }}</span>
                     {% else %}
                         <span class="status-pending">尚未確認</span>
+                        {% if item.missing_fields %}
+                            <div class="ai-missing-fields">缺少：{{ item.missing_fields|join('、') }}</div>
+                        {% endif %}
                     {% endif %}
                 </td>
-                <td>{{ item.verified_by_name or '-' }}</td>
+                <td>
+                    {% if item.ai_verified_at and not item.verified_by_name %}
+                        <span class="ai-auto-badge">🤖 系統自動審核</span>
+                    {% else %}
+                        {{ item.verified_by_name or '-' }}
+                    {% endif %}
+                </td>
                 <td>
                     <form method="POST" action="{{ url_for('ai_data.verify_item', item_type=item_type, item_id=item.item_id, keyword=keyword) }}" class="inline-form">
                         <button type="submit" class="small-button">標記今日已確認</button>

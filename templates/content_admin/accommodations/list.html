@@ -106,7 +106,11 @@
                         <div class="thumb-placeholder">無圖片</div>
                     {% endif %}
                 </td>
-                <td>{{ accommodation.name }}</td>
+                <td>
+                    {{ accommodation.name }}
+                    {% set map_url = google_maps_url(accommodation.address) %}
+                    {% if map_url %}<a href="{{ map_url }}" target="_blank" rel="noopener" class="map-link">🗺️ 地圖</a>{% endif %}
+                </td>
                 <td>{{ accommodation.category_name or '-' }}</td>
                 <td>{{ accommodation.accommodation_type or '-' }}</td>
                 <td>{{ accommodation.price_per_night }}</td>

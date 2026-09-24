@@ -42,7 +42,6 @@
 
         <div class="dashboard-cards public-trip-stats">
             <div class="dashboard-card">
-                <div class="card-icon">🌍</div>
                 <div><p>目前公開</p><h2>{{ public_count }}</h2></div>
             </div>
         </div>
@@ -60,7 +59,7 @@
                     <option value="completed" {{ 'selected' if trip_status == 'completed' }}>已完成</option>
                     <option value="cancelled" {{ 'selected' if trip_status == 'cancelled' }}>已取消</option>
                 </select>
-                <button type="submit">🔍 搜尋</button>
+                <button type="submit">搜尋</button>
                 {% if keyword or trip_status %}
                     <a href="{{ url_for('admin_public_trips') }}">清除篩選</a>
                 {% endif %}

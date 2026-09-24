@@ -1826,6 +1826,100 @@ body {
 .vote-bar-fill.disagree { background: #d03b3b; }
 .vote-bar-fill.neutral { background: #898781; }
 .vote-bar-fill.option { background: #5f4b8b; }
+.vote-bar-fill.pref { background: #5f4b8b; }
+
+.pref-note {
+    padding: 12px 16px;
+    margin-bottom: 20px;
+    color: #6b5f80;
+    background: #f5f2fb;
+    border: 1px dashed #cbb9e8;
+    border-radius: 8px;
+    font-size: 13px;
+    line-height: 1.6;
+}
+
+.pref-tags {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin: 0 0 18px;
+}
+
+.pref-tag {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 8px 14px;
+    background: #f5f6fa;
+    border: 1px solid #e5e1ec;
+    border-radius: 999px;
+    color: #443d54;
+    font-size: 14px;
+    font-weight: 500;
+    cursor: pointer;
+}
+
+.pref-tag input {
+    width: auto;
+    margin: 0;
+}
+
+.pref-tag:has(input:checked) {
+    color: #5f4b8b;
+    background: #f0edf7;
+    border-color: #5f4b8b;
+    font-weight: 700;
+}
+
+.pref-stat-block {
+    margin-bottom: 24px;
+}
+
+.pref-stat-block h4 {
+    margin: 0 0 10px;
+    font-size: 15px;
+    color: #443d54;
+}
+
+.pref-list-tags {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
+.pref-list-tags span {
+    padding: 6px 12px;
+    color: #5f4b8b;
+    background: #f0edf7;
+    border-radius: 999px;
+    font-size: 13px;
+}
+
+.consensus-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    padding: 12px 0;
+    border-bottom: 1px solid #ece9f1;
+}
+
+.consensus-score {
+    color: #5f4b8b;
+    font-weight: 700;
+    font-size: 18px;
+}
+
+.fairness-card {
+    padding: 18px 20px;
+    color: #6b5836;
+    background: #fff8e8;
+    border: 1px solid #f0dca8;
+    border-radius: 8px;
+    font-size: 14px;
+    line-height: 1.7;
+}
 
 .vote-cast-form {
     display: flex;

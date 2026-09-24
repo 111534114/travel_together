@@ -1,6 +1,19 @@
 {% extends 'member/base.html' %}{% block title %}{{ '編輯' if mode=='edit' else '建立' }}行程｜走吧揪團{% endblock %}{% block content %}
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.1/cropper.min.css">
 <div class="trip-form-page"><div class="page-heading trip-form-heading"><a href="{{ url_for('member.dashboard') }}">← 返回我的旅程</a><h1>{{ '編輯旅程' if mode=='edit' else '建立一趟新旅程' }}</h1><p>先填寫基本資訊，之後可以邀請旅伴並一起完善行程。</p></div>
-<form class="member-form trip-form" method="post" enctype="multipart/form-data"><div class="form-grid-member"><label class="span-2">封面圖片{% if trip and trip.cover_image_path %}<img src="{{ url_for('static', filename=trip.cover_image_path) }}" alt="目前封面" style="display:block;max-width:240px;margin:6px 0 10px;border-radius:8px;">{% endif %}<input type="file" name="cover_image" accept="image/*">{% if trip and trip.cover_image_path %}<label style="display:flex;align-items:center;gap:6px;margin-top:8px;font-weight:normal;"><input type="checkbox" name="remove_cover" value="1" style="width:auto;">移除目前封面</label>{% endif %}</label><label>行程名稱<input name="trip_name" required value="{{ trip.trip_name if trip else '' }}" placeholder="例如：東京賞櫻五日遊"></label><label>旅遊人數<input name="people_count" type="number" min="1" required value="{{ trip.people_count if trip else 1 }}"></label><label>目的地國家<select id="countrySelect" name="country_id" required><option value="">請選擇國家</option>{% for country in countries %}<option value="{{ country.country_id }}" {{ 'selected' if trip and trip.country_id|string == country.country_id|string else '' }}>{{ country.name }}</option>{% endfor %}</select></label><label>目的地城市<select id="citySelect" name="city_id" required><option value="">請選擇城市</option>{% for city in cities %}<option value="{{ city.city_id }}" data-country="{{ city.country_id }}" {{ 'selected' if trip and trip.city_id|string == city.city_id|string else '' }}>{{ city.name }}</option>{% endfor %}</select></label><label>開始日期<input name="start_date" type="date" required value="{{ trip.start_date if trip else '' }}"></label><label>結束日期<input name="end_date" type="date" required value="{{ trip.end_date if trip else '' }}"></label><label>團體總預算<input name="total_budget" type="number" min="0" step="1" value="{{ trip.total_budget if trip else 0 }}"></label><label>幣別<select name="currency">{% for c in ['TWD','JPY','USD','KRW','EUR'] %}<option value="{{ c }}" {{ 'selected' if trip and trip.currency==c else '' }}>{{ c }}</option>{% endfor %}</select></label><label class="span-2">公開狀態<select name="visibility"><option value="private" {{ 'selected' if trip and trip.visibility=='private' else '' }}>私人：僅限旅程成員</option><option value="link_only" {{ 'selected' if trip and trip.visibility=='link_only' else '' }}>連結限定：持有連結者可查看</option><option value="public" {{ 'selected' if trip and trip.visibility=='public' else '' }}>公開：所有人可查看</option></select></label><label class="span-2">行程介紹<textarea name="introduction" rows="5" placeholder="寫下這趟旅行的期待與重點…">{{ trip.introduction if trip else '' }}</textarea></label></div><div class="form-actions-member"><a class="member-btn ghost" href="{{ url_for('member.dashboard') }}">取消</a><button class="member-btn primary" type="submit">{{ '儲存變更' if mode=='edit' else '建立行程' }}</button></div></form></div>
+<form class="member-form trip-form" method="post" enctype="multipart/form-data"><div class="form-grid-member"><label class="span-2">封面圖片{% if trip and trip.cover_image_path %}<img src="{{ url_for('static', filename=trip.cover_image_path) }}" alt="目前封面" style="display:block;max-width:240px;margin:6px 0 10px;border-radius:8px;">{% endif %}<input id="coverImageInput" type="file" name="cover_image" accept="image/*"><span class="form-hint">支援 png、jpg、jpeg、gif、webp，檔案大小需在 5MB 以內；建議上傳寬幅（橫式）照片，直式或正方形照片放到封面框會被裁掉大部分內容</span><img id="coverImagePreview" alt="封面預覽" style="display:none;max-width:240px;margin-top:10px;border-radius:8px;"><p id="coverImageWarning" class="form-hint" style="display:none;color:#a52d2d;"></p><button id="cropTriggerBtn" type="button" class="member-btn primary" style="display:none;align-self:flex-start;margin-top:10px;">裁切這張照片</button>{% if trip and trip.cover_image_path %}<label style="display:flex;align-items:center;gap:6px;margin-top:8px;font-weight:normal;"><input type="checkbox" name="remove_cover" value="1" style="width:auto;">移除目前封面</label>{% endif %}</label><label>行程名稱<input name="trip_name" required value="{{ trip.trip_name if trip else '' }}" placeholder="例如：東京賞櫻五日遊"></label><label>旅遊人數<input name="people_count" type="number" min="1" required value="{{ trip.people_count if trip else 1 }}"></label><label>目的地國家<select id="countrySelect" name="country_id" required><option value="">請選擇國家</option>{% for country in countries %}<option value="{{ country.country_id }}" {{ 'selected' if trip and trip.country_id|string == country.country_id|string else '' }}>{{ country.name }}</option>{% endfor %}</select></label><label>目的地城市<select id="citySelect" name="city_id" required><option value="">請選擇城市</option>{% for city in cities %}<option value="{{ city.city_id }}" data-country="{{ city.country_id }}" {{ 'selected' if trip and trip.city_id|string == city.city_id|string else '' }}>{{ city.name }}</option>{% endfor %}</select></label><label>開始日期<input id="startDateInput" name="start_date" type="date" required value="{{ trip.start_date if trip else '' }}"></label><label>結束日期<input id="endDateInput" name="end_date" type="date" required value="{{ trip.end_date if trip else '' }}"></label><label>團體總預算<input name="total_budget" type="number" min="0" step="1" value="{{ trip.total_budget if trip else 0 }}"></label><label>幣別<select name="currency">{% for c in ['TWD','JPY','USD','KRW','EUR'] %}<option value="{{ c }}" {{ 'selected' if trip and trip.currency==c else '' }}>{{ c }}</option>{% endfor %}</select></label><label class="span-2">公開狀態<select name="visibility"><option value="private" {{ 'selected' if trip and trip.visibility=='private' else '' }}>私人：僅限旅程成員</option><option value="link_only" {{ 'selected' if trip and trip.visibility=='link_only' else '' }}>連結限定：持有連結者可查看</option><option value="public" {{ 'selected' if trip and trip.visibility=='public' else '' }}>公開：所有人可查看</option></select></label><label class="span-2">行程介紹<textarea name="introduction" rows="5" placeholder="寫下這趟旅行的期待與重點…">{{ trip.introduction if trip else '' }}</textarea></label></div><div class="form-actions-member"><a class="member-btn ghost" href="{{ url_for('member.dashboard') }}">取消</a><button class="member-btn primary" type="submit">{{ '儲存變更' if mode=='edit' else '建立行程' }}</button></div></form></div>
+<div id="cropModal" style="display:none; position:fixed; inset:0; z-index:100; align-items:center; justify-content:center; padding:20px; background:rgba(39,35,58,.6);">
+  <div style="width:100%; max-width:640px; max-height:90vh; overflow-y:auto; padding:24px; background:#fff; border-radius:12px;">
+    <h3 style="margin:0 0 6px;">裁切封面圖片</h3>
+    <p class="form-hint" style="margin:0 0 14px;">裁切框大小固定，拖曳照片移動位置即可，裁切後畫質可能會被壓縮、影響清晰度。</p>
+    <div style="max-height:55vh; overflow:hidden;"><img id="cropTargetImage" style="display:block; max-width:100%;"></div>
+    <div style="display:flex; gap:10px; justify-content:flex-end; margin-top:18px;">
+      <button type="button" id="cropCancelBtn" class="member-btn ghost">取消</button>
+      <button type="button" id="cropConfirmBtn" class="member-btn primary">確認裁切</button>
+    </div>
+  </div>
+</div>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.1/cropper.min.js"></script>
 <script>
     function filterCitiesByCountry() {
         var countryId = document.getElementById('countrySelect').value;
@@ -15,5 +28,102 @@
     }
     document.getElementById('countrySelect').addEventListener('change', filterCitiesByCountry);
     window.addEventListener('DOMContentLoaded', filterCitiesByCountry);
+
+    (function restrictPastTripDates() {
+        var todayStr = new Date().toISOString().slice(0, 10);
+        var startInput = document.getElementById('startDateInput');
+        var endInput = document.getElementById('endDateInput');
+        if (!startInput || !endInput) return;
+        startInput.min = todayStr;
+        endInput.min = startInput.value || todayStr;
+        startInput.addEventListener('change', function () {
+            endInput.min = startInput.value || todayStr;
+            if (endInput.value && endInput.value < endInput.min) {
+                endInput.value = endInput.min;
+            }
+        });
+    })();
+
+    (function previewCoverImage() {
+        var input = document.getElementById('coverImageInput');
+        var preview = document.getElementById('coverImagePreview');
+        var warning = document.getElementById('coverImageWarning');
+        var cropTriggerBtn = document.getElementById('cropTriggerBtn');
+        if (!input || !preview || !warning || !cropTriggerBtn) return;
+        input.addEventListener('change', function () {
+            var file = input.files && input.files[0];
+            if (!file) {
+                preview.style.display = 'none';
+                warning.style.display = 'none';
+                cropTriggerBtn.style.display = 'none';
+                return;
+            }
+            var url = URL.createObjectURL(file);
+            var img = new Image();
+            img.onload = function () {
+                preview.src = url;
+                preview.style.display = 'block';
+                var ratio = img.naturalWidth / img.naturalHeight;
+                if (ratio < 1.4) {
+                    warning.textContent = '⚠️ 這張照片偏直式，放到封面會被裁掉大部分內容，建議換橫式照片，或用下面的「裁切這張照片」自己選要保留的範圍。';
+                    warning.style.display = 'block';
+                    cropTriggerBtn.style.display = 'inline-flex';
+                } else {
+                    warning.style.display = 'none';
+                    cropTriggerBtn.style.display = 'none';
+                }
+            };
+            img.src = url;
+        });
+    })();
+
+    (function cropCoverImage() {
+        var input = document.getElementById('coverImageInput');
+        var preview = document.getElementById('coverImagePreview');
+        var warning = document.getElementById('coverImageWarning');
+        var cropTriggerBtn = document.getElementById('cropTriggerBtn');
+        var modal = document.getElementById('cropModal');
+        var targetImage = document.getElementById('cropTargetImage');
+        var cancelBtn = document.getElementById('cropCancelBtn');
+        var confirmBtn = document.getElementById('cropConfirmBtn');
+        if (!input || !cropTriggerBtn || !modal || !targetImage || !cancelBtn || !confirmBtn) return;
+        var cropper = null;
+
+        cropTriggerBtn.addEventListener('click', function () {
+            var file = input.files && input.files[0];
+            if (!file) return;
+            targetImage.src = URL.createObjectURL(file);
+            modal.style.display = 'flex';
+            if (cropper) cropper.destroy();
+            cropper = new Cropper(targetImage, { aspectRatio: 16 / 9, viewMode: 1, autoCropArea: 1, cropBoxResizable: false, cropBoxMovable: true, dragMode: 'move' });
+        });
+
+        function closeModal() {
+            modal.style.display = 'none';
+            if (cropper) { cropper.destroy(); cropper = null; }
+        }
+
+        cancelBtn.addEventListener('click', closeModal);
+
+        confirmBtn.addEventListener('click', function () {
+            if (!cropper) return;
+            cropper.getCroppedCanvas().toBlob(function (blob) {
+                var originalFile = input.files[0];
+                var croppedFile = new File([blob], originalFile.name, { type: blob.type });
+                var dataTransfer = new DataTransfer();
+                dataTransfer.items.add(croppedFile);
+                input.files = dataTransfer.files;
+                preview.src = URL.createObjectURL(blob);
+                preview.style.display = 'block';
+                warning.style.display = 'none';
+                cropTriggerBtn.style.display = 'none';
+                closeModal();
+            }, originalFileType(input.files[0]));
+        });
+
+        function originalFileType(file) {
+            return file && file.type ? file.type : 'image/jpeg';
+        }
+    })();
 </script>
 {% endblock %}

@@ -20,7 +20,7 @@
     {% for item in announcements %}
         <article class="announcement-item">
             <div class="announcement-content">
-                <h3>{% if item.is_pinned %}📌 {% endif %}{{ item.title }}</h3>
+                <h3>{{ item.title }}</h3>
                 <p>{{ item.content }}</p>
                 <small>建立者：{{ item.creator_name }} ｜ 建立：{{ item.created_at }}{% if item.publish_at %} ｜ 發布：{{ item.publish_at }}{% endif %}</small>
             </div>

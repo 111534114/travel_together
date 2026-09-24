@@ -7,7 +7,7 @@
 <section class="admin-section"><form class="admin-search admin-filter" method="get">
     <input name="keyword" value="{{ keyword }}" placeholder="搜尋管理員、說明或 IP">
     <select name="action"><option value="">全部操作</option>{% for value in actions %}<option value="{{ value }}" {{ 'selected' if selected_action == value }}>{{ labels.get(value, value) }}</option>{% endfor %}</select>
-    <button>🔍 查詢</button><a href="{{ url_for('admin_logs') }}">清除</a>
+    <button>查詢</button><a href="{{ url_for('admin_logs') }}">清除</a>
 </form></section>
 <section class="admin-section"><div class="section-title"><h2>最近操作</h2><span>最多顯示 200 筆</span></div>
 <div class="table-container"><table class="admin-table"><thead><tr><th>時間</th><th>管理員</th><th>操作</th><th>對象</th><th>說明</th><th>IP</th></tr></thead><tbody>

@@ -5,9 +5,9 @@
 {% block page_description %}快速掌握會員、行程與問題回報概況{% endblock %}
 {% block content %}
 <div class="dashboard-cards admin-cards-compact">
-    <a class="dashboard-card" href="{{ url_for('admin_users') }}" aria-label="前往帳號管理"><div class="card-icon">👥</div><div><p>會員／啟用</p><h2>{{ totals.members }} <small>/ {{ totals.active_members }}</small></h2></div></a>
-    <a class="dashboard-card" href="{{ url_for('admin_public_trips') }}" aria-label="前往公開行程管理"><div class="card-icon">✈️</div><div><p>行程／公開</p><h2>{{ totals.trips }} <small>/ {{ totals.public_trips }}</small></h2></div></a>
-    <a class="dashboard-card" href="{{ url_for('admin_announcements') }}" aria-label="前往公告管理"><div class="card-icon">📢</div><div><p>公告總數</p><h2>{{ totals.announcements }}</h2></div></a>
+    <a class="dashboard-card" href="{{ url_for('admin_users') }}" aria-label="前往帳號管理"><div><p>會員／啟用</p><h2>{{ totals.members }} <small>/ {{ totals.active_members }}</small></h2></div></a>
+    <a class="dashboard-card" href="{{ url_for('admin_public_trips') }}" aria-label="前往公開行程管理"><div><p>行程／公開</p><h2>{{ totals.trips }} <small>/ {{ totals.public_trips }}</small></h2></div></a>
+    <a class="dashboard-card" href="{{ url_for('admin_announcements') }}" aria-label="前往公告管理"><div><p>公告總數</p><h2>{{ totals.announcements }}</h2></div></a>
 </div>
 <div class="statistics-chart-grid">
     <section class="admin-section statistics-chart-card">

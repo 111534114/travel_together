@@ -65,6 +65,35 @@ body {
     box-shadow: 0 0 0 3px rgba(118, 87, 172, 0.12);
 }
 
+.password-wrapper {
+    position: relative;
+}
+
+.password-wrapper input {
+    padding-right: 64px;
+}
+
+.password-wrapper input::-ms-reveal {
+    display: none;
+}
+
+.password-toggle {
+    position: absolute;
+    top: 50%;
+    right: 10px;
+    transform: translateY(-50%);
+    padding: 6px 8px;
+    border: 0;
+    background: transparent;
+    color: #7657ac;
+    font-size: 14px;
+    cursor: pointer;
+}
+
+.password-toggle:hover {
+    text-decoration: underline;
+}
+
 .form-hint {
     display: block;
     margin-top: 5px;

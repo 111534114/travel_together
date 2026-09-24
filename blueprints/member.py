@@ -2,7 +2,7 @@ from datetime import date, datetime
 from decimal import ROUND_DOWN, Decimal, InvalidOperation
 import secrets
 
-from flask import Blueprint, flash, redirect, render_template, request, session, url_for
+from flask import Blueprint, current_app, flash, redirect, render_template, request, session, url_for
 from werkzeug.security import check_password_hash, generate_password_hash
 
 from auth import login_required
@@ -625,10 +625,25 @@ def create_trip():
                 flash("已建立新行程，現在可以邀請旅伴並安排每日活動。", "success")
                 return redirect(url_for("member.trip_detail", trip_id=trip_id))
             except Exception:
+                current_app.logger.exception("建立行程失敗 user_id=%s", session.get("user_id"))
                 connection.rollback(); flash("建立行程失敗，請再試一次。", "error")
         return render_template("member/trip_form.html", trip=None, mode="create", countries=countries, cities=cities)
     finally:
         cursor.close(); connection.close()
+
+
+def _load_place_options(cursor, city_id):
+    """新增行程項目時可直接選擇的景點、餐廳、住宿（同城市、已上架）。"""
+    queries = {
+        "attraction": "SELECT name, address, ticket_price AS cost FROM attractions",
+        "restaurant": "SELECT name, address, 0 AS cost FROM restaurants",
+        "accommodation": "SELECT name, address, price_per_night AS cost FROM accommodations",
+    }
+    options = {}
+    for item_type, sql in queries.items():
+        cursor.execute(sql + " WHERE city_id=%s AND status='active' AND deleted_at IS NULL ORDER BY name", (city_id,))
+        options[item_type] = [{"name": r["name"], "address": r["address"] or "", "cost": float(r["cost"] or 0)} for r in cursor.fetchall()]
+    return options
 
 
 @member_bp.route("/trips/<int:trip_id>")
@@ -659,10 +674,11 @@ def trip_detail(trip_id):
         expenses = _load_expenses(cursor, trip_id)
         balance_summary = _load_balance_summary(cursor, trip_id)
         attachments = _load_attachments(cursor, trip_id)
+        place_options = _load_place_options(cursor, trip["city_id"])
         cursor.execute("SELECT COALESCE(SUM(amount),0) AS actual FROM expenses WHERE trip_id=%s AND expense_type='actual'", (trip_id,)); actual = cursor.fetchone()["actual"]
     finally:
         cursor.close(); connection.close()
-    return render_template("member/trip_detail.html", trip=trip, itinerary=itinerary, city_weather_days=city_weather_days, members=members, pending_invitations=pending_invitations, proposals=proposals, votes=votes, comments=comments, expenses=expenses, balance_summary=balance_summary, attachments=attachments, actual=actual, can_edit=_can_edit(trip), is_owner=trip["member_role"] == "owner", now=datetime.now())
+    return render_template("member/trip_detail.html", trip=trip, itinerary=itinerary, place_options=place_options, city_weather_days=city_weather_days, members=members, pending_invitations=pending_invitations, proposals=proposals, votes=votes, comments=comments, expenses=expenses, balance_summary=balance_summary, attachments=attachments, actual=actual, can_edit=_can_edit(trip), is_owner=trip["member_role"] == "owner", now=datetime.now())
 
 
 @member_bp.route("/trips/<int:trip_id>/edit", methods=["GET", "POST"])

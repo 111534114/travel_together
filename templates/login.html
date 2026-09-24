@@ -51,11 +51,14 @@
             <div class="form-group">
                 <label for="password">密碼</label>
 
-                <input type="password"
-                       id="password"
-                       name="password"
-                       placeholder="請輸入密碼"
-                       required>
+                <div class="password-field">
+                    <input type="password"
+                           id="password"
+                           name="password"
+                           placeholder="請輸入密碼"
+                           required>
+                    <button type="button" class="toggle-password" onclick="togglePasswordVisibility('password', this)">顯示</button>
+                </div>
             </div>
 
             <button type="submit"
@@ -64,6 +67,15 @@
             </button>
 
         </form>
+
+        <script>
+            function togglePasswordVisibility(inputId, button) {
+                var input = document.getElementById(inputId);
+                var showing = input.type === 'text';
+                input.type = showing ? 'password' : 'text';
+                button.textContent = showing ? '顯示' : '隱藏';
+            }
+        </script>
 
         <p class="auth-link">
             還沒有帳號？

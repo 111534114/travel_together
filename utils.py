@@ -13,6 +13,8 @@ from werkzeug.utils import secure_filename  # 匯入 secure_filename，把檔名
 
 ALLOWED_IMAGE_EXTENSIONS = {"png", "jpg", "jpeg", "gif", "webp"}  # 定義允許上傳的圖片副檔名集合
 
+MAX_IMAGE_SIZE_BYTES = 5 * 1024 * 1024  # 定義單張上傳圖片的檔案大小上限(5MB)
+
 CONTENT_TYPE_EXTENSIONS = {  # 定義圖片的 Content-Type 對應副檔名，從網址下載圖片時用來判斷格式
     "image/png": "png",
     "image/jpeg": "jpg",
@@ -103,6 +105,13 @@ def save_uploaded_image(file_storage, subfolder):  # 定義儲存上傳圖片的
 
     if extension not in ALLOWED_IMAGE_EXTENSIONS:  # 如果副檔名不在允許清單內
         raise ValueError("不支援的圖片格式，請上傳 png、jpg、jpeg、gif 或 webp")  # 拋出例外，讓呼叫端顯示錯誤訊息
+
+    file_storage.seek(0, os.SEEK_END)  # 移到檔案結尾，用來計算檔案大小
+    file_size = file_storage.tell()  # 取得檔案大小(位元組)
+    file_storage.seek(0)  # 移回檔案開頭，才能正常存檔
+
+    if file_size > MAX_IMAGE_SIZE_BYTES:  # 如果檔案超過大小上限
+        raise ValueError(f"圖片檔案太大，請上傳 {MAX_IMAGE_SIZE_BYTES // (1024 * 1024)}MB 以內的圖片")  # 拋出例外，讓呼叫端顯示錯誤訊息
 
     stored_name = f"{uuid.uuid4().hex}.{extension}"  # 用亂數產生的 uuid 當檔名，避免不同使用者上傳同名檔案互相覆蓋
     safe_name = secure_filename(stored_name)  # 再用 secure_filename 過濾一次，確保檔名安全

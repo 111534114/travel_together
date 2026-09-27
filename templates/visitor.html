@@ -23,6 +23,8 @@
     .nav-links a:hover { color: var(--purple); background: var(--purple-soft); }
     .nav-links .nav-register { color: #fff; background: var(--purple); }
     .nav-links .nav-register:hover { color: #fff; background: #4b376d; }
+    .language-select { min-width: 112px; padding: 9px 30px 9px 11px; color: #4b4264; background: #fff; border: 1px solid #d9d2e6; border-radius: 6px; font: inherit; cursor: pointer; }
+    .language-select:focus { outline: 2px solid #d9cdef; outline-offset: 1px; }
     main { width: min(1180px, calc(100% - 48px)); margin: 0 auto; padding: 42px 0 70px; }
     .eyebrow { margin: 0; color: #ded2ee; font-size: 12px; font-weight: 700; letter-spacing: .4px; }
     .button-light { display: inline-flex; flex: 0 0 auto; align-items: center; justify-content: center; min-height: 44px; padding: 10px 18px; color: #4b376d; background: #fff; border: 1px solid transparent; border-radius: 6px; font-weight: 700; }
@@ -172,6 +174,10 @@
       <a href="{{ url_for('member.profile') }}">個人資料</a>
       <a class="nav-register" href="{{ url_for('logout') }}">登出</a>
       {% else %}
+      <select id="visitorLanguage" class="language-select" aria-label="網站語言" onchange="setVisitorLanguage(this.value)">
+        <option value="zh-Hant">中文</option>
+        <option value="en">English</option>
+      </select>
       <a href="{{ url_for('login') }}">登入</a>
       <a class="nav-register" href="{{ url_for('register') }}">免費註冊</a>
       {% endif %}
@@ -477,6 +483,69 @@
     </div>
   </div>
   <script>
+    {% if not is_member %}
+    const visitorTranslations = {
+      '公告事項': 'Announcements', '目的地天氣': 'Destination Weather', '探索行程': 'Explore Trips',
+      '尋找旅伴': 'Find Travel Partners', '登入': 'Log In', '免費註冊': 'Sign Up Free',
+      '揪伴同行，一起規劃下一趟旅程': 'Find companions and plan your next journey together',
+      '探索大家分享的公開行程與旅伴揪團，找到志同道合的旅伴一起出發。': 'Explore public trips and travel groups shared by the community, and meet like-minded companions.',
+      '住宿': 'Hotels', '機票': 'Flights', '高鐵／火車票': 'Rail Tickets', '當地體驗': 'Local Experiences',
+      '功能開發中': 'Coming Soon', '目的地': 'Destination', '入住': 'Check-in', '退房': 'Check-out',
+      '人數': 'Guests', '搜尋': 'Search', '出發地': 'From', '去程日期': 'Departure',
+      '回程日期': 'Return', '出發站': 'Departure Station', '到達站': 'Arrival Station', '日期': 'Date',
+      '目前尚無公告事項。': 'There are currently no announcements.', '置頂': 'Pinned',
+      '依目前公開行程的目的地，提供中央氣象署天氣預報（僅支援台灣縣市）。': 'Weather forecasts are based on current public-trip destinations in Taiwan.',
+      '查看 7 天預報': 'View 7-day Forecast',
+      '目前公開行程的目的地暫無天氣資訊（僅支援台灣縣市，或天氣服務尚未設定）。': 'Weather information is currently unavailable for these destinations.',
+      '公開行程': 'Public Trips', '目前沒有可供瀏覽的公開行程。': 'There are currently no public trips to browse.',
+      '查看行程': 'View Trip', '最新旅伴揪團': 'Latest Travel Groups',
+      '根據目前公開行程的資訊整理。': 'Based on currently available public trips.',
+      '目前沒有公開的旅伴揪團資訊。': 'There are currently no public travel groups.',
+      '登入會員後，解鎖更多旅遊功能': 'Log in to unlock more travel features',
+      '建立與協作行程、發起揪團、管理預算分帳，和旅伴一起規劃每一段旅程。': 'Create and collaborate on trips, find companions, and manage shared budgets.',
+      '會員登入': 'Member Login', '問題回報': 'Report an Issue', '問題描述': 'Description',
+      '送出回報': 'Submit Report', '行程明細': 'Trip Details', '複製此行程': 'Copy This Trip',
+      '＊住宿搜尋已串接真實資料，送出後將依您填寫的目的地與日期顯示搜尋結果。': '＊Hotel search uses live data and displays results based on your destination and dates.',
+      '＊機票搜尋已串接範例航班資料，送出後將依您填寫的出發地、目的地與日期顯示搜尋結果。': '＊Flight search uses sample flight data based on your route and dates.',
+      '＊高鐵／台鐵搜尋已串接真實班表與票價資料，送出後將依您填寫的出發站與到達站顯示搜尋結果。': '＊Rail search uses live schedules and fares based on your selected stations.',
+      '＊當地體驗搜尋為介面預覽，實際資料串接開發中；您可以先探索下方的公開行程與旅伴揪團。': '＊Local experience search is a preview. Data integration is still in development.'
+    };
+    const visitorPlaceholders = {
+      '城市、飯店名稱': 'City or hotel name', '台北': 'Taipei', '東京': 'Tokyo', '高雄': 'Kaohsiung',
+      '城市或景點': 'City or attraction', '搜尋行程名稱、地點或分類': 'Search trips, destinations, or categories',
+      '補充問題細節，幫助管理員了解情況': 'Add details to help the administrator understand the issue'
+    };
+    const visitorReverseTranslations = Object.fromEntries(Object.entries(visitorTranslations).map(([zh, en]) => [en, zh]));
+    const visitorReversePlaceholders = Object.fromEntries(Object.entries(visitorPlaceholders).map(([zh, en]) => [en, zh]));
+    let currentVisitorLanguage = 'zh-Hant';
+
+    function translateVisitorTextNode(node, language) {
+      const value = node.nodeValue;
+      const trimmed = value.trim();
+      if (!trimmed) return;
+      const dictionary = language === 'en' ? visitorTranslations : visitorReverseTranslations;
+      if (dictionary[trimmed]) node.nodeValue = value.replace(trimmed, dictionary[trimmed]);
+    }
+
+    function applyVisitorLanguage(language) {
+      currentVisitorLanguage = language === 'en' ? 'en' : 'zh-Hant';
+      const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
+      const nodes = [];
+      while (walker.nextNode()) nodes.push(walker.currentNode);
+      nodes.forEach((node) => translateVisitorTextNode(node, currentVisitorLanguage));
+      const placeholders = currentVisitorLanguage === 'en' ? visitorPlaceholders : visitorReversePlaceholders;
+      document.querySelectorAll('input[placeholder], textarea[placeholder]').forEach((field) => {
+        if (placeholders[field.placeholder]) field.placeholder = placeholders[field.placeholder];
+      });
+      document.documentElement.lang = currentVisitorLanguage;
+      document.getElementById('visitorLanguage').value = currentVisitorLanguage;
+      localStorage.setItem('visitorLanguage', currentVisitorLanguage);
+    }
+
+    function setVisitorLanguage(language) { applyVisitorLanguage(language); }
+    applyVisitorLanguage(localStorage.getItem('visitorLanguage') || 'zh-Hant');
+    {% endif %}
+
     function switchSearchTab(tab, btn) {
       document.querySelectorAll('.search-tab').forEach((t) => t.classList.remove('active'));
       btn.classList.add('active');
@@ -496,6 +565,7 @@
         } else {
           note.textContent = '＊當地體驗搜尋為介面預覽，實際資料串接開發中；您可以先探索下方的公開行程與旅伴揪團。';
         }
+        {% if not is_member %}translateVisitorTextNode(note.firstChild, currentVisitorLanguage);{% endif %}
       }
     }
     (function restrictPastDates() {

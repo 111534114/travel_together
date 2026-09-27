@@ -15,7 +15,6 @@ from blueprints.ai_data import ai_data_bp  # 匯入 AI 使用資料維護的藍�
 from blueprints.reports import reports_bp  # 匯入統計報表匯出的藍圖
 from blueprints.logs import logs_bp  # 匯入操作紀錄查詢的藍圖
 from blueprints.ai_chat import ai_chat_bp  # 匯入 AI 助理對話的藍圖
-from blueprints.line_bot import line_bot_bp  # 匯入 LINE 官方帳號整合藍圖
 from blueprints.member import ISSUE_PREFIX, member_bp  # 匯入會員功能的藍圖
 from activity_log import ACTION_LABELS, log_action
 from utils import google_maps_url, google_maps_embed_url  # 匯入組 Google 地圖連結/嵌入縮圖地圖的共用函式，註冊成樣板全域函式讓所有頁面都能直接呼叫
@@ -43,7 +42,6 @@ app.register_blueprint(reports_bp)  # 註冊統計報表路由
 app.register_blueprint(logs_bp)  # 註冊操作紀錄路由
 app.register_blueprint(ai_chat_bp)  # 註冊 AI 助理對話路由
 app.register_blueprint(member_bp)  # 註冊會員功能路由
-app.register_blueprint(line_bot_bp)  # 註冊 LINE Webhook 與公開行程預覽路由
 
 
 def redirect_by_role(role):  # 定義函式：依照使用者角色導向對應首頁

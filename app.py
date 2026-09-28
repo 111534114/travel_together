@@ -49,7 +49,12 @@ line_oauth = oauth.register(
     client_secret=LINE_CHANNEL_SECRET,
     access_token_url="https://api.line.me/oauth2/v2.1/token",
     authorize_url="https://access.line.me/oauth2/v2.1/authorize",
-    client_kwargs={"scope": "profile"},
+    client_kwargs={
+        "scope": "profile",
+        # LINE 要求 client_id 與 client_secret 放在 token 請求的表單內容，
+        # 不能使用 Authlib 預設的 HTTP Basic 驗證方式。
+        "token_endpoint_auth_method": "client_secret_post",
+    },
 )
 
 app.register_blueprint(attractions_bp)  # 註冊景點管理路由

@@ -83,6 +83,13 @@
             使用 Google 帳號登入
         </a>
 
+        <a href="{{ url_for('line_login') }}" class="line-button">
+            <svg width="20" height="20" viewBox="0 0 24 24" aria-hidden="true">
+                <path fill="#fff" d="M12 3C6.48 3 2 6.58 2 11c0 3.94 3.55 7.24 8.35 7.88.32.07.77.21.88.49.1.25.06.65.03.9l-.14.86c-.04.25-.19.99.87.54 1.06-.45 5.7-3.36 7.78-5.75C21.24 14.02 22 12.6 22 11c0-4.42-4.48-8-10-8z"/>
+            </svg>
+            使用 LINE 帳號登入
+        </a>
+
         <p class="auth-link">
             還沒有帳號？
             <a href="{{ url_for('register') }}">立即註冊</a>

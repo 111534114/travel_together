@@ -29,3 +29,8 @@ CWA_API_KEY = os.environ.get("CWA_API_KEY", "")
 # 重新導向 URI：http://127.0.0.1:5000/auth/google/callback
 GOOGLE_CLIENT_ID = os.environ.get("GOOGLE_CLIENT_ID", "")
 GOOGLE_CLIENT_SECRET = os.environ.get("GOOGLE_CLIENT_SECRET", "")
+
+# LINE Login Channel 設定（不是 Messaging API 官方帳號）
+# Callback URL：http://127.0.0.1:5000/auth/line/callback
+LINE_CHANNEL_ID = os.environ.get("LINE_CHANNEL_ID", "")
+LINE_CHANNEL_SECRET = os.environ.get("LINE_CHANNEL_SECRET", "")

@@ -146,6 +146,27 @@ body {
     background: #f7f7f7;
 }
 
+.line-button {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    width: 100%;
+    padding: 11px;
+    border-radius: 9px;
+    margin-bottom: 12px;
+    box-sizing: border-box;
+    background: #06c755;
+    color: #fff;
+    font-size: 15px;
+    font-weight: bold;
+    text-decoration: none;
+}
+
+.line-button:hover {
+    background: #05b84e;
+}
+
 .primary-button {
     width: 100%;
     padding: 13px;

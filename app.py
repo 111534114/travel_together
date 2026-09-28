@@ -1,11 +1,12 @@
 import re  # 匯入正規表示式模組，用來驗證註冊欄位格式
+import requests  # 匯入 requests，用來呼叫 LINE 的個人資料 API
 from datetime import datetime, timedelta  # 匯入日期工具，用來解析日期與建立月份統計區間
 from authlib.integrations.flask_client import OAuth  # 匯入 Authlib 的 Flask 整合，處理 Google 登入 OAuth 流程
 from flask import Flask, render_template, request, redirect, url_for, session, flash  # 匯入 Flask 核心功能：建立 App、渲染樣板、取得請求、導向、產生網址、session、顯示訊息
 from mysql.connector import Error  # 匯入 MySQL 連線錯誤類別，用來捕捉資料庫例外
 from werkzeug.security import check_password_hash, generate_password_hash  # 匯入密碼工具：驗證密碼、產生密碼雜湊值
 
-from config import GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET  # 匯入 Google OAuth Client ID/Secret
+from config import GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, LINE_CHANNEL_ID, LINE_CHANNEL_SECRET  # 匯入第三方登入設定
 from db import get_db_connection  # 匯入自訂的資料庫連線函式
 from blueprints.attractions import attractions_bp  # 匯入景點管理的藍圖(Blueprint)
 from blueprints.restaurants import restaurants_bp  # 匯入餐廳管理的藍圖
@@ -40,6 +41,15 @@ google_oauth = oauth.register(
     client_secret=GOOGLE_CLIENT_SECRET,
     server_metadata_url="https://accounts.google.com/.well-known/openid-configuration",
     client_kwargs={"scope": "openid email profile"},
+)
+
+line_oauth = oauth.register(
+    name="line",
+    client_id=LINE_CHANNEL_ID,
+    client_secret=LINE_CHANNEL_SECRET,
+    access_token_url="https://api.line.me/oauth2/v2.1/token",
+    authorize_url="https://access.line.me/oauth2/v2.1/authorize",
+    client_kwargs={"scope": "profile"},
 )
 
 app.register_blueprint(attractions_bp)  # 註冊景點管理路由
@@ -578,6 +588,140 @@ def google_callback():
     session["full_name"] = user["full_name"]
     session["nickname"] = user["nickname"]
     session["role"] = user["role"]
+    return redirect_by_role(user["role"])
+
+
+@app.route("/auth/line/login")
+def line_login():
+    if not LINE_CHANNEL_ID or not LINE_CHANNEL_SECRET:
+        flash("LINE 登入尚未完成設定，請先使用帳號密碼登入。", "error")
+        return redirect(url_for("login"))
+    redirect_uri = url_for("line_callback", _external=True)
+    return line_oauth.authorize_redirect(redirect_uri)
+
+
+@app.route("/auth/line/callback")
+def line_callback():
+    try:
+        token = line_oauth.authorize_access_token()
+        profile_response = requests.get(
+            "https://api.line.me/v2/profile",
+            headers={"Authorization": "Bearer " + token["access_token"]},
+            timeout=10,
+        )
+        profile_response.raise_for_status()
+        profile = profile_response.json()
+    except (Exception, requests.RequestException) as error:
+        print("LINE 登入失敗：", error)
+        flash("LINE 登入失敗，請再試一次。", "error")
+        return redirect(url_for("login"))
+
+    line_sub = profile.get("userId")
+    if not line_sub:
+        flash("無法取得 LINE 帳號資訊，請改用其他方式登入。", "error")
+        return redirect(url_for("login"))
+
+    connection = get_db_connection()
+    if connection is None:
+        flash("資料庫連線失敗，請稍後再試。", "error")
+        return redirect(url_for("login"))
+
+    cursor = connection.cursor(dictionary=True)
+    try:
+        cursor.execute(
+            """
+            SELECT user_id, username, full_name, nickname, role, status
+            FROM users WHERE line_sub = %s LIMIT 1
+            """,
+            (line_sub,),
+        )
+        user = cursor.fetchone()
+    except Error as error:
+        print("LINE 登入查詢帳號失敗：", error)
+        flash("LINE 登入失敗，請稍後再試。", "error")
+        return redirect(url_for("login"))
+    finally:
+        cursor.close()
+        connection.close()
+
+    if user is None:
+        session["pending_line_sub"] = line_sub
+        session["pending_line_name"] = profile.get("displayName") or "LINE 使用者"
+        return redirect(url_for("line_complete_profile"))
+
+    if user["status"] != "active":
+        flash("此帳號目前已停用，無法登入。", "error")
+        return redirect(url_for("login"))
+
+    session.clear()
+    session.update(
+        user_id=user["user_id"], username=user["username"],
+        full_name=user["full_name"], nickname=user["nickname"], role=user["role"],
+    )
+    return redirect_by_role(user["role"])
+
+
+@app.route("/auth/line/complete-profile", methods=["GET", "POST"])
+def line_complete_profile():
+    line_sub = session.get("pending_line_sub")
+    full_name = session.get("pending_line_name")
+    if not line_sub:
+        flash("請重新使用 LINE 登入。", "error")
+        return redirect(url_for("login"))
+
+    if request.method == "GET":
+        return render_template("line_complete_profile.html", full_name=full_name)
+
+    email = request.form.get("email", "").strip()
+    if not re.fullmatch(r"[^\s@]+@[^\s@]+\.[^\s@]+", email):
+        flash("請輸入正確的電子郵件格式。", "error")
+        return render_template("line_complete_profile.html", full_name=full_name)
+
+    connection = get_db_connection()
+    if connection is None:
+        flash("資料庫連線失敗，請稍後再試。", "error")
+        return render_template("line_complete_profile.html", full_name=full_name)
+
+    cursor = connection.cursor(dictionary=True)
+    try:
+        cursor.execute("SELECT user_id FROM users WHERE email = %s LIMIT 1", (email,))
+        if cursor.fetchone():
+            flash("這個電子郵件已經被使用，請換一個。", "error")
+            return render_template("line_complete_profile.html", full_name=full_name)
+
+        username = generate_unique_username(cursor, line_sub)
+        cursor.execute(
+            """
+            INSERT INTO users
+            (username, password_hash, full_name, nickname, email, line_sub, role, status)
+            VALUES (%s, NULL, %s, %s, %s, %s, 'member', 'active')
+            """,
+            (username, full_name, full_name, email, line_sub),
+        )
+        new_user_id = cursor.lastrowid
+        connection.commit()
+        cursor.execute(
+            """
+            SELECT user_id, username, full_name, nickname, role
+            FROM users WHERE user_id = %s
+            """,
+            (new_user_id,),
+        )
+        user = cursor.fetchone()
+    except Error as error:
+        connection.rollback()
+        print("LINE 登入建立帳號失敗：", error)
+        flash("註冊失敗，請稍後再試。", "error")
+        return render_template("line_complete_profile.html", full_name=full_name)
+    finally:
+        cursor.close()
+        connection.close()
+
+    session.clear()
+    session.update(
+        user_id=user["user_id"], username=user["username"],
+        full_name=user["full_name"], nickname=user["nickname"], role=user["role"],
+    )
     return redirect_by_role(user["role"])
 
 

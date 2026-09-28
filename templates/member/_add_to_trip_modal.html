@@ -1,0 +1,85 @@
+{# 探索景點／景點詳情共用：把景點加入自己可編輯的行程 #}
+<div id="addToTripModal" class="add-trip-modal" hidden>
+    <div class="add-trip-dialog" role="dialog" aria-modal="true" aria-labelledby="addToTripTitle">
+        <h3 id="addToTripTitle">加入行程</h3>
+        <p class="add-trip-target" id="addToTripName"></p>
+        {% if addable_trips %}
+        <form method="post" id="addToTripForm" class="member-form">
+            <input type="hidden" name="next" value="{{ request.full_path }}">
+            <div class="form-grid-member">
+                <label class="add-trip-full">選擇行程
+                    <select name="trip_id" id="addToTripSelect" required>
+                        {% for t in addable_trips %}
+                        <option value="{{ t.trip_id }}" data-city="{{ t.city_id }}" data-start="{{ t.start_date }}" data-end="{{ t.end_date }}">{{ t.trip_name }}（{{ t.city }}，{{ t.start_date.strftime('%m/%d') }}～{{ t.end_date.strftime('%m/%d') }}）</option>
+                        {% endfor %}
+                    </select>
+                </label>
+                <p class="form-hint add-trip-full add-trip-warning" id="addToTripCityHint" hidden>這個行程的目的地和景點不在同一個城市，確定要加入嗎？</p>
+                <label class="add-trip-full">日期<input type="date" name="itinerary_date" id="addToTripDate" required></label>
+                <label>開始時間<input type="time" name="start_time"></label>
+                <label>結束時間<input type="time" name="end_time"></label>
+                <label class="add-trip-full">備註<input name="notes" maxlength="500" placeholder="選填，例如：想看夕陽"></label>
+            </div>
+            <div class="form-actions-member">
+                <button type="button" class="member-btn ghost" data-close-add-trip>取消</button>
+                <button type="submit" class="member-btn primary">加入行程</button>
+            </div>
+        </form>
+        {% else %}
+        <p class="form-hint">目前沒有可以加入的行程（需要是尚未結束、且你是建立者或編輯者的行程）。</p>
+        <div class="form-actions-member">
+            <button type="button" class="member-btn ghost" data-close-add-trip>取消</button>
+            <a class="member-btn primary" href="{{ url_for('member.create_trip') }}">建立新行程</a>
+        </div>
+        {% endif %}
+    </div>
+</div>
+<script>
+(function () {
+    var modal = document.getElementById('addToTripModal');
+    if (!modal) return;
+    var form = document.getElementById('addToTripForm');
+    var select = document.getElementById('addToTripSelect');
+    var dateInput = document.getElementById('addToTripDate');
+    var cityHint = document.getElementById('addToTripCityHint');
+    var currentCity = '';
+
+    function syncTrip() {
+        if (!select) return;
+        var option = select.options[select.selectedIndex];
+        if (!option) return;
+        dateInput.min = option.dataset.start;
+        dateInput.max = option.dataset.end;
+        if (!dateInput.value || dateInput.value < dateInput.min || dateInput.value > dateInput.max) {
+            var today = new Date().toISOString().slice(0, 10);
+            dateInput.value = today > option.dataset.start && today <= option.dataset.end ? today : option.dataset.start;
+        }
+        cityHint.hidden = !currentCity || option.dataset.city === currentCity;
+    }
+
+    function open(button) {
+        currentCity = button.dataset.cityId || '';
+        document.getElementById('addToTripName').textContent = button.dataset.name;
+        if (form) {
+            form.action = button.dataset.action;
+            form.reset();
+            dateInput.value = '';
+            // 預設選同城市的第一個行程
+            var sameCity = Array.prototype.find.call(select.options, function (o) { return o.dataset.city === currentCity; });
+            select.value = (sameCity || select.options[0]).value;
+            syncTrip();
+        }
+        modal.hidden = false;
+    }
+
+    function close() { modal.hidden = true; }
+
+    document.querySelectorAll('[data-add-to-trip]').forEach(function (button) {
+        button.addEventListener('click', function () { open(button); });
+    });
+    modal.querySelectorAll('[data-close-add-trip]').forEach(function (b) { b.addEventListener('click', close); });
+    modal.addEventListener('click', function (e) { if (e.target === modal) close(); });
+    document.addEventListener('keydown', function (e) { if (e.key === 'Escape' && !modal.hidden) close(); });
+    if (select) select.addEventListener('change', syncTrip);
+})();
+</script>

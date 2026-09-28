@@ -483,6 +483,20 @@ def mark_notification_read(notification_id):
     return redirect(url_for("member.dashboard") + "#member-notifications")
 
 
+def _addable_trips(cursor, user_id):
+    """可以把景點加進去的行程：自己是建立者或編輯者，且尚未結束。"""
+    cursor.execute("""
+        SELECT t.trip_id, t.trip_name, t.city_id, t.start_date, t.end_date, ci.name AS city
+        FROM trip_members tm
+        JOIN trips t ON t.trip_id = tm.trip_id
+        JOIN cities ci ON ci.city_id = t.city_id
+        WHERE tm.user_id=%s AND tm.join_status='accepted' AND tm.member_role IN ('owner','editor')
+              AND t.end_date >= CURDATE()
+        ORDER BY t.start_date ASC, t.created_at DESC
+    """, (user_id,))
+    return cursor.fetchall()
+
+
 @member_bp.route("/attractions")
 @login_required("member")
 def browse_attractions():
@@ -514,7 +528,7 @@ def browse_attractions():
 
         where_clause = " AND ".join(conditions)
         cursor.execute(f"""
-            SELECT a.attraction_id, a.name, a.address, a.latitude, a.longitude, a.ticket_price, a.image_path,
+            SELECT a.attraction_id, a.city_id, a.name, a.address, a.latitude, a.longitude, a.ticket_price, a.image_path,
                    cat.category_name, co.name AS country, ci.name AS city,
                    (f.favorite_id IS NOT NULL) AS is_favorited
             FROM attractions a
@@ -528,11 +542,13 @@ def browse_attractions():
         attractions = cursor.fetchall()
         countries = get_countries(cursor)
         cities = get_cities(cursor)
+        addable_trips = _addable_trips(cursor, session["user_id"])
     finally:
         cursor.close(); connection.close()
 
     return render_template("member/attractions.html", attractions=attractions, countries=countries, cities=cities,
-                            keyword=keyword, country_id=country_id, city_id=city_id, favorites_only=favorites_only)
+                            keyword=keyword, country_id=country_id, city_id=city_id, favorites_only=favorites_only,
+                            addable_trips=addable_trips)
 
 
 @member_bp.route("/attractions/<int:attraction_id>")
@@ -553,6 +569,7 @@ def attraction_detail(attraction_id):
             WHERE a.attraction_id = %s AND a.status = 'active' AND a.deleted_at IS NULL
         """, (session["user_id"], attraction_id))
         attraction = cursor.fetchone()
+        addable_trips = _addable_trips(cursor, session["user_id"]) if attraction else []
     finally:
         cursor.close(); connection.close()
 
@@ -560,7 +577,57 @@ def attraction_detail(attraction_id):
         flash("找不到這個景點，或已被下架。", "error")
         return redirect(url_for("member.browse_attractions"))
 
-    return render_template("member/attraction_detail.html", a=attraction)
+    return render_template("member/attraction_detail.html", a=attraction, addable_trips=addable_trips)
+
+
+@member_bp.route("/attractions/<int:attraction_id>/add-to-trip", methods=["POST"])
+@login_required("member")
+def add_attraction_to_trip(attraction_id):
+    next_url = request.form.get("next", "")
+    if not next_url.startswith("/") or next_url.startswith("//"):
+        next_url = url_for("member.browse_attractions")
+
+    trip_id = request.form.get("trip_id", "").strip()
+    day = request.form.get("itinerary_date", "").strip()
+    start = request.form.get("start_time") or None
+    end = request.form.get("end_time") or None
+    if not trip_id.isdigit() or not day:
+        flash("請選擇要加入的行程與日期。", "error"); return redirect(next_url)
+    if start and end and end < start:
+        flash("結束時間不能早於開始時間。", "error"); return redirect(next_url)
+    try:
+        day_value = date.fromisoformat(day)
+    except ValueError:
+        flash("請輸入正確的日期。", "error"); return redirect(next_url)
+
+    connection = _connection_or_home()
+    if connection is None: return redirect(next_url)
+    cursor = connection.cursor(dictionary=True)
+    try:
+        trip = _member_access(cursor, int(trip_id), session["user_id"])
+        if not trip or not _can_edit(trip):
+            flash("你沒有編輯這個行程的權限。", "error"); return redirect(next_url)
+        if not trip["start_date"] <= day_value <= trip["end_date"]:
+            flash(f"日期必須在行程期間內（{trip['start_date']} ～ {trip['end_date']}）。", "error"); return redirect(next_url)
+        cursor.execute("""SELECT name, address, ticket_price FROM attractions
+                          WHERE attraction_id=%s AND status='active' AND deleted_at IS NULL""", (attraction_id,))
+        attraction = cursor.fetchone()
+        if not attraction:
+            flash("找不到這個景點，或已被下架。", "error"); return redirect(next_url)
+        cursor.execute("SELECT COALESCE(MAX(sort_order),0)+1 AS next_order FROM itineraries WHERE trip_id=%s AND itinerary_date=%s", (trip["trip_id"], day_value))
+        order = cursor.fetchone()["next_order"]
+        cursor.execute("""INSERT INTO itineraries (trip_id,created_by,itinerary_date,item_type,title,start_time,end_time,address,estimated_cost,notes,attraction_id,sort_order)
+                          VALUES (%s,%s,%s,'attraction',%s,%s,%s,%s,%s,%s,%s,%s)""",
+                       (trip["trip_id"], session["user_id"], day_value, attraction["name"][:150], start, end, attraction["address"],
+                        attraction["ticket_price"] or 0, request.form.get("notes", "").strip() or None, attraction_id, order))
+        connection.commit()
+        flash(f"已將「{attraction['name']}」加入「{trip['trip_name']}」的 {day_value} 行程。", "success")
+    except Exception:
+        current_app.logger.exception("加入景點到行程失敗 user_id=%s", session.get("user_id"))
+        connection.rollback(); flash("加入行程失敗，請再試一次。", "error")
+    finally:
+        cursor.close(); connection.close()
+    return redirect(next_url)
 
 
 @member_bp.route("/attractions/<int:attraction_id>/favorite", methods=["POST"])
@@ -1369,7 +1436,7 @@ def profile():
     if connection is None: return redirect(url_for("member.dashboard"))
     cursor=connection.cursor(dictionary=True)
     try:
-        cursor.execute("SELECT user_id,username,full_name,nickname,email,created_at,status FROM users WHERE user_id=%s",(session["user_id"],)); user=cursor.fetchone()
+        cursor.execute("SELECT user_id,username,full_name,nickname,email,avatar_path,created_at,status FROM users WHERE user_id=%s",(session["user_id"],)); user=cursor.fetchone()
         if user:
             user["status_label"] = {"active": "啟用", "disabled": "停用"}.get(user["status"], user["status"])
         if request.method == "POST":
@@ -1379,7 +1446,17 @@ def profile():
                 cursor.execute("SELECT user_id FROM users WHERE email=%s AND user_id<>%s",(email,session["user_id"])); existing=cursor.fetchone()
                 if existing: flash("此電子郵件已被使用。", "error")
                 else:
-                    cursor.execute("UPDATE users SET nickname=%s,email=%s WHERE user_id=%s",(nickname or None,email,session["user_id"])); connection.commit(); session["nickname"]=nickname; flash("個人資料已更新。", "success"); return redirect(url_for("member.profile"))
+                    # 頭像：有選新圖片就換新圖；有勾「移除頭像」就清空，改回顯示暱稱第一個字
+                    old_avatar = user["avatar_path"]; avatar_path = old_avatar
+                    try:
+                        uploaded_path = save_uploaded_image(request.files.get("avatar"), "avatars")
+                    except ValueError as exc:
+                        flash(str(exc), "error"); return redirect(url_for("member.profile"))
+                    if uploaded_path: avatar_path = uploaded_path
+                    elif request.form.get("remove_avatar") == "1": avatar_path = None
+                    cursor.execute("UPDATE users SET nickname=%s,email=%s,avatar_path=%s WHERE user_id=%s",(nickname or None,email,avatar_path,session["user_id"])); connection.commit()
+                    if old_avatar != avatar_path and old_avatar and not old_avatar.startswith("http"): delete_uploaded_image(old_avatar)
+                    session["nickname"]=nickname; flash("個人資料已更新。", "success"); return redirect(url_for("member.profile"))
     finally: cursor.close(); connection.close()
     return render_template("member/profile.html", user=user)
 

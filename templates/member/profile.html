@@ -10,7 +10,8 @@
 
   <section class="profile-card">
     <div class="profile-card-top">
-      <div class="profile-avatar">{{ (user.nickname or user.full_name)[0] }}</div>
+      {% set avatar_url = (user.avatar_path if user.avatar_path.startswith('http') else url_for('static', filename=user.avatar_path)) if user.avatar_path else '' %}
+      <div class="profile-avatar">{% if avatar_url %}<img src="{{ avatar_url }}" alt="頭像">{% else %}{{ (user.nickname or user.full_name)[0] }}{% endif %}</div>
       <div>
         <p class="profile-kicker">TRAVEL TOGETHER MEMBER</p>
         <h2>{{ user.nickname or user.full_name }}</h2>
@@ -19,8 +20,22 @@
       <span class="account-status{% if user.status != 'active' %} disabled{% endif %}">{{ user.status_label }}</span>
     </div>
 
-    <form method="post" class="profile-form">
+    <form method="post" class="profile-form" enctype="multipart/form-data">
       <div class="profile-section-title"><div><h3>基本資料</h3><p>更新其他旅伴看到的個人資訊。</p></div></div>
+      <div class="avatar-upload">
+        <div class="avatar-upload-preview" id="avatarPreview" data-initial="{{ (user.nickname or user.full_name)[0] }}">{% if avatar_url %}<img src="{{ avatar_url }}" alt="頭像預覽">{% else %}{{ (user.nickname or user.full_name)[0] }}{% endif %}</div>
+        <div class="avatar-upload-body">
+          <strong>頭像</strong>
+          <p>支援 png、jpg、gif、webp（5MB 以內），選好圖片後可拖曳、縮放選擇要顯示的區塊，按「儲存變更」才會套用。</p>
+          <div class="avatar-upload-actions">
+            <label class="member-btn outline avatar-pick">選擇圖片<input type="file" id="avatarPicker" accept="image/png,image/jpeg,image/gif,image/webp" hidden></label>
+            <button type="button" class="member-btn outline" id="avatarRecrop" hidden>重新調整</button>
+            {% if user.avatar_path %}<label class="avatar-remove"><input type="checkbox" name="remove_avatar" value="1" id="avatarRemove"> 移除頭像</label>{% endif %}
+          </div>
+          {# 真正送出的是裁切後的圖片，由 JS 放進這個欄位 #}
+          <input type="file" name="avatar" id="avatarInput" hidden>
+        </div>
+      </div>
       <div class="profile-fields">
         <label>會員帳號<input disabled value="{{ user.username }}"></label>
         <label>姓名<input disabled value="{{ user.full_name }}"></label>
@@ -32,4 +47,143 @@
     </form>
   </section>
 </div>
+
+<div class="avatar-cropper" id="avatarCropper" hidden>
+  <div class="avatar-cropper-dialog" role="dialog" aria-modal="true" aria-labelledby="avatarCropperTitle">
+    <h3 id="avatarCropperTitle">選擇頭像顯示區塊</h3>
+    <p>拖曳圖片移動位置，用滑桿或滑鼠滾輪縮放。</p>
+    <div class="avatar-cropper-stage" id="cropStage"><img id="cropImage" alt="" draggable="false"></div>
+    <label class="avatar-cropper-zoom">縮放<input type="range" id="cropZoom" min="1" max="4" step="0.01" value="1"></label>
+    <div class="avatar-cropper-actions">
+      <button type="button" class="member-btn outline" id="cropCancel">取消</button>
+      <button type="button" class="member-btn primary" id="cropConfirm">確定</button>
+    </div>
+  </div>
+</div>
+
+<script>
+  (function () {
+    var OUTPUT_SIZE = 400;  // 裁切後輸出的頭像尺寸(px)
+    var picker = document.getElementById('avatarPicker');
+    var input = document.getElementById('avatarInput');
+    var preview = document.getElementById('avatarPreview');
+    var remove = document.getElementById('avatarRemove');
+    var recrop = document.getElementById('avatarRecrop');
+    var modal = document.getElementById('avatarCropper');
+    var stage = document.getElementById('cropStage');
+    var image = document.getElementById('cropImage');
+    var zoom = document.getElementById('cropZoom');
+    var original = preview.innerHTML;
+    var sourceFile = null;
+    var state = { baseScale: 1, scale: 1, x: 0, y: 0 };
+
+    function stageSize() { return stage.clientWidth; }
+
+    // 限制圖片位置，讓裁切框內永遠被圖片填滿
+    function clamp() {
+      var size = stageSize();
+      var w = image.naturalWidth * state.scale, h = image.naturalHeight * state.scale;
+      state.x = Math.min(0, Math.max(size - w, state.x));
+      state.y = Math.min(0, Math.max(size - h, state.y));
+    }
+
+    function render() {
+      clamp();
+      image.style.width = image.naturalWidth * state.scale + 'px';
+      image.style.height = image.naturalHeight * state.scale + 'px';
+      image.style.transform = 'translate(' + state.x + 'px,' + state.y + 'px)';
+    }
+
+    // 以裁切框中心為基準縮放，避免縮放時畫面亂跳
+    function setZoom(value) {
+      value = Math.min(4, Math.max(1, value));
+      var center = stageSize() / 2;
+      var newScale = state.baseScale * value;
+      state.x = center - (center - state.x) * newScale / state.scale;
+      state.y = center - (center - state.y) * newScale / state.scale;
+      state.scale = newScale;
+      zoom.value = value;
+      render();
+    }
+
+    function openCropper(file) {
+      sourceFile = file;
+      image.onload = function () {
+        modal.hidden = false;
+        var size = stageSize();
+        state.baseScale = size / Math.min(image.naturalWidth, image.naturalHeight);
+        state.scale = state.baseScale;
+        state.x = (size - image.naturalWidth * state.scale) / 2;
+        state.y = (size - image.naturalHeight * state.scale) / 2;
+        zoom.value = 1;
+        render();
+      };
+      image.src = URL.createObjectURL(file);
+    }
+
+    picker.addEventListener('change', function () {
+      var file = picker.files && picker.files[0];
+      if (file) openCropper(file);
+      picker.value = '';  // 清空，讓同一張圖可以再選一次
+    });
+
+    recrop.addEventListener('click', function () { if (sourceFile) openCropper(sourceFile); });
+
+    var drag = null;
+    stage.addEventListener('pointerdown', function (event) {
+      drag = { px: event.clientX, py: event.clientY, x: state.x, y: state.y };
+      stage.setPointerCapture(event.pointerId);
+    });
+    stage.addEventListener('pointermove', function (event) {
+      if (!drag) return;
+      state.x = drag.x + event.clientX - drag.px;
+      state.y = drag.y + event.clientY - drag.py;
+      render();
+    });
+    stage.addEventListener('pointerup', function () { drag = null; });
+    stage.addEventListener('pointercancel', function () { drag = null; });
+    stage.addEventListener('wheel', function (event) {
+      event.preventDefault();
+      setZoom(parseFloat(zoom.value) - event.deltaY * 0.002);
+    }, { passive: false });
+    zoom.addEventListener('input', function () { setZoom(parseFloat(zoom.value)); });
+
+    document.getElementById('cropCancel').addEventListener('click', function () { modal.hidden = true; });
+    modal.addEventListener('click', function (event) { if (event.target === modal) modal.hidden = true; });
+    document.addEventListener('keydown', function (event) { if (event.key === 'Escape') modal.hidden = true; });
+
+    document.getElementById('cropConfirm').addEventListener('click', function () {
+      var canvas = document.createElement('canvas');
+      canvas.width = canvas.height = OUTPUT_SIZE;
+      var context = canvas.getContext('2d');
+      var keepAlpha = sourceFile.type !== 'image/jpeg';
+      var type = keepAlpha ? 'image/png' : 'image/jpeg';
+      // 把裁切框範圍換算回原圖座標，再畫到輸出畫布上
+      var sourceSize = stageSize() / state.scale;
+      context.drawImage(image, -state.x / state.scale, -state.y / state.scale, sourceSize, sourceSize, 0, 0, OUTPUT_SIZE, OUTPUT_SIZE);
+      canvas.toBlob(function (blob) {
+        var file = new File([blob], 'avatar.' + (keepAlpha ? 'png' : 'jpg'), { type: type });
+        var transfer = new DataTransfer();
+        transfer.items.add(file);
+        input.files = transfer.files;
+        var img = document.createElement('img');
+        img.alt = '頭像預覽';
+        img.src = URL.createObjectURL(blob);
+        preview.replaceChildren(img);
+        if (remove) remove.checked = false;
+        recrop.hidden = false;
+        modal.hidden = true;
+      }, type, 0.92);
+    });
+
+    if (remove) remove.addEventListener('change', function () {
+      if (remove.checked) {
+        input.value = ''; sourceFile = null; recrop.hidden = true;
+        preview.textContent = preview.dataset.initial;
+      } else {
+        preview.innerHTML = original;
+      }
+    });
+  })();
+</script>
 {% endblock %}

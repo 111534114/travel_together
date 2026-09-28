@@ -1,9 +1,11 @@
 import re  # 匯入正規表示式模組，用來驗證註冊欄位格式
 from datetime import datetime, timedelta  # 匯入日期工具，用來解析日期與建立月份統計區間
+from authlib.integrations.flask_client import OAuth  # 匯入 Authlib 的 Flask 整合，處理 Google 登入 OAuth 流程
 from flask import Flask, render_template, request, redirect, url_for, session, flash  # 匯入 Flask 核心功能：建立 App、渲染樣板、取得請求、導向、產生網址、session、顯示訊息
 from mysql.connector import Error  # 匯入 MySQL 連線錯誤類別，用來捕捉資料庫例外
 from werkzeug.security import check_password_hash, generate_password_hash  # 匯入密碼工具：驗證密碼、產生密碼雜湊值
 
+from config import GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET  # 匯入 Google OAuth Client ID/Secret
 from db import get_db_connection  # 匯入自訂的資料庫連線函式
 from blueprints.attractions import attractions_bp  # 匯入景點管理的藍圖(Blueprint)
 from blueprints.restaurants import restaurants_bp  # 匯入餐廳管理的藍圖
@@ -31,6 +33,15 @@ app.config["MAX_CONTENT_LENGTH"] = 8 * 1024 * 1024  # 限制單次請求上傳�
 app.jinja_env.globals["google_maps_url"] = google_maps_url  # 註冊成樣板全域函式，任何頁面都能直接用 google_maps_url(...) 組地圖連結
 app.jinja_env.globals["google_maps_embed_url"] = google_maps_embed_url  # 註冊成樣板全域函式，任何頁面都能直接用 google_maps_embed_url(...) 組嵌入縮圖地圖的網址
 
+oauth = OAuth(app)  # 建立 Authlib 的 OAuth 註冊器
+google_oauth = oauth.register(
+    name="google",
+    client_id=GOOGLE_CLIENT_ID,
+    client_secret=GOOGLE_CLIENT_SECRET,
+    server_metadata_url="https://accounts.google.com/.well-known/openid-configuration",
+    client_kwargs={"scope": "openid email profile"},
+)
+
 app.register_blueprint(attractions_bp)  # 註冊景點管理路由
 app.register_blueprint(restaurants_bp)  # 註冊餐廳管理路由
 app.register_blueprint(accommodations_bp)  # 註冊住宿管理路由
@@ -57,6 +68,20 @@ def redirect_by_role(role):  # 定義函式：依照使用者角色導向對應�
     session.clear()  # 角色不在預期範圍內，清空 session 避免殘留錯誤狀態
     flash("帳號角色設定錯誤。", "error")  # 顯示錯誤訊息給使用者
     return redirect(url_for("login"))  # 導回登入頁
+
+
+def generate_unique_username(cursor, seed):
+    """依 Email 帳號部分產生未被使用且符合 9 碼限制的英數帳號。"""
+    base = re.sub(r"[^A-Za-z0-9]", "", seed).lower()[:9] or "user"
+    username = base
+    suffix = 1
+    while True:
+        cursor.execute("SELECT 1 FROM users WHERE username = %s LIMIT 1", (username,))
+        if cursor.fetchone() is None:
+            return username
+        suffix_text = str(suffix)
+        username = base[: 9 - len(suffix_text)] + suffix_text
+        suffix += 1
 
 
 @app.route("/")  # 設定網站根目錄路由
@@ -450,7 +475,7 @@ def login():  # 定義登入功能函式
             flash("此帳號目前已停用，無法登入。", "error")  # 顯示停用提示
             return render_template("login.html")  # 重新顯示登入頁
 
-        if not check_password_hash(user["password_hash"], password):  # 驗證輸入密碼與資料庫雜湊值是否相符
+        if not user["password_hash"] or not check_password_hash(user["password_hash"], password):  # Google 帳號沒有密碼，或密碼與雜湊值不符
             flash("帳號或密碼錯誤。", "error")  # 密碼不符，顯示錯誤提示
             return render_template("login.html")  # 重新顯示登入頁
 
@@ -464,6 +489,96 @@ def login():  # 定義登入功能函式
         return redirect_by_role(user["role"])  # 登入成功，依角色導向對應首頁
 
     return render_template("login.html")  # GET 請求，直接顯示登入表單頁
+
+
+@app.route("/auth/google/login")
+def google_login():
+    if not GOOGLE_CLIENT_ID or not GOOGLE_CLIENT_SECRET:
+        flash("Google 登入尚未完成設定，請先使用帳號密碼登入。", "error")
+        return redirect(url_for("login"))
+    redirect_uri = url_for("google_callback", _external=True)
+    return google_oauth.authorize_redirect(redirect_uri)
+
+
+@app.route("/auth/google/callback")
+def google_callback():
+    try:
+        token = google_oauth.authorize_access_token()
+    except Exception as error:
+        print("Google 登入失敗：", error)
+        flash("Google 登入失敗，請再試一次。", "error")
+        return redirect(url_for("login"))
+
+    userinfo = token.get("userinfo")
+    google_sub = userinfo.get("sub") if userinfo else None
+    email = userinfo.get("email") if userinfo else None
+    if not google_sub or not email or not userinfo.get("email_verified"):
+        flash("無法取得已驗證的 Google 帳號資訊，請改用帳號密碼登入。", "error")
+        return redirect(url_for("login"))
+
+    full_name = userinfo.get("name") or email.split("@")[0]
+    connection = get_db_connection()
+    if connection is None:
+        flash("資料庫連線失敗，請稍後再試。", "error")
+        return redirect(url_for("login"))
+
+    cursor = connection.cursor(dictionary=True)
+    try:
+        cursor.execute(
+            """
+            SELECT user_id, username, full_name, nickname, role, status, google_sub
+            FROM users
+            WHERE google_sub = %s OR email = %s
+            LIMIT 1
+            """,
+            (google_sub, email),
+        )
+        user = cursor.fetchone()
+        if user is None:
+            username = generate_unique_username(cursor, email.split("@")[0])
+            cursor.execute(
+                """
+                INSERT INTO users
+                (username, password_hash, full_name, nickname, email, google_sub, role, status)
+                VALUES (%s, NULL, %s, %s, %s, %s, 'member', 'active')
+                """,
+                (username, full_name, full_name, email, google_sub),
+            )
+            connection.commit()
+            cursor.execute(
+                """
+                SELECT user_id, username, full_name, nickname, role, status, google_sub
+                FROM users WHERE user_id = %s
+                """,
+                (cursor.lastrowid,),
+            )
+            user = cursor.fetchone()
+        elif not user["google_sub"]:
+            cursor.execute(
+                "UPDATE users SET google_sub = %s WHERE user_id = %s",
+                (google_sub, user["user_id"]),
+            )
+            connection.commit()
+    except Error as error:
+        connection.rollback()
+        print("Google 登入建立帳號失敗：", error)
+        flash("Google 登入失敗，請稍後再試。", "error")
+        return redirect(url_for("login"))
+    finally:
+        cursor.close()
+        connection.close()
+
+    if user["status"] != "active":
+        flash("此帳號目前已停用，無法登入。", "error")
+        return redirect(url_for("login"))
+
+    session.clear()
+    session["user_id"] = user["user_id"]
+    session["username"] = user["username"]
+    session["full_name"] = user["full_name"]
+    session["nickname"] = user["nickname"]
+    session["role"] = user["role"]
+    return redirect_by_role(user["role"])
 
 
 @app.route("/register", methods=["GET", "POST"])  # 設定註冊頁路由

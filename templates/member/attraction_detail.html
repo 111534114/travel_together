@@ -43,7 +43,11 @@
             <p>{{ a.description or '這個景點還沒有介紹。' }}</p>
         </div>
 
-        {% if a.website_url %}<a href="{{ a.website_url }}" target="_blank" rel="noopener" class="member-btn ghost">官方網站</a>{% endif %}
+        <div class="attraction-detail-actions">
+            <button type="button" class="member-btn primary" data-add-to-trip data-action="{{ url_for('member.add_attraction_to_trip', attraction_id=a.attraction_id) }}" data-name="{{ a.name }}" data-city-id="{{ a.city_id }}">＋ 加入行程</button>
+            {% if a.website_url %}<a href="{{ a.website_url }}" target="_blank" rel="noopener" class="member-btn ghost">官方網站</a>{% endif %}
+        </div>
     </div>
 </div>
+{% include 'member/_add_to_trip_modal.html' %}
 {% endblock %}

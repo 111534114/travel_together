@@ -1,9 +1,15 @@
 import re  # 匯入正規表示式模組，用來驗證註冊欄位格式
+import requests  # 匯入 requests，用來呼叫 LINE 的個人資料 API
 from datetime import datetime, timedelta  # 匯入日期工具，用來解析日期與建立月份統計區間
+from authlib.integrations.flask_client import OAuth  # 匯入 Authlib 的 Flask 整合，處理 Google/LINE 登入的 OAuth 流程
 from flask import Flask, render_template, request, redirect, url_for, session, flash  # 匯入 Flask 核心功能：建立 App、渲染樣板、取得請求、導向、產生網址、session、顯示訊息
 from mysql.connector import Error  # 匯入 MySQL 連線錯誤類別，用來捕捉資料庫例外
 from werkzeug.security import check_password_hash, generate_password_hash  # 匯入密碼工具：驗證密碼、產生密碼雜湊值
 
+from config import (  # 匯入第三方登入用的 OAuth Client ID/Secret
+    GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET,
+    LINE_CHANNEL_ID, LINE_CHANNEL_SECRET,
+)
 from db import get_db_connection  # 匯入自訂的資料庫連線函式
 from blueprints.attractions import attractions_bp  # 匯入景點管理的藍圖(Blueprint)
 from blueprints.restaurants import restaurants_bp  # 匯入餐廳管理的藍圖
@@ -31,6 +37,29 @@ app.config["MAX_CONTENT_LENGTH"] = 8 * 1024 * 1024  # 限制單次請求上傳�
 app.jinja_env.globals["google_maps_url"] = google_maps_url  # 註冊成樣板全域函式，任何頁面都能直接用 google_maps_url(...) 組地圖連結
 app.jinja_env.globals["google_maps_embed_url"] = google_maps_embed_url  # 註冊成樣板全域函式，任何頁面都能直接用 google_maps_embed_url(...) 組嵌入縮圖地圖的網址
 
+oauth = OAuth(app)  # 建立 Authlib 的 OAuth 註冊器
+
+google_oauth = oauth.register(  # 註冊 Google 這個 OAuth 提供者
+    name="google",
+    client_id=GOOGLE_CLIENT_ID,
+    client_secret=GOOGLE_CLIENT_SECRET,
+    server_metadata_url="https://accounts.google.com/.well-known/openid-configuration",  # Google 官方的 OAuth 端點設定檔，Authlib 會自動讀取授權、換 token 等網址
+    client_kwargs={"scope": "openid email profile"},  # 跟 Google 要 email 和基本個人資料
+)
+
+line_oauth = oauth.register(  # 註冊 LINE 這個 OAuth 提供者
+    name="line",
+    client_id=LINE_CHANNEL_ID,
+    client_secret=LINE_CHANNEL_SECRET,
+    access_token_url="https://api.line.me/oauth2/v2.1/token",  # LINE 交換 access token 的網址
+    authorize_url="https://access.line.me/oauth2/v2.1/authorize",  # LINE 的登入/授權畫面網址
+    # 注意：scope 故意不加 "openid"，避免拿到 id_token。
+    # LINE 的 id_token 是用 Channel Secret 以 HS256 簽章，Authlib 內建的 OIDC 驗證只信任 JWKS 提供的非對稱金鑰(RS/ES256)，
+    # 硬要驗證 HS256 的 id_token 會丟出 "unsupported_algorithm" 錯誤，所以改成只拿 access_token，
+    # 再用 access_token 呼叫 LINE 的個人資料 API(/v2/profile) 取得使用者資料，完全避開 id_token 驗證的問題。
+    client_kwargs={"scope": "profile"},
+)
+
 app.register_blueprint(attractions_bp)  # 註冊景點管理路由
 app.register_blueprint(restaurants_bp)  # 註冊餐廳管理路由
 app.register_blueprint(accommodations_bp)  # 註冊住宿管理路由
@@ -57,6 +86,23 @@ def redirect_by_role(role):  # 定義函式：依照使用者角色導向對應�
     session.clear()  # 角色不在預期範圍內，清空 session 避免殘留錯誤狀態
     flash("帳號角色設定錯誤。", "error")  # 顯示錯誤訊息給使用者
     return redirect(url_for("login"))  # 導回登入頁
+
+
+def generate_unique_username(cursor, seed):  # 依指定的文字(Email 帳號部分、LINE 使用者 ID 等)產生一個未被使用過、符合帳號格式(9碼以內英數字)的帳號
+    base = re.sub(r"[^A-Za-z0-9]", "", seed).lower()[:9] or "user"  # 去掉非英數字元後截斷成9碼
+
+    username = base  # 先嘗試用 base 本身當帳號
+    suffix = 1  # 如果 base 已經被使用，就在後面加上流水號
+
+    while True:  # 一直找到沒被使用過的帳號為止
+        cursor.execute("SELECT 1 FROM users WHERE username = %s LIMIT 1", (username,))  # 檢查這個帳號是否已存在
+
+        if cursor.fetchone() is None:  # 沒有人用過這個帳號
+            return username  # 直接回傳
+
+        suffix_text = str(suffix)  # 流水號轉成字串
+        username = base[: 9 - len(suffix_text)] + suffix_text  # 把 base 截短，讓加上流水號後仍維持9碼以內
+        suffix += 1  # 準備下一次嘗試的流水號
 
 
 @app.route("/")  # 設定網站根目錄路由
@@ -450,7 +496,7 @@ def login():  # 定義登入功能函式
             flash("此帳號目前已停用，無法登入。", "error")  # 顯示停用提示
             return render_template("login.html")  # 重新顯示登入頁
 
-        if not check_password_hash(user["password_hash"], password):  # 驗證輸入密碼與資料庫雜湊值是否相符
+        if not user["password_hash"] or not check_password_hash(user["password_hash"], password):  # 這個帳號沒有密碼(用 Google 註冊)，或密碼跟雜湊值不符
             flash("帳號或密碼錯誤。", "error")  # 密碼不符，顯示錯誤提示
             return render_template("login.html")  # 重新顯示登入頁
 
@@ -464,6 +510,281 @@ def login():  # 定義登入功能函式
         return redirect_by_role(user["role"])  # 登入成功，依角色導向對應首頁
 
     return render_template("login.html")  # GET 請求，直接顯示登入表單頁
+
+
+@app.route("/auth/google/login")  # 設定「使用 Google 登入」按鈕要導向的路由
+def google_login():  # 定義導向 Google 授權頁的函式
+    redirect_uri = url_for("google_callback", _external=True)  # 產生 Google 完成授權後要回呼的完整網址
+    return google_oauth.authorize_redirect(redirect_uri)  # 導向 Google 的登入/授權畫面
+
+
+@app.route("/auth/google/callback")  # 設定 Google 完成授權後導回的路由
+def google_callback():  # 定義處理 Google 登入結果的函式
+    try:  # 嘗試用 Google 回傳的 code 換取 access token
+        token = google_oauth.authorize_access_token()  # 跟 Google 交換 token，並自動驗證 id_token
+
+    except Exception as error:  # 如果使用者取消授權，或跟 Google 交換 token 失敗
+        print("Google 登入失敗：", error)  # 在伺服器端印出錯誤內容方便除錯
+        flash("Google 登入失敗，請再試一次。", "error")  # 顯示錯誤提示
+        return redirect(url_for("login"))  # 導回登入頁
+
+    userinfo = token.get("userinfo")  # 取得 Google 回傳的使用者基本資料(email、姓名、sub 等)
+    google_sub = userinfo.get("sub") if userinfo else None  # Google 給每個使用者的唯一識別碼
+    email = userinfo.get("email") if userinfo else None  # 使用者的 Google Email
+
+    if not google_sub or not email or not userinfo.get("email_verified"):  # 缺少必要資料，或 Email 未經 Google 驗證
+        flash("無法取得已驗證的 Google 帳號資訊，請改用帳號密碼登入。", "error")  # 顯示錯誤提示
+        return redirect(url_for("login"))  # 導回登入頁
+
+    full_name = userinfo.get("name") or email.split("@")[0]  # 取得使用者姓名，若沒有就用 Email 帳號部分代替
+
+    connection = get_db_connection()  # 嘗試建立資料庫連線
+
+    if connection is None:  # 如果連線失敗
+        flash("資料庫連線失敗，請稍後再試。", "error")  # 顯示錯誤提示
+        return redirect(url_for("login"))  # 導回登入頁
+
+    cursor = connection.cursor(dictionary=True)  # 建立字典格式的資料庫游標
+
+    try:  # 開始執行資料庫操作
+        cursor.execute(  # 用 google_sub 或 email 查詢是否已經有對應的帳號
+            """
+            SELECT user_id, username, full_name, nickname, role, status, google_sub
+            FROM users
+            WHERE google_sub = %s OR email = %s
+            LIMIT 1
+            """,
+            (google_sub, email)
+        )
+
+        user = cursor.fetchone()  # 取得查詢結果
+
+        if user is None:  # 如果是第一次用這個 Google 帳號登入，且 Email 也沒註冊過
+            username = generate_unique_username(cursor, email.split("@")[0])  # 依 Email @ 前面的部分產生一組符合格式且沒被使用過的帳號
+
+            cursor.execute(  # 新增一個沒有密碼、改用 Google 登入的會員帳號
+                """
+                INSERT INTO users
+                (username, password_hash, full_name, nickname,
+                 email, google_sub, role, status)
+                VALUES (%s, NULL, %s, %s, %s, %s, 'member', 'active')
+                """,
+                (username, full_name, full_name, email, google_sub)
+            )
+
+            connection.commit()  # 提交交易，正式寫入資料庫
+
+            cursor.execute(  # 重新查詢剛剛新增的使用者資料，取得完整欄位
+                """
+                SELECT user_id, username, full_name, nickname, role, status, google_sub
+                FROM users
+                WHERE user_id = %s
+                """,
+                (cursor.lastrowid,)
+            )
+
+            user = cursor.fetchone()  # 取得新建立的使用者資料
+
+        elif not user["google_sub"]:  # 如果是用同一個 Email 註冊過帳號密碼，但還沒綁定過 Google
+            cursor.execute(  # 把這個 Google 帳號的 sub 綁定到現有帳號上，之後可以直接用 Google 登入
+                "UPDATE users SET google_sub = %s WHERE user_id = %s",
+                (google_sub, user["user_id"])
+            )
+            connection.commit()  # 提交交易
+
+    except Error as error:  # 如果資料庫操作發生錯誤
+        connection.rollback()  # 回復交易，避免留下不完整的資料
+        print("Google 登入建立帳號失敗：", error)  # 在伺服器端印出錯誤內容方便除錯
+        flash("Google 登入失敗，請稍後再試。", "error")  # 顯示錯誤提示
+        return redirect(url_for("login"))  # 導回登入頁
+
+    finally:  # 不論成功或失敗都要執行
+        cursor.close()  # 關閉游標
+        connection.close()  # 關閉資料庫連線
+
+    if user["status"] != "active":  # 如果帳號狀態不是啟用中
+        flash("此帳號目前已停用，無法登入。", "error")  # 顯示停用提示
+        return redirect(url_for("login"))  # 導回登入頁
+
+    session.clear()  # 登入成功前先清空舊的 session 資料
+    session["user_id"] = user["user_id"]  # 把使用者 ID 存入 session
+    session["username"] = user["username"]  # 把帳號存入 session
+    session["full_name"] = user["full_name"]  # 把姓名存入 session
+    session["nickname"] = user["nickname"]  # 把暱稱存入 session
+    session["role"] = user["role"]  # 把角色存入 session
+
+    return redirect_by_role(user["role"])  # 登入成功，依角色導向對應首頁
+
+
+@app.route("/auth/line/login")  # 設定「使用 LINE 登入」按鈕要導向的路由
+def line_login():  # 定義導向 LINE 授權頁的函式
+    redirect_uri = url_for("line_callback", _external=True)  # 產生 LINE 完成授權後要回呼的完整網址
+    return line_oauth.authorize_redirect(redirect_uri)  # 導向 LINE 的登入/授權畫面
+
+
+@app.route("/auth/line/callback")  # 設定 LINE 完成授權後導回的路由
+def line_callback():  # 定義處理 LINE 登入結果的函式
+    try:  # 嘗試用 LINE 回傳的 code 換取 access token
+        token = line_oauth.authorize_access_token()  # 跟 LINE 交換 access token(scope 沒有 openid，不會拿到 id_token)
+
+    except Exception as error:  # 如果使用者取消授權，或跟 LINE 交換 token 失敗
+        print("LINE 登入失敗：", error)  # 在伺服器端印出錯誤內容方便除錯
+        flash("LINE 登入失敗，請再試一次。", "error")  # 顯示錯誤提示
+        return redirect(url_for("login"))  # 導回登入頁
+
+    try:  # 用拿到的 access token 呼叫 LINE 的個人資料 API
+        profile_response = requests.get(
+            "https://api.line.me/v2/profile",
+            headers={"Authorization": "Bearer " + token["access_token"]},
+            timeout=10
+        )
+        profile_response.raise_for_status()  # 如果 LINE 回傳非 200，直接丟出例外
+        profile = profile_response.json()  # 解析回傳的 JSON，裡面有 userId、displayName、pictureUrl
+
+    except requests.RequestException as error:  # 如果呼叫 LINE 個人資料 API 失敗
+        print("LINE 取得個人資料失敗：", error)  # 在伺服器端印出錯誤內容方便除錯
+        flash("無法取得 LINE 帳號資訊，請改用其他方式登入。", "error")  # 顯示錯誤提示
+        return redirect(url_for("login"))  # 導回登入頁
+
+    line_sub = profile.get("userId")  # LINE 給每個使用者的唯一識別碼
+
+    if not line_sub:  # 缺少必要的識別碼
+        flash("無法取得 LINE 帳號資訊，請改用其他方式登入。", "error")  # 顯示錯誤提示
+        return redirect(url_for("login"))  # 導回登入頁
+
+    full_name = profile.get("displayName") or "LINE 使用者"  # 取得使用者姓名，若沒有就用預設文字代替
+
+    connection = get_db_connection()  # 嘗試建立資料庫連線
+
+    if connection is None:  # 如果連線失敗
+        flash("資料庫連線失敗，請稍後再試。", "error")  # 顯示錯誤提示
+        return redirect(url_for("login"))  # 導回登入頁
+
+    cursor = connection.cursor(dictionary=True)  # 建立字典格式的資料庫游標
+
+    try:  # 開始執行資料庫操作
+        cursor.execute(  # 用 line_sub 查詢是否已經有對應的帳號
+            """
+            SELECT user_id, username, full_name, nickname, role, status
+            FROM users
+            WHERE line_sub = %s
+            LIMIT 1
+            """,
+            (line_sub,)
+        )
+
+        user = cursor.fetchone()  # 取得查詢結果
+
+    except Error as error:  # 如果資料庫操作發生錯誤
+        print("LINE 登入查詢帳號失敗：", error)  # 在伺服器端印出錯誤內容方便除錯
+        flash("LINE 登入失敗，請稍後再試。", "error")  # 顯示錯誤提示
+        return redirect(url_for("login"))  # 導回登入頁
+
+    finally:  # 不論成功或失敗都要執行
+        cursor.close()  # 關閉游標
+        connection.close()  # 關閉資料庫連線
+
+    if user is None:  # 如果是第一次用這個 LINE 帳號登入，還沒有對應的會員帳號
+        session["pending_line_sub"] = line_sub  # 先把 LINE 識別碼存進 session，等使用者補填 Email 後再正式建立帳號
+        session["pending_line_name"] = full_name  # 順便存 LINE 的顯示名稱，補填頁面要用
+        return redirect(url_for("line_complete_profile"))  # 導向「補填 Email」頁面
+
+    if user["status"] != "active":  # 如果帳號狀態不是啟用中
+        flash("此帳號目前已停用，無法登入。", "error")  # 顯示停用提示
+        return redirect(url_for("login"))  # 導回登入頁
+
+    session.clear()  # 登入成功前先清空舊的 session 資料
+    session["user_id"] = user["user_id"]  # 把使用者 ID 存入 session
+    session["username"] = user["username"]  # 把帳號存入 session
+    session["full_name"] = user["full_name"]  # 把姓名存入 session
+    session["nickname"] = user["nickname"]  # 把暱稱存入 session
+    session["role"] = user["role"]  # 把角色存入 session
+
+    return redirect_by_role(user["role"])  # 登入成功，依角色導向對應首頁
+
+
+@app.route("/auth/line/complete-profile", methods=["GET", "POST"])  # 設定「LINE 第一次登入要補填 Email」的頁面路由
+def line_complete_profile():  # 定義處理補填 Email 的函式
+    line_sub = session.get("pending_line_sub")  # 取出剛剛 LINE 登入時暫存的識別碼
+    full_name = session.get("pending_line_name")  # 取出剛剛 LINE 登入時暫存的顯示名稱
+
+    if not line_sub:  # 如果 session 裡沒有暫存資料(例如直接輸入網址進來，或 session 已過期)
+        flash("請重新使用 LINE 登入。", "error")  # 顯示錯誤提示
+        return redirect(url_for("login"))  # 導回登入頁
+
+    if request.method == "POST":  # 如果是表單送出請求
+        email = request.form.get("email", "").strip()  # 取得使用者填寫的 Email
+
+        if not re.fullmatch(r"[^\s@]+@[^\s@]+\.[^\s@]+", email):  # Email 需符合含有 @ 與網域的基本格式
+            flash("請輸入正確的電子郵件格式。", "error")  # 顯示錯誤提示
+            return render_template("line_complete_profile.html", full_name=full_name)  # 重新顯示補填頁
+
+        connection = get_db_connection()  # 嘗試建立資料庫連線
+
+        if connection is None:  # 如果連線失敗
+            flash("資料庫連線失敗，請稍後再試。", "error")  # 顯示錯誤提示
+            return render_template("line_complete_profile.html", full_name=full_name)  # 重新顯示補填頁
+
+        cursor = connection.cursor(dictionary=True)  # 建立字典格式的資料庫游標
+
+        try:  # 開始執行資料庫操作
+            cursor.execute(  # 檢查這個 Email 是否已經被其他帳號使用
+                "SELECT user_id FROM users WHERE email = %s LIMIT 1",
+                (email,)
+            )
+
+            if cursor.fetchone():  # 如果已經有人用過這個 Email
+                flash("這個電子郵件已經被使用，請換一個。", "error")  # 顯示錯誤提示
+                return render_template("line_complete_profile.html", full_name=full_name)  # 重新顯示補填頁
+
+            username = generate_unique_username(cursor, line_sub)  # 依 LINE 識別碼產生一組符合格式且沒被使用過的帳號
+
+            cursor.execute(  # 新增一個沒有密碼、改用 LINE 登入的會員帳號
+                """
+                INSERT INTO users
+                (username, password_hash, full_name, nickname,
+                 email, line_sub, role, status)
+                VALUES (%s, NULL, %s, %s, %s, %s, 'member', 'active')
+                """,
+                (username, full_name, full_name, email, line_sub)
+            )
+
+            connection.commit()  # 提交交易，正式寫入資料庫
+
+            cursor.execute(  # 重新查詢剛剛新增的使用者資料，取得完整欄位
+                """
+                SELECT user_id, username, full_name, nickname, role, status
+                FROM users
+                WHERE user_id = %s
+                """,
+                (cursor.lastrowid,)
+            )
+
+            user = cursor.fetchone()  # 取得新建立的使用者資料
+
+        except Error as error:  # 如果資料庫操作發生錯誤
+            connection.rollback()  # 回復交易，避免留下不完整的資料
+            print("LINE 登入建立帳號失敗：", error)  # 在伺服器端印出錯誤內容方便除錯
+            flash("註冊失敗，請稍後再試。", "error")  # 顯示錯誤提示
+            return render_template("line_complete_profile.html", full_name=full_name)  # 重新顯示補填頁
+
+        finally:  # 不論成功或失敗都要執行
+            cursor.close()  # 關閉游標
+            connection.close()  # 關閉資料庫連線
+
+        session.pop("pending_line_sub", None)  # 清掉暫存的 LINE 識別碼
+        session.pop("pending_line_name", None)  # 清掉暫存的顯示名稱
+
+        session.clear()  # 登入成功前先清空舊的 session 資料
+        session["user_id"] = user["user_id"]  # 把使用者 ID 存入 session
+        session["username"] = user["username"]  # 把帳號存入 session
+        session["full_name"] = user["full_name"]  # 把姓名存入 session
+        session["nickname"] = user["nickname"]  # 把暱稱存入 session
+        session["role"] = user["role"]  # 把角色存入 session
+
+        return redirect_by_role(user["role"])  # 建立完成，依角色導向對應首頁
+
+    return render_template("line_complete_profile.html", full_name=full_name)  # GET 請求，顯示補填 Email 表單頁
 
 
 @app.route("/register", methods=["GET", "POST"])  # 設定註冊頁路由

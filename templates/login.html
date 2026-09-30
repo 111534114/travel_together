@@ -71,6 +71,25 @@
 
         </form>
 
+        <div class="oauth-divider"><span>或</span></div>
+
+        <a href="{{ url_for('google_login') }}" class="google-button">
+            <svg width="18" height="18" viewBox="0 0 18 18" aria-hidden="true">
+                <path fill="#4285F4" d="M17.64 9.2c0-.64-.06-1.25-.16-1.84H9v3.48h4.84a4.14 4.14 0 0 1-1.8 2.72v2.26h2.91c1.7-1.57 2.69-3.87 2.69-6.62z"/>
+                <path fill="#34A853" d="M9 18c2.43 0 4.47-.8 5.96-2.18l-2.91-2.26c-.81.54-1.85.86-3.05.86-2.34 0-4.33-1.58-5.04-3.71H.96v2.33A9 9 0 0 0 9 18z"/>
+                <path fill="#FBBC05" d="M3.96 10.71a5.4 5.4 0 0 1 0-3.42V4.96H.96a9 9 0 0 0 0 8.08l3-2.33z"/>
+                <path fill="#EA4335" d="M9 3.58c1.32 0 2.51.46 3.44 1.35l2.58-2.58C13.46.89 11.43 0 9 0A9 9 0 0 0 .96 4.96l3 2.33C4.67 5.16 6.66 3.58 9 3.58z"/>
+            </svg>
+            使用 Google 帳號登入
+        </a>
+
+        <a href="{{ url_for('line_login') }}" class="line-button">
+            <svg width="20" height="20" viewBox="0 0 24 24" aria-hidden="true">
+                <path fill="#fff" d="M12 3C6.48 3 2 6.58 2 11c0 3.94 3.55 7.24 8.35 7.88.32.07.77.21.88.49.1.25.06.65.03.9l-.14.86c-.04.25-.19.99.87.54 1.06-.45 5.7-3.36 7.78-5.75C21.24 14.02 22 12.6 22 11c0-4.42-4.48-8-10-8z"/>
+            </svg>
+            使用 LINE 帳號登入
+        </a>
+
         <p class="auth-link">
             還沒有帳號？
             <a href="{{ url_for('register') }}">立即註冊</a>

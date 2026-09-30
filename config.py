@@ -24,3 +24,13 @@ ANTHROPIC_API_KEY = os.environ.get("ANTHROPIC_API_KEY", "")
 # 中央氣象署開放資料平台授權碼，用來提供訪客頁面的台灣縣市天氣預報功能
 # 請到 https://opendata.cwa.gov.tw 註冊會員取得授權碼，並在 .env 檔案裡新增一行：CWA_API_KEY=你的授權碼
 CWA_API_KEY = os.environ.get("CWA_API_KEY", "")
+
+# Google 登入 OAuth 設定
+# 重新導向 URI：http://127.0.0.1:5000/auth/google/callback
+GOOGLE_CLIENT_ID = os.environ.get("GOOGLE_CLIENT_ID", "")
+GOOGLE_CLIENT_SECRET = os.environ.get("GOOGLE_CLIENT_SECRET", "")
+
+# LINE Login Channel 設定（不是 Messaging API 官方帳號）
+# Callback URL：http://127.0.0.1:5000/auth/line/callback
+LINE_CHANNEL_ID = os.environ.get("LINE_CHANNEL_ID", "")
+LINE_CHANNEL_SECRET = os.environ.get("LINE_CHANNEL_SECRET", "")

@@ -23,6 +23,12 @@
             <p>旅遊內容管理後台</p>
         </a>
 
+        <div class="admin-sidebar-mascots">
+            <img src="{{ url_for('static', filename='images/mascot_chick.png') }}" alt="">
+            <img src="{{ url_for('static', filename='images/mascot_bear.png') }}" alt="">
+            <img src="{{ url_for('static', filename='images/mascot_frog.png') }}" alt="">
+        </div>
+
         <nav class="admin-menu">
 
             <a class="{{ 'active' if active_menu == 'dashboard' else '' }}"

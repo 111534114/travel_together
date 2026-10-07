@@ -529,7 +529,7 @@ def browse_attractions():
         where_clause = " AND ".join(conditions)
         cursor.execute(f"""
             SELECT a.attraction_id, a.city_id, a.name, a.address, a.latitude, a.longitude, a.ticket_price, a.image_path,
-                   cat.category_name, co.name AS country, ci.name AS city,
+                   a.is_popular, cat.category_name, co.name AS country, ci.name AS city,
                    (f.favorite_id IS NOT NULL) AS is_favorited
             FROM attractions a
             LEFT JOIN categories cat ON cat.category_id = a.category_id

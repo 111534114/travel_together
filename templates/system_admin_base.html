@@ -14,6 +14,11 @@
             <img src="{{ url_for('static', filename='images/logo.png') }}" alt="走吧揪團 Logo">
             <p>系統管理後台</p>
         </div>
+        <div class="admin-sidebar-mascots">
+            <img src="{{ url_for('static', filename='images/mascot_chick.png') }}" alt="">
+            <img src="{{ url_for('static', filename='images/mascot_bear.png') }}" alt="">
+            <img src="{{ url_for('static', filename='images/mascot_frog.png') }}" alt="">
+        </div>
         <nav class="admin-menu">
             <a class="{{ 'active' if active_page == 'dashboard' }}" href="{{ url_for('system_admin_home') }}">主畫面</a>
             <a class="{{ 'active' if active_page == 'users' }}" href="{{ url_for('admin_users') }}">帳號管理</a>

@@ -891,6 +891,33 @@ body {
     color: #333;
 }
 
+/* 投票結果圖表（提案與投票） */
+
+.vote-chart-segment {
+    height: 100%;
+    border-radius: 0 4px 4px 0;
+    transition: filter .15s ease;
+}
+
+.vote-chart-segment:hover,
+.vote-chart-segment:focus-visible {
+    filter: brightness(1.08);
+    outline: none;
+}
+
+.vote-series-agree { background: #0ca30c; }
+.vote-series-disagree { background: #d03b3b; }
+.vote-series-neutral { background: #898781; }
+
+.vote-series-cat-1 { background: #2a78d6; }
+.vote-series-cat-2 { background: #eb6834; }
+.vote-series-cat-3 { background: #1baf7a; }
+.vote-series-cat-4 { background: #eda100; }
+.vote-series-cat-5 { background: #e87ba4; }
+.vote-series-cat-6 { background: #008300; }
+.vote-series-cat-7 { background: #4a3aa7; }
+.vote-series-cat-8 { background: #e34948; }
+
 /* 系統管理員進階頁面 */
 .admin-cards-compact .dashboard-card {
     padding: 20px;
@@ -2163,6 +2190,168 @@ body {
 .quick-add form,
 .invite-details form {
     margin-top: 16px;
+}
+
+.proposal-row-actions {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 6px;
+    flex-shrink: 0;
+}
+
+.proposal-vote-trigger {
+    margin-top: 0;
+    padding-top: 0;
+    border-top: none;
+}
+
+.proposal-vote-trigger summary {
+    font-size: 13px;
+}
+
+.proposal-vote-trigger form {
+    min-width: 230px;
+}
+
+.vote-proposal-link {
+    margin: 4px 0 0;
+    color: var(--ocean-muted);
+    font-size: 12px;
+}
+
+.itinerary-add-layout {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-start;
+    gap: 24px;
+}
+
+.itinerary-attraction-picker {
+    flex: 0 0 300px;
+    min-width: 260px;
+}
+
+.itinerary-attraction-picker h4 {
+    margin: 0 0 4px;
+    font-size: 15px;
+}
+
+.itinerary-attraction-picker .form-hint {
+    margin: 0 0 12px;
+}
+
+.attraction-pick-list {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    max-height: 420px;
+    overflow-y: auto;
+    padding-right: 4px;
+}
+
+.attraction-pick-card {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 8px;
+    background: #fff;
+    border: 1px solid #E1EBEC;
+    border-radius: 10px;
+}
+
+.attraction-pick-art {
+    display: grid;
+    place-items: center;
+    width: 48px;
+    height: 48px;
+    flex-shrink: 0;
+    overflow: hidden;
+    color: #fff;
+    background: var(--ocean-primary);
+    border-radius: 8px;
+    font-weight: 700;
+}
+
+.attraction-pick-art img {
+    display: block;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.attraction-pick-info {
+    display: flex;
+    flex: 1;
+    min-width: 0;
+    flex-direction: column;
+    gap: 2px;
+    font-size: 12px;
+    color: var(--ocean-muted);
+}
+
+.attraction-pick-info b {
+    overflow: hidden;
+    color: #23373A;
+    font-size: 14px;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+}
+
+.attraction-pick-info strong {
+    color: var(--ocean-primary-dark);
+}
+
+.itinerary-manual-form {
+    flex: 1 1 320px;
+    min-width: 280px;
+}
+
+.form-label-text {
+    display: block;
+    margin-bottom: 7px;
+    color: #3D5154;
+    font-weight: 600;
+}
+
+.day-picker {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
+.day-picker-btn {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 2px;
+    padding: 8px 12px;
+    background: #fff;
+    border: 1px solid #C5D5D7;
+    border-radius: 10px;
+    color: #3D5154;
+    cursor: pointer;
+    font: inherit;
+    transition: background .15s ease, border-color .15s ease, color .15s ease;
+}
+
+.day-picker-btn b {
+    font-size: 14px;
+}
+
+.day-picker-btn span {
+    font-size: 11px;
+    opacity: .75;
+}
+
+.day-picker-btn:hover {
+    border-color: var(--ocean-primary);
+}
+
+.day-picker-btn.active {
+    background: var(--ocean-primary);
+    border-color: var(--ocean-primary);
+    color: #fff;
 }
 
 .budget-bar {

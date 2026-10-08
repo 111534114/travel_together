@@ -616,9 +616,10 @@ def add_attraction_to_trip(attraction_id):
             flash("找不到這個景點，或已被下架。", "error"); return redirect(next_url)
         cursor.execute("SELECT COALESCE(MAX(sort_order),0)+1 AS next_order FROM itineraries WHERE trip_id=%s AND itinerary_date=%s", (trip["trip_id"], day_value))
         order = cursor.fetchone()["next_order"]
-        cursor.execute("""INSERT INTO itineraries (trip_id,created_by,itinerary_date,item_type,title,start_time,end_time,address,estimated_cost,notes,attraction_id,sort_order)
-                          VALUES (%s,%s,%s,'attraction',%s,%s,%s,%s,%s,%s,%s,%s)""",
+        cursor.execute("""INSERT INTO itineraries (trip_id,created_by,itinerary_date,item_type,title,start_time,end_time,address,transport_method,estimated_cost,notes,attraction_id,sort_order)
+                          VALUES (%s,%s,%s,'attraction',%s,%s,%s,%s,%s,%s,%s,%s,%s)""",
                        (trip["trip_id"], session["user_id"], day_value, attraction["name"][:150], start, end, attraction["address"],
+                        request.form.get("transport_method", "").strip() or None,
                         attraction["ticket_price"] or 0, request.form.get("notes", "").strip() or None, attraction_id, order))
         connection.commit()
         flash(f"已將「{attraction['name']}」加入「{trip['trip_name']}」的 {day_value} 行程。", "success")
@@ -742,10 +743,20 @@ def trip_detail(trip_id):
         balance_summary = _load_balance_summary(cursor, trip_id)
         attachments = _load_attachments(cursor, trip_id)
         place_options = _load_place_options(cursor, trip["city_id"])
+        cursor.execute("""
+            SELECT a.attraction_id, a.name, a.address, a.ticket_price, a.image_path, a.city_id,
+                   cat.category_name, ci.name AS city
+            FROM attractions a
+            LEFT JOIN categories cat ON cat.category_id = a.category_id
+            JOIN cities ci ON ci.city_id = a.city_id
+            WHERE a.country_id = %s AND a.status = 'active' AND a.deleted_at IS NULL
+            ORDER BY (a.city_id = %s) DESC, a.is_popular DESC, a.attraction_id DESC
+            LIMIT 20
+        """, (trip["country_id"], trip["city_id"])); popular_attractions = cursor.fetchall()
         cursor.execute("SELECT COALESCE(SUM(amount),0) AS actual FROM expenses WHERE trip_id=%s AND expense_type='actual'", (trip_id,)); actual = cursor.fetchone()["actual"]
     finally:
         cursor.close(); connection.close()
-    return render_template("member/trip_detail.html", trip=trip, itinerary=itinerary, place_options=place_options, city_weather_days=city_weather_days, members=members, pending_invitations=pending_invitations, proposals=proposals, votes=votes, comments=comments, expenses=expenses, balance_summary=balance_summary, attachments=attachments, actual=actual, can_edit=_can_edit(trip), is_owner=trip["member_role"] == "owner", now=datetime.now())
+    return render_template("member/trip_detail.html", trip=trip, itinerary=itinerary, place_options=place_options, popular_attractions=popular_attractions, addable_trips=[trip], city_weather_days=city_weather_days, members=members, pending_invitations=pending_invitations, proposals=proposals, votes=votes, comments=comments, expenses=expenses, balance_summary=balance_summary, attachments=attachments, actual=actual, can_edit=_can_edit(trip), is_owner=trip["member_role"] == "owner", now=datetime.now())
 
 
 @member_bp.route("/trips/<int:trip_id>/edit", methods=["GET", "POST"])
@@ -992,16 +1003,25 @@ def add_vote(trip_id):
         deadline_at = request.form.get("deadline_at", "").strip().replace("T", " ")
         option_texts = [text.strip() for text in request.form.getlist("option_text") if text.strip()]
 
+        proposal_id = request.form.get("proposal_id", "").strip() or None
+        proposal = None
+        if proposal_id:
+            cursor.execute("SELECT * FROM proposals WHERE proposal_id=%s AND trip_id=%s", (proposal_id, trip_id))
+            proposal = cursor.fetchone()
+
         if not trip or not _can_edit(trip): flash("你沒有建立投票的權限。", "error")
         elif not title or not deadline_at: flash("請填寫投票標題與截止時間。", "error")
         elif vote_type == "single_choice" and len(option_texts) < 2: flash("單選投票至少需要填寫 2 個選項。", "error")
+        elif proposal_id and (not proposal or proposal["status"] != "discussing"): flash("這個提案目前無法發起投票。", "error")
         else:
-            cursor.execute("""INSERT INTO votes (trip_id,created_by,title,vote_type,deadline_at)
-                              VALUES (%s,%s,%s,%s,%s)""", (trip_id, session["user_id"], title, vote_type, deadline_at))
+            cursor.execute("""INSERT INTO votes (trip_id,proposal_id,created_by,title,vote_type,deadline_at)
+                              VALUES (%s,%s,%s,%s,%s,%s)""", (trip_id, proposal_id, session["user_id"], title, vote_type, deadline_at))
             vote_id = cursor.lastrowid
             if vote_type == "single_choice":
                 for idx, text in enumerate(option_texts, 1):
                     cursor.execute("INSERT INTO vote_options (vote_id,option_text,sort_order) VALUES (%s,%s,%s)", (vote_id, text, idx))
+            if proposal_id:
+                cursor.execute("UPDATE proposals SET status='voting' WHERE proposal_id=%s", (proposal_id,))
             connection.commit()
             flash("投票已建立。", "success")
     except Exception:
@@ -1084,6 +1104,16 @@ def close_vote(trip_id, vote_id):
             flash("只有發起人或行程建立者可以結束投票。", "error")
         else:
             cursor.execute("UPDATE votes SET status='closed' WHERE vote_id=%s", (vote_id,))
+
+            if vote["proposal_id"] and vote["vote_type"] == "approval":
+                cursor.execute("""
+                    SELECT approval_choice, COUNT(*) AS c FROM vote_records
+                    WHERE vote_id=%s AND approval_choice IS NOT NULL GROUP BY approval_choice
+                """, (vote_id,))
+                tally = {row["approval_choice"]: row["c"] for row in cursor.fetchall()}
+                new_status = "approved" if tally.get("agree", 0) > tally.get("disagree", 0) else "rejected"
+                cursor.execute("UPDATE proposals SET status=%s WHERE proposal_id=%s", (new_status, vote["proposal_id"]))
+
             connection.commit()
             flash("投票已結束。", "success")
     except Exception:

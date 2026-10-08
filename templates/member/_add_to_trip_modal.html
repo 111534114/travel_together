@@ -15,9 +15,14 @@
                     </select>
                 </label>
                 <p class="form-hint add-trip-full add-trip-warning" id="addToTripCityHint" hidden>這個行程的目的地和景點不在同一個城市，確定要加入嗎？</p>
-                <label class="add-trip-full">日期<input type="date" name="itinerary_date" id="addToTripDate" required></label>
+                <div class="add-trip-full">
+                    <span class="form-label-text">選擇是行程中的第幾天</span>
+                    <div class="day-picker" id="addToTripDayPicker"></div>
+                    <input type="hidden" name="itinerary_date" id="addToTripDate" required>
+                </div>
                 <label>開始時間<input type="time" name="start_time"></label>
                 <label>結束時間<input type="time" name="end_time"></label>
+                <label class="add-trip-full">交通方式<input name="transport_method" list="transport-method-list" autocomplete="off" placeholder="選填，例如：捷運／地鐵"></label>
                 <label class="add-trip-full">備註<input name="notes" maxlength="500" placeholder="選填，例如：想看夕陽"></label>
             </div>
             <div class="form-actions-member">
@@ -41,19 +46,50 @@
     var form = document.getElementById('addToTripForm');
     var select = document.getElementById('addToTripSelect');
     var dateInput = document.getElementById('addToTripDate');
+    var dayPicker = document.getElementById('addToTripDayPicker');
     var cityHint = document.getElementById('addToTripCityHint');
     var currentCity = '';
+    var weekdayNames = ['日', '一', '二', '三', '四', '五', '六'];
+
+    function toIsoDate(d) {
+        return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+    }
+
+    function selectDay(iso) {
+        dateInput.value = iso;
+        dayPicker.querySelectorAll('button').forEach(function (btn) {
+            btn.classList.toggle('active', btn.dataset.date === iso);
+        });
+    }
+
+    function buildDayPicker(startStr, endStr) {
+        if (!dayPicker) return;
+        dayPicker.innerHTML = '';
+        var start = new Date(startStr + 'T00:00:00');
+        var end = new Date(endStr + 'T00:00:00');
+        var today = toIsoDate(new Date());
+        var defaultIso = null;
+        var dayNum = 1;
+        for (var d = new Date(start); d <= end; d.setDate(d.getDate() + 1), dayNum++) {
+            var iso = toIsoDate(d);
+            var btn = document.createElement('button');
+            btn.type = 'button';
+            btn.className = 'day-picker-btn';
+            btn.dataset.date = iso;
+            btn.innerHTML = '<b>Day ' + dayNum + '</b><span>' + (d.getMonth() + 1) + '/' + d.getDate() + '（週' + weekdayNames[d.getDay()] + '）</span>';
+            btn.addEventListener('click', function () { selectDay(this.dataset.date); });
+            dayPicker.appendChild(btn);
+            if (iso === today) defaultIso = iso;
+            if (defaultIso === null) defaultIso = iso;
+        }
+        selectDay(dateInput.value && dateInput.value >= startStr && dateInput.value <= endStr ? dateInput.value : defaultIso);
+    }
 
     function syncTrip() {
         if (!select) return;
         var option = select.options[select.selectedIndex];
         if (!option) return;
-        dateInput.min = option.dataset.start;
-        dateInput.max = option.dataset.end;
-        if (!dateInput.value || dateInput.value < dateInput.min || dateInput.value > dateInput.max) {
-            var today = new Date().toISOString().slice(0, 10);
-            dateInput.value = today > option.dataset.start && today <= option.dataset.end ? today : option.dataset.start;
-        }
+        buildDayPicker(option.dataset.start, option.dataset.end);
         cityHint.hidden = !currentCity || option.dataset.city === currentCity;
     }
 

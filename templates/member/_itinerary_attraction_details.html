@@ -1,0 +1,12 @@
+{% if item.detail_attraction_id %}
+<details class="quick-add" open>
+  <summary>景點詳細資料</summary>
+  {% if item.attraction_image %}
+  <img src="{{ url_for('static', filename=item.attraction_image) }}" alt="{{ item.title }}" loading="lazy" style="display:block;width:100%;max-width:320px;height:180px;object-fit:cover;border-radius:6px;margin:12px 0;">
+  {% endif %}
+  <p><b>營業時間：</b>{{ item.attraction_hours or '未提供' }}</p>
+  <p><b>建議停留：</b>{{ (item.attraction_duration ~ ' 分鐘') if item.attraction_duration else '未提供' }}</p>
+  <p style="white-space:pre-wrap;overflow-wrap:anywhere;">{{ item.attraction_description or '此景點尚無介紹。' }}</p>
+  <a class="member-btn ghost small" href="{{ url_for('member.attraction_detail', attraction_id=item.detail_attraction_id) }}" target="_blank" rel="noopener">完整景點資料與地圖（另開分頁）</a>
+</details>
+{% endif %}

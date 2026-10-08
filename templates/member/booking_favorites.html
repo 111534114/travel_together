@@ -1,0 +1,22 @@
+{% extends 'member/base.html' %}
+{% block title %}我的收藏｜走吧揪團{% endblock %}
+{% block content %}
+<h1>我的收藏</h1>
+<link rel="stylesheet" href="{{ url_for('static', filename='css/booking-tools.css') }}">
+{% for kind,label in [('hotel','想住的住宿'),('flight','機票收藏'),('train','火車收藏')] %}
+<section class="panel"><h2>{{ label }}</h2>
+{% for item in groups[kind] %}
+<article style="padding:16px 0;border-bottom:1px solid #d3e2e5;">
+{% if not item.status or item.status != 'active' or (kind == 'hotel' and item.deleted_at) %}<p>此項目已下架或不存在</p>
+{% elif kind == 'hotel' %}
+<h3>{{ item.name }}</h3><p>{{ item.address or '地址未提供' }}</p>
+<p>{{ ('NT$ ' ~ item.price_per_night ~ '／晚（參考）') if item.price_per_night else '價格洽詢' }}</p>
+{% set map = google_maps_url(item.address) %}{% if map %}<a href="{{ map }}" target="_blank" rel="noopener">查看地圖</a>{% endif %}
+<a href="{{ url_for('visitor_hotel_search', destination=item.name) }}">重新查詢日期與價格</a>
+{% elif kind == 'flight' %}<h3>{{ item.airline_name }} {{ item.flight_number }}</h3><p>{{ item.departure_time }} ～ {{ item.arrival_time }} · NT$ {{ item.price }}／人（參考）</p><a href="{{ url_for('visitor_flight_search') }}">重新查詢航班</a>
+{% else %}<h3>{{ item.train_type }} {{ item.train_number }}</h3><p>{{ item.origin_station }} → {{ item.destination_station }} · {{ item.departure_time }} · NT$ {{ item.price }}／人（參考）</p><a href="{{ url_for('visitor_train_search', **{'from':item.origin_station,'to':item.destination_station}) }}">重新查詢車次</a>{% endif %}
+{% set save_kind=kind %}{% set save_id=item.target_id %}{% include 'partials/booking_favorite_button.html' %}
+</article>
+{% else %}<p>尚無收藏。</p>{% endfor %}</section>
+{% endfor %}
+{% endblock %}

@@ -95,6 +95,7 @@
     </nav>
   </header>
   <main>
+{% include 'partials/booking_tools.html' %}
     <p class="breadcrumb"><a href="{{ url_for('member.dashboard') if is_member else url_for('visitor') }}">{{ '← 返回會員首頁' if is_member else '← 返回訪客首頁' }}</a></p>
     <section class="search-panel">
       <div class="search-tabs" role="tablist">
@@ -155,6 +156,7 @@
         <div class="flight-list">
           {% for flight in outbound_flights %}
             <article class="flight-card">
+{% set save_kind='flight' %}{% set save_id=flight.flight_id %}{% include 'partials/booking_favorite_button.html' %}
               <div class="flight-airline"><b>{{ flight.airline_name }}</b><span>{{ flight.flight_number }}・{{ flight.cabin_class }}</span></div>
               <div class="flight-route">
                 <div class="flight-time"><b>{{ flight.departure_time }}</b><span>{{ flight.origin_city }}</span></div>
@@ -178,6 +180,7 @@
         <div class="flight-list">
           {% for flight in return_flights %}
             <article class="flight-card">
+{% set save_kind='flight' %}{% set save_id=flight.flight_id %}{% include 'partials/booking_favorite_button.html' %}
               <div class="flight-airline"><b>{{ flight.airline_name }}</b><span>{{ flight.flight_number }}・{{ flight.cabin_class }}</span></div>
               <div class="flight-route">
                 <div class="flight-time"><b>{{ flight.departure_time }}</b><span>{{ flight.origin_city }}</span></div>

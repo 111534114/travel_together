@@ -278,6 +278,7 @@ CREATE TABLE vote_records (
  option_id BIGINT UNSIGNED,
  user_id BIGINT UNSIGNED NOT NULL,
  approval_choice ENUM('agree','disagree','neutral'),
+ reason VARCHAR(255),
  voted_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
  updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
  UNIQUE(vote_id,user_id),

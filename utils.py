@@ -1,5 +1,6 @@
 import io  # 匯入 io，用來在記憶體中組出 CSV 檔案內容
 import ipaddress
+from datetime import time as time_type, timedelta  # 匯入 time/timedelta，用來把資料庫的 TIME 欄位格式化成 HH:MM
 import os  # 匯入作業系統相關功能，用來處理檔案路徑與資料夾
 import random  # 匯入 random，用來隨機挑選不同句型，避免自動產生的描述長得都一樣
 import socket
@@ -424,6 +425,20 @@ def build_place_description(name, category_name, country_name, city_name):  # �
 
     template = random.choice(PLACE_DESCRIPTION_TEMPLATES_MINIMAL)  # 分類、地點都沒有時，從最後備用句型裡隨機挑一種
     return template.format(name=name)  # 套進句型
+
+
+def format_hm(value):  # 把資料庫 TIME 欄位的值格式化成 HH:MM
+    # mysql-connector 把 TIME 欄位讀出來是 datetime.timedelta（不是 datetime.time），
+    # 直接印出來會變成「9:00:00」這種樣子，所以要另外格式化成畫面要的 HH:MM。
+    if value is None or value == "":
+        return ""
+    if isinstance(value, timedelta):
+        total_minutes = int(value.total_seconds() // 60)
+        hours, minutes = divmod(total_minutes, 60)
+        return f"{hours:02d}:{minutes:02d}"
+    if isinstance(value, time_type):
+        return value.strftime("%H:%M")
+    return str(value)[:5]  # 已經是字串(例如 "09:00" 或 "09:00:00")時，取前 5 碼就是 HH:MM
 
 
 def csv_response(filename, header, rows):  # 定義共用函式：把表頭與資料列組成可下載的 CSV 回應(給匯出統計、匯入範本共用)

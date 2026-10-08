@@ -91,6 +91,7 @@
     </nav>
   </header>
   <main>
+{% include 'partials/booking_tools.html' %}
     <p class="breadcrumb"><a href="{{ url_for('member.dashboard') if is_member else url_for('visitor') }}">{{ '← 返回會員首頁' if is_member else '← 返回訪客首頁' }}</a></p>
     <section class="search-panel">
       <div class="search-tabs" role="tablist">
@@ -155,6 +156,7 @@
             </div>
             <div class="hotel-content">
               <h3>{{ hotel.name }}</h3>
+{% set save_kind='hotel' %}{% set save_id=hotel.accommodation_id %}{% include 'partials/booking_favorite_button.html' %}
               <p class="location">{{ hotel.country_name or '未設定國家' }}{% if hotel.city_name %} · {{ hotel.city_name }}{% endif %}{% if hotel.address %} · {{ hotel.address }}{% endif %}{% set map_url = google_maps_url(hotel.address) %}{% if map_url %} <a href="{{ map_url }}" target="_blank" rel="noopener" class="map-link">🗺️ 地圖</a>{% endif %}</p>
               {% if hotel.description %}<p class="hotel-desc">{{ hotel.description }}</p>{% endif %}
               <div class="hotel-details">

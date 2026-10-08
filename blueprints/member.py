@@ -69,10 +69,11 @@ def _load_votes(cursor, trip_id, user_id):
         """, (v["vote_id"],))
         v["options"] = cursor.fetchall()
 
-        cursor.execute("SELECT option_id, approval_choice FROM vote_records WHERE vote_id=%s AND user_id=%s", (v["vote_id"], user_id))
+        cursor.execute("SELECT option_id, approval_choice, reason FROM vote_records WHERE vote_id=%s AND user_id=%s", (v["vote_id"], user_id))
         my_vote = cursor.fetchone()
         v["my_option_id"] = my_vote["option_id"] if my_vote else None
         v["my_approval_choice"] = my_vote["approval_choice"] if my_vote else None
+        v["my_reason"] = my_vote["reason"] if my_vote else None
 
         if v["vote_type"] == "approval":
             cursor.execute("""
@@ -83,6 +84,14 @@ def _load_votes(cursor, trip_id, user_id):
             v["agree_count"] = tally.get("agree", 0)
             v["disagree_count"] = tally.get("disagree", 0)
             v["neutral_count"] = tally.get("neutral", 0)
+
+            cursor.execute("""
+                SELECT u.nickname, u.full_name, vr.reason FROM vote_records vr
+                JOIN users u ON u.user_id = vr.user_id
+                WHERE vr.vote_id=%s AND vr.approval_choice='disagree' AND vr.reason IS NOT NULL AND vr.reason != ''
+                ORDER BY vr.updated_at DESC
+            """, (v["vote_id"],))
+            v["disagree_reasons"] = cursor.fetchall()
 
     return votes
 
@@ -981,7 +990,7 @@ def add_proposal(trip_id):
         trip = _member_access(cursor, trip_id, session["user_id"])
         title = request.form.get("title", "").strip()
         proposal_type = request.form.get("proposal_type", "other")
-        if not trip or not _can_edit(trip): flash("你沒有新增提案的權限。", "error")
+        if not trip: flash("你沒有新增提案的權限。", "error")
         elif not title: flash("請填寫提案名稱。", "error")
         elif proposal_type not in ("attraction", "restaurant", "accommodation", "activity", "transport", "date", "other"): flash("提案類型無效。", "error")
         else:
@@ -1015,7 +1024,7 @@ def add_vote(trip_id):
             cursor.execute("SELECT * FROM proposals WHERE proposal_id=%s AND trip_id=%s", (proposal_id, trip_id))
             proposal = cursor.fetchone()
 
-        if not trip or not _can_edit(trip): flash("你沒有建立投票的權限。", "error")
+        if not trip: flash("你沒有建立投票的權限。", "error")
         elif not title or not deadline_at: flash("請填寫投票標題與截止時間。", "error")
         elif vote_type == "single_choice" and len(option_texts) < 2: flash("單選投票至少需要填寫 2 個選項。", "error")
         elif proposal_id and (not proposal or proposal["status"] != "discussing"): flash("這個提案目前無法發起投票。", "error")
@@ -1048,9 +1057,6 @@ def cast_vote(trip_id, vote_id):
         if not trip:
             flash("你沒有查看此行程的權限。", "error")
             return redirect(url_for("member.dashboard"))
-        if not _can_edit(trip):
-            flash("查看者目前不能投票，只能查看投票結果。", "error")
-            return redirect(url_for("member.trip_detail", trip_id=trip_id) + "#proposals")
 
         cursor.execute("SELECT * FROM votes WHERE vote_id=%s AND trip_id=%s", (vote_id, trip_id))
         vote = cursor.fetchone()
@@ -1067,14 +1073,23 @@ def cast_vote(trip_id, vote_id):
                 flash("這個投票不允許更改，你已經投過票了。", "error")
             elif vote["vote_type"] == "approval":
                 choice = request.form.get("approval_choice")
-                if choice not in ("agree", "disagree", "neutral"):
+                reason = request.form.get("reason", "").strip() or None
+                if choice == "cancel":
+                    if existing:
+                        cursor.execute("DELETE FROM vote_records WHERE vote_record_id=%s", (existing["vote_record_id"],))
+                        connection.commit(); flash("已取消你的投票。", "success")
+                    else:
+                        flash("你還沒有投票。", "error")
+                elif choice not in ("agree", "disagree", "neutral"):
                     flash("請選擇有效的投票選項。", "error")
-                elif existing:
-                    cursor.execute("UPDATE vote_records SET approval_choice=%s, option_id=NULL WHERE vote_record_id=%s", (choice, existing["vote_record_id"]))
-                    connection.commit(); flash("已更新你的投票。", "success")
                 else:
-                    cursor.execute("INSERT INTO vote_records (vote_id,user_id,approval_choice) VALUES (%s,%s,%s)", (vote_id, session["user_id"], choice))
-                    connection.commit(); flash("已送出你的投票。", "success")
+                    saved_reason = reason if choice == "disagree" else None
+                    if existing:
+                        cursor.execute("UPDATE vote_records SET approval_choice=%s, option_id=NULL, reason=%s WHERE vote_record_id=%s", (choice, saved_reason, existing["vote_record_id"]))
+                        connection.commit(); flash("已更新你的投票。", "success")
+                    else:
+                        cursor.execute("INSERT INTO vote_records (vote_id,user_id,approval_choice,reason) VALUES (%s,%s,%s,%s)", (vote_id, session["user_id"], choice, saved_reason))
+                        connection.commit(); flash("已送出你的投票。", "success")
             else:
                 option_id = request.form.get("option_id", "")
                 cursor.execute("SELECT option_id FROM vote_options WHERE option_id=%s AND vote_id=%s", (option_id, vote_id))
@@ -1140,7 +1155,7 @@ def add_comment(trip_id):
         content = request.form.get("content", "").strip()
         parent_id = request.form.get("parent_comment_id", "").strip() or None
 
-        if not trip or not _can_edit(trip): flash("查看者目前不能留言，只能查看留言。", "error")
+        if not trip: flash("你沒有留言的權限。", "error")
         elif not content: flash("留言內容不能是空的。", "error")
         else:
             if parent_id:
@@ -1201,7 +1216,7 @@ def add_expense(trip_id):
         scope = request.form.get("scope", "shared")
         if scope not in ("shared", "personal"): scope = "shared"
 
-        if not trip or not _can_edit(trip): flash("你沒有管理費用的權限。", "error")
+        if not trip: flash("你沒有管理費用的權限。", "error")
         elif not name or amount is None or not request.form.get("expense_date"): flash("請完整填寫費用名稱、金額與日期。", "error")
         else:
             payer_id = session["user_id"]

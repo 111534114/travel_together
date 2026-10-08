@@ -2504,8 +2504,61 @@ body {
 .vote-cast-form {
     display: flex;
     flex-wrap: wrap;
+    align-items: flex-start;
     gap: 8px;
     margin-top: 10px;
+}
+
+.vote-cast-form form {
+    display: inline-flex;
+}
+
+.vote-disagree-reveal summary {
+    list-style: none;
+    cursor: pointer;
+}
+
+.vote-disagree-reveal summary::-webkit-details-marker {
+    display: none;
+}
+
+.vote-disagree-reveal[open] summary {
+    margin-bottom: 6px;
+}
+
+.vote-disagree-form {
+    display: flex;
+    gap: 6px;
+}
+
+.vote-disagree-form input {
+    min-height: 34px;
+    padding: 6px 10px;
+    border: 1px solid #C5D5D7;
+    border-radius: 8px;
+    font-size: 13px;
+    width: 200px;
+}
+
+.vote-reasons-list {
+    margin-top: 10px;
+    font-size: 13px;
+    color: var(--ocean-muted);
+}
+
+.vote-reasons-list summary {
+    cursor: pointer;
+    color: var(--ocean-primary-dark);
+    font-weight: 600;
+}
+
+.vote-reasons-list ul {
+    margin: 8px 0 0;
+    padding-left: 18px;
+}
+
+.vote-reasons-list li {
+    margin-bottom: 4px;
 }
 
 .vote-options-field {

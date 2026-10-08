@@ -2067,6 +2067,85 @@ body {
     display: none;
 }
 
+.form-grid-member label[hidden] {
+    display: none;
+}
+
+.transport-summary {
+    margin-top: 16px;
+    padding-top: 16px;
+    border-top: 1px solid #E3ECED;
+}
+
+.transport-summary h4 {
+    margin: 0 0 10px;
+}
+
+.transport-summary-row {
+    display: flex;
+    justify-content: space-between;
+    padding: 6px 0;
+    color: #4a5b5c;
+}
+
+.transport-summary-row b {
+    color: var(--ocean-primary-dark);
+}
+
+.park-hours-modal {
+    position: fixed;
+    inset: 0;
+    z-index: 1000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 16px;
+    background: rgba(35, 55, 58, 0.6);
+}
+
+.park-hours-modal[hidden] {
+    display: none;
+}
+
+.park-hours-dialog {
+    width: 100%;
+    max-width: 460px;
+    max-height: 90vh;
+    overflow-y: auto;
+    padding: 24px;
+    background: #ffffff;
+    border-radius: 12px;
+    box-shadow: 0 20px 50px rgba(37, 64, 68, 0.25);
+}
+
+.park-hours-dialog h3 {
+    margin: 0 0 4px;
+}
+
+.park-hours-result {
+    margin-top: 16px;
+    padding: 14px;
+    background: #E0F6F8;
+    border-radius: 10px;
+}
+
+.park-hours-result[hidden] {
+    display: none;
+}
+
+.park-hours-result p {
+    margin: 0 0 8px;
+}
+
+.park-hours-error {
+    margin-top: 10px;
+    color: #b0603a;
+}
+
+.park-hours-error[hidden] {
+    display: none;
+}
+
 .trip-cover {
     position: relative;
     overflow: hidden;
@@ -2178,6 +2257,43 @@ body {
     margin-top: 18px;
     padding-top: 16px;
     border-top: 1px solid #E3ECED;
+}
+
+.itinerary-cell-end {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 6px;
+}
+
+.itinerary-edit-trigger {
+    display: grid;
+    place-items: center;
+    width: 26px;
+    height: 26px;
+    padding: 0;
+    color: var(--ocean-primary-dark);
+    background: #E0F6F8;
+    border: 0;
+    border-radius: 50%;
+    cursor: pointer;
+    font-weight: 700;
+    line-height: 1;
+}
+
+.itinerary-edit-trigger:hover {
+    background: var(--ocean-primary);
+    color: #ffffff;
+}
+
+.itinerary-edit-panel {
+    margin-top: 18px;
+    padding-top: 16px;
+    border-top: 1px solid #E3ECED;
+}
+
+.itinerary-edit-panel[hidden] {
+    display: none;
 }
 
 .quick-add summary,
@@ -2810,8 +2926,10 @@ body {
         grid-template-columns: 44px minmax(0, 1fr);
     }
 
-    .itinerary-row > strong {
+    .itinerary-row > .itinerary-cell-end {
         grid-column: 2;
+        flex-direction: row;
+        align-items: center;
     }
 
     .itinerary-row.has-weather {

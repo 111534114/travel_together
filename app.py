@@ -20,7 +20,7 @@ from blueprints.logs import logs_bp  # 匯入操作紀錄查詢的藍圖
 from blueprints.ai_chat import ai_chat_bp  # 匯入 AI 助理對話的藍圖
 from blueprints.member import ISSUE_PREFIX, member_bp  # 匯入會員功能的藍圖
 from activity_log import ACTION_LABELS, log_action
-from utils import google_maps_url, google_maps_embed_url  # 匯入組 Google 地圖連結/嵌入縮圖地圖的共用函式，註冊成樣板全域函式讓所有頁面都能直接呼叫
+from utils import google_maps_url, google_maps_embed_url, format_hm  # 匯入組 Google 地圖連結/嵌入縮圖地圖、格式化 TIME 欄位的共用函式，註冊成樣板全域函式讓所有頁面都能直接呼叫
 import weather  # 匯入中央氣象署天氣預報模組(訪客頁面「目的地天氣」功能用)
 
 app = Flask(__name__)  # 建立 Flask 應用程式實例
@@ -33,6 +33,7 @@ app.config["MAX_CONTENT_LENGTH"] = 8 * 1024 * 1024  # 限制單次請求上傳�
 
 app.jinja_env.globals["google_maps_url"] = google_maps_url  # 註冊成樣板全域函式，任何頁面都能直接用 google_maps_url(...) 組地圖連結
 app.jinja_env.globals["google_maps_embed_url"] = google_maps_embed_url  # 註冊成樣板全域函式，任何頁面都能直接用 google_maps_embed_url(...) 組嵌入縮圖地圖的網址
+app.jinja_env.filters["hm"] = format_hm  # 註冊成樣板過濾器，任何頁面都能直接用 {{ 值 | hm }} 把 TIME 欄位格式化成 HH:MM
 
 oauth = OAuth(app)  # 建立 Authlib 的 OAuth 註冊器
 google_oauth = oauth.register(
@@ -210,7 +211,7 @@ def visitor():
                     timeline = []
                     for idx, item in enumerate(t_items, 1):
                         date_str = str(item['itinerary_date']) if item['itinerary_date'] else f"第 {idx} 天"
-                        time_str = f" ({item['start_time']} - {item['end_time']})" if item['start_time'] else ""
+                        time_str = f" ({format_hm(item['start_time'])} - {format_hm(item['end_time'])})" if item['start_time'] else ""
                         addr_str = f" ｜ 地址: {item['address']}" if item['address'] else ""
                         cost_str = f" (預估金額: NT$ {item['estimated_cost']:,.0f})" if item['estimated_cost'] else ""
                         timeline.append({

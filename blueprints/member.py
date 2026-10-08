@@ -8,10 +8,26 @@ from werkzeug.security import check_password_hash, generate_password_hash
 from auth import login_required
 from db import get_db_connection
 from utils import delete_uploaded_image, get_cities, get_countries, save_uploaded_attachment, save_uploaded_image
+import theme_parks
 import weather
 
 
 member_bp = Blueprint("member", __name__, url_prefix="/member")
+
+# item_type 的中文顯示名稱與圖示，給樣板統一用，避免畫面直接印出英文代碼(例如 free_time)
+ITEM_TYPE_LABELS = {
+    "attraction": {"label": "景點", "icon": "📍"},
+    "restaurant": {"label": "餐廳", "icon": "🍽️"},
+    "accommodation": {"label": "住宿", "icon": "🏨"},
+    "transport": {"label": "交通", "icon": "🚗"},
+    "shopping": {"label": "購物", "icon": "🛍️"},
+    "meeting": {"label": "集合", "icon": "🤝"},
+    "free_time": {"label": "自由活動", "icon": "⏱️"},
+    "amusement_park": {"label": "遊樂園", "icon": "🎢"},
+    "other": {"label": "其他", "icon": "📌"},
+}
+
+TIME_MODES = ("range", "all_day", "start_only", "end_only")
 
 ISSUE_REASONS = (
     "內容品質不佳／資訊太少",
@@ -156,6 +172,34 @@ def _load_balance_summary(cursor, trip_id):
 def _city_matches_country(cursor, country_id, city_id):
     cursor.execute("SELECT 1 FROM cities WHERE city_id=%s AND country_id=%s", (city_id, country_id))
     return cursor.fetchone() is not None
+
+
+def _parse_itinerary_time(form):
+    # 時間模式：指定時段(range)／整天(all_day)／只選開始(start_only)／只選結束(end_only)
+    # 依模式決定實際要存進去的 start_time / end_time，避免畫面上已經隱藏的欄位還殘留舊值被存進去
+    mode = form.get("time_mode", "range")
+    if mode not in TIME_MODES:
+        mode = "range"
+    start = form.get("start_time") or None
+    end = form.get("end_time") or None
+    is_all_day = False
+    if mode == "all_day":
+        start, end, is_all_day = None, None, True
+    elif mode == "start_only":
+        end = None
+    elif mode == "end_only":
+        start = None
+    errors = []
+    if start and end and end < start:
+        errors.append("結束時間不能早於開始時間。")
+    try:
+        transport_minutes = int(form.get("transport_minutes") or 0)
+        if transport_minutes < 0:
+            raise ValueError
+    except ValueError:
+        errors.append("交通／移動時間需為 0 以上的整數分鐘。")
+        transport_minutes = 0
+    return start, end, is_all_day, transport_minutes, errors
 
 
 def _parse_trip(form):
@@ -700,6 +744,20 @@ def create_trip():
         cursor.close(); connection.close()
 
 
+def _summarize_transport_time(itinerary):
+    """統計整趟行程裡，各種交通方式總共花費的通勤時間(分鐘)。"""
+    totals = {}
+    for item in itinerary:
+        minutes = item.get("transport_minutes") or 0
+        if minutes <= 0:
+            continue
+        method = item.get("transport_method") or "未標註交通方式"
+        totals[method] = totals.get(method, 0) + minutes
+    summary = [{"method": method, "minutes": minutes} for method, minutes in totals.items()]
+    summary.sort(key=lambda row: row["minutes"], reverse=True)
+    return summary
+
+
 def _load_place_options(cursor, city_id):
     """新增行程項目時可直接選擇的景點、餐廳、住宿（同城市、已上架）。"""
     queries = {
@@ -760,9 +818,36 @@ def trip_detail(trip_id):
             LIMIT 20
         """, (trip["country_id"], trip["city_id"])); popular_attractions = cursor.fetchall()
         cursor.execute("SELECT COALESCE(SUM(amount),0) AS actual FROM expenses WHERE trip_id=%s AND expense_type='actual'", (trip_id,)); actual = cursor.fetchone()["actual"]
+        transport_summary = _summarize_transport_time(itinerary)
     finally:
         cursor.close(); connection.close()
-    return render_template("member/trip_detail.html", trip=trip, itinerary=itinerary, place_options=place_options, popular_attractions=popular_attractions, addable_trips=[trip], city_weather_days=city_weather_days, members=members, pending_invitations=pending_invitations, proposals=proposals, votes=votes, comments=comments, expenses=expenses, balance_summary=balance_summary, attachments=attachments, actual=actual, can_edit=_can_edit(trip), is_owner=trip["member_role"] == "owner", now=datetime.now())
+    return render_template("member/trip_detail.html", trip=trip, itinerary=itinerary, place_options=place_options, popular_attractions=popular_attractions, addable_trips=[trip], city_weather_days=city_weather_days, members=members, pending_invitations=pending_invitations, proposals=proposals, votes=votes, comments=comments, expenses=expenses, balance_summary=balance_summary, attachments=attachments, actual=actual, can_edit=_can_edit(trip), is_owner=trip["member_role"] == "owner", now=datetime.now(), item_type_labels=ITEM_TYPE_LABELS, disney_parks=theme_parks.get_disney_parks(), transport_summary=transport_summary)
+
+
+@member_bp.route("/trips/<int:trip_id>/park-hours")
+@login_required("member")
+def park_hours(trip_id):
+    connection = _connection_or_home()
+    if connection is None: return {"error": "資料庫連線失敗"}, 503
+    cursor = connection.cursor(dictionary=True)
+    try:
+        trip = _member_access(cursor, trip_id, session["user_id"])
+    finally:
+        cursor.close(); connection.close()
+    if not trip:
+        return {"error": "找不到這趟行程"}, 404
+
+    park_id = request.args.get("park", "").strip()
+    target_date = request.args.get("date", "").strip()
+    try:
+        date.fromisoformat(target_date)
+    except ValueError:
+        return {"error": "日期格式不正確"}, 400
+
+    hours = theme_parks.get_park_hours(park_id, target_date)
+    if not hours:
+        return {"error": "查不到這個日期的開放時間，樂園當天可能休園或尚未公布班表"}, 404
+    return hours
 
 
 @member_bp.route("/trips/<int:trip_id>/edit", methods=["GET", "POST"])
@@ -871,12 +956,12 @@ def duplicate_trip(trip_id):
         items = cursor.fetchall()
         for item in items:
             cursor.execute("""
-                INSERT INTO itineraries (trip_id,created_by,itinerary_date,item_type,title,start_time,end_time,
+                INSERT INTO itineraries (trip_id,created_by,itinerary_date,item_type,title,start_time,end_time,is_all_day,
                                           address,transport_method,transport_minutes,estimated_cost,notes,
                                           attraction_id,restaurant_id,accommodation_id,sort_order)
-                VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
+                VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
             """, (new_trip_id, session["user_id"], item["itinerary_date"], item["item_type"], item["title"],
-                  item["start_time"], item["end_time"], item["address"], item["transport_method"],
+                  item["start_time"], item["end_time"], item["is_all_day"], item["address"], item["transport_method"],
                   item["transport_minutes"], item["estimated_cost"], item["notes"],
                   item["attraction_id"], item["restaurant_id"], item["accommodation_id"], item["sort_order"]))
 
@@ -904,13 +989,15 @@ def add_itinerary(trip_id):
         if not trip or not _can_edit(trip):
             flash("你沒有編輯行程項目的權限。", "error"); return redirect(url_for("member.dashboard"))
         title = request.form.get("title", "").strip(); item_type=request.form.get("item_type", "other")
-        day = request.form.get("itinerary_date", ""); start=request.form.get("start_time") or None; end=request.form.get("end_time") or None
+        day = request.form.get("itinerary_date", "")
+        start, end, is_all_day, transport_minutes, time_errors = _parse_itinerary_time(request.form)
         if not title or not day: flash("請填寫項目名稱與日期。", "error")
-        elif end and start and end < start: flash("結束時間不能早於開始時間。", "error")
+        elif time_errors:
+            for error in time_errors: flash(error, "error")
         else:
             cursor.execute("SELECT COALESCE(MAX(sort_order),0)+1 AS next_order FROM itineraries WHERE trip_id=%s AND itinerary_date=%s", (trip_id,day)); order=cursor.fetchone()["next_order"]
-            cursor.execute("""INSERT INTO itineraries (trip_id,created_by,itinerary_date,item_type,title,start_time,end_time,address,transport_method,estimated_cost,notes,sort_order)
-                              VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)""", (trip_id,session["user_id"],day,item_type,title,start,end,request.form.get("address","").strip() or None,request.form.get("transport_method","").strip() or None,request.form.get("estimated_cost") or 0,request.form.get("notes","").strip() or None,order))
+            cursor.execute("""INSERT INTO itineraries (trip_id,created_by,itinerary_date,item_type,title,start_time,end_time,is_all_day,address,transport_method,transport_minutes,estimated_cost,notes,sort_order)
+                              VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)""", (trip_id,session["user_id"],day,item_type,title,start,end,is_all_day,request.form.get("address","").strip() or None,request.form.get("transport_method","").strip() or None,transport_minutes,request.form.get("estimated_cost") or 0,request.form.get("notes","").strip() or None,order))
             connection.commit(); flash("已加入每日行程。", "success")
     except Exception:
         connection.rollback(); flash("儲存行程項目失敗。", "error")
@@ -934,14 +1021,16 @@ def edit_itinerary(trip_id, itinerary_id):
             flash("找不到這個行程項目。", "error")
         else:
             title = request.form.get("title", "").strip(); item_type = request.form.get("item_type", "other")
-            day = request.form.get("itinerary_date", ""); start = request.form.get("start_time") or None; end = request.form.get("end_time") or None
+            day = request.form.get("itinerary_date", "")
+            start, end, is_all_day, transport_minutes, time_errors = _parse_itinerary_time(request.form)
             if not title or not day: flash("請填寫項目名稱與日期。", "error")
-            elif end and start and end < start: flash("結束時間不能早於開始時間。", "error")
+            elif time_errors:
+                for error in time_errors: flash(error, "error")
             else:
-                cursor.execute("""UPDATE itineraries SET itinerary_date=%s,item_type=%s,title=%s,start_time=%s,end_time=%s,
-                                   address=%s,transport_method=%s,estimated_cost=%s,notes=%s WHERE itinerary_id=%s""",
-                               (day, item_type, title, start, end, request.form.get("address", "").strip() or None,
-                                request.form.get("transport_method", "").strip() or None, request.form.get("estimated_cost") or 0,
+                cursor.execute("""UPDATE itineraries SET itinerary_date=%s,item_type=%s,title=%s,start_time=%s,end_time=%s,is_all_day=%s,
+                                   address=%s,transport_method=%s,transport_minutes=%s,estimated_cost=%s,notes=%s WHERE itinerary_id=%s""",
+                               (day, item_type, title, start, end, is_all_day, request.form.get("address", "").strip() or None,
+                                request.form.get("transport_method", "").strip() or None, transport_minutes, request.form.get("estimated_cost") or 0,
                                 request.form.get("notes", "").strip() or None, itinerary_id))
                 connection.commit(); flash("行程項目已更新。", "success")
     except Exception:

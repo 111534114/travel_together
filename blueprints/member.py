@@ -751,7 +751,8 @@ def trip_detail(trip_id):
         place_options = _load_place_options(cursor, trip["city_id"])
         cursor.execute("""
             SELECT a.attraction_id, a.name, a.address, a.ticket_price, a.image_path, a.city_id,
-                   cat.category_name, ci.name AS city
+                   cat.category_name, ci.name AS city, a.description,
+                   a.opening_hours, a.suggested_duration_minutes
             FROM attractions a
             LEFT JOIN categories cat ON cat.category_id = a.category_id
             JOIN cities ci ON ci.city_id = a.city_id

@@ -1,0 +1,85 @@
+{# 每日行程表單共用：查詢迪士尼樂園開放時間，並可一鍵套用到該表單的時間欄位 #}
+<div id="parkHoursModal" class="park-hours-modal" hidden>
+    <div class="park-hours-dialog" role="dialog" aria-modal="true" aria-labelledby="parkHoursTitle">
+        <h3 id="parkHoursTitle">查詢樂園開放時間</h3>
+        <p class="form-hint">目前先支援迪士尼系列樂園，查到的時間可以直接套用到這個行程項目。</p>
+        <div class="form-grid-member">
+            <label>樂園<select id="parkHoursSelect">
+                {% for park in disney_parks %}<option value="{{ park.id }}">{{ park.name }}</option>{% endfor %}
+            </select></label>
+            <label>日期<input type="date" id="parkHoursDate"></label>
+        </div>
+        <div class="form-actions-member">
+            <button type="button" class="member-btn ghost" id="parkHoursClose">關閉</button>
+            <button type="button" class="member-btn primary" id="parkHoursQuery">查詢</button>
+        </div>
+        <div class="park-hours-result" id="parkHoursResult" hidden>
+            <p><b id="parkHoursResultName"></b></p>
+            <p>開園 <b id="parkHoursOpening"></b>　．　閉園 <b id="parkHoursClosing"></b></p>
+            <button type="button" class="member-btn primary small" id="parkHoursApply">套用到開始／結束時間</button>
+        </div>
+        <p class="park-hours-error" id="parkHoursError" hidden></p>
+    </div>
+</div>
+<script>
+(function () {
+    var modal = document.getElementById('parkHoursModal');
+    if (!modal) return;
+    var activeForm = null;
+    var select = document.getElementById('parkHoursSelect');
+    var dateInput = document.getElementById('parkHoursDate');
+    var resultBox = document.getElementById('parkHoursResult');
+    var errorBox = document.getElementById('parkHoursError');
+    var queryUrl = "{{ url_for('member.park_hours', trip_id=trip.trip_id) }}";
+    var lastHours = null;
+
+    function open(trigger) {
+        activeForm = trigger.closest('form');
+        resultBox.hidden = true;
+        errorBox.hidden = true;
+        lastHours = null;
+        var dayInput = activeForm ? activeForm.querySelector('[name="itinerary_date"]') : null;
+        dateInput.value = (dayInput && dayInput.value) || '{{ trip.start_date }}';
+        modal.hidden = false;
+    }
+
+    function close() { modal.hidden = true; }
+
+    function query() {
+        resultBox.hidden = true;
+        errorBox.hidden = true;
+        if (!dateInput.value) { errorBox.textContent = '請選擇日期。'; errorBox.hidden = false; return; }
+        fetch(queryUrl + '?park=' + encodeURIComponent(select.value) + '&date=' + encodeURIComponent(dateInput.value))
+            .then(function (res) { return res.json().then(function (data) { return { ok: res.ok, data: data }; }); })
+            .then(function (result) {
+                if (!result.ok) { errorBox.textContent = result.data.error || '查詢失敗，請稍後再試。'; errorBox.hidden = false; return; }
+                lastHours = result.data;
+                document.getElementById('parkHoursResultName').textContent = lastHours.park_name + '（' + lastHours.date + '）';
+                document.getElementById('parkHoursOpening').textContent = lastHours.opening_time || '未提供';
+                document.getElementById('parkHoursClosing').textContent = lastHours.closing_time || '未提供';
+                resultBox.hidden = false;
+            })
+            .catch(function () { errorBox.textContent = '查詢失敗，請確認網路連線後再試一次。'; errorBox.hidden = false; });
+    }
+
+    function apply() {
+        if (!activeForm || !lastHours) return;
+        var modeSelect = activeForm.querySelector('.time-mode-select');
+        var startInput = activeForm.querySelector('[name="start_time"]');
+        var endInput = activeForm.querySelector('[name="end_time"]');
+        if (modeSelect) { modeSelect.value = 'range'; modeSelect.dispatchEvent(new Event('change')); }
+        if (startInput && lastHours.opening_time) startInput.value = lastHours.opening_time;
+        if (endInput && lastHours.closing_time) endInput.value = lastHours.closing_time;
+        close();
+    }
+
+    document.querySelectorAll('.park-hours-trigger').forEach(function (btn) {
+        btn.addEventListener('click', function () { open(btn); });
+    });
+    document.getElementById('parkHoursClose').addEventListener('click', close);
+    document.getElementById('parkHoursQuery').addEventListener('click', query);
+    document.getElementById('parkHoursApply').addEventListener('click', apply);
+    modal.addEventListener('click', function (e) { if (e.target === modal) close(); });
+    document.addEventListener('keydown', function (e) { if (e.key === 'Escape' && !modal.hidden) close(); });
+})();
+</script>

@@ -1,4 +1,5 @@
 import re  # 匯入正規表示式模組，用來驗證註冊欄位格式
+from booking_search import booking_bp, filter_prices
 import requests  # 匯入 requests，用來呼叫 LINE 的個人資料 API
 from datetime import datetime, timedelta  # 匯入日期工具，用來解析日期與建立月份統計區間
 from authlib.integrations.flask_client import OAuth  # 匯入 Authlib 的 Flask 整合，處理 Google 登入 OAuth 流程
@@ -20,10 +21,11 @@ from blueprints.logs import logs_bp  # 匯入操作紀錄查詢的藍圖
 from blueprints.ai_chat import ai_chat_bp  # 匯入 AI 助理對話的藍圖
 from blueprints.member import ISSUE_PREFIX, member_bp  # 匯入會員功能的藍圖
 from activity_log import ACTION_LABELS, log_action
-from utils import google_maps_url, google_maps_embed_url  # 匯入組 Google 地圖連結/嵌入縮圖地圖的共用函式，註冊成樣板全域函式讓所有頁面都能直接呼叫
+from utils import google_maps_url, google_maps_embed_url, format_hm  # 匯入組 Google 地圖連結/嵌入縮圖地圖、格式化 TIME 欄位的共用函式，註冊成樣板全域函式讓所有頁面都能直接呼叫
 import weather  # 匯入中央氣象署天氣預報模組(訪客頁面「目的地天氣」功能用)
 
 app = Flask(__name__)  # 建立 Flask 應用程式實例
+app.register_blueprint(booking_bp)
 
 # Session 加密金鑰，之後可以改成更複雜的字串
 app.secret_key = "travel-together-secret-key"  # 設定 session 加密金鑰，用來簽章 cookie 防止竄改
@@ -33,6 +35,7 @@ app.config["MAX_CONTENT_LENGTH"] = 8 * 1024 * 1024  # 限制單次請求上傳�
 
 app.jinja_env.globals["google_maps_url"] = google_maps_url  # 註冊成樣板全域函式，任何頁面都能直接用 google_maps_url(...) 組地圖連結
 app.jinja_env.globals["google_maps_embed_url"] = google_maps_embed_url  # 註冊成樣板全域函式，任何頁面都能直接用 google_maps_embed_url(...) 組嵌入縮圖地圖的網址
+app.jinja_env.filters["hm"] = format_hm  # 註冊成樣板過濾器，任何頁面都能直接用 {{ 值 | hm }} 把 TIME 欄位格式化成 HH:MM
 
 oauth = OAuth(app)  # 建立 Authlib 的 OAuth 註冊器
 google_oauth = oauth.register(
@@ -210,7 +213,7 @@ def visitor():
                     timeline = []
                     for idx, item in enumerate(t_items, 1):
                         date_str = str(item['itinerary_date']) if item['itinerary_date'] else f"第 {idx} 天"
-                        time_str = f" ({item['start_time']} - {item['end_time']})" if item['start_time'] else ""
+                        time_str = f" ({format_hm(item['start_time'])} - {format_hm(item['end_time'])})" if item['start_time'] else ""
                         addr_str = f" ｜ 地址: {item['address']}" if item['address'] else ""
                         cost_str = f" (預估金額: NT$ {item['estimated_cost']:,.0f})" if item['estimated_cost'] else ""
                         timeline.append({
@@ -274,11 +277,11 @@ def visitor_hotel_search():
             conditions = ["ac.status = 'active'", "ac.deleted_at IS NULL"]  # 只搜尋已啟用、且不在回收桶裡的住宿
             params = []
 
-            if destination:  # 如果有輸入目的地關鍵字，依名稱/城市/國家/地址模糊搜尋
+            for keyword in destination.split():
                 conditions.append(
-                    "(ac.name LIKE %s OR ci.name LIKE %s OR co.name LIKE %s OR ac.address LIKE %s)"
+                    "(REPLACE(ac.name,'台','臺') LIKE %s OR REPLACE(ci.name,'台','臺') LIKE %s OR co.name LIKE %s OR REPLACE(ac.address,'台','臺') LIKE %s)"
                 )
-                like = f"%{destination}%"
+                like = '%' + keyword.replace('台', '臺') + '%'
                 params.extend([like, like, like, like])
 
             where_clause = "WHERE " + " AND ".join(conditions)
@@ -311,7 +314,7 @@ def visitor_hotel_search():
         checkout=checkout,
         guests=guests,
         nights=nights,
-        accommodations=accommodations,
+        accommodations=filter_prices(accommodations, 'price_per_night'),
     )
 
 
@@ -372,7 +375,7 @@ def visitor_flight_search():
         return results
 
     outbound_flights = search_flights(origin, destination)  # 去程：出發地 -> 目的地
-    return_flights = search_flights(destination, origin) if return_date else []  # 回程：目的地 -> 出發地(有填回程日期才查)
+    return_flights = search_flights(destination, origin) if return_date and request.args.get('trip_mode', 'roundtrip') == 'roundtrip' else []
 
     return render_template(
         "flight_search.html",
@@ -381,8 +384,8 @@ def visitor_flight_search():
         depart_date=depart_date,
         return_date=return_date,
         pax=pax,
-        outbound_flights=outbound_flights,
-        return_flights=return_flights,
+        outbound_flights=filter_prices(outbound_flights, 'price'),
+        return_flights=filter_prices(return_flights, 'price'),
     )
 
 
@@ -396,6 +399,7 @@ def visitor_train_search():
     pax = int(pax_raw) if pax_raw.isdigit() and int(pax_raw) > 0 else 1  # 驗證人數為正整數，否則預設 1 人
 
     trains = []  # 預設搜尋結果為空清單
+    return_trains = []
     connection = get_db_connection()
 
     if connection:
@@ -427,6 +431,11 @@ def visitor_train_search():
                 params
             )
             trains = cursor.fetchall()
+            if request.args.get('trip_mode') == 'roundtrip' and request.args.get('return'):
+                cursor.execute("""SELECT * FROM trains WHERE status='active' AND seats_available >= %s
+                                  AND origin_station LIKE %s AND destination_station LIKE %s
+                                  ORDER BY departure_time""", (pax, '%' + destination + '%', '%' + origin + '%'))
+                return_trains = cursor.fetchall()
         except Exception as error:  # 如果查詢過程發生錯誤(例如資料表尚未建立)
             print("高鐵／台鐵搜尋查詢失敗：", error)
         finally:
@@ -439,7 +448,8 @@ def visitor_train_search():
         destination=destination,
         travel_date=travel_date,
         pax=pax,
-        trains=trains,
+        trains=filter_prices(trains, 'price'),
+        return_trains=filter_prices(return_trains, 'price'),
     )
 
 

@@ -2,7 +2,7 @@ from datetime import date, datetime
 from decimal import ROUND_DOWN, Decimal, InvalidOperation
 import secrets
 
-from flask import Blueprint, current_app, flash, redirect, render_template, request, session, url_for
+from flask import Blueprint, current_app, flash, jsonify, redirect, render_template, request, session, url_for
 from werkzeug.security import check_password_hash, generate_password_hash
 
 from auth import login_required
@@ -69,6 +69,9 @@ def _load_votes(cursor, trip_id, user_id):
         """, (v["vote_id"],))
         v["options"] = cursor.fetchall()
 
+        cursor.execute("SELECT user_id FROM vote_records WHERE vote_id=%s", (v["vote_id"],))
+        v["voter_ids"] = [row["user_id"] for row in cursor.fetchall()]
+
         cursor.execute("SELECT option_id, approval_choice FROM vote_records WHERE vote_id=%s AND user_id=%s", (v["vote_id"], user_id))
         my_vote = cursor.fetchone()
         v["my_option_id"] = my_vote["option_id"] if my_vote else None
@@ -124,7 +127,44 @@ def _load_expenses(cursor, trip_id):
         """, (e["expense_id"],))
         e["splits"] = cursor.fetchall()
 
+        cursor.execute("SELECT * FROM expense_items WHERE expense_id=%s ORDER BY sort_order, item_id", (e["expense_id"],))
+        e["items"] = cursor.fetchall()
+
     return expenses
+
+
+RECEIPT_EXTENSIONS = {"png", "jpg", "jpeg", "gif", "webp", "pdf"}
+
+
+def _parse_expense_items(form, files, default_date):
+    """讀取表單裡的發票明細（日期／明細／金額／收據照片），整列空白就略過；格式錯誤時丟 ValueError。
+    每列用 item_key 編號對應欄位（item_desc_3、item_receipt_3…），避免空白的檔案欄位讓列對不上。"""
+    items = []
+    for key in form.getlist("item_key"):
+        if not key.isdigit():
+            continue
+        description = form.get(f"item_desc_{key}", "").strip()
+        amount = form.get(f"item_amount_{key}", "").strip()
+        receipt = files.get(f"item_receipt_{key}")
+        if receipt is not None and not receipt.filename:
+            receipt = None
+        if not description and not amount and receipt is None:
+            continue
+        if not description:
+            raise ValueError("每一列發票明細都要填寫「明細」內容。")
+        try:
+            amount = Decimal(amount or "0")
+            if amount < 0: raise InvalidOperation
+        except InvalidOperation:
+            raise ValueError(f"明細「{description}」的金額格式不正確。")
+        try:
+            item_date = date.fromisoformat(form.get(f"item_date_{key}", "").strip() or default_date)
+        except ValueError:
+            raise ValueError(f"明細「{description}」的日期格式不正確。")
+        if receipt is not None and receipt.filename.rsplit(".", 1)[-1].lower() not in RECEIPT_EXTENSIONS:
+            raise ValueError(f"明細「{description}」的收據請上傳圖片（png、jpg、gif、webp）或 PDF。")
+        items.append({"date": item_date, "description": description[:255], "amount": amount, "receipt": receipt})
+    return items
 
 
 def _load_attachments(cursor, trip_id):
@@ -1184,49 +1224,232 @@ def delete_comment(trip_id, comment_id):
     return redirect(url_for("member.trip_detail", trip_id=trip_id) + "#discussion")
 
 
+CHAT_MAX_LENGTH = 1000
+
+
+def _display_name(row):
+    return row["nickname"] or row["full_name"]
+
+
+def _chat_members(cursor, trip_id):
+    """行程成員與各自在聊天室讀到哪一則訊息（沒進過聊天室視為 0）。"""
+    cursor.execute("""
+        SELECT tm.user_id, tm.member_role, u.full_name, u.nickname,
+               COALESCE(r.last_read_message_id, 0) AS last_read_message_id, r.last_seen_at
+        FROM trip_members tm JOIN users u ON u.user_id = tm.user_id
+        LEFT JOIN trip_chat_reads r ON r.trip_id = tm.trip_id AND r.user_id = tm.user_id
+        WHERE tm.trip_id=%s AND tm.join_status='accepted'
+        ORDER BY FIELD(tm.member_role,'owner','editor','viewer'), u.full_name
+    """, (trip_id,))
+    return cursor.fetchall()
+
+
+def _open_vote_progress(cursor, trip_id, members):
+    """進行中的投票：哪些可投票成員（建立者／共同編輯者）已投、哪些還沒投。"""
+    cursor.execute("""
+        SELECT vote_id, title, deadline_at FROM votes
+        WHERE trip_id=%s AND status='open' AND deadline_at >= NOW() ORDER BY deadline_at
+    """, (trip_id,))
+    votes = cursor.fetchall()
+    voters = [m for m in members if m["member_role"] in ("owner", "editor")]
+    progress = []
+    for v in votes:
+        cursor.execute("SELECT user_id FROM vote_records WHERE vote_id=%s", (v["vote_id"],))
+        voted_ids = {row["user_id"] for row in cursor.fetchall()}
+        progress.append({
+            "vote_id": v["vote_id"],
+            "title": v["title"],
+            "deadline": v["deadline_at"].strftime("%m/%d %H:%M"),
+            "voted": [{"user_id": m["user_id"], "name": _display_name(m)} for m in voters if m["user_id"] in voted_ids],
+            "pending": [{"user_id": m["user_id"], "name": _display_name(m)} for m in voters if m["user_id"] not in voted_ids],
+        })
+    return progress
+
+
+def _post_chat_message(cursor, trip_id, user_id, content):
+    cursor.execute("INSERT INTO trip_chat_messages (trip_id,user_id,content) VALUES (%s,%s,%s)", (trip_id, user_id, content))
+    message_id = cursor.lastrowid
+    # 自己送出的訊息當然算自己已讀
+    cursor.execute("""INSERT INTO trip_chat_reads (trip_id,user_id,last_read_message_id) VALUES (%s,%s,%s)
+                      ON DUPLICATE KEY UPDATE last_read_message_id=GREATEST(last_read_message_id, VALUES(last_read_message_id))""",
+                   (trip_id, user_id, message_id))
+    return message_id
+
+
+@member_bp.route("/trips/<int:trip_id>/chat")
+@login_required("member")
+def chat_feed(trip_id):
+    """聊天室輪詢：回傳 after 之後的新訊息、每位成員的已讀位置、進行中投票的投票進度。"""
+    connection = get_db_connection()
+    if connection is None: return jsonify(error="目前無法連線資料庫。"), 503
+    cursor = connection.cursor(dictionary=True)
+    try:
+        if not _member_access(cursor, trip_id, session["user_id"]):
+            return jsonify(error="你沒有查看此行程的權限。"), 403
+        after = request.args.get("after", 0, type=int)
+        if after > 0:
+            cursor.execute("""SELECT m.message_id, m.user_id, m.content, m.created_at, u.full_name, u.nickname
+                              FROM trip_chat_messages m JOIN users u ON u.user_id = m.user_id
+                              WHERE m.trip_id=%s AND m.message_id > %s ORDER BY m.message_id""", (trip_id, after))
+            rows = cursor.fetchall()
+        else:
+            cursor.execute("""SELECT * FROM (
+                                  SELECT m.message_id, m.user_id, m.content, m.created_at, u.full_name, u.nickname
+                                  FROM trip_chat_messages m JOIN users u ON u.user_id = m.user_id
+                                  WHERE m.trip_id=%s ORDER BY m.message_id DESC LIMIT 200
+                              ) recent ORDER BY message_id""", (trip_id,))
+            rows = cursor.fetchall()
+        members = _chat_members(cursor, trip_id)
+        cursor.execute("SELECT COALESCE(MAX(message_id),0) AS latest FROM trip_chat_messages WHERE trip_id=%s", (trip_id,))
+        latest_id = int(cursor.fetchone()["latest"])
+        payload = {
+            "me": session["user_id"],
+            "latest_id": latest_id,
+            "messages": [{
+                "id": r["message_id"], "user_id": r["user_id"], "name": _display_name(r),
+                "content": r["content"], "time": r["created_at"].strftime("%m/%d %H:%M"),
+            } for r in rows],
+            "members": [{
+                "user_id": m["user_id"], "name": _display_name(m), "role": m["member_role"],
+                "last_read": int(m["last_read_message_id"]),
+                "last_seen": m["last_seen_at"].strftime("%m/%d %H:%M") if m["last_seen_at"] else None,
+            } for m in members],
+            "votes": _open_vote_progress(cursor, trip_id, members),
+        }
+    finally:
+        cursor.close(); connection.close()
+    return jsonify(payload)
+
+
+@member_bp.route("/trips/<int:trip_id>/chat", methods=["POST"])
+@login_required("member")
+def chat_send(trip_id):
+    content = ((request.get_json(silent=True) or {}).get("content") or "").strip()
+    if not content: return jsonify(error="訊息不能是空的。"), 400
+    if len(content) > CHAT_MAX_LENGTH: return jsonify(error=f"訊息最多 {CHAT_MAX_LENGTH} 字。"), 400
+    connection = get_db_connection()
+    if connection is None: return jsonify(error="目前無法連線資料庫。"), 503
+    cursor = connection.cursor(dictionary=True)
+    try:
+        if not _member_access(cursor, trip_id, session["user_id"]):
+            return jsonify(error="你沒有這個行程的聊天權限。"), 403
+        message_id = _post_chat_message(cursor, trip_id, session["user_id"], content)
+        connection.commit()
+    except Exception:
+        connection.rollback(); return jsonify(error="訊息送出失敗，請再試一次。"), 500
+    finally:
+        cursor.close(); connection.close()
+    return jsonify(ok=True, message_id=message_id)
+
+
+@member_bp.route("/trips/<int:trip_id>/chat/read", methods=["POST"])
+@login_required("member")
+def chat_mark_read(trip_id):
+    """把目前使用者的已讀位置往前推（只會前進，不會倒退）。"""
+    last_read = (request.get_json(silent=True) or {}).get("last_read_message_id")
+    if not isinstance(last_read, int) or last_read <= 0: return jsonify(error="已讀位置無效。"), 400
+    connection = get_db_connection()
+    if connection is None: return jsonify(error="目前無法連線資料庫。"), 503
+    cursor = connection.cursor(dictionary=True)
+    try:
+        if not _member_access(cursor, trip_id, session["user_id"]):
+            return jsonify(error="你沒有查看此行程的權限。"), 403
+        cursor.execute("SELECT COALESCE(MAX(message_id),0) AS latest FROM trip_chat_messages WHERE trip_id=%s", (trip_id,))
+        last_read = min(last_read, int(cursor.fetchone()["latest"]))
+        cursor.execute("""INSERT INTO trip_chat_reads (trip_id,user_id,last_read_message_id) VALUES (%s,%s,%s)
+                          ON DUPLICATE KEY UPDATE last_read_message_id=GREATEST(last_read_message_id, VALUES(last_read_message_id)), last_seen_at=NOW()""",
+                       (trip_id, session["user_id"], last_read))
+        connection.commit()
+    except Exception:
+        connection.rollback(); return jsonify(error="更新已讀失敗。"), 500
+    finally:
+        cursor.close(); connection.close()
+    return jsonify(ok=True)
+
+
+@member_bp.route("/trips/<int:trip_id>/chat/nudge/<int:vote_id>", methods=["POST"])
+@login_required("member")
+def chat_nudge_vote(trip_id, vote_id):
+    """在聊天室發一則提醒，點名還沒投票的成員。"""
+    connection = get_db_connection()
+    if connection is None: return jsonify(error="目前無法連線資料庫。"), 503
+    cursor = connection.cursor(dictionary=True)
+    try:
+        if not _member_access(cursor, trip_id, session["user_id"]):
+            return jsonify(error="你沒有這個行程的聊天權限。"), 403
+        progress = next((v for v in _open_vote_progress(cursor, trip_id, _chat_members(cursor, trip_id)) if v["vote_id"] == vote_id), None)
+        if not progress: return jsonify(error="這個投票已結束或不存在。"), 404
+        if not progress["pending"]: return jsonify(error="大家都投完票了！"), 400
+        names = "、".join("@" + p["name"] for p in progress["pending"])
+        content = f"📣 {names} 還沒投「{progress['title']}」喔，截止時間 {progress['deadline']}，記得去投票！"
+        message_id = _post_chat_message(cursor, trip_id, session["user_id"], content)
+        connection.commit()
+    except Exception:
+        connection.rollback(); return jsonify(error="提醒送出失敗，請再試一次。"), 500
+    finally:
+        cursor.close(); connection.close()
+    return jsonify(ok=True, message_id=message_id)
+
+
 @member_bp.route("/trips/<int:trip_id>/expenses", methods=["POST"])
 @login_required("member")
 def add_expense(trip_id):
     connection = _connection_or_home()
     if connection is None: return redirect(url_for("member.dashboard"))
     cursor = connection.cursor(dictionary=True)
+    saved_receipts = []
     try:
         trip = _member_access(cursor, trip_id, session["user_id"])
-        name = request.form.get("expense_name", "").strip(); amount = request.form.get("amount", "")
+        name = request.form.get("expense_name", "").strip(); amount = request.form.get("amount", "").strip()
         try:
-            amount = Decimal(amount)
-            if amount < 0: raise InvalidOperation
+            items = _parse_expense_items(request.form, request.files, request.form.get("expense_date", "")); item_error = None
+        except ValueError as error:
+            items = []; item_error = str(error)
+        try:
+            # 沒填金額但有發票明細時，用明細合計當金額
+            amount = Decimal(amount) if amount else (sum((i["amount"] for i in items), Decimal("0")) if items else None)
+            if amount is not None and amount < 0: raise InvalidOperation
         except (InvalidOperation, ValueError):
             amount = None
-        scope = request.form.get("scope", "shared")
-        if scope not in ("shared", "personal"): scope = "shared"
+        # 分攤對象：勾選的旅程成員（只接受目前已加入行程的人）
+        cursor.execute("SELECT user_id FROM trip_members WHERE trip_id=%s AND join_status='accepted'", (trip_id,))
+        member_ids = {row["user_id"] for row in cursor.fetchall()}
+        split_ids = sorted({int(uid) for uid in request.form.getlist("split_user_ids") if uid.isdigit()} & member_ids)
+        # 只勾自己＝個人支出，不產生分帳
+        scope = "personal" if split_ids == [session["user_id"]] else "shared"
 
         if not trip or not _can_edit(trip): flash("你沒有管理費用的權限。", "error")
-        elif not name or amount is None or not request.form.get("expense_date"): flash("請完整填寫費用名稱、金額與日期。", "error")
+        elif not split_ids: flash("請至少勾選一位分攤的成員。", "error")
+        elif item_error: flash(item_error, "error")
+        elif not name or amount is None or not request.form.get("expense_date"): flash("請完整填寫費用名稱、金額（或發票明細）與日期。", "error")
         else:
             payer_id = session["user_id"]
             cursor.execute("""INSERT INTO expenses (trip_id,created_by,payer_id,expense_name,expense_type,scope,amount,currency,expense_date,note)
                               VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)""", (trip_id, payer_id, payer_id, name, request.form.get("expense_type", "actual"), scope, amount, trip["currency"], request.form["expense_date"], request.form.get("note", "").strip() or None))
             expense_id = cursor.lastrowid
+            for idx, item in enumerate(items):
+                receipt = save_uploaded_attachment(item["receipt"], "receipts")
+                receipt_path = receipt["relative_path"] if receipt else None
+                if receipt_path: saved_receipts.append(receipt_path)
+                cursor.execute("INSERT INTO expense_items (expense_id,item_date,description,amount,receipt_path,sort_order) VALUES (%s,%s,%s,%s,%s,%s)",
+                               (expense_id, item["date"], item["description"], item["amount"], receipt_path, idx))
 
             if scope == "shared":
-                cursor.execute("SELECT user_id FROM trip_members WHERE trip_id=%s AND join_status='accepted'", (trip_id,))
-                member_ids = sorted(row["user_id"] for row in cursor.fetchall())
-                if member_ids:
-                    member_count = len(member_ids)
-                    base_share = (amount / member_count).quantize(Decimal("0.01"), rounding=ROUND_DOWN)
-                    remainder_cents = int(((amount - base_share * member_count) * 100).to_integral_value())
-                    for idx, uid in enumerate(member_ids):
-                        share = base_share + (Decimal("0.01") if idx < remainder_cents else Decimal("0"))
-                        status = "paid" if uid == payer_id else "unpaid"
-                        cursor.execute(
-                            "INSERT INTO expense_splits (expense_id,user_id,split_amount,settlement_status,paid_at) VALUES (%s,%s,%s,%s,%s)",
-                            (expense_id, uid, share, status, datetime.now() if status == "paid" else None)
-                        )
+                member_count = len(split_ids)
+                base_share = (amount / member_count).quantize(Decimal("0.01"), rounding=ROUND_DOWN)
+                remainder_cents = int(((amount - base_share * member_count) * 100).to_integral_value())
+                for idx, uid in enumerate(split_ids):
+                    share = base_share + (Decimal("0.01") if idx < remainder_cents else Decimal("0"))
+                    status = "paid" if uid == payer_id else "unpaid"
+                    cursor.execute(
+                        "INSERT INTO expense_splits (expense_id,user_id,split_amount,settlement_status,paid_at) VALUES (%s,%s,%s,%s,%s)",
+                        (expense_id, uid, share, status, datetime.now() if status == "paid" else None)
+                    )
 
-            connection.commit(); flash("費用已記錄，並自動平均分攤給旅程成員。" if scope == "shared" else "費用已記錄。", "success")
+            connection.commit(); flash(f"費用已記錄，由 {len(split_ids)} 位成員平均分攤。" if scope == "shared" else "費用已記錄（個人支出，不分攤）。", "success")
     except Exception:
         connection.rollback(); flash("儲存費用失敗。", "error")
+        for path in saved_receipts: delete_uploaded_image(path)
     finally:
         cursor.close(); connection.close()
     return redirect(url_for("member.trip_detail", trip_id=trip_id) + "#budget")

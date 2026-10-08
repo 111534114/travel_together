@@ -3430,3 +3430,125 @@ body {
     border-radius: 9px;
     font-size: 15px;
 }
+
+/* ===== 行程聊天室（含已讀回條、投票進度） ===== */
+#chat .chat-layout { display: grid; grid-template-columns: minmax(0, 1fr) 240px; gap: 18px; }
+#chat .chat-main { display: flex; flex-direction: column; gap: 10px; min-width: 0; }
+#chat .chat-messages { height: 380px; overflow-y: auto; padding: 14px; background: #F4FAFB; border: 1px solid #E0EEF0; border-radius: 10px; }
+#chat .chat-message { display: flex; align-items: flex-start; gap: 8px; margin-bottom: 12px; }
+#chat .chat-message.mine { justify-content: flex-end; }
+#chat .chat-avatar { display: grid; place-items: center; flex: 0 0 34px; height: 34px; color: #fff; background: #477d78; border-radius: 6px; font-style: normal; font-size: 14px; }
+#chat .chat-avatar.small { flex-basis: 28px; height: 28px; font-size: 12px; }
+#chat .chat-msg-body { display: flex; flex-direction: column; max-width: 75%; }
+#chat .chat-message.mine .chat-msg-body { align-items: flex-end; }
+#chat .chat-name { margin-bottom: 3px; color: #3D5154; font-size: 12px; }
+#chat .chat-text { margin: 0; padding: 9px 13px; color: #24363A; background: #fff; border: 1px solid #E0EEF0; border-radius: 12px; white-space: pre-wrap; word-break: break-word; }
+#chat .chat-message.mine .chat-text { color: #fff; background: var(--ocean-primary-dark); border-color: var(--ocean-primary-dark); }
+#chat .chat-meta { display: flex; gap: 8px; margin-top: 3px; color: var(--ocean-muted); font-size: 11px; }
+#chat .chat-read { cursor: help; }
+#chat .chat-read.all { color: var(--ocean-primary-dark); font-weight: 700; }
+#chat .chat-form { display: flex; gap: 10px; align-items: flex-end; }
+#chat .chat-form textarea { flex: 1; resize: vertical; }
+#chat .chat-error { margin: 0; color: #C0392B; font-size: 13px; }
+#chat .chat-side h4 { margin: 0 0 8px; font-size: 14px; }
+#chat .chat-side h4 + div { margin-bottom: 18px; }
+#chat .chat-status-row { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
+#chat .chat-status-row b { display: block; font-size: 13px; }
+#chat .chat-status-row small { color: var(--ocean-muted); font-size: 12px; }
+#chat .chat-status-row small.ok { color: var(--ocean-primary-dark); }
+#chat .chat-status-row small.warn { color: #B7791F; }
+#chat .chat-vote-card { margin-bottom: 10px; padding: 10px 12px; background: #F4FAFB; border: 1px solid #E0EEF0; border-radius: 10px; }
+#chat .chat-vote-card b, #chat .chat-vote-card small { display: block; }
+#chat .chat-vote-card small { margin: 2px 0 6px; color: var(--ocean-muted); font-size: 12px; }
+#chat .chat-vote-card p { margin: 0 0 6px; font-size: 13px; }
+#chat .chat-vote-card .pending, .vote-turnout .pending { color: #B7791F; }
+#chat .chat-vote-card .voted, .vote-turnout .voted { color: var(--ocean-primary-dark); }
+.vote-turnout { display: flex; flex-wrap: wrap; gap: 4px 16px; font-size: 13px; }
+@media (max-width: 760px) {
+    #chat .chat-layout { grid-template-columns: 1fr; }
+    #chat .chat-messages { height: 320px; }
+}
+
+/* ===== 行程側欄：旅伴清單 ===== */
+.trip-members h3 { display: flex; align-items: center; gap: 8px; margin-bottom: 14px; }
+.trip-members .count-badge { display: inline-grid; place-items: center; min-width: 24px; height: 24px; padding: 0 7px; color: var(--ocean-primary-dark); background: #E0F6F8; border-radius: 999px; font-size: 13px; }
+.trip-member-list { margin: 0; padding: 0; list-style: none; }
+.trip-member { display: flex; flex-direction: column; gap: 10px; padding: 12px; margin-bottom: 10px; background: #F7FBFB; border: 1px solid #E6F0F1; border-radius: 10px; transition: border-color .15s, box-shadow .15s; }
+.trip-member:hover { border-color: #BFE3E8; box-shadow: 0 4px 12px rgba(8, 126, 150, .08); }
+.trip-member-main { display: flex; align-items: center; gap: 12px; min-width: 0; }
+.trip-member-avatar { display: grid; place-items: center; flex: 0 0 42px; height: 42px; color: #fff; background: #477d78; border-radius: 50%; font-style: normal; font-weight: 700; font-size: 17px; }
+.trip-member-avatar.role-owner { background: linear-gradient(135deg, var(--ocean-primary-dark), var(--ocean-primary)); }
+.trip-member-avatar.role-editor { background: #477d78; }
+.trip-member-avatar.role-viewer { background: #9AAEB1; }
+.trip-member-avatar.pending { color: #8A6D1F; background: #FFF3D1; border: 1px dashed #E3B53B; }
+.trip-member-info { display: flex; flex-direction: column; align-items: flex-start; gap: 4px; min-width: 0; }
+.trip-member-info b { max-width: 100%; overflow: hidden; color: #23373A; font-size: 15px; white-space: nowrap; text-overflow: ellipsis; }
+.trip-member-info b em { color: var(--ocean-muted); font-size: 12px; font-style: normal; font-weight: 400; }
+.trip-member-info small { color: #777084; font-size: 12px; }
+.role-badge { display: inline-block; padding: 2px 9px; border-radius: 999px; font-size: 12px; font-weight: 600; white-space: nowrap; }
+.role-badge.role-owner { color: #8A5A00; background: #FFF0C2; }
+.role-badge.role-editor { color: var(--ocean-primary-dark); background: #E0F6F8; }
+.role-badge.role-viewer { color: #5F6F72; background: #ECF1F2; }
+.role-badge.pending { color: #8A6D1F; background: #FFF6DC; }
+.trip-member-actions { display: flex; gap: 8px; padding-top: 10px; border-top: 1px dashed #DCE8EA; }
+.trip-member-actions form:first-child { flex: 1; }
+.trip-member-actions select { width: 100%; padding: 7px 10px; color: #23373A; background: #fff; border: 1px solid #C5D5D7; border-radius: 8px; font: inherit; font-size: 13px; cursor: pointer; }
+.trip-member-actions select:focus { border-color: var(--ocean-primary); outline: none; }
+.trip-member-remove { padding: 7px 12px; color: #B03A2E; background: #fff; border: 1px solid #F0C9C4; border-radius: 8px; font: inherit; font-size: 13px; font-weight: 600; white-space: nowrap; cursor: pointer; }
+.trip-member-remove:hover { color: #fff; background: #C0392B; border-color: #C0392B; }
+.trip-member-pending { margin-top: 16px; }
+.trip-member-pending > small { display: block; margin-bottom: 8px; color: var(--ocean-muted); font-size: 12px; font-weight: 700; letter-spacing: .04em; }
+.trip-member-pending .trip-member { background: #FFFCF3; border-style: dashed; border-color: #F0DFAE; }
+.trip-members .invite-details { margin-top: 14px; padding-top: 14px; border-top: 1px solid #E9F0F1; }
+.trip-members .invite-details form { display: flex; flex-direction: column; gap: 8px; }
+.trip-members .invite-details label { gap: 4px; color: #777084; font-size: 13px; font-weight: 400; }
+
+/* ===== 費用：發票明細 ===== */
+.invoice-details { padding: 12px 14px; background: #F7FBFB; border: 1px dashed #BFDDE2; border-radius: 10px; }
+.invoice-details summary { color: var(--ocean-primary-dark); font-weight: 700; cursor: pointer; }
+.invoice-box { display: flex; flex-direction: column; align-items: flex-start; gap: 8px; margin-top: 14px; }
+.invoice-item-list { display: flex; flex-direction: column; gap: 8px; width: 100%; }
+.invoice-item-head, .invoice-item { display: grid; grid-template-columns: 150px minmax(0, 1fr) 110px 150px 32px; gap: 8px; align-items: center; width: 100%; }
+.invoice-item-head span { color: var(--ocean-muted); font-size: 12px; font-weight: 700; }
+.form-grid-member .invoice-item input { padding: 8px 10px; }
+.invoice-file { position: relative; display: flex !important; align-items: center; justify-content: center; height: 38px; padding: 0 10px; overflow: hidden; color: var(--ocean-primary-dark) !important; background: #fff; border: 1px dashed #A9D2D8; border-radius: 6px; font-size: 13px; font-weight: 600; cursor: pointer; }
+.invoice-file span { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.invoice-file input[type="file"] { position: absolute; inset: 0; opacity: 0; cursor: pointer; }
+.invoice-file.has-file { color: #fff !important; background: var(--ocean-primary-dark); border-style: solid; border-color: var(--ocean-primary-dark); }
+.invoice-remove { width: 32px; height: 32px; color: #B03A2E; background: #fff; border: 1px solid #F0C9C4; border-radius: 8px; cursor: pointer; }
+.invoice-remove:hover { color: #fff; background: #C0392B; border-color: #C0392B; }
+.invoice-total { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 10px; width: 100%; margin-top: 4px; padding-top: 12px; border-top: 1px solid #E0EEF0; color: #3D5154; }
+.invoice-total b { color: var(--ocean-primary-dark); font-size: 18px; }
+.invoice-total small { color: var(--ocean-muted); }
+.expense-note { display: block; margin-top: 4px; color: #5F6F72; white-space: pre-wrap; }
+.invoice-table { width: 100%; margin-top: 10px; border-collapse: collapse; font-size: 14px; }
+.invoice-table th, .invoice-table td { padding: 7px 8px; border-bottom: 1px solid #E9F0F1; text-align: left; vertical-align: middle; }
+.invoice-table th { color: var(--ocean-muted); font-size: 12px; }
+.invoice-table th:nth-child(3), .invoice-table td:nth-child(3) { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.invoice-table th:nth-child(4), .invoice-table td:nth-child(4) { text-align: center; }
+.invoice-table tfoot td { color: var(--ocean-primary-dark); font-weight: 700; border-bottom: 0; }
+.invoice-table a.type-pill { text-decoration: none; }
+.receipt-thumb img { display: block; width: 44px; height: 44px; margin: 0 auto; object-fit: cover; border: 1px solid #E0EEF0; border-radius: 6px; transition: transform .15s; }
+.receipt-thumb:hover img { transform: scale(1.08); }
+@media (max-width: 760px) {
+    .invoice-item-head { display: none; }
+    .invoice-item { grid-template-columns: 1fr 1fr 32px; padding: 10px; background: #fff; border: 1px solid #E0EEF0; border-radius: 8px; }
+    .invoice-item input[name^="item_desc_"] { grid-column: 1 / -1; grid-row: 1; }
+    .invoice-file { grid-column: 1 / 3; }
+}
+
+/* ===== 費用：分攤成員勾選 ===== */
+.split-members { margin: 0; padding: 0; border: 0; min-width: 0; }
+.split-members legend { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 10px; margin-bottom: 8px; padding: 0; color: #3D5154; font-weight: 600; }
+.split-members legend small { color: var(--ocean-muted); font-size: 12px; font-weight: 400; }
+.split-member-list { display: flex; flex-wrap: wrap; gap: 8px; }
+.form-grid-member .split-member-chip { position: relative; display: inline-flex; flex-direction: row; align-items: center; gap: 8px; padding: 6px 14px 6px 6px; color: #5F6F72; background: #fff; border: 1px solid #C5D5D7; border-radius: 999px; font-weight: 600; cursor: pointer; transition: background .15s, border-color .15s, color .15s; user-select: none; }
+.split-member-chip input { position: absolute; opacity: 0; pointer-events: none; }
+.split-member-chip i { display: grid; place-items: center; width: 28px; height: 28px; color: #fff; background: #9AAEB1; border-radius: 50%; font-style: normal; font-size: 13px; }
+.form-grid-member .split-member-chip:has(input:checked) { color: var(--ocean-primary-dark); background: #E0F6F8; border-color: var(--ocean-primary); }
+.split-member-chip:has(input:checked) i { background: var(--ocean-primary-dark); }
+.split-member-chip:has(input:checked) span::after { content: " ✓"; }
+.split-member-chip:has(input:focus-visible) { outline: 2px solid var(--ocean-primary); outline-offset: 2px; }
+.split-member-tools { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 10px; }
+.split-preview { color: var(--ocean-primary-dark); font-size: 13px; font-weight: 600; }
+.split-preview.warn { color: #C0392B; }

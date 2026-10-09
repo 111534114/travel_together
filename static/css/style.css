@@ -2217,11 +2217,119 @@ body {
 
 .itinerary-row {
     display: grid;
-    grid-template-columns: 52px minmax(0, 1fr) auto;
+    align-items: start;
+    grid-template-columns: 56px minmax(0, 1fr) auto;
 }
 
-.itinerary-row.has-weather {
-    grid-template-columns: 52px 52px minmax(0, 1fr) auto;
+.itinerary-day-group {
+    position: relative;
+}
+
+.itinerary-day-group::before {
+    content: "";
+    position: absolute;
+    top: 28px;
+    bottom: 28px;
+    left: 28px;
+    width: 2px;
+    background: var(--ocean-primary);
+    opacity: .35;
+    z-index: 0;
+}
+
+.itinerary-day-divider {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    margin: 22px 0 10px;
+    padding-bottom: 6px;
+    border-bottom: 2px solid var(--ocean-primary);
+}
+
+.itinerary-day-divider:first-child {
+    margin-top: 0;
+}
+
+.itinerary-day-date {
+    color: var(--ocean-primary-dark);
+    font-size: 15px;
+    font-weight: 800;
+}
+
+.itinerary-day-weather {
+    color: var(--ocean-muted);
+    font-size: 13px;
+}
+
+.itinerary-thumb {
+    position: relative;
+    z-index: 1;
+    display: grid;
+    place-items: center;
+    width: 56px;
+    height: 56px;
+    overflow: hidden;
+    color: #fff;
+    background: var(--ocean-primary);
+    border-radius: 10px;
+    font-size: 20px;
+}
+
+.itinerary-thumb img {
+    display: block;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.itinerary-marker-number {
+    position: absolute;
+    z-index: 2;
+    right: -6px;
+    bottom: -6px;
+    display: grid;
+    place-items: center;
+    width: 20px;
+    height: 20px;
+    background: var(--ocean-primary-dark);
+    color: #fff;
+    border: 2px solid #fff;
+    border-radius: 50%;
+    font-size: 11px;
+    font-weight: 800;
+}
+
+.itinerary-connector {
+    position: relative;
+    z-index: 1;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 6px 0;
+}
+
+.itinerary-connector-marker {
+    display: grid;
+    place-items: center;
+    width: 56px;
+    height: 32px;
+    flex-shrink: 0;
+}
+
+.itinerary-connector-icon {
+    display: grid;
+    place-items: center;
+    width: 32px;
+    height: 32px;
+    background: #fff;
+    border: 2px solid var(--ocean-primary);
+    border-radius: 50%;
+    font-size: 14px;
+}
+
+.itinerary-connector-text {
+    color: var(--ocean-muted);
+    font-size: 13px;
 }
 
 .weather-badge {

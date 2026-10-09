@@ -682,12 +682,12 @@ def add_attraction_to_trip(attraction_id):
 
     trip_id = request.form.get("trip_id", "").strip()
     day = request.form.get("itinerary_date", "").strip()
-    start = request.form.get("start_time") or None
-    end = request.form.get("end_time") or None
+    start, end, is_all_day, transport_minutes, time_errors = _parse_itinerary_time(request.form)
     if not trip_id.isdigit() or not day:
         flash("請選擇要加入的行程與日期。", "error"); return redirect(next_url)
-    if start and end and end < start:
-        flash("結束時間不能早於開始時間。", "error"); return redirect(next_url)
+    if time_errors:
+        for error in time_errors: flash(error, "error")
+        return redirect(next_url)
     try:
         day_value = date.fromisoformat(day)
     except ValueError:
@@ -709,10 +709,10 @@ def add_attraction_to_trip(attraction_id):
             flash("找不到這個景點，或已被下架。", "error"); return redirect(next_url)
         cursor.execute("SELECT COALESCE(MAX(sort_order),0)+1 AS next_order FROM itineraries WHERE trip_id=%s AND itinerary_date=%s", (trip["trip_id"], day_value))
         order = cursor.fetchone()["next_order"]
-        cursor.execute("""INSERT INTO itineraries (trip_id,created_by,itinerary_date,item_type,title,start_time,end_time,address,transport_method,estimated_cost,notes,attraction_id,sort_order)
-                          VALUES (%s,%s,%s,'attraction',%s,%s,%s,%s,%s,%s,%s,%s,%s)""",
-                       (trip["trip_id"], session["user_id"], day_value, attraction["name"][:150], start, end, attraction["address"],
-                        request.form.get("transport_method", "").strip() or None,
+        cursor.execute("""INSERT INTO itineraries (trip_id,created_by,itinerary_date,item_type,title,start_time,end_time,is_all_day,address,transport_method,transport_minutes,estimated_cost,notes,attraction_id,sort_order)
+                          VALUES (%s,%s,%s,'attraction',%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)""",
+                       (trip["trip_id"], session["user_id"], day_value, attraction["name"][:150], start, end, is_all_day, attraction["address"],
+                        request.form.get("transport_method", "").strip() or None, transport_minutes,
                         attraction["ticket_price"] or 0, request.form.get("notes", "").strip() or None, attraction_id, order))
         connection.commit()
         flash(f"已將「{attraction['name']}」加入「{trip['trip_name']}」的 {day_value} 行程。", "success")
@@ -834,11 +834,22 @@ def trip_detail(trip_id):
         cursor.execute("""SELECT i.*, u.nickname, u.full_name,
                                  a.attraction_id AS detail_attraction_id, a.image_path AS attraction_image,
                                  a.description AS attraction_description, a.opening_hours AS attraction_hours,
-                                 a.suggested_duration_minutes AS attraction_duration
+                                 a.suggested_duration_minutes AS attraction_duration,
+                                 a.latitude AS attraction_lat, a.longitude AS attraction_lng
                           FROM itineraries i JOIN users u ON u.user_id=i.created_by
                           LEFT JOIN attractions a ON a.attraction_id=i.attraction_id
                               AND i.item_type='attraction' AND a.status='active' AND a.deleted_at IS NULL
                           WHERE i.trip_id=%s ORDER BY i.itinerary_date,i.start_time,i.sort_order""", (trip_id,)); itinerary = cursor.fetchall()
+
+        # 依日期逐筆記錄「這一天前一筆有座標的景點」，提供給前端估算交通時間用
+        day_last_coords = {}
+        for it in itinerary:
+            day_key = it["itinerary_date"].isoformat()
+            prev = day_last_coords.get(day_key)
+            it["prev_lat"] = prev[0] if prev else None
+            it["prev_lng"] = prev[1] if prev else None
+            if it.get("attraction_lat") is not None and it.get("attraction_lng") is not None:
+                day_last_coords[day_key] = (float(it["attraction_lat"]), float(it["attraction_lng"]))
         city_weather_days = {}
         city_weather = weather.get_weather_by_cities([trip["city"]]) if trip.get("city") else {}
         if trip.get("city") in city_weather:
@@ -859,7 +870,7 @@ def trip_detail(trip_id):
         cursor.execute("""
             SELECT a.attraction_id, a.name, a.address, a.ticket_price, a.image_path, a.city_id,
                    cat.category_name, ci.name AS city, a.description,
-                   a.opening_hours, a.suggested_duration_minutes
+                   a.opening_hours, a.suggested_duration_minutes, a.latitude, a.longitude
             FROM attractions a
             LEFT JOIN categories cat ON cat.category_id = a.category_id
             JOIN cities ci ON ci.city_id = a.city_id
@@ -871,7 +882,7 @@ def trip_detail(trip_id):
         transport_summary = _summarize_transport_time(itinerary)
     finally:
         cursor.close(); connection.close()
-    return render_template("member/trip_detail.html", trip=trip, itinerary=itinerary, place_options=place_options, popular_attractions=popular_attractions, addable_trips=[trip], city_weather_days=city_weather_days, members=members, pending_invitations=pending_invitations, proposals=proposals, votes=votes, comments=comments, expenses=expenses, balance_summary=balance_summary, attachments=attachments, actual=actual, can_edit=_can_edit(trip), is_owner=trip["member_role"] == "owner", now=datetime.now(), item_type_labels=ITEM_TYPE_LABELS, disney_parks=theme_parks.get_disney_parks(), transport_summary=transport_summary)
+    return render_template("member/trip_detail.html", trip=trip, itinerary=itinerary, place_options=place_options, popular_attractions=popular_attractions, addable_trips=[trip], day_last_coords=day_last_coords, city_weather_days=city_weather_days, members=members, pending_invitations=pending_invitations, proposals=proposals, votes=votes, comments=comments, expenses=expenses, balance_summary=balance_summary, attachments=attachments, actual=actual, can_edit=_can_edit(trip), is_owner=trip["member_role"] == "owner", now=datetime.now(), item_type_labels=ITEM_TYPE_LABELS, disney_parks=theme_parks.get_disney_parks(), transport_summary=transport_summary)
 
 
 @member_bp.route("/trips/<int:trip_id>/park-hours")

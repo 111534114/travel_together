@@ -1,8 +1,8 @@
 {% if item.detail_attraction_id %}
-<details class="quick-add" open>
+<details class="quick-add itinerary-attraction-details">
   <summary>景點詳細資料</summary>
   {% if item.attraction_image %}
-  <img src="{{ url_for('static', filename=item.attraction_image) }}" alt="{{ item.title }}" loading="lazy" style="display:block;width:100%;max-width:320px;height:180px;object-fit:cover;border-radius:6px;margin:12px 0;">
+  <img src="{{ url_for('static', filename=item.attraction_image) }}" alt="{{ item.title }}" loading="lazy" style="display:block;width:160px;height:100px;object-fit:cover;border-radius:6px;margin:12px 0;">
   {% endif %}
   <p><b>營業時間：</b>{{ item.attraction_hours or '未提供' }}</p>
   <p><b>建議停留：</b>{{ (item.attraction_duration ~ ' 分鐘') if item.attraction_duration else '未提供' }}</p>

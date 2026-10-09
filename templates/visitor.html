@@ -187,17 +187,13 @@
   <header class="site-nav">
     <a class="brand" href="{{ url_for('member.dashboard') if is_member else url_for('visitor') }}"><img src="{{ url_for('static', filename='images/logo.png') }}" alt="走吧揪團"></a>
     <nav class="nav-links">
+      {% if is_member %}
+      {% include 'partials/member_nav_links.html' %}
+      {% else %}
       <a href="#announcements">公告事項</a>
       <a href="#weather">目的地天氣</a>
       <a href="#trips">探索行程</a>
       <a href="#companions">尋找旅伴</a>
-      {% if is_member %}
-      <a href="#member-workspace">我的旅程</a>
-      <a href="{{ url_for('member.browse_attractions') }}">探索景點</a>
-      <a href="{{ url_for('member.profile') }}">個人資料</a>
-      {% include 'partials/language_select.html' %}
-      <a class="nav-register" href="{{ url_for('logout') }}">登出</a>
-      {% else %}
       {% include 'partials/language_select.html' %}
       <a href="{{ url_for('login') }}">登入</a>
       <a class="nav-register" href="{{ url_for('register') }}">免費註冊</a>

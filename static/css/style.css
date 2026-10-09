@@ -3723,3 +3723,20 @@ body {
 .split-member-tools { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 10px; }
 .split-preview { color: var(--ocean-primary-dark); font-size: 13px; font-weight: 600; }
 .split-preview.warn { color: #C0392B; }
+
+/* ===== 行程頁：快捷跳轉按鈕列 ===== */
+html { scroll-behavior: smooth; }
+.trip-content > .panel, .trip-side > .side-card { scroll-margin-top: var(--trip-scroll-offset, 160px); }
+.trip-jump-nav { position: sticky; top: var(--trip-nav-top, 88px); z-index: 15; display: flex; gap: 6px; margin-bottom: 22px; padding: 8px; overflow-x: auto; background: rgba(255, 255, 255, .92); border: 1px solid #E1EBEC; border-radius: 12px; box-shadow: 0 6px 18px rgba(37, 64, 68, .08); backdrop-filter: blur(8px); scrollbar-width: none; }
+.trip-jump-nav::-webkit-scrollbar { display: none; }
+.trip-jump-nav a { position: relative; display: inline-flex; flex: 0 0 auto; align-items: center; gap: 6px; padding: 8px 14px; color: #3D5154; border-radius: 999px; font-size: 14px; font-weight: 600; text-decoration: none; white-space: nowrap; transition: background .15s, color .15s; }
+.trip-jump-nav a:hover { color: var(--ocean-primary-dark); background: #E0F6F8; }
+.trip-jump-nav a.active { color: #fff; background: var(--ocean-primary-dark); box-shadow: 0 3px 8px rgba(8, 126, 150, .25); }
+.trip-jump-nav a:focus-visible { outline: 2px solid var(--ocean-primary); outline-offset: 2px; }
+.trip-jump-nav .jump-badge { min-width: 18px; height: 18px; padding: 0 5px; color: #fff; background: #E5484D; border-radius: 999px; font-size: 11px; line-height: 18px; text-align: center; }
+.trip-jump-nav a.active .jump-badge { color: var(--ocean-primary-dark); background: #fff; }
+@media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } }
+@media (max-width: 640px) {
+    .trip-jump-nav { margin-left: -4px; margin-right: -4px; border-radius: 10px; }
+    .trip-jump-nav a { padding: 7px 11px; font-size: 13px; }
+}

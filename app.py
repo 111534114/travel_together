@@ -129,7 +129,7 @@ def visitor():
         cursor = connection.cursor(dictionary=True)
         try:
             # 1. 查詢真實統計數據
-            cursor.execute("SELECT COUNT(*) AS total FROM trips")
+            cursor.execute("SELECT COUNT(*) AS total FROM trips WHERE deleted_at IS NULL")
             stats['total_trips'] = cursor.fetchone()['total'] or 0
 
             cursor.execute("SELECT COUNT(*) AS total FROM users WHERE role = 'member' AND status != 'deleted'")
@@ -165,7 +165,7 @@ def visitor():
                 JOIN countries co ON co.country_id = t.country_id
                 JOIN cities ci ON ci.city_id = t.city_id
                 LEFT JOIN categories c ON c.category_id = t.category_id
-                WHERE t.visibility = 'public'
+                WHERE t.visibility = 'public' AND t.deleted_at IS NULL
                 ORDER BY t.trip_id DESC
             """)
             public_trips = cursor.fetchall()
@@ -185,7 +185,7 @@ def visitor():
                 JOIN countries co ON co.country_id = t.country_id
                 JOIN cities ci ON ci.city_id = t.city_id
                 LEFT JOIN trip_members tm ON tm.trip_id = t.trip_id AND tm.join_status = 'accepted'
-                WHERE (t.visibility = 'public' OR t.people_count > 1)
+                WHERE (t.visibility = 'public' OR t.people_count > 1) AND t.deleted_at IS NULL
                 GROUP BY t.trip_id, t.trip_name, co.name, ci.name, t.people_count, t.total_budget, t.currency, t.introduction, u.full_name, u.nickname
                 ORDER BY t.trip_id DESC
                 LIMIT 6
@@ -1012,6 +1012,7 @@ def system_admin_home():  # 定義系統管理員儀表板函式
         cursor.execute("""
             SELECT COUNT(*) AS total
             FROM trips
+            WHERE deleted_at IS NULL
         """)  # 統計所有行程數量
 
         trip_count = cursor.fetchone()["total"]  # 取出行程總數
@@ -1020,7 +1021,7 @@ def system_admin_home():  # 定義系統管理員儀表板函式
         cursor.execute("""
             SELECT COUNT(*) AS total
             FROM trips
-            WHERE visibility = 'public'
+            WHERE visibility = 'public' AND deleted_at IS NULL
         """)  # 統計可見度為公開的行程數量
 
         public_trip_count = cursor.fetchone()["total"]  # 取出公開行程總數
@@ -1202,7 +1203,7 @@ def admin_public_trips():  # 定義公開行程管理列表函式
 
     cursor = connection.cursor(dictionary=True)  # 建立字典格式游標
     try:  # 開始查詢公開行程資料
-        conditions = ["t.visibility = 'public'"]  # 查詢條件清單，固定只找公開行程
+        conditions = ["t.visibility = 'public'", "t.deleted_at IS NULL"]  # 查詢條件清單，固定只找公開、未刪除的行程
         params = []  # 對應條件的參數清單
 
         if keyword:  # 如果有輸入搜尋關鍵字
@@ -1239,7 +1240,7 @@ def admin_public_trips():  # 定義公開行程管理列表函式
         """, tuple(params))  # 查詢公開行程清單，附帶成員數、行程項目數
         trips = cursor.fetchall()  # 取出公開行程清單
 
-        cursor.execute("SELECT COUNT(*) AS total FROM trips WHERE visibility = 'public'")  # 查詢公開行程總數
+        cursor.execute("SELECT COUNT(*) AS total FROM trips WHERE visibility = 'public' AND deleted_at IS NULL")  # 查詢公開行程總數
         public_count = cursor.fetchone()["total"]  # 取出公開行程總數
 
     finally:  # 不論成功或失敗都要執行
@@ -1668,8 +1669,8 @@ def admin_statistics():
                 SELECT
                   (SELECT COUNT(*) FROM users WHERE role='member' AND status!='deleted') AS members,
                   (SELECT COUNT(*) FROM users WHERE role='member' AND status='active') AS active_members,
-                  (SELECT COUNT(*) FROM trips) AS trips,
-                  (SELECT COUNT(*) FROM trips WHERE visibility='public') AS public_trips,
+                  (SELECT COUNT(*) FROM trips WHERE deleted_at IS NULL) AS trips,
+                  (SELECT COUNT(*) FROM trips WHERE visibility='public' AND deleted_at IS NULL) AS public_trips,
                   (SELECT COUNT(*) FROM announcements) AS announcements
             """)
             totals.update(cursor.fetchone())
@@ -1694,13 +1695,13 @@ def admin_statistics():
             cursor.execute("""
                 SELECT DATE_FORMAT(created_at, '%%Y-%%m') AS month, COUNT(*) AS total
                 FROM trips
-                WHERE created_at >= %s
+                WHERE created_at >= %s AND deleted_at IS NULL
                 GROUP BY DATE_FORMAT(created_at, '%%Y-%%m')
             """, (month_starts[0],))
             for row in cursor.fetchall():
                 if row["month"] in monthly_by_key:
                     monthly_by_key[row["month"]]["trips"] = row["total"]
-            cursor.execute("SELECT status, COUNT(*) AS total FROM trips GROUP BY status ORDER BY total DESC")
+            cursor.execute("SELECT status, COUNT(*) AS total FROM trips WHERE deleted_at IS NULL GROUP BY status ORDER BY total DESC")
             trip_statuses = cursor.fetchall()
             cursor.execute("""
                 SELECT status, COUNT(*) AS total
@@ -1718,6 +1719,7 @@ def admin_statistics():
                 SELECT ci.name AS city, COUNT(*) AS total
                 FROM trips t
                 JOIN cities ci ON ci.city_id = t.city_id
+                WHERE t.deleted_at IS NULL
                 GROUP BY ci.city_id, ci.name
                 ORDER BY total DESC, ci.name ASC
                 LIMIT 5

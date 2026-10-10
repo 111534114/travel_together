@@ -1,6 +1,6 @@
 <link rel="stylesheet" href="{{ url_for('static', filename='css/booking-tools.css') }}">
+{% if booking_kind or search_errors %}
 <div class="booking-tools">
-  <a href="{{ url_for('booking.favorites') }}">我的收藏（住宿／機票／火車）</a>
   {% if booking_kind %}
   {% set price_cap = 30000 if booking_kind == 'hotel' else (100000 if booking_kind == 'flight' else 5000) %}
   {% set price_step = 500 if booking_kind == 'flight' else 100 %}
@@ -25,5 +25,6 @@
   {% endif %}
   {% if search_errors %}<div class="booking-errors" role="alert">{% for key, message in search_errors.items() %}<p>{{ message }}</p>{% endfor %}</div>{% endif %}
 </div>
+{% endif %}
 <script id="booking-errors-data" type="application/json">{{ (search_errors or {})|tojson }}</script>
 <script src="{{ url_for('static', filename='js/booking-tools.js') }}" defer></script>

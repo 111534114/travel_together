@@ -1,7 +1,7 @@
 .booking-tools { margin:16px 0; padding:16px 0; border-bottom:1px solid #cadfe3; }
 .booking-tools > a { color:#087e96; font-weight:700; }
 .booking-tools p { font-size:13px; color:#536970; }
-.booking-filters { display:flex; flex-wrap:wrap; gap:12px; align-items:end; margin-top:16px; }
+.booking-filters { display:flex; flex-wrap:wrap; gap:12px; align-items:end; margin-top:0; }
 .booking-filters label { display:grid; gap:6px; max-width:100%; font-size:14px; }
 .booking-filters select, .booking-mode { padding:9px; border:1px solid #aac7ce; border-radius:6px; font:inherit; max-width:100%; min-width:0; }
 .price-range-filter { flex:1 1 430px; display:grid; grid-template-columns:repeat(2,minmax(160px,1fr)); gap:10px 22px; max-width:620px; padding:12px 14px; border:1px solid #bdd5da; border-radius:8px; background:#fff; }

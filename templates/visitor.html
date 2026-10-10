@@ -681,7 +681,10 @@
       const issueTrigger = document.getElementById('issueTrigger');
       if (issueTrigger) issueTrigger.hidden = !trip.can_issue;
       const duplicateForm = document.getElementById('duplicateTripForm');
-      if (duplicateForm) duplicateForm.action = '/member/trips/' + encodeURIComponent(id) + '/duplicate';
+      if (duplicateForm) {
+        duplicateForm.action = '/member/trips/' + encodeURIComponent(id) + '/duplicate';
+        duplicateForm.hidden = !trip.can_duplicate;
+      }
     }
     function openIssueModal() {
       if (!activeTripId) return;

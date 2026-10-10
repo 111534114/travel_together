@@ -7,7 +7,7 @@ from werkzeug.security import check_password_hash, generate_password_hash
 
 from auth import login_required
 from db import get_db_connection
-from utils import delete_uploaded_image, get_cities, get_countries, save_uploaded_attachment, save_uploaded_image
+from utils import delete_uploaded_image, format_hm, get_cities, get_countries, save_uploaded_attachment, save_uploaded_image
 import theme_parks
 import weather
 
@@ -263,6 +263,7 @@ def _parse_trip(form):
         "currency": form.get("currency", "TWD").strip().upper(),
         "introduction": form.get("introduction", "").strip(),
         "visibility": form.get("visibility", "private").strip(),
+        "allow_copy": 1 if form.get("allow_copy") == "on" else 0,
     }
     errors = []
     if not all(values[k] for k in ("trip_name", "country_id", "city_id", "start_date", "end_date")):
@@ -360,7 +361,7 @@ def dashboard():
             SELECT t.trip_id, t.owner_id, t.trip_name, co.name AS country, ci.name AS city,
                    t.start_date, t.end_date, t.people_count,
                    t.total_budget, t.currency, t.introduction,
-                   t.cover_image_path, t.visibility, c.category_name,
+                   t.cover_image_path, t.visibility, t.allow_copy, c.category_name,
                    u.full_name AS owner_name, u.nickname AS owner_nickname,
                    DATEDIFF(t.end_date, t.start_date) + 1 AS days_count
             FROM trips t
@@ -436,7 +437,7 @@ def dashboard():
                 items = [item for item in all_itineraries if item["trip_id"] == trip["trip_id"]]
                 for index, item in enumerate(items, 1):
                     date_text = str(item["itinerary_date"]) if item["itinerary_date"] else f"第 {index} 天"
-                    time_text = f" ({item['start_time']} - {item['end_time']})" if item["start_time"] else ""
+                    time_text = f" ({format_hm(item['start_time'])} - {format_hm(item['end_time'])})" if item["start_time"] else ""
                     address_text = f" ｜ 地址: {item['address']}" if item["address"] else ""
                     cost_text = f" (預估金額: NT$ {item['estimated_cost']:,.0f})" if item["estimated_cost"] else ""
                     timeline.append({"day": f"📍 {date_text}{time_text}",
@@ -449,6 +450,7 @@ def dashboard():
                                if trip["total_budget"] is not None else "未提供預算"),
                     "timeline": timeline,
                     "can_issue": trip["owner_id"] != user_id and trip["trip_id"] not in reported_trip_ids,
+                    "can_duplicate": trip["owner_id"] == user_id or bool(trip["allow_copy"]),
                     "is_favorited": trip["trip_id"] in favorite_trip_ids,
                 }
     finally:
@@ -777,9 +779,9 @@ def create_trip():
                 for error in errors: flash(error, "error")
                 return render_template("member/trip_form.html", trip=form, mode="create", countries=countries, cities=cities)
             try:
-                cursor.execute("""INSERT INTO trips (owner_id,trip_name,cover_image_path,country_id,city_id,start_date,end_date,people_count,total_budget,currency,introduction,visibility,status,share_token)
-                                  VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,'planning',%s)""",
-                               (session["user_id"], form["trip_name"], cover_image_path, form["country_id"], form["city_id"], form["start_date"], form["end_date"], form["people_count"], form["total_budget"], form["currency"], form["introduction"] or None, form["visibility"], secrets.token_urlsafe(16)))
+                cursor.execute("""INSERT INTO trips (owner_id,trip_name,cover_image_path,country_id,city_id,start_date,end_date,people_count,total_budget,currency,introduction,visibility,allow_copy,status,share_token)
+                                  VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,'planning',%s)""",
+                               (session["user_id"], form["trip_name"], cover_image_path, form["country_id"], form["city_id"], form["start_date"], form["end_date"], form["people_count"], form["total_budget"], form["currency"], form["introduction"] or None, form["visibility"], form["allow_copy"], secrets.token_urlsafe(16)))
                 trip_id = cursor.lastrowid
                 cursor.execute("INSERT INTO trip_members (trip_id,user_id,member_role,join_status,joined_at) VALUES (%s,%s,'owner','accepted',NOW())", (trip_id, session["user_id"]))
                 connection.commit()
@@ -848,6 +850,10 @@ def trip_detail(trip_id):
         cursor.execute("""SELECT ti.*, u.full_name AS invitee_name, u.nickname AS invitee_nickname
                           FROM trip_invitations ti JOIN users u ON u.user_id=ti.invitee_id
                           WHERE ti.trip_id=%s AND ti.status='pending' ORDER BY ti.created_at DESC""", (trip_id,)); pending_invitations = cursor.fetchall()
+        cursor.execute("""SELECT invitation_id, invite_token, assigned_role, expires_at FROM trip_invitations
+                          WHERE trip_id=%s AND invitee_id IS NULL AND status='pending'
+                            AND (expires_at IS NULL OR expires_at > NOW())
+                          ORDER BY created_at DESC LIMIT 1""", (trip_id,)); invite_link = cursor.fetchone()
         cursor.execute("""SELECT p.*,u.full_name AS proposer_name FROM proposals p JOIN users u ON u.user_id=p.proposer_id
                           WHERE p.trip_id=%s ORDER BY p.created_at DESC""", (trip_id,)); proposals = cursor.fetchall()
         votes = _load_votes(cursor, trip_id, session["user_id"])
@@ -871,7 +877,7 @@ def trip_detail(trip_id):
         transport_summary = _summarize_transport_time(itinerary)
     finally:
         cursor.close(); connection.close()
-    return render_template("member/trip_detail.html", trip=trip, itinerary=itinerary, place_options=place_options, popular_attractions=popular_attractions, addable_trips=[trip], city_weather_days=city_weather_days, members=members, pending_invitations=pending_invitations, proposals=proposals, votes=votes, comments=comments, expenses=expenses, balance_summary=balance_summary, attachments=attachments, actual=actual, can_edit=_can_edit(trip), is_owner=trip["member_role"] == "owner", now=datetime.now(), item_type_labels=ITEM_TYPE_LABELS, disney_parks=theme_parks.get_disney_parks(), transport_summary=transport_summary)
+    return render_template("member/trip_detail.html", trip=trip, itinerary=itinerary, place_options=place_options, popular_attractions=popular_attractions, addable_trips=[trip], city_weather_days=city_weather_days, members=members, pending_invitations=pending_invitations, invite_link=invite_link, proposals=proposals, votes=votes, comments=comments, expenses=expenses, balance_summary=balance_summary, attachments=attachments, actual=actual, can_edit=_can_edit(trip), is_owner=trip["member_role"] == "owner", now=datetime.now(), item_type_labels=ITEM_TYPE_LABELS, disney_parks=theme_parks.get_disney_parks(), transport_summary=transport_summary)
 
 
 @member_bp.route("/trips/<int:trip_id>/park-hours")
@@ -931,7 +937,7 @@ def edit_trip(trip_id):
             if errors:
                 for error in errors: flash(error, "error")
                 form["trip_id"] = trip_id; return render_template("member/trip_form.html", trip=form, mode="edit", countries=countries, cities=cities)
-            cursor.execute("""UPDATE trips SET trip_name=%s,cover_image_path=%s,country_id=%s,city_id=%s,start_date=%s,end_date=%s,people_count=%s,total_budget=%s,currency=%s,introduction=%s,visibility=%s WHERE trip_id=%s""", (form["trip_name"],cover_image_path,form["country_id"],form["city_id"],form["start_date"],form["end_date"],form["people_count"],form["total_budget"],form["currency"],form["introduction"] or None,form["visibility"],trip_id))
+            cursor.execute("""UPDATE trips SET trip_name=%s,cover_image_path=%s,country_id=%s,city_id=%s,start_date=%s,end_date=%s,people_count=%s,total_budget=%s,currency=%s,introduction=%s,visibility=%s,allow_copy=%s WHERE trip_id=%s""", (form["trip_name"],cover_image_path,form["country_id"],form["city_id"],form["start_date"],form["end_date"],form["people_count"],form["total_budget"],form["currency"],form["introduction"] or None,form["visibility"],form["allow_copy"],trip_id))
             connection.commit(); flash("行程資料已更新。", "success"); return redirect(url_for("member.trip_detail", trip_id=trip_id))
         return render_template("member/trip_form.html", trip=trip, mode="edit", countries=countries, cities=cities)
     finally:
@@ -987,6 +993,9 @@ def duplicate_trip(trip_id):
             return redirect(url_for("member.dashboard"))
         if trip["owner_id"] != session["user_id"] and trip["visibility"] != "public":
             flash("只能複製自己的行程，或是公開行程。", "error")
+            return redirect(url_for("member.dashboard"))
+        if trip["owner_id"] != session["user_id"] and not trip["allow_copy"]:
+            flash("行程建立者沒有開放這個行程被複製。", "error")
             return redirect(url_for("member.dashboard"))
 
         cursor.execute("""
@@ -1686,6 +1695,138 @@ def invite_member(trip_id):
         connection.rollback(); flash("送出邀請失敗。", "error")
     finally: cursor.close(); connection.close()
     return redirect(url_for("member.trip_detail",trip_id=trip_id)+"#members")
+
+
+@member_bp.route("/trips/<int:trip_id>/invite-link", methods=["POST"])
+@login_required("member")
+def create_invite_link(trip_id):
+    role = request.form.get("assigned_role", "viewer")
+    expires_at = request.form.get("expires_at", "").strip() or None
+    connection = _connection_or_home()
+    if connection is None: return redirect(url_for("member.dashboard"))
+    cursor = connection.cursor(dictionary=True)
+    try:
+        trip = _member_access(cursor, trip_id, session["user_id"])
+        if not trip or trip["member_role"] != "owner":
+            flash("只有建立者可以產生邀請連結。", "error")
+        elif role not in ("editor", "viewer"):
+            flash("請選擇有效的成員權限。", "error")
+        else:
+            cursor.execute("""SELECT invitation_id FROM trip_invitations
+                WHERE trip_id=%s AND invitee_id IS NULL AND status='pending'
+                  AND (expires_at IS NULL OR expires_at > NOW())""", (trip_id,))
+            if cursor.fetchone():
+                flash("已經有一個啟用中的邀請連結了，請先關閉再產生新的。", "error")
+            else:
+                cursor.execute("""INSERT INTO trip_invitations
+                    (trip_id,inviter_id,invitee_id,invite_code,invite_token,assigned_role,expires_at)
+                    VALUES (%s,%s,NULL,%s,%s,%s,%s)""",
+                    (trip_id, session["user_id"], secrets.token_urlsafe(8), secrets.token_urlsafe(24), role, expires_at))
+                connection.commit()
+                flash("邀請連結已產生，複製下方連結分享給旅伴吧。", "success")
+    except Exception:
+        connection.rollback(); flash("產生邀請連結失敗。", "error")
+    finally:
+        cursor.close(); connection.close()
+    return redirect(url_for("member.trip_detail", trip_id=trip_id) + "#members")
+
+
+@member_bp.route("/trips/<int:trip_id>/invite-link/<int:invitation_id>/close", methods=["POST"])
+@login_required("member")
+def close_invite_link(trip_id, invitation_id):
+    connection = _connection_or_home()
+    if connection is None: return redirect(url_for("member.dashboard"))
+    cursor = connection.cursor(dictionary=True)
+    try:
+        trip = _member_access(cursor, trip_id, session["user_id"])
+        if not trip or trip["member_role"] != "owner":
+            flash("只有建立者可以關閉邀請連結。", "error")
+        else:
+            cursor.execute("""UPDATE trip_invitations SET status='cancelled'
+                WHERE invitation_id=%s AND trip_id=%s AND invitee_id IS NULL""", (invitation_id, trip_id))
+            connection.commit()
+            flash("邀請連結已關閉，舊連結將無法再加入行程。", "success")
+    except Exception:
+        connection.rollback(); flash("關閉邀請連結失敗。", "error")
+    finally:
+        cursor.close(); connection.close()
+    return redirect(url_for("member.trip_detail", trip_id=trip_id) + "#members")
+
+
+@member_bp.route("/invite/<token>")
+def accept_invite_link(token):
+    connection = _connection_or_home()
+    if connection is None: return redirect(url_for("visitor"))
+    cursor = connection.cursor(dictionary=True)
+    try:
+        cursor.execute("""SELECT ti.*, t.trip_name, t.start_date, t.end_date,
+                                  co.name AS country, ci.name AS city
+                          FROM trip_invitations ti
+                          JOIN trips t ON t.trip_id = ti.trip_id
+                          JOIN countries co ON co.country_id = t.country_id
+                          JOIN cities ci ON ci.city_id = t.city_id
+                          WHERE ti.invite_token=%s AND ti.invitee_id IS NULL""", (token,))
+        invitation = cursor.fetchone()
+    finally:
+        cursor.close(); connection.close()
+
+    if not invitation or invitation["status"] != "pending" or (invitation["expires_at"] and invitation["expires_at"] < datetime.now()):
+        flash("這個邀請連結已經失效，請向行程建立者索取新的連結。", "error")
+        return redirect(url_for("member.dashboard") if "user_id" in session else url_for("visitor"))
+
+    if "user_id" not in session:
+        session["pending_invite_token"] = token
+        flash("請先登入或註冊會員帳號，才能用這個連結加入行程。", "success")
+        return redirect(url_for("login"))
+
+    if session.get("role") != "member":
+        flash("只有一般會員可以用邀請連結加入行程。", "error")
+        return redirect(url_for("member.dashboard"))
+
+    connection = _connection_or_home()
+    if connection is None: return redirect(url_for("member.dashboard"))
+    cursor = connection.cursor(dictionary=True)
+    try:
+        cursor.execute("SELECT trip_member_id FROM trip_members WHERE trip_id=%s AND user_id=%s",
+                       (invitation["trip_id"], session["user_id"]))
+        already_member = cursor.fetchone()
+    finally:
+        cursor.close(); connection.close()
+
+    if already_member:
+        flash("你已經是這趟行程的成員了。", "success")
+        return redirect(url_for("member.trip_detail", trip_id=invitation["trip_id"]))
+
+    return render_template("member/invite_link.html", invitation=invitation)
+
+
+@member_bp.route("/invite/<token>/accept", methods=["POST"])
+@login_required("member")
+def confirm_invite_link(token):
+    connection = _connection_or_home()
+    if connection is None: return redirect(url_for("member.dashboard"))
+    cursor = connection.cursor(dictionary=True)
+    try:
+        cursor.execute("SELECT * FROM trip_invitations WHERE invite_token=%s AND invitee_id IS NULL", (token,))
+        invitation = cursor.fetchone()
+        if not invitation or invitation["status"] != "pending" or (invitation["expires_at"] and invitation["expires_at"] < datetime.now()):
+            flash("這個邀請連結已經失效，請向行程建立者索取新的連結。", "error")
+            return redirect(url_for("member.dashboard"))
+        trip_id = invitation["trip_id"]
+        cursor.execute("SELECT trip_member_id FROM trip_members WHERE trip_id=%s AND user_id=%s", (trip_id, session["user_id"]))
+        if cursor.fetchone():
+            flash("你已經是這趟行程的成員了。", "success")
+        else:
+            cursor.execute("""INSERT INTO trip_members (trip_id,user_id,member_role,join_status,joined_at)
+                VALUES (%s,%s,%s,'accepted',NOW())""", (trip_id, session["user_id"], invitation["assigned_role"]))
+            connection.commit()
+            flash("已成功加入行程！", "success")
+    except Exception:
+        connection.rollback(); flash("加入行程失敗，請再試一次。", "error")
+        return redirect(url_for("member.dashboard"))
+    finally:
+        cursor.close(); connection.close()
+    return redirect(url_for("member.trip_detail", trip_id=trip_id))
 
 
 @member_bp.route("/trips/<int:trip_id>/invitations/<int:invitation_id>/cancel", methods=["POST"])

@@ -8,6 +8,10 @@
     --ocean-muted: #5C8A94;
 }
 
+html {
+    scroll-behavior: smooth;
+}
+
 @keyframes float-y { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-9px); } }
 @keyframes twinkle-spin { 0%, 100% { opacity: .45; transform: scale(.85) rotate(0deg); } 50% { opacity: 1; transform: scale(1.15) rotate(12deg); } }
 @keyframes drift-x { 0%, 100% { transform: translateX(0); } 50% { transform: translateX(16px); } }
@@ -1767,6 +1771,19 @@ body {
     font-weight: 600;
 }
 
+.allow-copy-field {
+    flex-direction: row !important;
+    align-items: center;
+    gap: 8px !important;
+}
+
+.allow-copy-field input {
+    width: auto !important;
+    padding: 0 !important;
+    border: none !important;
+    background: transparent !important;
+}
+
 .member-form input,
 .member-form select,
 .member-form textarea,
@@ -2156,6 +2173,49 @@ body {
     background-size: cover;
     background-position: center;
     border-radius: 8px;
+}
+
+.trip-section-nav {
+    position: sticky;
+    top: 72px;
+    z-index: 15;
+    display: flex;
+    gap: 6px;
+    overflow-x: auto;
+    margin-bottom: 22px;
+    padding: 10px;
+    background: #ffffff;
+    border: 1px solid #E2EDEF;
+    border-radius: 8px;
+    box-shadow: 0 2px 10px rgba(37, 64, 68, 0.05);
+}
+
+.trip-tab {
+    flex: 0 0 auto;
+    padding: 8px 14px;
+    color: #3D5154;
+    background: transparent;
+    border: 0;
+    white-space: nowrap;
+    border-radius: 6px;
+    font: inherit;
+    font-weight: 600;
+    font-size: 14px;
+    cursor: pointer;
+}
+
+.trip-tab:hover {
+    color: var(--ocean-primary-dark);
+    background: #E0F6F8;
+}
+
+.trip-tab.active {
+    color: #ffffff;
+    background: var(--ocean-primary-dark);
+}
+
+.trip-tab-panel[hidden] {
+    display: none;
 }
 
 .trip-cover.with-image::before {
@@ -2900,6 +2960,10 @@ body {
     .member-nav nav {
         width: 100%;
         overflow-x: auto;
+    }
+
+    .trip-section-nav {
+        position: static;
     }
 
     .member-nav nav a {
@@ -3673,6 +3737,15 @@ body {
 .trip-members .invite-details { margin-top: 14px; padding-top: 14px; border-top: 1px solid #E9F0F1; }
 .trip-members .invite-details form { display: flex; flex-direction: column; gap: 8px; }
 .trip-members .invite-details label { gap: 4px; color: #777084; font-size: 13px; font-weight: 400; }
+
+.invite-link-input {
+    margin-bottom: 8px;
+    color: #3D5154;
+    background: #F2F8F9 !important;
+    font-family: monospace;
+    font-size: 12px;
+    cursor: pointer;
+}
 
 /* ===== 費用：發票明細 ===== */
 .invoice-details { padding: 12px 14px; background: #F7FBFB; border: 1px dashed #BFDDE2; border-radius: 10px; }

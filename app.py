@@ -75,6 +75,9 @@ app.register_blueprint(member_bp)  # 註冊會員功能路由
 
 def redirect_by_role(role):  # 定義函式：依照使用者角色導向對應首頁
     if role == "member":  # 如果角色是一般會員
+        pending_invite_token = session.pop("pending_invite_token", None)  # 如果是透過邀請連結導來登入/註冊的，登入後直接回去接受邀請
+        if pending_invite_token:
+            return redirect(url_for("member.accept_invite_link", token=pending_invite_token))
         return redirect(url_for("member_home"))  # 導向會員首頁路由
 
     if role == "content_admin":  # 如果角色是旅遊內容管理員
@@ -504,12 +507,15 @@ def login():  # 定義登入功能函式
             flash("帳號或密碼錯誤。", "error")  # 密碼不符，顯示錯誤提示
             return render_template("login.html")  # 重新顯示登入頁
 
+        pending_invite_token = session.get("pending_invite_token")  # 清空 session 前先保留邀請連結的 token，避免被清掉
         session.clear()  # 登入成功前先清空舊的 session 資料
         session["user_id"] = user["user_id"]  # 把使用者 ID 存入 session
         session["username"] = user["username"]  # 把帳號存入 session
         session["full_name"] = user["full_name"]  # 把姓名存入 session
         session["nickname"] = user["nickname"]  # 把暱稱存入 session
         session["role"] = user["role"]  # 把角色存入 session
+        if pending_invite_token:
+            session["pending_invite_token"] = pending_invite_token
 
         return redirect_by_role(user["role"])  # 登入成功，依角色導向對應首頁
 

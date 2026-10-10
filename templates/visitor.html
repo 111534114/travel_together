@@ -134,6 +134,26 @@
     .member-unlock .button-outline { display: inline-flex; align-items: center; justify-content: center; min-height: 40px; padding: 9px 15px; color: #fff; border: 1px solid #C1E1E5; border-radius: 6px; font-size: 14px; font-weight: 700; }
     .member-unlock .button-outline:hover { background: rgba(255, 255, 255, .12); }
     .member-workspace { margin-top: 58px; padding-top: 44px; border-top: 1px solid var(--line); }
+    .flash-stack { display: flex; flex-direction: column; gap: 8px; margin: 0 0 20px; }
+    .flash-message { padding: 12px 16px; color: #256b2d; background: #e8f7e8; border: 1px solid #cdeacd; border-radius: 8px; font-weight: 600; }
+    .flash-message.error { color: #9f1f1f; background: #ffe6e6; border-color: #f5c6c6; }
+    .trip-trash { margin-top: 36px; padding: 20px 22px; background: #FBFCFC; border: 1px dashed #C9D8DA; border-radius: 12px; }
+    .trip-trash-head h3 { display: flex; align-items: center; gap: 8px; margin: 0 0 4px; font-size: 19px; }
+    .trip-trash-head h3 span { display: inline-grid; place-items: center; min-width: 24px; height: 24px; padding: 0 7px; color: var(--muted); background: #EDF2F3; border-radius: 999px; font-size: 13px; }
+    .trip-trash-head p { margin: 0 0 14px; color: var(--muted); font-size: 14px; }
+    .trip-trash-list { display: flex; flex-direction: column; gap: 10px; }
+    .trip-trash-row { display: flex; align-items: center; gap: 14px; padding: 12px; background: #fff; border: 1px solid var(--line); border-radius: 10px; }
+    .trip-trash-art { display: grid; flex: 0 0 64px; place-items: center; height: 64px; color: #fff; background: #B8C7C9 center / cover no-repeat; border-radius: 8px; filter: grayscale(.6); opacity: .85; font-size: 20px; }
+    .trip-trash-info { flex: 1; min-width: 0; }
+    .trip-trash-info b { display: block; overflow: hidden; color: var(--muted); text-decoration: line-through; text-decoration-color: rgba(112, 130, 132, .5); white-space: nowrap; text-overflow: ellipsis; }
+    .trip-trash-info p { margin: 3px 0; color: var(--muted); font-size: 13px; }
+    .trip-trash-info small { color: var(--muted); font-size: 12px; }
+    .trip-trash-info small .urgent { color: #C0392B; font-weight: 700; }
+    .trip-trash-actions { display: flex; flex: 0 0 auto; gap: 8px; }
+    .trip-trash-actions form { margin: 0; }
+    .trip-trash-purge { min-height: 40px; padding: 9px 14px; color: #B03A2E; background: #fff; border: 1px solid #F0C9C4; border-radius: 6px; font: inherit; font-size: 14px; font-weight: 700; cursor: pointer; }
+    .trip-trash-purge:hover { color: #fff; background: #C0392B; border-color: #C0392B; }
+    @media (max-width: 640px) { .trip-trash-row { flex-wrap: wrap; } .trip-trash-actions { width: 100%; } .trip-trash-actions form, .trip-trash-actions button { flex: 1; width: 100%; } }
     .member-workspace-head { display: flex; align-items: end; justify-content: space-between; gap: 18px; margin-bottom: 20px; }
     .member-workspace-head h2 { margin: 5px 0 0; font-size: 30px; }
     .member-quick-grid { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 14px; margin: 20px 0 26px; }
@@ -187,17 +207,13 @@
   <header class="site-nav">
     <a class="brand" href="{{ url_for('member.dashboard') if is_member else url_for('visitor') }}"><img src="{{ url_for('static', filename='images/logo.png') }}" alt="走吧揪團"></a>
     <nav class="nav-links">
+      {% if is_member %}
+      {% include 'partials/member_nav_links.html' %}
+      {% else %}
       <a href="#announcements">公告事項</a>
       <a href="#weather">目的地天氣</a>
       <a href="#trips">探索行程</a>
       <a href="#companions">尋找旅伴</a>
-      {% if is_member %}
-      <a href="#member-workspace">我的旅程</a>
-      <a href="{{ url_for('member.browse_attractions') }}">探索景點</a>
-      <a href="{{ url_for('member.profile') }}">個人資料</a>
-      {% include 'partials/language_select.html' %}
-      <a class="nav-register" href="{{ url_for('logout') }}">登出</a>
-      {% else %}
       {% include 'partials/language_select.html' %}
       <a href="{{ url_for('login') }}">登入</a>
       <a class="nav-register" href="{{ url_for('register') }}">免費註冊</a>
@@ -205,6 +221,7 @@
     </nav>
   </header>
   <main>
+    {% with messages = get_flashed_messages(with_categories=true) %}{% if messages %}<div class="flash-stack" role="status">{% for category, message in messages %}<div class="flash-message {{ category }}">{{ message }}</div>{% endfor %}</div>{% endif %}{% endwith %}
 {% include 'partials/booking_tools.html' %}
     <section class="hero-intro">
       <div class="hero-cloud" style="left:34px;top:16px;width:66px;height:28px;"><span style="left:0;top:9px;width:32px;height:18px;"></span><span style="left:16px;top:0;width:32px;height:26px;"></span><span style="left:34px;top:8px;width:28px;height:18px;"></span></div>
@@ -307,6 +324,14 @@
           {% else %}<div class="empty"><img class="empty-mascot" src="{{ url_for('static', filename='images/mascot_bear.png') }}" alt="">你目前還沒有旅程，從建立第一趟旅行開始吧。</div>{% endfor %}
         </div>
       </section>
+      {% if deleted_trips %}
+      <section id="trip-trash" class="trip-trash">
+        <div class="trip-trash-head"><div><h3>🗑️ 最近刪除 <span>{{ deleted_trips|length }}</span></h3><p>刪除的行程會保留 {{ trip_trash_days }} 天，期間可以復原；超過期限會自動永久刪除。</p></div></div>
+        <div class="trip-trash-list">
+          {% for trip in deleted_trips %}<div class="trip-trash-row"><div class="trip-trash-art {% if trip.cover_image_path %}with-image{% endif %}" {% if trip.cover_image_path %}style="background-image: url('{{ url_for('static', filename=trip.cover_image_path) }}')"{% endif %}>{% if not trip.cover_image_path %}✦{% endif %}</div><div class="trip-trash-info"><b>{{ trip.trip_name }}</b><p>{{ trip.country }} · {{ trip.city }}　{{ trip.start_date }} ～ {{ trip.end_date }}</p><small>{{ trip.deleted_at.strftime('%Y-%m-%d %H:%M') }} 刪除 · <span class="{{ 'urgent' if trip.days_left <= 3 else '' }}">{% if trip.days_left > 0 %}剩 {{ trip.days_left }} 天可復原{% else %}今天之後就會永久刪除{% endif %}</span></small></div><div class="trip-trash-actions"><form method="post" action="{{ url_for('member.restore_trip', trip_id=trip.trip_id) }}"><button class="member-action" type="submit">↩ 復原</button></form><form method="post" action="{{ url_for('member.purge_trip', trip_id=trip.trip_id) }}" data-trip-name="{{ trip.trip_name }}" onsubmit="return confirm('確定要永久刪除「' + this.dataset.tripName + '」嗎？行程、每日安排、投票、留言、聊天與分帳資料都會消失，無法復原。')"><button class="trip-trash-purge" type="submit">永久刪除</button></form></div></div>{% endfor %}
+        </div>
+      </section>
+      {% endif %}
       <section id="member-favorites" style="margin-top: 44px;">
         <div class="section-header"><div><p class="eyebrow" style="color: var(--purple-light)">SAVED TRIPS</p><h2><svg class="section-sparkle" width="16" height="16" viewBox="0 0 24 24" fill="var(--purple-light)"><path d="M12 2 L14 10 L22 12 L14 14 L12 22 L10 14 L2 12 L10 10 Z"/></svg>收藏的公開行程</h2><p>你收藏的公開行程，方便之後回來查看。</p></div></div>
         <div class="trip-grid">
@@ -681,7 +706,10 @@
       const issueTrigger = document.getElementById('issueTrigger');
       if (issueTrigger) issueTrigger.hidden = !trip.can_issue;
       const duplicateForm = document.getElementById('duplicateTripForm');
-      if (duplicateForm) duplicateForm.action = '/member/trips/' + encodeURIComponent(id) + '/duplicate';
+      if (duplicateForm) {
+        duplicateForm.action = '/member/trips/' + encodeURIComponent(id) + '/duplicate';
+        duplicateForm.hidden = !trip.can_duplicate;
+      }
     }
     function openIssueModal() {
       if (!activeTripId) return;

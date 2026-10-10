@@ -20,9 +20,12 @@
                     <div class="day-picker" id="addToTripDayPicker"></div>
                     <input type="hidden" name="itinerary_date" id="addToTripDate" required>
                 </div>
-                <label>開始時間<input type="time" name="start_time"></label>
-                <label>結束時間<input type="time" name="end_time"></label>
-                <label class="add-trip-full">交通方式<input name="transport_method" list="transport-method-list" autocomplete="off" placeholder="選填，例如：捷運／地鐵"></label>
+                <label class="add-trip-full">時間模式<select name="time_mode" id="addToTripTimeMode" class="time-mode-select"><option value="range">指定時段</option><option value="all_day">整天</option><option value="start_only">只填開始</option><option value="end_only">只填結束</option></select></label>
+                <label class="time-field-start">開始時間<input type="time" name="start_time"></label>
+                <label class="time-field-end">結束時間<input type="time" name="end_time"></label>
+                <label>交通方式<input name="transport_method" id="addToTripTransportMethod" list="transport-method-list" autocomplete="off" placeholder="選填，例如：捷運／地鐵"></label>
+                <label>交通／移動時間(分鐘)<input type="number" min="0" name="transport_minutes" id="addToTripTransportMinutes"></label>
+                <p class="form-hint add-trip-full" id="addToTripEstimateHint" hidden>已依選擇的交通方式，自動估算跟上一個行程點的通勤時間，你可以再自行調整。</p>
                 <label class="add-trip-full">備註<input name="notes" maxlength="500" placeholder="選填，例如：想看夕陽"></label>
             </div>
             <div class="form-actions-member">
@@ -39,7 +42,30 @@
         {% endif %}
     </div>
 </div>
+<script type="application/json" id="dayLastCoordsData">{{ day_last_coords | default({}) | tojson }}</script>
 <script>
+// 依交通方式粗估通勤時間：用兩點間直線距離 ÷ 該交通方式的平均速度，不是真正的路線規劃，僅供參考
+window.TRANSPORT_SPEED_KMH = {
+    '步行': 4.5, '腳踏車': 15, '機車': 30, '公車': 18, '捷運／地鐵': 35,
+    '計程車': 25, '開車': 28, '租車': 28, '客運': 50, '火車': 60, '高鐵': 180,
+    '飛機': 500, '船': 20
+};
+window.estimateTransportMinutes = function (lat1, lng1, lat2, lng2, method) {
+    var speed = window.TRANSPORT_SPEED_KMH[method];
+    if (!speed || lat1 == null || lng1 == null || lat2 == null || lng2 == null ||
+        lat1 === '' || lng1 === '' || lat2 === '' || lng2 === '') return null;
+    lat1 = parseFloat(lat1); lng1 = parseFloat(lng1); lat2 = parseFloat(lat2); lng2 = parseFloat(lng2);
+    if ([lat1, lng1, lat2, lng2].some(isNaN)) return null;
+    var R = 6371;
+    var dLat = (lat2 - lat1) * Math.PI / 180;
+    var dLng = (lng2 - lng1) * Math.PI / 180;
+    var a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+        Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+        Math.sin(dLng / 2) * Math.sin(dLng / 2);
+    var distanceKm = R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+    var minutes = Math.round(distanceKm / speed * 60);
+    return Math.max(minutes, 1);
+};
 (function () {
     var modal = document.getElementById('addToTripModal');
     if (!modal) return;
@@ -48,8 +74,43 @@
     var dateInput = document.getElementById('addToTripDate');
     var dayPicker = document.getElementById('addToTripDayPicker');
     var cityHint = document.getElementById('addToTripCityHint');
+    var timeMode = document.getElementById('addToTripTimeMode');
+    var transportMethodInput = document.getElementById('addToTripTransportMethod');
+    var transportMinutesInput = document.getElementById('addToTripTransportMinutes');
+    var estimateHint = document.getElementById('addToTripEstimateHint');
+    var dayLastCoords = {};
+    try { dayLastCoords = JSON.parse(document.getElementById('dayLastCoordsData').textContent || '{}'); } catch (e) { dayLastCoords = {}; }
     var currentCity = '';
+    var targetLat = null, targetLng = null;
     var weekdayNames = ['日', '一', '二', '三', '四', '五', '六'];
+
+    // 依選擇的日期＋交通方式，用上一個行程點的座標粗估通勤時間，自動帶入（使用者仍可自行覆蓋）
+    function updateEstimate() {
+        if (!transportMethodInput || !transportMinutesInput) return;
+        var prev = dayLastCoords[dateInput.value];
+        var minutes = prev ? window.estimateTransportMinutes(prev[0], prev[1], targetLat, targetLng, transportMethodInput.value) : null;
+        if (minutes != null) {
+            transportMinutesInput.value = minutes;
+            if (estimateHint) estimateHint.hidden = false;
+        } else if (estimateHint) {
+            estimateHint.hidden = true;
+        }
+    }
+    if (transportMethodInput) transportMethodInput.addEventListener('change', updateEstimate);
+
+    // 時間模式：指定時段／整天／只填開始／只填結束，依選擇顯示或隱藏開始、結束時間欄位
+    function syncTimeFields() {
+        if (!timeMode || !form) return;
+        var startField = form.querySelector('.time-field-start');
+        var endField = form.querySelector('.time-field-end');
+        if (!startField || !endField) return;
+        var mode = timeMode.value;
+        startField.hidden = (mode === 'all_day' || mode === 'end_only');
+        endField.hidden = (mode === 'all_day' || mode === 'start_only');
+        if (startField.hidden) startField.querySelector('input').value = '';
+        if (endField.hidden) endField.querySelector('input').value = '';
+    }
+    if (timeMode) timeMode.addEventListener('change', syncTimeFields);
 
     function toIsoDate(d) {
         return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
@@ -60,6 +121,7 @@
         dayPicker.querySelectorAll('button').forEach(function (btn) {
             btn.classList.toggle('active', btn.dataset.date === iso);
         });
+        updateEstimate();
     }
 
     function buildDayPicker(startStr, endStr) {
@@ -95,11 +157,15 @@
 
     function open(button) {
         currentCity = button.dataset.cityId || '';
+        targetLat = button.dataset.lat || null;
+        targetLng = button.dataset.lng || null;
         document.getElementById('addToTripName').textContent = button.dataset.name;
         if (form) {
             form.action = button.dataset.action;
             form.reset();
             dateInput.value = '';
+            if (estimateHint) estimateHint.hidden = true;
+            syncTimeFields();
             // 預設選同城市的第一個行程
             var sameCity = Array.prototype.find.call(select.options, function (o) { return o.dataset.city === currentCity; });
             select.value = (sameCity || select.options[0]).value;

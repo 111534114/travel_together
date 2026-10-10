@@ -150,7 +150,19 @@
         if (!panelVisible || document.visibilityState !== 'visible' || latestId <= myLastRead) return;
         var target = latestId;
         myLastRead = target;
+        updateUnreadBadge();
         postJson(readUrl, { last_read_message_id: target }).catch(function () { myLastRead = 0; });
+    }
+
+    // 頁面上方「聊天室」快捷按鈕的未讀數（別人傳的、我還沒看到的訊息）
+    var unreadBadge = document.querySelector('[data-chat-unread]');
+    function updateUnreadBadge() {
+        if (!unreadBadge) return;
+        var count = [].filter.call(listEl.querySelectorAll('.chat-message:not(.mine)'), function (row) {
+            return Number(row.dataset.id) > myLastRead;
+        }).length;
+        unreadBadge.textContent = count > 99 ? '99+' : count;
+        unreadBadge.hidden = !count;
     }
 
     function poll() {
@@ -173,6 +185,7 @@
                 renderReceipts();
                 renderReadStatus();
                 renderVotes(data.votes);
+                updateUnreadBadge();
                 if (stick) listEl.scrollTop = listEl.scrollHeight;
                 markRead();
             })

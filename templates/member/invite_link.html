@@ -1,0 +1,16 @@
+{% extends 'member/base.html' %}{% block title %}加入行程邀請｜走吧揪團{% endblock %}{% block content %}
+<div class="trip-form-page"><div class="page-heading trip-form-heading"><h1>你收到一個行程邀請連結</h1><p>確認後就會以下方的身分加入這趟行程。</p></div>
+<section class="panel invite-link-confirm">
+  <h2>{{ invitation.trip_name }}</h2>
+  <p class="muted">{{ invitation.country }} · {{ invitation.city }}　{{ invitation.start_date }} — {{ invitation.end_date }}</p>
+  <p>加入後的身分：<b>{{ '共同編輯者' if invitation.assigned_role == 'editor' else '查看者' }}</b></p>
+  <form method="post" action="{{ url_for('member.confirm_invite_link', token=invitation.invite_token) }}">
+    <div class="form-actions-member">
+      <a class="member-btn ghost" href="{{ url_for('member.dashboard') }}">先不要</a>
+      <button class="member-btn primary" type="submit">確認加入</button>
+    </div>
+  </form>
+</section>
+</div>
+{% endblock %}
+

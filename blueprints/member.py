@@ -1771,8 +1771,9 @@ def invite_member(trip_id):
             cursor.execute("SELECT user_id,email FROM users WHERE username=%s AND role='member' AND status='active'", (username,)); invitee=cursor.fetchone()
             if not invitee: flash("找不到可邀請的一般會員帳號。", "error")
             else:
-                cursor.execute("SELECT trip_member_id FROM trip_members WHERE trip_id=%s AND user_id=%s",(trip_id,invitee["user_id"]))
-                if cursor.fetchone(): flash("此會員已經在行程中。", "error")
+                cursor.execute("SELECT join_status FROM trip_members WHERE trip_id=%s AND user_id=%s",(trip_id,invitee["user_id"]))
+                membership = cursor.fetchone()
+                if membership and membership["join_status"] == "accepted": flash("此會員已經在行程中。", "error")
                 else:
                     cursor.execute("SELECT invitation_id FROM trip_invitations WHERE trip_id=%s AND invitee_id=%s AND status='pending'",(trip_id,invitee["user_id"]))
                     if cursor.fetchone(): flash("已經有一筆待回覆的邀請了。", "error")
@@ -1877,13 +1878,13 @@ def accept_invite_link(token):
     if connection is None: return redirect(url_for("member.dashboard"))
     cursor = connection.cursor(dictionary=True)
     try:
-        cursor.execute("SELECT trip_member_id FROM trip_members WHERE trip_id=%s AND user_id=%s",
+        cursor.execute("SELECT trip_member_id, join_status FROM trip_members WHERE trip_id=%s AND user_id=%s",
                        (invitation["trip_id"], session["user_id"]))
         already_member = cursor.fetchone()
     finally:
         cursor.close(); connection.close()
 
-    if already_member:
+    if already_member and already_member["join_status"] == "accepted":
         flash("你已經是這趟行程的成員了。", "success")
         return redirect(url_for("member.trip_detail", trip_id=invitation["trip_id"]))
 
@@ -1903,12 +1904,15 @@ def confirm_invite_link(token):
             flash("這個邀請連結已經失效，請向行程建立者索取新的連結。", "error")
             return redirect(url_for("member.dashboard"))
         trip_id = invitation["trip_id"]
-        cursor.execute("SELECT trip_member_id FROM trip_members WHERE trip_id=%s AND user_id=%s", (trip_id, session["user_id"]))
-        if cursor.fetchone():
+        cursor.execute("SELECT trip_member_id, join_status FROM trip_members WHERE trip_id=%s AND user_id=%s", (trip_id, session["user_id"]))
+        membership = cursor.fetchone()
+        if membership and membership["join_status"] == "accepted":
             flash("你已經是這趟行程的成員了。", "success")
         else:
             cursor.execute("""INSERT INTO trip_members (trip_id,user_id,member_role,join_status,joined_at)
-                VALUES (%s,%s,%s,'accepted',NOW())""", (trip_id, session["user_id"], invitation["assigned_role"]))
+                VALUES (%s,%s,%s,'accepted',NOW())
+                ON DUPLICATE KEY UPDATE member_role=VALUES(member_role), join_status='accepted', joined_at=NOW()""",
+                (trip_id, session["user_id"], invitation["assigned_role"]))
             connection.commit()
             flash("已成功加入行程！", "success")
     except Exception:
@@ -2019,7 +2023,10 @@ def respond_invitation(invitation_id, action):
             cursor.execute("UPDATE trip_invitations SET status='rejected',responded_at=NOW() WHERE invitation_id=%s",(invitation_id,)); connection.commit(); flash("已拒絕邀請。", "success")
         else:
             cursor.execute("UPDATE trip_invitations SET status='accepted',responded_at=NOW() WHERE invitation_id=%s",(invitation_id,))
-            cursor.execute("INSERT INTO trip_members (trip_id,user_id,member_role,join_status,joined_at) VALUES (%s,%s,%s,'accepted',NOW())",(invite["trip_id"],session["user_id"],invite["assigned_role"]))
+            cursor.execute("""INSERT INTO trip_members (trip_id,user_id,member_role,join_status,joined_at)
+                VALUES (%s,%s,%s,'accepted',NOW())
+                ON DUPLICATE KEY UPDATE member_role=VALUES(member_role), join_status='accepted', joined_at=NOW()""",
+                (invite["trip_id"],session["user_id"],invite["assigned_role"]))
             connection.commit(); flash("已加入旅程！", "success")
     except Exception:
         connection.rollback(); flash("處理邀請失敗。", "error")

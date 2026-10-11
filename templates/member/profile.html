@@ -45,6 +45,28 @@
       <div class="profile-meta"><span>加入日期　{{ user.created_at.strftime('%Y 年 %m 月 %d 日') }}</span><span>帳號狀態　{{ user.status_label }}</span></div>
       <div class="profile-actions"><a class="member-btn outline" href="{{ url_for('member.change_password') }}">修改密碼</a><button class="member-btn primary">儲存變更</button></div>
     </form>
+
+    {% if line_add_friend_url %}
+    <div class="profile-line">
+      <div class="profile-section-title"><div><h3>LINE 通知</h3><p>加入官方帳號後，出發提醒、投票與行程異動會直接傳到你的 LINE。</p></div></div>
+      <div class="profile-line-body">
+        {% if user.line_linked and not user.line_friend %}<img class="profile-line-qr" src="{{ line_qr_code_url }}" alt="LINE 官方帳號加好友 QR Code" width="120" height="120">{% endif %}
+        <div>
+          {% if not user.line_linked %}
+          <span class="line-state off">尚未綁定 LINE</span>
+          <p>這個帳號不是用 LINE 登入建立的，目前無法透過 LINE 接收通知。</p>
+          {% elif user.line_friend %}
+          <span class="line-state on">已加入官方帳號</span>
+          <p>你會在 LINE 收到行程通知。若不想再收到，可在 LINE 封鎖官方帳號。</p>
+          {% else %}
+          <span class="line-state off">尚未加入官方帳號</span>
+          <p>手機請點下方按鈕加入；用電腦瀏覽時，可用手機 LINE 掃描左邊的 QR Code。</p>
+          {% endif %}
+          {% if user.line_linked and not user.line_friend %}<a class="member-btn primary line-add-btn" href="{{ line_add_friend_url }}" target="_blank" rel="noopener">加入好友</a>{% endif %}
+        </div>
+      </div>
+    </div>
+    {% endif %}
   </section>
 </div>
 

@@ -20,9 +20,11 @@ from blueprints.reports import reports_bp  # 匯入統計報表匯出的藍圖
 from blueprints.logs import logs_bp  # 匯入操作紀錄查詢的藍圖
 from blueprints.ai_chat import ai_chat_bp  # 匯入 AI 助理對話的藍圖
 from blueprints.member import ISSUE_PREFIX, member_bp  # 匯入會員功能的藍圖
+from blueprints.line_webhook import line_webhook_bp  # 匯入 LINE 官方帳號 webhook 的藍圖
 from activity_log import ACTION_LABELS, log_action
 from utils import google_maps_url, google_maps_embed_url, format_hm  # 匯入組 Google 地圖連結/嵌入縮圖地圖、格式化 TIME 欄位的共用函式，註冊成樣板全域函式讓所有頁面都能直接呼叫
 import weather  # 匯入中央氣象署天氣預報模組(訪客頁面「目的地天氣」功能用)
+import line_messaging  # 匯入 LINE 官方帳號共用工具(加好友連結、QR Code)
 
 app = Flask(__name__)  # 建立 Flask 應用程式實例
 app.register_blueprint(booking_bp)
@@ -35,6 +37,8 @@ app.config["MAX_CONTENT_LENGTH"] = 8 * 1024 * 1024  # 限制單次請求上傳�
 
 app.jinja_env.globals["google_maps_url"] = google_maps_url  # 註冊成樣板全域函式，任何頁面都能直接用 google_maps_url(...) 組地圖連結
 app.jinja_env.globals["google_maps_embed_url"] = google_maps_embed_url  # 註冊成樣板全域函式，任何頁面都能直接用 google_maps_embed_url(...) 組嵌入縮圖地圖的網址
+app.jinja_env.globals["line_add_friend_url"] = line_messaging.add_friend_url()  # LINE 官方帳號加好友連結，會員首頁與個人資料頁共用
+app.jinja_env.globals["line_qr_code_url"] = line_messaging.qr_code_url()  # LINE 官方帳號加好友 QR Code 圖片網址
 app.jinja_env.filters["hm"] = format_hm  # 註冊成樣板過濾器，任何頁面都能直接用 {{ 值 | hm }} 把 TIME 欄位格式化成 HH:MM
 
 oauth = OAuth(app)  # 建立 Authlib 的 OAuth 註冊器
@@ -71,6 +75,7 @@ app.register_blueprint(reports_bp)  # 註冊統計報表路由
 app.register_blueprint(logs_bp)  # 註冊操作紀錄路由
 app.register_blueprint(ai_chat_bp)  # 註冊 AI 助理對話路由
 app.register_blueprint(member_bp)  # 註冊會員功能路由
+app.register_blueprint(line_webhook_bp)  # 註冊 LINE 官方帳號 webhook 路由
 
 
 def redirect_by_role(role):  # 定義函式：依照使用者角色導向對應首頁
@@ -621,7 +626,23 @@ def line_login():
         flash("LINE 登入尚未完成設定，請先使用帳號密碼登入。", "error")
         return redirect(url_for("login"))
     redirect_uri = url_for("line_callback", _external=True)
-    return line_oauth.authorize_redirect(redirect_uri)
+    # bot_prompt：登入同意畫面會一併詢問是否加入官方帳號好友
+    # （需先在 LINE Login channel 的 Linked LINE Official Account 選好官方帳號才會出現）
+    return line_oauth.authorize_redirect(redirect_uri, bot_prompt="aggressive")
+
+
+def fetch_line_friend_flag(access_token):  # 查詢使用者是否為官方帳號好友，查不到時回傳 None
+    try:
+        response = requests.get(
+            "https://api.line.me/friendship/v1/status",
+            headers={"Authorization": "Bearer " + access_token},
+            timeout=10,
+        )
+        response.raise_for_status()
+        return bool(response.json().get("friendFlag"))
+    except (requests.RequestException, ValueError) as error:
+        print("查詢 LINE 好友狀態失敗：", error)
+        return None
 
 
 @app.route("/auth/line/callback")
@@ -635,6 +656,7 @@ def line_callback():
         )
         profile_response.raise_for_status()
         profile = profile_response.json()
+        friend_flag = fetch_line_friend_flag(token["access_token"])
     except (Exception, requests.RequestException) as error:
         print("LINE 登入失敗：", error)
         flash("LINE 登入失敗，請再試一次。", "error")
@@ -660,6 +682,12 @@ def line_callback():
             (line_sub,),
         )
         user = cursor.fetchone()
+        if user is not None and friend_flag is not None:  # 順便同步官方帳號好友狀態
+            cursor.execute(
+                "UPDATE users SET line_friend = %s WHERE user_id = %s",
+                (1 if friend_flag else 0, user["user_id"]),
+            )
+            connection.commit()
     except Error as error:
         print("LINE 登入查詢帳號失敗：", error)
         flash("LINE 登入失敗，請稍後再試。", "error")
@@ -671,6 +699,7 @@ def line_callback():
     if user is None:
         session["pending_line_sub"] = line_sub
         session["pending_line_name"] = profile.get("displayName") or "LINE 使用者"
+        session["pending_line_friend"] = 1 if friend_flag else 0
         return redirect(url_for("line_complete_profile"))
 
     if user["status"] != "active":
@@ -720,10 +749,10 @@ def line_complete_profile():
         cursor.execute(
             """
             INSERT INTO users
-            (username, password_hash, full_name, nickname, email, line_sub, role, status)
-            VALUES (%s, NULL, %s, %s, %s, %s, 'member', 'active')
+            (username, password_hash, full_name, nickname, email, line_sub, line_friend, role, status)
+            VALUES (%s, NULL, %s, %s, %s, %s, %s, 'member', 'active')
             """,
-            (username, full_name, full_name, email, line_sub),
+            (username, full_name, full_name, email, line_sub, session.get("pending_line_friend", 0)),
         )
         new_user_id = cursor.lastrowid
         connection.commit()

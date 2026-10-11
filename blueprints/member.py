@@ -303,11 +303,14 @@ def dashboard():
             "visitor.html", is_member=True, trips=[], invitations=[], member_stats={},
             announcements=[], public_trips=[], companions=[], trips_timeline_json={},
             city_weather={}, notifications=[], issue_reasons=ISSUE_REASONS,
-            favorited_trips=[], favorite_trip_ids=set()
+            favorited_trips=[], favorite_trip_ids=set(), line_status=None
         )
     cursor = connection.cursor(dictionary=True)
     try:
         user_id = session["user_id"]
+        # LINE 官方帳號好友狀態：用來決定首頁要不要顯示「加入官方帳號」提示
+        cursor.execute("SELECT line_sub IS NOT NULL AS linked, line_friend FROM users WHERE user_id=%s", (user_id,))
+        line_status = cursor.fetchone()
         try:
             cursor.execute("DELETE FROM trips WHERE owner_id=%s AND deleted_at < NOW() - INTERVAL %s DAY", (user_id, TRIP_TRASH_DAYS))
             connection.commit()
@@ -479,7 +482,7 @@ def dashboard():
         trips_timeline_json=trips_timeline_json, city_weather=city_weather,
         notifications=notifications, issue_reasons=ISSUE_REASONS,
         favorited_trips=favorited_trips, favorite_trip_ids=favorite_trip_ids,
-        deleted_trips=deleted_trips, trip_trash_days=TRIP_TRASH_DAYS
+        deleted_trips=deleted_trips, trip_trash_days=TRIP_TRASH_DAYS, line_status=line_status
     )
 
 
@@ -2041,7 +2044,7 @@ def profile():
     if connection is None: return redirect(url_for("member.dashboard"))
     cursor=connection.cursor(dictionary=True)
     try:
-        cursor.execute("SELECT user_id,username,full_name,nickname,email,avatar_path,created_at,status FROM users WHERE user_id=%s",(session["user_id"],)); user=cursor.fetchone()
+        cursor.execute("SELECT user_id,username,full_name,nickname,email,avatar_path,created_at,status,line_sub IS NOT NULL AS line_linked,line_friend FROM users WHERE user_id=%s",(session["user_id"],)); user=cursor.fetchone()
         if user:
             user["status_label"] = {"active": "啟用", "disabled": "停用"}.get(user["status"], user["status"])
         if request.method == "POST":

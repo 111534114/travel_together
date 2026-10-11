@@ -1754,6 +1754,20 @@ body {
     margin-top: 22px;
 }
 
+/* 個人資料頁：LINE 官方帳號通知區塊 */
+.profile-line { padding: 28px 34px 30px; border-top: 1px solid #E8F0F1; }
+.profile-line-body { display: flex; align-items: center; gap: 22px; }
+.profile-line-body p { margin: 8px 0 0; color: #81788e; font-size: 14px; line-height: 1.6; }
+.profile-line-qr { flex: 0 0 auto; border: 1px solid #E8F0F1; border-radius: 8px; }
+.line-state { display: inline-block; padding: 3px 10px; border-radius: 999px; font-size: 13px; font-weight: 700; }
+.line-state.on { color: #1d5b35; background: #e3f7ea; }
+.line-state.off { color: #8b5a24; background: #fbf0e3; }
+.member-btn.line-add-btn { display: inline-block; margin-top: 14px; color: #fff; background: #06c755; border-color: #06c755; }
+@media (max-width: 560px) {
+    .profile-line { padding: 22px; }
+    .profile-line-qr { display: none; }
+}
+
 .form-grid-member,
 .profile-grid {
     display: grid;

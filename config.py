@@ -34,3 +34,11 @@ GOOGLE_CLIENT_SECRET = os.environ.get("GOOGLE_CLIENT_SECRET", "")
 # Callback URL：http://127.0.0.1:5000/auth/line/callback
 LINE_CHANNEL_ID = os.environ.get("LINE_CHANNEL_ID", "")
 LINE_CHANNEL_SECRET = os.environ.get("LINE_CHANNEL_SECRET", "")
+
+# LINE 官方帳號 Messaging API 設定（和上面的 LINE Login 是不同 channel，但要在同一個 Provider 底下，
+# 這樣同一位使用者在兩邊拿到的 userId 才會相同，資料庫的 line_sub 才能直接拿來推播）
+# Webhook URL：https://你的公開網址/line/webhook
+LINE_BOT_CHANNEL_SECRET = os.environ.get("LINE_BOT_CHANNEL_SECRET", "")
+LINE_BOT_ACCESS_TOKEN = os.environ.get("LINE_BOT_ACCESS_TOKEN", "")
+# 官方帳號的 Basic ID（例如 @861vahjn，不是機密），用來產生網站上的加好友連結與 QR Code
+LINE_BOT_BASIC_ID = os.environ.get("LINE_BOT_BASIC_ID", "")

@@ -1,446 +1,71 @@
-<!DOCTYPE html>
-
-<html lang="zh-Hant">
-
-<head>
-
-    <meta charset="UTF-8">
-
-    <meta name="viewport"
-          content="width=device-width, initial-scale=1.0">
-
-    <title>帳號管理｜Travel Together</title>
-    <link rel="icon" type="image/png" href="{{ url_for('static', filename='images/logo.png') }}">
-
-    <link rel="stylesheet"
-          href="{{ url_for('static', filename='css/style.css') }}">
-
-</head>
-
-
-<body class="admin-body">
-
-
-<div class="admin-layout">
-
-
-    <!-- 左側 -->
-
-    <aside class="admin-sidebar">
-
-
-        <div class="admin-logo" style="text-align: center;">
-
-            <img src="{{ url_for('static', filename='images/logo.png') }}" alt="走吧揪團 Logo" style="max-width: 170px; height: auto; display: block; margin: 0 auto 6px; background: white; padding: 6px; border-radius: 10px;">
-
-            <p style="margin: 0; font-size: 13px;">系統管理後台</p>
-
-        </div>
-
-        <div class="admin-sidebar-mascots">
-            <img src="{{ url_for('static', filename='images/mascot_chick.png') }}" alt="">
-            <img src="{{ url_for('static', filename='images/mascot_bear.png') }}" alt="">
-            <img src="{{ url_for('static', filename='images/mascot_frog.png') }}" alt="">
-        </div>
-
-        <nav class="admin-menu">
-
-
-            <a href="{{ url_for('system_admin_home') }}">
-
-                主畫面
-
-            </a>
-
-
-            <a class="active"
-               href="{{ url_for('admin_users') }}">
-
-                帳號管理
-
-            </a>
-
-
-            <a href="{{ url_for('admin_public_trips') }}">
-                公開行程管理
-            </a>
-
-            <a href="{{ url_for('admin_issues') }}">
-                問題回報
-            </a>
-
-
-            <a href="{{ url_for('admin_announcements') }}">
-                公告管理
-            </a>
-
-
-            <a href="{{ url_for('admin_statistics') }}">
-                統計報表
-            </a>
-
-
-            <a href="{{ url_for('admin_logs') }}">
-                操作紀錄
-            </a>
-
-
-            <a href="{{ url_for('logout') }}">
-
-                登出
-
-            </a>
-
-
-        </nav>
-
-
-    </aside>
-
-
-    <!-- 主要內容 -->
-
-    <main class="admin-main">
-
-
-        <div class="admin-topbar">
-
-            <div>
-
-                <h1>帳號管理</h1>
-
-                <p>
-                    檢視所有帳號並管理角色與使用狀態
-                </p>
-
-            </div>
-
-        </div>
-
-
-        {% with messages =
-            get_flashed_messages(with_categories=true) %}
-
-
-            {% if messages %}
-
-
-                {% for category, message in messages %}
-
-
-                <div class="message {{ category }}">
-
-                    {{ message }}
-
-                </div>
-
-
-                {% endfor %}
-
-
-            {% endif %}
-
-
-        {% endwith %}
-
-
-        <!-- 搜尋 -->
-
-        <div class="admin-section">
-
-
-            <form method="GET"
-                  action="{{ url_for('admin_users') }}"
-                  class="admin-search">
-
-
-                <input type="text"
-                       name="keyword"
-                       placeholder="搜尋帳號、姓名或 Email"
-                       value="{{ keyword or '' }}">
-
-
-                <button type="submit">
-
-                    搜尋
-
-                </button>
-
-
-                {% if keyword %}
-
-                <a href="{{ url_for('admin_users') }}">
-
-                    清除搜尋
-
-                </a>
-
-                {% endif %}
-
-
-            </form>
-
-
-        </div>
-
-
-        <!-- 會員表格 -->
-
-        <div class="admin-section">
-
-
-            <div class="section-title">
-
-                <h2>帳號列表</h2>
-
-                <span>
-                    共 {{ users|length }} 筆
-                </span>
-
-            </div>
-
-
-            <div class="table-container">
-
-
-                <table class="admin-table">
-
-
-                    <thead>
-
-
-                    <tr>
-
-                        <th>ID</th>
-
-                        <th>帳號</th>
-
-                        <th>姓名</th>
-
-                        <th>暱稱</th>
-
-                        <th>Email</th>
-
-                        <th>角色</th>
-
-                        <th>狀態</th>
-
-                        <th>建立日期</th>
-
-                        <th>操作</th>
-
-                    </tr>
-
-
-                    </thead>
-
-
-                    <tbody>
-
-
-                    {% for user in users %}
-
-
-                    <tr>
-
-
-                        <td>
-                            {{ user.user_id }}
-                        </td>
-
-
-                        <td>
-                            {{ user.username }}
-                        </td>
-
-
-                        <td>
-                            {{ user.full_name }}
-                        </td>
-
-
-                        <td>
-                            {{ user.nickname or "-" }}
-                        </td>
-
-
-                        <td>
-                            {{ user.email }}
-                        </td>
-
-
-                        <td>
-                            {% if user.user_id == session.get('user_id') %}
-                                <span class="role-badge role-{{ user.role }}">
-                                    {{ {'member':'一般會員','content_admin':'內容管理員','system_admin':'系統管理員'}[user.role] }}
-                                </span>
-                                <small class="current-account-label">目前帳號</small>
-                            {% else %}
-                                <form method="POST"
-                                      action="{{ url_for('update_user_role', user_id=user.user_id) }}"
-                                      class="role-form"
-                                      onsubmit="return confirm('確定要修改這個帳號的角色嗎？');">
-                                    <select name="role" aria-label="選擇 {{ user.username }} 的角色">
-                                        <option value="member" {{ 'selected' if user.role == 'member' }}>一般會員</option>
-                                        <option value="content_admin" {{ 'selected' if user.role == 'content_admin' }}>內容管理員</option>
-                                        <option value="system_admin" {{ 'selected' if user.role == 'system_admin' }}>系統管理員</option>
-                                    </select>
-                                    <button type="submit" class="small-button">儲存</button>
-                                </form>
-                            {% endif %}
-                        </td>
-
-
-                        <td>
-
-
-                            {% if user.user_id == session.get('user_id') %}
-
-                                <span class="current-account-label">不可停用自己</span>
-
-                            {% elif user.status == "active" %}
-
-
-                                <span class="status-active">
-
-                                    啟用
-
-                                </span>
-
-
-                            {% elif user.status == "disabled" %}
-
-
-                                <span class="status-disabled">
-
-                                    停用
-
-                                </span>
-
-
-                            {% else %}
-
-
-                                {{ user.status }}
-
-
-                            {% endif %}
-
-
-                        </td>
-
-
-                        <td>
-
-                            {{ user.created_at }}
-
-                        </td>
-
-
-                        <td>
-
-
-                            {% if user.status == "active" %}
-
-
-                            <form method="POST"
-                                  action="{{ url_for(
-                                      'disable_user',
-                                      user_id=user.user_id
-                                  ) }}"
-                                  class="inline-form"
-
-                                  onsubmit="
-                                  return confirm(
-                                  '確定要停用這個帳號嗎？'
-                                  );
-                                  ">
-
-
-                                <button type="submit"
-                                        class="disable-button">
-
-                                    停用
-
-                                </button>
-
-
-                            </form>
-
-
-                            {% elif user.status == "disabled" %}
-
-
-                            <form method="POST"
-                                  action="{{ url_for(
-                                      'enable_user',
-                                      user_id=user.user_id
-                                  ) }}"
-                                  class="inline-form"
-
-                                  onsubmit="
-                                  return confirm(
-                                  '確定要恢復這個會員嗎？'
-                                  );
-                                  ">
-
-
-                                <button type="submit"
-                                        class="enable-button">
-
-                                    恢復
-
-                                </button>
-
-
-                            </form>
-
-
-                            {% endif %}
-
-
-                        </td>
-
-
-                    </tr>
-
-
-                    {% else %}
-
-
-                    <tr>
-
-                        <td colspan="9"
-                            class="empty-data">
-
-                            找不到符合條件的帳號
-
-                        </td>
-
-                    </tr>
-
-
-                    {% endfor %}
-
-
-                    </tbody>
-
-
-                </table>
-
-
-            </div>
-
-
-        </div>
-
-
-    </main>
-
-
-</div>
-
-
-</body>
-
-</html>
+{% extends "system_admin_base.html" %}
+{% set active_page = "users" %}
+{% block title %}帳號管理{% endblock %}
+{% block page_title %}帳號管理{% endblock %}
+{% block page_description %}查看會員資料、行程與問題回報，並管理帳號狀態{% endblock %}
+{% block content %}
+<section class="admin-section">
+    <form method="get" action="{{ url_for('admin_users') }}" class="admin-search admin-filter">
+        <label class="visually-hidden" for="userKeyword">搜尋帳號</label>
+        <input id="userKeyword" type="text" name="keyword"
+               placeholder="搜尋帳號、姓名或 Email" value="{{ keyword or '' }}">
+        <label for="userStatus">帳號狀態</label>
+        <select id="userStatus" name="status">
+            <option value="">全部狀態</option>
+            {% for value, label in status_labels.items() %}
+            <option value="{{ value }}" {{ 'selected' if status_filter == value }}>{{ label }}</option>
+            {% endfor %}
+        </select>
+        <button type="submit">查詢</button>
+        {% if keyword or status_filter %}<a href="{{ url_for('admin_users') }}">清除篩選</a>{% endif %}
+    </form>
+</section>
+
+<section class="admin-section">
+    <div class="section-title">
+        <h2>帳號列表</h2>
+        <span>共 {{ users|length }} 筆</span>
+    </div>
+    <div class="table-container">
+        <table class="admin-table user-admin-table">
+            <thead>
+                <tr>
+                    <th>ID</th><th>帳號與姓名</th><th>Email</th><th>角色</th>
+                    <th>狀態</th><th>建立行程</th><th>問題回報</th><th>建立日期</th><th>操作</th>
+                </tr>
+            </thead>
+            <tbody>
+            {% for user in users %}
+                <tr class="{{ 'is-deleted' if user.status == 'deleted' }}">
+                    <td>{{ user.user_id }}</td>
+                    <td><strong>{{ user.username }}</strong><br><small>{{ user.full_name }}{% if user.nickname %}（{{ user.nickname }}）{% endif %}</small></td>
+                    <td>{{ user.email }}</td>
+                    <td>
+                        {% if user.user_id == session.get('user_id') or user.status == 'deleted' %}
+                        <span class="role-badge role-{{ user.role }}">{{ {'member':'一般會員','content_admin':'內容管理員','system_admin':'系統管理員'}[user.role] }}</span>
+                        {% if user.user_id == session.get('user_id') %}<small class="current-account-label">目前帳號</small>{% endif %}
+                        {% else %}
+                        <form method="post" action="{{ url_for('update_user_role', user_id=user.user_id) }}" class="role-form" onsubmit="return confirm('確定要修改這個帳號的角色嗎？');">
+                            <select name="role" aria-label="選擇 {{ user.username }} 的角色">
+                                <option value="member" {{ 'selected' if user.role == 'member' }}>一般會員</option>
+                                <option value="content_admin" {{ 'selected' if user.role == 'content_admin' }}>內容管理員</option>
+                                <option value="system_admin" {{ 'selected' if user.role == 'system_admin' }}>系統管理員</option>
+                            </select>
+                            <button type="submit" class="small-button">儲存</button>
+                        </form>
+                        {% endif %}
+                    </td>
+                    <td><span class="status-badge status-{{ user.status }}">{{ status_labels[user.status] }}</span></td>
+                    <td>{{ user.trip_count }}</td>
+                    <td>{{ user.issue_count }}</td>
+                    <td>{{ user.created_at }}</td>
+                    <td><a class="small-button" href="{{ url_for('admin_user_detail', user_id=user.user_id) }}">查看詳情</a></td>
+                </tr>
+            {% else %}
+                <tr><td colspan="9" class="empty-data">找不到符合條件的帳號</td></tr>
+            {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</section>
+{% endblock %}

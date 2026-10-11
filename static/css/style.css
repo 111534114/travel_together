@@ -965,6 +965,75 @@ body {
 .status-processing { background: #e6f0ff; color: #24569b; }
 .status-resolved { background: #e6f6ea; color: #26763a; }
 .status-rejected { background: #fdeaea; color: #a52d2d; }
+.status-under_review { background: #fff3cd; color: #805b00; }
+.status-deleted { background: #ececef; color: #5f5f68; }
+
+.visually-hidden {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border: 0;
+}
+
+.user-admin-table .is-deleted { opacity: .72; }
+
+.admin-breadcrumb { margin: 0 0 18px; }
+.admin-breadcrumb a { color: #40696F; font-weight: 700; text-decoration: none; }
+
+.admin-account-summary {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 16px;
+    margin-bottom: 25px;
+}
+
+.admin-account-summary article {
+    display: grid;
+    gap: 8px;
+    padding: 20px;
+    border: 1px solid #E0ECEE;
+    border-radius: 14px;
+    background: #fff;
+    box-shadow: 0 5px 18px rgba(0, 0, 0, .05);
+}
+
+.admin-account-summary article > span { color: #74868A; font-size: 13px; }
+.admin-account-summary article > strong { color: #315D64; font-size: 25px; }
+
+.admin-status-form {
+    display: grid;
+    grid-template-columns: minmax(220px, .7fr) minmax(300px, 1.7fr) auto;
+    gap: 14px;
+    align-items: end;
+}
+
+.admin-status-form label { display: grid; gap: 7px; color: #40696F; font-weight: 700; }
+.admin-status-form select,
+.admin-status-form textarea {
+    box-sizing: border-box;
+    width: 100%;
+    padding: 10px 12px;
+    border: 1px solid #D2E0E2;
+    border-radius: 8px;
+    background: #fff;
+    font: inherit;
+}
+
+.moderation-reason { max-width: 420px; white-space: pre-wrap; overflow-wrap: anywhere; }
+
+@media (max-width: 900px) {
+    .admin-account-summary { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .admin-status-form { grid-template-columns: 1fr; }
+}
+
+@media (max-width: 560px) {
+    .admin-account-summary { grid-template-columns: 1fr; }
+}
 
 .stack-form {
     display: grid;

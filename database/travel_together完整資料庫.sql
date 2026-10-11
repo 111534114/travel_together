@@ -14,7 +14,7 @@ CREATE TABLE users (
  phone VARCHAR(30),
  avatar_path VARCHAR(255),
  role ENUM('member','content_admin','system_admin') NOT NULL DEFAULT 'member',
- status ENUM('active','disabled','deleted') NOT NULL DEFAULT 'active',
+ status ENUM('active','under_review','disabled','deleted') NOT NULL DEFAULT 'active',
  last_login_at DATETIME,
  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
  updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
@@ -422,6 +422,21 @@ CREATE TABLE admin_logs (
  description TEXT,
  ip_address VARCHAR(45),
  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+ FOREIGN KEY(admin_id) REFERENCES users(user_id)
+) ENGINE=InnoDB;
+
+CREATE TABLE user_moderation_history (
+ moderation_id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+ user_id BIGINT UNSIGNED NOT NULL,
+ admin_id BIGINT UNSIGNED NOT NULL,
+ action VARCHAR(30) NOT NULL,
+ from_status ENUM('active','under_review','disabled','deleted') NOT NULL,
+ to_status ENUM('active','under_review','disabled','deleted') NOT NULL,
+ reason VARCHAR(1000) NOT NULL,
+ created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+ INDEX idx_user_moderation_user_created(user_id,created_at),
+ INDEX idx_user_moderation_admin(admin_id),
+ FOREIGN KEY(user_id) REFERENCES users(user_id) ON DELETE CASCADE,
  FOREIGN KEY(admin_id) REFERENCES users(user_id)
 ) ENGINE=InnoDB;
 

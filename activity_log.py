@@ -39,8 +39,11 @@ ACTION_LABELS = {  # 定義每種操作代碼對應的中文顯示名稱，給�
     "update_proposal": "修正提案",
     "verify_ai_data": "標記AI資料已確認",
     "change_user_role": "修改帳號角色",
+    "review_user": "帳號進入審查",
     "disable_user": "停用帳號",
     "enable_user": "恢復帳號",
+    "restore_user": "恢復帳號",
+    "delete_user": "刪除帳號",
 }
 
 

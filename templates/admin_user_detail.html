@@ -1,0 +1,118 @@
+{% extends "system_admin_base.html" %}
+{% set active_page = "users" %}
+{% block title %}會員詳情{% endblock %}
+{% block page_title %}會員詳情{% endblock %}
+{% block page_description %}{{ user.full_name }}（@{{ user.username }}）的帳號、行程與問題回報紀錄{% endblock %}
+{% block content %}
+<p class="admin-breadcrumb"><a href="{{ url_for('admin_users') }}">← 返回帳號列表</a></p>
+
+<section class="admin-account-summary">
+    <article><span>帳號狀態</span><strong><span class="status-badge status-{{ user.status }}">{{ status_labels[user.status] }}</span></strong></article>
+    <article><span>建立行程</span><strong>{{ trip_count }}</strong></article>
+    <article><span>公開行程</span><strong>{{ public_trip_count }}</strong></article>
+    <article><span>提出問題回報</span><strong>{{ issue_count }}</strong></article>
+</section>
+
+<section class="admin-section">
+    <div class="section-title"><h2>基本資料</h2><span>會員 ID {{ user.user_id }}</span></div>
+    <div class="detail-grid admin-user-detail-grid">
+        <div class="detail-item"><label>帳號</label><p>{{ user.username }}</p></div>
+        <div class="detail-item"><label>姓名</label><p>{{ user.full_name }}</p></div>
+        <div class="detail-item"><label>暱稱</label><p>{{ user.nickname or '未填寫' }}</p></div>
+        <div class="detail-item"><label>Email</label><p>{{ user.email }}</p></div>
+        <div class="detail-item"><label>電話</label><p>{{ user.phone or '未填寫' }}</p></div>
+        <div class="detail-item"><label>角色</label><p>{{ {'member':'一般會員','content_admin':'內容管理員','system_admin':'系統管理員'}[user.role] }}</p></div>
+        <div class="detail-item"><label>註冊時間</label><p>{{ user.created_at }}</p></div>
+        <div class="detail-item"><label>最後登入</label><p>{{ user.last_login_at or '尚無紀錄' }}</p></div>
+    </div>
+</section>
+
+<section class="admin-section">
+    <div class="section-title"><h2>帳號狀態管理</h2><span>所有異動都會保存原因</span></div>
+    {% if user.user_id == session.get('user_id') %}
+    <p>這是目前登入中的管理員帳號，不能在此變更自己的使用狀態。</p>
+    {% else %}
+    <form method="post" action="{{ url_for('change_user_status', user_id=user.user_id) }}"
+          class="admin-status-form" onsubmit="return confirm('確定要變更此帳號狀態嗎？');">
+        <input type="hidden" name="return_to" value="detail">
+        <label>變更為
+            <select name="new_status" required>
+                <option value="" selected disabled>請選擇狀態</option>
+                {% if user.status == 'active' %}
+                <option value="under_review">審查中</option><option value="disabled">已停用</option><option value="deleted">已刪除</option>
+                {% elif user.status == 'under_review' %}
+                <option value="active">正常</option><option value="disabled">已停用</option><option value="deleted">已刪除</option>
+                {% elif user.status == 'disabled' %}
+                <option value="active">正常</option><option value="under_review">審查中</option><option value="deleted">已刪除</option>
+                {% elif user.status == 'deleted' %}
+                <option value="active">正常（復原帳號）</option>
+                {% endif %}
+            </select>
+        </label>
+        <label class="form-wide">處理原因
+            <textarea name="reason" rows="3" maxlength="1000" required placeholder="請說明審查、停用、恢復或刪除原因"></textarea>
+        </label>
+        <button type="submit" class="small-button">確認變更</button>
+    </form>
+    {% endif %}
+</section>
+
+<section class="admin-section">
+    <div class="section-title"><h2>建立的行程</h2><span>共 {{ trip_count }} 筆</span></div>
+    <div class="table-container">
+        <table class="admin-table">
+            <thead><tr><th>行程</th><th>地點</th><th>日期</th><th>公開狀態</th><th>行程狀態</th></tr></thead>
+            <tbody>
+            {% for trip in trips %}
+                <tr>
+                    <td><strong>{{ trip.trip_name }}</strong><br><small>#{{ trip.trip_id }} · 建立於 {{ trip.created_at }}</small></td>
+                    <td>{{ trip.country_name or '-' }} · {{ trip.city_name or '-' }}</td>
+                    <td>{{ trip.start_date }} ～ {{ trip.end_date }}</td>
+                    <td>{{ {'private':'私人','public':'公開','link_only':'僅連結'}[trip.visibility] }}</td>
+                    <td>{{ {'planning':'規劃中','upcoming':'即將出發','completed':'已完成','cancelled':'已取消'}[trip.status] }}</td>
+                </tr>
+            {% else %}<tr><td colspan="5" class="empty-data">此會員尚未建立行程</td></tr>{% endfor %}
+            </tbody>
+        </table>
+    </div>
+</section>
+
+<section class="admin-section">
+    <div class="section-title"><h2>提出的問題回報</h2><span>共 {{ issue_count }} 筆</span></div>
+    <div class="table-container">
+        <table class="admin-table">
+            <thead><tr><th>行程</th><th>問題類型與描述</th><th>狀態</th><th>提出時間</th><th>處理結果</th></tr></thead>
+            <tbody>
+            {% for issue in issues %}
+                <tr>
+                    <td>{{ issue.trip_name or '行程已不存在' }}<br><small>#{{ issue.trip_id }}</small></td>
+                    <td><strong>{{ issue.reason }}</strong><br><span class="issue-description">{{ issue.description or '未填寫描述' }}</span></td>
+                    <td><span class="status-badge status-{{ issue.status }}">{{ {'pending':'待處理','processing':'處理中','resolved':'已結案','rejected':'已駁回'}[issue.status] }}</span></td>
+                    <td>{{ issue.created_at }}</td>
+                    <td>{{ issue.handling_result or '尚未填寫' }}{% if issue.handler_username %}<br><small>處理人：{{ issue.handler_username }}</small>{% endif %}</td>
+                </tr>
+            {% else %}<tr><td colspan="5" class="empty-data">此會員尚未提出問題回報</td></tr>{% endfor %}
+            </tbody>
+        </table>
+    </div>
+</section>
+
+<section class="admin-section">
+    <div class="section-title"><h2>帳號處理歷程</h2><span>共 {{ moderation_history|length }} 筆</span></div>
+    <div class="table-container">
+        <table class="admin-table">
+            <thead><tr><th>時間</th><th>狀態變更</th><th>處理原因</th><th>管理員</th></tr></thead>
+            <tbody>
+            {% for row in moderation_history %}
+                <tr>
+                    <td>{{ row.created_at }}</td>
+                    <td>{{ status_labels[row.from_status] }} → {{ status_labels[row.to_status] }}</td>
+                    <td class="moderation-reason">{{ row.reason }}</td>
+                    <td>{{ row.admin_name }}<br><small>@{{ row.admin_username }}</small></td>
+                </tr>
+            {% else %}<tr><td colspan="4" class="empty-data">目前沒有帳號狀態異動紀錄</td></tr>{% endfor %}
+            </tbody>
+        </table>
+    </div>
+</section>
+{% endblock %}

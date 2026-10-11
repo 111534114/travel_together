@@ -2046,7 +2046,12 @@ def profile():
     try:
         cursor.execute("SELECT user_id,username,full_name,nickname,email,avatar_path,created_at,status,line_sub IS NOT NULL AS line_linked,line_friend FROM users WHERE user_id=%s",(session["user_id"],)); user=cursor.fetchone()
         if user:
-            user["status_label"] = {"active": "啟用", "disabled": "停用"}.get(user["status"], user["status"])
+            user["status_label"] = {
+                "active": "正常",
+                "under_review": "審查中",
+                "disabled": "已停用",
+                "deleted": "已刪除",
+            }.get(user["status"], user["status"])
         if request.method == "POST":
             nickname=request.form.get("nickname","").strip(); email=request.form.get("email","").strip()
             if not email: flash("電子郵件不可空白。", "error")

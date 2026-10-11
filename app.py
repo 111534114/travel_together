@@ -78,6 +78,23 @@ app.register_blueprint(member_bp)  # 註冊會員功能路由
 app.register_blueprint(line_webhook_bp)  # 註冊 LINE 官方帳號 webhook 路由
 
 
+USER_STATUS_LABELS = {
+    "active": "正常",
+    "under_review": "審查中",
+    "disabled": "已停用",
+    "deleted": "已刪除",
+}
+
+
+def inactive_account_message(status):
+    """Return the login message that matches a non-active account status."""
+    return {
+        "under_review": "此帳號目前正在審查中，暫時無法登入。",
+        "disabled": "此帳號目前已停用，無法登入。",
+        "deleted": "此帳號已刪除，無法登入。",
+    }.get(status, "此帳號目前無法登入。")
+
+
 def redirect_by_role(role):  # 定義函式：依照使用者角色導向對應首頁
     if role == "member":  # 如果角色是一般會員
         pending_invite_token = session.pop("pending_invite_token", None)  # 如果是透過邀請連結導來登入/註冊的，登入後直接回去接受邀請
@@ -505,7 +522,7 @@ def login():  # 定義登入功能函式
             return render_template("login.html")  # 重新顯示登入頁
 
         if user["status"] != "active":  # 如果帳號狀態不是啟用中
-            flash("此帳號目前已停用，無法登入。", "error")  # 顯示停用提示
+            flash(inactive_account_message(user["status"]), "error")
             return render_template("login.html")  # 重新顯示登入頁
 
         if not user["password_hash"] or not check_password_hash(user["password_hash"], password):  # Google 帳號沒有密碼，或密碼與雜湊值不符
@@ -605,7 +622,7 @@ def google_callback():
         connection.close()
 
     if user["status"] != "active":
-        flash("此帳號目前已停用，無法登入。", "error")
+        flash(inactive_account_message(user["status"]), "error")
         return redirect(url_for("login"))
 
     pending_invite_token = session.get("pending_invite_token")
@@ -703,7 +720,7 @@ def line_callback():
         return redirect(url_for("line_complete_profile"))
 
     if user["status"] != "active":
-        flash("此帳號目前已停用，無法登入。", "error")
+        flash(inactive_account_message(user["status"]), "error")
         return redirect(url_for("login"))
 
     pending_invite_token = session.get("pending_invite_token")
@@ -1116,32 +1133,48 @@ def admin_users():  # 定義會員管理列表函式
         return redirect(url_for("login"))  # 導向登入頁
 
     keyword = request.args.get("keyword", "").strip()  # 取得網址上的搜尋關鍵字參數
+    status_filter = request.args.get("status", "").strip()
+    if status_filter not in USER_STATUS_LABELS:
+        status_filter = ""
 
     connection = get_db_connection()  # 建立資料庫連線
 
     if connection is None:  # 如果連線失敗
         flash("資料庫連線失敗", "error")  # 顯示錯誤提示
-        return render_template("admin_users.html", users=[])  # 回傳空的會員清單頁面
+        return render_template(
+            "admin_users.html", users=[], keyword=keyword,
+            status_filter=status_filter, status_labels=USER_STATUS_LABELS,
+        )
 
     cursor = connection.cursor(dictionary=True)  # 建立字典格式游標
 
     try:  # 開始查詢帳號資料
-        conditions = ["status != 'deleted'"]
+        conditions = ["1 = 1"]
         params = []
 
         if keyword:  # 如果有輸入搜尋關鍵字
             search = "%" + keyword + "%"  # 組成 SQL LIKE 模糊搜尋用的字串
-            conditions.append("(username LIKE %s OR full_name LIKE %s OR email LIKE %s)")
+            conditions.append("(u.username LIKE %s OR u.full_name LIKE %s OR u.email LIKE %s)")
             params.extend([search, search, search])
 
+        if status_filter:
+            conditions.append("u.status = %s")
+            params.append(status_filter)
+
         cursor.execute(f"""
-            SELECT user_id, username, full_name, nickname, email,
-                   role, status, created_at
-            FROM users
+            SELECT u.user_id, u.username, u.full_name, u.nickname, u.email,
+                   u.role, u.status, u.created_at,
+                   (SELECT COUNT(*) FROM trips t
+                    WHERE t.owner_id = u.user_id AND t.deleted_at IS NULL) AS trip_count,
+                   (SELECT COUNT(*) FROM reports r
+                    WHERE r.reporter_id = u.user_id
+                      AND r.target_type = 'trip' AND r.reason LIKE %s) AS issue_count
+            FROM users u
             WHERE {' AND '.join(conditions)}
-            ORDER BY FIELD(role, 'system_admin', 'content_admin', 'member'),
-                     user_id DESC
-        """, tuple(params))  # 查詢全部未刪除帳號，依角色與編號排序
+            ORDER BY FIELD(u.status, 'under_review', 'active', 'disabled', 'deleted'),
+                     FIELD(u.role, 'system_admin', 'content_admin', 'member'),
+                     u.user_id DESC
+        """, tuple([ISSUE_PREFIX + "%"] + params))
 
         users = cursor.fetchall()  # 取出查詢結果
 
@@ -1152,7 +1185,108 @@ def admin_users():  # 定義會員管理列表函式
     return render_template(  # 渲染會員管理列表頁面
         "admin_users.html",
         users=users,  # 會員清單
-        keyword=keyword  # 搜尋關鍵字(用來顯示在搜尋框裡)
+        keyword=keyword,  # 搜尋關鍵字(用來顯示在搜尋框裡)
+        status_filter=status_filter,
+        status_labels=USER_STATUS_LABELS,
+    )
+
+
+@app.route("/system-admin/users/<int:user_id>")
+def admin_user_detail(user_id):
+    denied = system_admin_required()
+    if denied:
+        return denied
+
+    connection = get_db_connection()
+    if connection is None:
+        flash("資料庫連線失敗", "error")
+        return redirect(url_for("admin_users"))
+
+    cursor = connection.cursor(dictionary=True)
+    try:
+        cursor.execute("""
+            SELECT user_id, username, full_name, nickname, email, phone,
+                   avatar_path, role, status, last_login_at, created_at, updated_at
+            FROM users
+            WHERE user_id = %s
+        """, (user_id,))
+        user = cursor.fetchone()
+        if user is None:
+            flash("找不到指定帳號", "error")
+            return redirect(url_for("admin_users"))
+
+        cursor.execute("""
+            SELECT COUNT(*) AS trip_count,
+                   COALESCE(SUM(visibility = 'public'), 0) AS public_trip_count
+            FROM trips
+            WHERE owner_id = %s AND deleted_at IS NULL
+        """, (user_id,))
+        trip_counts = cursor.fetchone()
+
+        cursor.execute("""
+            SELECT COUNT(*) AS issue_count
+            FROM reports
+            WHERE reporter_id = %s AND target_type = 'trip' AND reason LIKE %s
+        """, (user_id, ISSUE_PREFIX + "%"))
+        issue_count = cursor.fetchone()["issue_count"]
+
+        cursor.execute("""
+            SELECT t.trip_id, t.trip_name, t.visibility, t.status,
+                   t.start_date, t.end_date, t.created_at,
+                   co.name AS country_name, ci.name AS city_name
+            FROM trips t
+            LEFT JOIN countries co ON co.country_id = t.country_id
+            LEFT JOIN cities ci ON ci.city_id = t.city_id
+            WHERE t.owner_id = %s AND t.deleted_at IS NULL
+            ORDER BY t.created_at DESC
+            LIMIT 100
+        """, (user_id,))
+        trips = cursor.fetchall()
+
+        cursor.execute("""
+            SELECT r.report_id, r.target_id AS trip_id, r.reason, r.description,
+                   r.status, r.handling_result, r.created_at, r.handled_at,
+                   t.trip_name, handler.username AS handler_username
+            FROM reports r
+            LEFT JOIN trips t ON t.trip_id = r.target_id
+            LEFT JOIN users handler ON handler.user_id = r.handled_by
+            WHERE r.reporter_id = %s AND r.target_type = 'trip' AND r.reason LIKE %s
+            ORDER BY r.created_at DESC
+            LIMIT 100
+        """, (user_id, ISSUE_PREFIX + "%"))
+        issues = cursor.fetchall()
+        for issue in issues:
+            issue["reason"] = issue["reason"][len(ISSUE_PREFIX):]
+
+        cursor.execute("""
+            SELECT h.moderation_id, h.action, h.from_status, h.to_status,
+                   h.reason, h.created_at,
+                   a.username AS admin_username, a.full_name AS admin_name
+            FROM user_moderation_history h
+            JOIN users a ON a.user_id = h.admin_id
+            WHERE h.user_id = %s
+            ORDER BY h.created_at DESC, h.moderation_id DESC
+            LIMIT 100
+        """, (user_id,))
+        moderation_history = cursor.fetchall()
+    except Error as error:
+        print("載入會員詳細資料失敗：", error)
+        flash("會員詳細資料載入失敗，請確認已執行會員管理資料庫更新。", "error")
+        return redirect(url_for("admin_users"))
+    finally:
+        cursor.close()
+        connection.close()
+
+    return render_template(
+        "admin_user_detail.html",
+        user=user,
+        trip_count=trip_counts["trip_count"],
+        public_trip_count=trip_counts["public_trip_count"],
+        issue_count=issue_count,
+        trips=trips,
+        issues=issues,
+        moderation_history=moderation_history,
+        status_labels=USER_STATUS_LABELS,
     )
 
 
@@ -1332,128 +1466,119 @@ def unpublish_public_trip(trip_id):  # 定義取消公開行程函式
 
     return redirect(url_for("admin_public_trips"))  # 導回公開行程管理頁
 
-@app.route("/system-admin/users/<int:user_id>/disable", methods=["POST"])  # 設定停用會員的路由，網址帶入會員 ID
-def disable_user(user_id):
+USER_STATUS_TRANSITIONS = {
+    "active": {"under_review", "disabled", "deleted"},
+    "under_review": {"active", "disabled", "deleted"},
+    "disabled": {"active", "under_review", "deleted"},
+    "deleted": {"active"},
+}
 
-    if "user_id" not in session:  # 如果尚未登入
-        return redirect(url_for("login"))  # 導向登入頁
 
-    if session.get("role") != "system_admin":  # 如果角色不是系統管理員
-        return redirect(url_for("login"))  # 導向登入頁
+def _admin_user_redirect(user_id):
+    if request.form.get("return_to") == "detail":
+        return redirect(url_for("admin_user_detail", user_id=user_id))
+    return redirect(url_for("admin_users"))
 
-    connection = get_db_connection()  # 建立資料庫連線
 
-    if connection is None:  # 如果連線失敗
-        flash("資料庫連線失敗", "error")  # 顯示錯誤提示
-        return redirect(url_for("admin_users"))  # 導回會員管理頁
+def _update_user_status(user_id, new_status):
+    denied = system_admin_required()
+    if denied:
+        return denied
 
-    if user_id == session.get("user_id"):
-        flash("不能停用自己目前登入的帳號", "error")
-        connection.close()
-        return redirect(url_for("admin_users"))
+    if new_status not in USER_STATUS_LABELS:
+        flash("帳號狀態不正確", "error")
+        return _admin_user_redirect(user_id)
 
-    cursor = connection.cursor(dictionary=True)  # 建立字典格式游標
+    reason = request.form.get("reason", "").strip()
+    if not reason or len(reason) > 1000:
+        flash("請填寫 1 至 1000 字的處理原因", "error")
+        return _admin_user_redirect(user_id)
 
-    try:  # 開始執行更新
+    if user_id == session.get("user_id") and new_status != "active":
+        flash("不能變更自己目前登入帳號的使用狀態", "error")
+        return _admin_user_redirect(user_id)
 
+    connection = get_db_connection()
+    if connection is None:
+        flash("資料庫連線失敗", "error")
+        return _admin_user_redirect(user_id)
+
+    cursor = connection.cursor(dictionary=True)
+    try:
         cursor.execute("""
             SELECT user_id, username, role, status
             FROM users
-            WHERE user_id = %s AND status != 'deleted'
+            WHERE user_id = %s
         """, (user_id,))
         target = cursor.fetchone()
-
         if target is None:
             flash("找不到指定帳號", "error")
-            return redirect(url_for("admin_users"))
+            return _admin_user_redirect(user_id)
 
-        if target["role"] == "system_admin" and target["status"] == "active":
+        old_status = target["status"]
+        if old_status == new_status:
+            flash("帳號已經是指定狀態", "error")
+            return _admin_user_redirect(user_id)
+
+        if new_status not in USER_STATUS_TRANSITIONS.get(old_status, set()):
+            flash("不允許這項帳號狀態變更", "error")
+            return _admin_user_redirect(user_id)
+
+        if target["role"] == "system_admin" and old_status == "active" and new_status != "active":
             cursor.execute("""
                 SELECT COUNT(*) AS total FROM users
                 WHERE role = 'system_admin' AND status = 'active'
             """)
             if cursor.fetchone()["total"] <= 1:
-                flash("不能停用最後一位啟用中的系統管理員", "error")
-                return redirect(url_for("admin_users"))
+                flash("不能變更最後一位啟用中的系統管理員", "error")
+                return _admin_user_redirect(user_id)
 
+        cursor.execute("UPDATE users SET status = %s WHERE user_id = %s", (new_status, user_id))
+
+        action = {
+            "under_review": "review_user",
+            "disabled": "disable_user",
+            "deleted": "delete_user",
+            "active": "restore_user",
+        }[new_status]
         cursor.execute("""
-            UPDATE users SET status = 'disabled'
-            WHERE user_id = %s AND status != 'deleted'
-        """, (user_id,))
+            INSERT INTO user_moderation_history
+                (user_id, admin_id, action, from_status, to_status, reason)
+            VALUES (%s, %s, %s, %s, %s, %s)
+        """, (
+            user_id, session["user_id"], action, old_status, new_status, reason,
+        ))
+        log_action(
+            cursor, action, "user", user_id,
+            f"帳號 {target['username']}：{USER_STATUS_LABELS.get(old_status, old_status)}"
+            f"改為{USER_STATUS_LABELS[new_status]}；原因：{reason}",
+        )
+        connection.commit()
+        flash(f"帳號已改為「{USER_STATUS_LABELS[new_status]}」", "success")
+    except Exception as error:
+        connection.rollback()
+        print("更新會員狀態失敗：", error)
+        flash("更新會員狀態失敗，請確認已執行會員管理資料庫更新", "error")
+    finally:
+        cursor.close()
+        connection.close()
 
-        log_action(cursor, "disable_user", "user", user_id, f"停用帳號：{target['username']}")
+    return _admin_user_redirect(user_id)
 
-        connection.commit()  # 提交交易
 
-        flash("帳號已停用", "success")  # 顯示成功訊息
+@app.route("/system-admin/users/<int:user_id>/status", methods=["POST"])
+def change_user_status(user_id):
+    return _update_user_status(user_id, request.form.get("new_status", "").strip())
 
-    except Exception as error:  # 如果執行過程發生例外
 
-        connection.rollback()  # 回復交易
+@app.route("/system-admin/users/<int:user_id>/disable", methods=["POST"])
+def disable_user(user_id):
+    return _update_user_status(user_id, "disabled")
 
-        print("停用會員失敗：", error)  # 在伺服器端印出錯誤內容
 
-        flash("停用會員失敗", "error")  # 顯示錯誤提示
-
-    finally:  # 不論成功或失敗都要執行
-
-        cursor.close()  # 關閉游標
-        connection.close()  # 關閉資料庫連線
-
-    return redirect(url_for("admin_users"))  # 導回會員管理頁
-@app.route("/system-admin/users/<int:user_id>/enable", methods=["POST"])  # 設定恢復會員的路由，網址帶入會員 ID
+@app.route("/system-admin/users/<int:user_id>/enable", methods=["POST"])
 def enable_user(user_id):
-
-    if "user_id" not in session:  # 如果尚未登入
-        return redirect(url_for("login"))  # 導向登入頁
-
-    if session.get("role") != "system_admin":  # 如果角色不是系統管理員
-        return redirect(url_for("login"))  # 導向登入頁
-
-    connection = get_db_connection()  # 建立資料庫連線
-
-    if connection is None:  # 如果連線失敗
-        flash("資料庫連線失敗", "error")  # 顯示錯誤提示
-        return redirect(url_for("admin_users"))  # 導回會員管理頁
-
-    cursor = connection.cursor()  # 建立一般游標
-
-    try:  # 開始執行更新
-
-        cursor.execute("""
-            SELECT username FROM users
-            WHERE user_id = %s AND status != 'deleted'
-        """, (user_id,))
-        target = cursor.fetchone()
-        if target is None:
-            flash("找不到指定帳號", "error")
-            return redirect(url_for("admin_users"))
-
-        cursor.execute("""
-            UPDATE users SET status = 'active'
-            WHERE user_id = %s AND status != 'deleted'
-        """, (user_id,))
-
-        log_action(cursor, "enable_user", "user", user_id, f"恢復帳號：{target[0]}")
-
-        connection.commit()  # 提交交易
-
-        flash("帳號已恢復", "success")  # 顯示成功訊息
-
-    except Exception as error:  # 如果執行過程發生例外
-
-        connection.rollback()  # 回復交易
-
-        print("恢復會員失敗：", error)  # 在伺服器端印出錯誤內容
-
-        flash("恢復會員失敗", "error")  # 顯示錯誤提示
-
-    finally:  # 不論成功或失敗都要執行
-
-        cursor.close()  # 關閉游標
-        connection.close()  # 關閉資料庫連線
-
-    return redirect(url_for("admin_users"))  # 導回會員管理頁
+    return _update_user_status(user_id, "active")
 def system_admin_required():
     """Return a redirect when the current user is not a system administrator."""
     if "user_id" not in session or session.get("role") != "system_admin":

@@ -1,5 +1,8 @@
 import re  # 匯入正規表示式模組，用來驗證註冊欄位格式
-from booking_search import booking_bp, filter_prices
+from booking_search import (
+    booking_bp, filter_prices, price_buckets,
+    apply_facets, apply_time_band, facet_options, time_band_options, TRAIN_TYPE_LABELS,
+)
 import requests  # 匯入 requests，用來呼叫 LINE 的個人資料 API
 from datetime import datetime, timedelta  # 匯入日期工具，用來解析日期與建立月份統計區間
 from authlib.integrations.flask_client import OAuth  # 匯入 Authlib 的 Flask 整合，處理 Google 登入 OAuth 流程
@@ -339,6 +342,7 @@ def visitor_hotel_search():
         checkout=checkout,
         guests=guests,
         nights=nights,
+        price_buckets=price_buckets(accommodations, 'price_per_night'),
         accommodations=filter_prices(accommodations, 'price_per_night'),
     )
 
@@ -378,7 +382,7 @@ def visitor_flight_search():
                     f"""
                     SELECT f.flight_id, f.airline_name, f.flight_number,
                            f.departure_time, f.arrival_time, f.duration_minutes,
-                           f.price, f.cabin_class, f.seats_available,
+                           f.price, f.cabin_class, f.stops, f.seats_available,
                            ocn.name AS origin_country, oc.name AS origin_city,
                            dcn.name AS destination_country, dc.name AS destination_city
                     FROM flights f
@@ -402,6 +406,12 @@ def visitor_flight_search():
     outbound_flights = search_flights(origin, destination)  # 去程：出發地 -> 目的地
     return_flights = search_flights(destination, origin) if return_date and request.args.get('trip_mode', 'roundtrip') == 'roundtrip' else []
 
+    airline_facets = facet_options(outbound_flights, 'airline_name')
+    depart_band_options = time_band_options(outbound_flights, 'departure_time')
+    facet_fields = [('airline_name', 'airline')]
+    outbound_filtered = apply_time_band(apply_facets(outbound_flights, facet_fields), 'departure_time')
+    return_filtered = apply_time_band(apply_facets(return_flights, facet_fields), 'departure_time')
+
     return render_template(
         "flight_search.html",
         origin=origin,
@@ -409,8 +419,11 @@ def visitor_flight_search():
         depart_date=depart_date,
         return_date=return_date,
         pax=pax,
-        outbound_flights=filter_prices(outbound_flights, 'price'),
-        return_flights=filter_prices(return_flights, 'price'),
+        price_buckets=price_buckets(outbound_filtered, 'price'),
+        airline_facets=airline_facets,
+        depart_band_options=depart_band_options,
+        outbound_flights=filter_prices(outbound_filtered, 'price', duration_field='duration_minutes', stops_field='stops'),
+        return_flights=filter_prices(return_filtered, 'price', duration_field='duration_minutes', stops_field='stops'),
     )
 
 
@@ -467,14 +480,25 @@ def visitor_train_search():
             cursor.close()
             connection.close()
 
+    train_type_facets = facet_options(trains, 'train_type', labels=TRAIN_TYPE_LABELS)
+    car_class_facets = facet_options(trains, 'car_class')
+    depart_band_options = time_band_options(trains, 'departure_time')
+    facet_fields = [('train_type', 'train_type'), ('car_class', 'car_class')]
+    trains_filtered = apply_time_band(apply_facets(trains, facet_fields), 'departure_time')
+    return_filtered = apply_time_band(apply_facets(return_trains, facet_fields), 'departure_time')
+
     return render_template(
         "train_search.html",
         origin=origin,
         destination=destination,
         travel_date=travel_date,
         pax=pax,
-        trains=filter_prices(trains, 'price'),
-        return_trains=filter_prices(return_trains, 'price'),
+        price_buckets=price_buckets(trains_filtered, 'price'),
+        train_type_facets=train_type_facets,
+        car_class_facets=car_class_facets,
+        depart_band_options=depart_band_options,
+        trains=filter_prices(trains_filtered, 'price', duration_field='duration_minutes'),
+        return_trains=filter_prices(return_filtered, 'price', duration_field='duration_minutes'),
     )
 
 

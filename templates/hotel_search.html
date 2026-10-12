@@ -91,8 +91,8 @@
     </nav>
   </header>
   <main>
-{% include 'partials/booking_tools.html' %}
     <p class="breadcrumb"><a href="{{ url_for('member.dashboard') if is_member else url_for('visitor') }}">{{ '← 返回會員首頁' if is_member else '← 返回訪客首頁' }}</a></p>
+{% include 'partials/booking_tools.html' %}
     <section class="search-panel">
       <div class="search-tabs" role="tablist">
         <button class="search-tab active" type="button" data-tab="hotel" onclick="switchSearchTab('hotel', this)">住宿</button>
@@ -160,8 +160,8 @@
               <p class="location">{{ hotel.country_name or '未設定國家' }}{% if hotel.city_name %} · {{ hotel.city_name }}{% endif %}{% if hotel.address %} · {{ hotel.address }}{% endif %}{% set map_url = google_maps_url(hotel.address) %}{% if map_url %} <a href="{{ map_url }}" target="_blank" rel="noopener" class="map-link">🗺️ 地圖</a>{% endif %}</p>
               {% if hotel.description %}<p class="hotel-desc">{{ hotel.description }}</p>{% endif %}
               <div class="hotel-details">
-                {% if hotel.check_in_time %}<span>入住 {{ hotel.check_in_time }}</span>{% endif %}
-                {% if hotel.check_out_time %}<span>退房 {{ hotel.check_out_time }}</span>{% endif %}
+                {% if hotel.check_in_time %}<span>入住 {{ hotel.check_in_time|hm }}</span>{% endif %}
+                {% if hotel.check_out_time %}<span>退房 {{ hotel.check_out_time|hm }}</span>{% endif %}
               </div>
               <div class="hotel-footer">
                 <span class="price">

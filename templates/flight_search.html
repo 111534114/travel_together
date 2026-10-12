@@ -63,6 +63,8 @@
     .flight-path { display: flex; flex: 1; flex-direction: column; align-items: center; gap: 4px; color: var(--muted); font-size: 12px; }
     .flight-path .line { position: relative; width: 100%; height: 1px; background: #D3E4E6; }
     .flight-path .line::after { content: "✈"; position: absolute; top: 50%; left: 50%; color: var(--purple-light); font-size: 13px; transform: translate(-50%, -50%); background: #fff; padding: 0 4px; }
+    .stops-tag { padding: 2px 8px; color: #a1631f; background: #fdf1e1; border-radius: 999px; font-size: 11px; font-weight: 700; }
+    .stops-tag.direct { color: var(--purple-light); background: var(--purple-soft); }
     .flight-meta { display: flex; flex: 0 0 auto; flex-direction: column; gap: 4px; color: var(--muted); font-size: 12px; }
     .flight-footer { display: flex; flex: 0 0 auto; align-items: center; gap: 14px; margin-left: auto; }
     .price { color: var(--purple); font-size: 18px; font-weight: 800; text-align: right; }
@@ -95,8 +97,8 @@
     </nav>
   </header>
   <main>
-{% include 'partials/booking_tools.html' %}
     <p class="breadcrumb"><a href="{{ url_for('member.dashboard') if is_member else url_for('visitor') }}">{{ '← 返回會員首頁' if is_member else '← 返回訪客首頁' }}</a></p>
+{% include 'partials/booking_tools.html' %}
     <section class="search-panel">
       <div class="search-tabs" role="tablist">
         <button class="search-tab active" type="button" data-tab="hotel" onclick="switchSearchTab('hotel', this)">住宿</button>
@@ -159,9 +161,9 @@
 {% set save_kind='flight' %}{% set save_id=flight.flight_id %}{% include 'partials/booking_favorite_button.html' %}
               <div class="flight-airline"><b>{{ flight.airline_name }}</b><span>{{ flight.flight_number }}・{{ flight.cabin_class }}</span></div>
               <div class="flight-route">
-                <div class="flight-time"><b>{{ flight.departure_time }}</b><span>{{ flight.origin_city }}</span></div>
-                <div class="flight-path"><div class="line"></div><span>{{ (flight.duration_minutes // 60) }} 小時 {{ (flight.duration_minutes % 60) }} 分</span></div>
-                <div class="flight-time"><b>{{ flight.arrival_time }}</b><span>{{ flight.destination_city }}</span></div>
+                <div class="flight-time"><b>{{ flight.departure_time|hm }}</b><span>{{ flight.origin_city }}</span></div>
+                <div class="flight-path"><div class="line"></div><span>{{ (flight.duration_minutes // 60) }} 小時 {{ (flight.duration_minutes % 60) }} 分</span><span class="stops-tag {{ 'direct' if not flight.stops }}">{{ '直飛' if not flight.stops else '轉機 ' ~ flight.stops ~ ' 次' }}</span></div>
+                <div class="flight-time"><b>{{ flight.arrival_time|hm }}</b><span>{{ flight.destination_city }}</span></div>
               </div>
               <div class="flight-meta"><span>{{ flight.origin_country }} → {{ flight.destination_country }}</span><span>剩餘 {{ flight.seats_available }} 席</span></div>
               <div class="flight-footer">
@@ -183,9 +185,9 @@
 {% set save_kind='flight' %}{% set save_id=flight.flight_id %}{% include 'partials/booking_favorite_button.html' %}
               <div class="flight-airline"><b>{{ flight.airline_name }}</b><span>{{ flight.flight_number }}・{{ flight.cabin_class }}</span></div>
               <div class="flight-route">
-                <div class="flight-time"><b>{{ flight.departure_time }}</b><span>{{ flight.origin_city }}</span></div>
-                <div class="flight-path"><div class="line"></div><span>{{ (flight.duration_minutes // 60) }} 小時 {{ (flight.duration_minutes % 60) }} 分</span></div>
-                <div class="flight-time"><b>{{ flight.arrival_time }}</b><span>{{ flight.destination_city }}</span></div>
+                <div class="flight-time"><b>{{ flight.departure_time|hm }}</b><span>{{ flight.origin_city }}</span></div>
+                <div class="flight-path"><div class="line"></div><span>{{ (flight.duration_minutes // 60) }} 小時 {{ (flight.duration_minutes % 60) }} 分</span><span class="stops-tag {{ 'direct' if not flight.stops }}">{{ '直飛' if not flight.stops else '轉機 ' ~ flight.stops ~ ' 次' }}</span></div>
+                <div class="flight-time"><b>{{ flight.arrival_time|hm }}</b><span>{{ flight.destination_city }}</span></div>
               </div>
               <div class="flight-meta"><span>{{ flight.origin_country }} → {{ flight.destination_country }}</span><span>剩餘 {{ flight.seats_available }} 席</span></div>
               <div class="flight-footer">

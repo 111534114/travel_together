@@ -9,26 +9,6 @@
     train: {from:'trainFrom', to:'trainTo', date:'trainDate', return:'trainReturn', pax:'trainPax'}
   };
   const get = id => document.getElementById(id);
-  document.querySelectorAll('[data-price-range]').forEach(range => {
-    const minInput = range.querySelector('[name="min_price"]');
-    const maxInput = range.querySelector('[name="max_price"]');
-    const minOutput = range.querySelector('[data-min-output]');
-    const maxOutput = range.querySelector('[data-max-output]');
-    const summary = range.querySelector('[data-price-summary]');
-    const money = value => 'NT$ ' + Number(value).toLocaleString('zh-TW');
-    function sync(changed) {
-      if (Number(minInput.value) > Number(maxInput.value)) {
-        if (changed === minInput) maxInput.value = minInput.value;
-        else minInput.value = maxInput.value;
-      }
-      minOutput.textContent = money(minInput.value);
-      maxOutput.textContent = money(maxInput.value);
-      summary.textContent = money(minInput.value) + ' ～ ' + money(maxInput.value);
-    }
-    minInput.addEventListener('input', () => sync(minInput));
-    maxInput.addEventListener('input', () => sync(maxInput));
-    sync();
-  });
   const trainDate = get('trainDate');
   if (trainDate && !get('trainReturn')) {
     const field = document.createElement('div'); field.className='field';

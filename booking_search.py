@@ -5,11 +5,22 @@ import secrets
 from flask import Blueprint, abort, current_app, flash, redirect, render_template, request, session, url_for
 from auth import login_required
 from db import get_db_connection
+from utils import format_hm
 
 booking_bp = Blueprint('booking', __name__)
 TABLES = {'hotel': ('accommodations', 'accommodation_id'), 'flight': ('flights', 'flight_id'), 'train': ('trains', 'train_id')}
 ENDPOINTS = {'visitor_hotel_search': 'hotel', 'visitor_flight_search': 'flight', 'visitor_train_search': 'train'}
 FARES = {'all': '全部票種', 'regular': '一般票', 'discount': '打折票', 'promotion': '優惠票', 'student': '學生票'}
+
+TRAIN_TYPE_LABELS = {'thsr': '高鐵', 'tra': '台鐵'}
+
+# 出發時段的固定區間(模仿常見訂票網站的「凌晨/上午/下午/晚上」分段)
+TIME_BANDS = [
+    ('dawn', '凌晨 00:00–06:00', '00:00', '06:00'),
+    ('morning', '上午 06:00–12:00', '06:00', '12:00'),
+    ('afternoon', '下午 12:00–18:00', '12:00', '18:00'),
+    ('evening', '晚上 18:00–24:00', '18:00', '24:00'),
+]
 
 
 def validate_search(kind, args):
@@ -52,6 +63,8 @@ def validate_search(kind, args):
             errors['max_price'] = '最高預算不能小於最低預算'
     if args.get('fare', 'all') not in FARES:
         errors['fare'] = '請選擇有效票種'
+    if kind == 'flight' and args.get('stops', '') not in ('', 'direct', 'connecting'):
+        errors['stops'] = '請選擇有效的轉機條件'
     count_key = 'guests' if kind == 'hotel' else 'pax'
     if args.get(count_key) and (not args[count_key].isdigit() or not 1 <= int(args[count_key]) <= 99):
         errors[count_key] = '人數須介於 1 與 99'
@@ -71,17 +84,98 @@ def guard_search():
                            origin=request.args.get('from', ''), checkin=request.args.get('checkin', ''),
                            checkout=request.args.get('checkout', ''), depart_date=request.args.get('depart', ''),
                            return_date=request.args.get('return', ''), travel_date=request.args.get('date', ''),
-                           guests=2, pax=1, nights=None, accommodations=[], outbound_flights=[], return_flights=[], trains=[]), 400
+                           guests=2, pax=1, nights=None, accommodations=[], outbound_flights=[], return_flights=[], trains=[],
+                           price_buckets=[], airline_facets=[], train_type_facets=[], car_class_facets=[], depart_band_options=[]), 400
 
 
-def filter_prices(rows, field):
+def price_buckets(rows, field, count=4):
+    """依照目前搜尋結果的實際價格分布，動態切出幾個價格區間(仿照常見訂票網站的做法，
+    不是寫死固定的級距)。結果數量或價格種類太少時切不出有意義的區間，就不提供篩選。"""
+    all_prices = sorted(float(r[field]) for r in rows if r.get(field) and r[field] > 0)
+    unique_prices = sorted(set(all_prices))
+    if len(unique_prices) < count:
+        return []
+
+    step = 50 if unique_prices[-1] < 2000 else (100 if unique_prices[-1] < 10000 else 500)
+    def nice(value):
+        return int(round(value / step) * step)
+
+    n = len(unique_prices)
+    edges = sorted({0} | {nice(unique_prices[min(int(i * n / count), n - 1)]) for i in range(1, count)})
+
+    buckets = []
+    for i, low in enumerate(edges):
+        high = edges[i + 1] if i + 1 < len(edges) else None
+        matched = sum(1 for p in all_prices if p >= low and (high is None or p < high))
+        if matched:
+            buckets.append({'low': low, 'high': high, 'count': matched})
+    return buckets
+
+
+def facet_options(rows, field, labels=None):
+    """算出目前搜尋結果裡，某個欄位(例如航空公司、車種)有哪些不同的值可以勾選篩選，
+    附帶各自的筆數與顯示用文字；只有 2 種以上的值才有篩選意義，否則回傳空清單(不顯示篩選)。"""
+    counts = {}
+    for row in rows:
+        value = row.get(field)
+        if not value:
+            continue
+        counts[value] = counts.get(value, 0) + 1
+    if len(counts) < 2:
+        return []
+    return sorted(
+        ({'value': value, 'label': (labels or {}).get(value, value), 'count': count} for value, count in counts.items()),
+        key=lambda opt: -opt['count']
+    )
+
+
+def apply_facets(rows, fields):
+    """fields 是 [(資料欄位, 網址參數名稱), ...] 的清單；每個參數用 checkbox 多選，
+    使用者有勾選才會篩選，沒勾就不限制。"""
+    result = rows
+    for field, param in fields:
+        selected = request.args.getlist(param)
+        if selected:
+            result = [row for row in result if row.get(field) in selected]
+    return result
+
+
+def time_band_options(rows, field):
+    options = []
+    for key, label, start, end in TIME_BANDS:
+        count = sum(1 for row in rows if row.get(field) and start <= format_hm(row[field]) < end)
+        if count:
+            options.append({'value': key, 'label': label, 'count': count})
+    return options if len(options) >= 2 else []
+
+
+def apply_time_band(rows, field):
+    selected = request.args.getlist('depart_band')
+    if not selected:
+        return rows
+    bands = [b for b in TIME_BANDS if b[0] in selected]
+    def matches(row):
+        value = row.get(field)
+        if not value:
+            return False
+        hm = format_hm(value)
+        return any(start <= hm < end for _, _, start, end in bands)
+    return [row for row in rows if matches(row)]
+
+
+def filter_prices(rows, field, duration_field=None, stops_field=None):
     low = Decimal(request.args.get('min_price') or '0')
     high = Decimal(request.args['max_price']) if request.args.get('max_price') else None
     fare = request.args.get('fare', 'all')
+    stops_filter = request.args.get('stops', '') if stops_field else ''
     result = []
     for row in rows:
         # Existing transport records are standard fares; no discount is inferred.
         if fare not in ('all', row.get('fare_type', 'regular')):
+            continue
+        if stops_filter == 'direct' and row.get(stops_field):
+            continue
+        if stops_filter == 'connecting' and not row.get(stops_field):
             continue
         price = row.get(field)
         known = price is not None and price > 0
@@ -91,6 +185,9 @@ def filter_prices(rows, field):
     sort = request.args.get('sort', '')
     if sort in ('price_asc', 'price_desc'):
         result.sort(key=lambda r: (not bool(r.get(field)), (r.get(field) or 0) * (-1 if sort == 'price_desc' else 1)))
+    elif sort == 'featured' and duration_field:
+        # 精選：同時考慮價格與耗時，概算每分鐘車程/航程約值 NT$20，取總分最低的排前面。
+        result.sort(key=lambda r: (not bool(r.get(field)), (r.get(field) or 0) + (r.get(duration_field) or 0) * 20))
     return result
 
 

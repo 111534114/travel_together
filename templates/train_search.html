@@ -96,8 +96,8 @@
     </nav>
   </header>
   <main>
-{% include 'partials/booking_tools.html' %}
     <p class="breadcrumb"><a href="{{ url_for('member.dashboard') if is_member else url_for('visitor') }}">{{ '← 返回會員首頁' if is_member else '← 返回訪客首頁' }}</a></p>
+{% include 'partials/booking_tools.html' %}
     <section class="search-panel">
       <div class="search-tabs" role="tablist">
         <button class="search-tab" type="button" data-tab="hotel" onclick="switchSearchTab('hotel', this)">住宿</button>
@@ -162,9 +162,9 @@
               <span>{{ train.train_number }} 車次</span>
             </div>
             <div class="train-route">
-              <div class="train-time"><b>{{ train.departure_time }}</b><span>{{ train.origin_station }}</span></div>
+              <div class="train-time"><b>{{ train.departure_time|hm }}</b><span>{{ train.origin_station }}</span></div>
               <div class="train-path"><div class="line"></div><span>{{ (train.duration_minutes // 60) }} 小時 {{ (train.duration_minutes % 60) }} 分</span></div>
-              <div class="train-time"><b>{{ train.arrival_time }}</b><span>{{ train.destination_station }}</span></div>
+              <div class="train-time"><b>{{ train.arrival_time|hm }}</b><span>{{ train.destination_station }}</span></div>
             </div>
             <div class="train-meta"><span>剩餘 {{ train.seats_available }} 席</span></div>
             <div class="train-footer">
@@ -186,9 +186,9 @@
               <span>{{ train.train_number }} 車次</span>
             </div>
             <div class="train-route">
-              <div class="train-time"><b>{{ train.departure_time }}</b><span>{{ train.origin_station }}</span></div>
+              <div class="train-time"><b>{{ train.departure_time|hm }}</b><span>{{ train.origin_station }}</span></div>
               <div class="train-path"><div class="line"></div><span>{{ (train.duration_minutes // 60) }} 小時 {{ (train.duration_minutes % 60) }} 分</span></div>
-              <div class="train-time"><b>{{ train.arrival_time }}</b><span>{{ train.destination_station }}</span></div>
+              <div class="train-time"><b>{{ train.arrival_time|hm }}</b><span>{{ train.destination_station }}</span></div>
             </div>
             <div class="train-meta"><span>剩餘 {{ train.seats_available }} 席</span></div>
             <div class="train-footer">

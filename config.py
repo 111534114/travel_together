@@ -42,3 +42,8 @@ LINE_BOT_CHANNEL_SECRET = os.environ.get("LINE_BOT_CHANNEL_SECRET", "")
 LINE_BOT_ACCESS_TOKEN = os.environ.get("LINE_BOT_ACCESS_TOKEN", "")
 # 官方帳號的 Basic ID（例如 @861vahjn，不是機密），用來產生網站上的加好友連結與 QR Code
 LINE_BOT_BASIC_ID = os.environ.get("LINE_BOT_BASIC_ID", "")
+
+# 行程出發前一天的 LINE 提醒：每天幾點以後開始發送（24 小時制，預設早上 9 點）
+TRIP_REMINDER_HOUR = int(os.environ.get("TRIP_REMINDER_HOUR", "9"))
+# 網站對外的公開網址（例如 ngrok 或正式網域），有設定才會在 LINE 訊息附上行程連結
+PUBLIC_BASE_URL = os.environ.get("PUBLIC_BASE_URL", "").rstrip("/")

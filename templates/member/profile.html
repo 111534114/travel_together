@@ -48,21 +48,27 @@
 
     {% if line_add_friend_url %}
     <div class="profile-line">
-      <div class="profile-section-title"><div><h3>LINE 通知</h3><p>加入官方帳號後，出發提醒、投票與行程異動會直接傳到你的 LINE。</p></div></div>
+      <div class="profile-section-title"><div><h3>LINE 通知</h3><p>綁定 LINE 並加入官方帳號後，行程出發前一天會透過 LINE 提醒你。</p></div></div>
       <div class="profile-line-body">
         {% if user.line_linked and not user.line_friend %}<img class="profile-line-qr" src="{{ line_qr_code_url }}" alt="LINE 官方帳號加好友 QR Code" width="120" height="120">{% endif %}
         <div>
           {% if not user.line_linked %}
           <span class="line-state off">尚未綁定 LINE</span>
-          <p>這個帳號不是用 LINE 登入建立的，目前無法透過 LINE 接收通知。</p>
+          <p>綁定後，這個帳號也可以直接用 LINE 登入，並接收行程通知。</p>
+          <a class="member-btn primary line-add-btn" href="{{ url_for('line_bind') }}">綁定 LINE</a>
           {% elif user.line_friend %}
-          <span class="line-state on">已加入官方帳號</span>
-          <p>你會在 LINE 收到行程通知。若不想再收到，可在 LINE 封鎖官方帳號。</p>
+          <span class="line-state on">已綁定・已加入官方帳號</span>
+          <p>你會在 LINE 收到行程通知。若不想再收到，可在 LINE 封鎖官方帳號，或在這裡解除綁定。</p>
           {% else %}
-          <span class="line-state off">尚未加入官方帳號</span>
+          <span class="line-state off">已綁定・尚未加入官方帳號</span>
           <p>手機請點下方按鈕加入；用電腦瀏覽時，可用手機 LINE 掃描左邊的 QR Code。</p>
+          <a class="member-btn primary line-add-btn" href="{{ line_add_friend_url }}" target="_blank" rel="noopener">加入好友</a>
           {% endif %}
-          {% if user.line_linked and not user.line_friend %}<a class="member-btn primary line-add-btn" href="{{ line_add_friend_url }}" target="_blank" rel="noopener">加入好友</a>{% endif %}
+          {% if user.line_linked and user.can_unbind_line %}
+          <form method="post" action="{{ url_for('line_unbind') }}" class="line-unbind-form" onsubmit="return confirm('解除綁定後，就不會再透過 LINE 收到行程通知，也不能用 LINE 登入這個帳號。確定要解除嗎？');">
+            <button type="submit" class="line-unbind-btn">解除 LINE 綁定</button>
+          </form>
+          {% endif %}
         </div>
       </div>
     </div>

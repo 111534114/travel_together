@@ -1832,6 +1832,9 @@ body {
 .line-state.on { color: #1d5b35; background: #e3f7ea; }
 .line-state.off { color: #8b5a24; background: #fbf0e3; }
 .member-btn.line-add-btn { display: inline-block; margin-top: 14px; color: #fff; background: #06c755; border-color: #06c755; }
+.line-unbind-form { margin-top: 12px; }
+.line-unbind-btn { padding: 0; color: #81788e; font-size: 13px; text-decoration: underline; background: none; border: 0; cursor: pointer; }
+.line-unbind-btn:hover { color: #b0413e; }
 @media (max-width: 560px) {
     .profile-line { padding: 22px; }
     .profile-line-qr { display: none; }

@@ -300,12 +300,17 @@
       {% endfor %}
     </section>
     {% endif %}
-    {% if is_member and line_status and line_status.linked and not line_status.line_friend and line_add_friend_url %}
-    {# 已用 LINE 登入綁定、但還沒加官方帳號好友的會員才顯示；加好友後 webhook 會更新 line_friend，提示自動消失 #}
-    <section class="line-friend-banner" aria-label="加入 LINE 官方帳號">
+    {% if is_member and line_status and not line_status.line_friend and line_add_friend_url %}
+    {# 還收不到 LINE 通知的會員才顯示：沒綁定就引導綁定，已綁定但沒加好友就引導加好友；完成後提示自動消失 #}
+    <section class="line-friend-banner" aria-label="LINE 行程通知">
+      {% if line_status.linked %}
       <img class="line-friend-qr" src="{{ line_qr_code_url }}" alt="LINE 官方帳號加好友 QR Code" width="84" height="84">
-      <div><h3>加入 LINE 官方帳號，接收行程通知</h3><p>出發提醒、投票與行程異動會直接傳到你的 LINE。手機點按鈕加入，電腦可用手機掃描左邊的 QR Code。</p></div>
+      <div><h3>加入 LINE 官方帳號，接收行程通知</h3><p>行程出發前一天會透過 LINE 提醒你。手機點按鈕加入，電腦可用手機掃描左邊的 QR Code。</p></div>
       <a class="line-friend-btn" href="{{ line_add_friend_url }}" target="_blank" rel="noopener">加入好友</a>
+      {% else %}
+      <div><h3>綁定 LINE，出發前一天提醒你</h3><p>把 LINE 和網站帳號連動，加入的行程在出發前一天會自動傳 LINE 通知給你。</p></div>
+      <a class="line-friend-btn" href="{{ url_for('line_bind') }}">綁定 LINE</a>
+      {% endif %}
     </section>
     {% endif %}
     {% if is_member %}

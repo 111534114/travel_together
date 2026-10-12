@@ -1,12 +1,14 @@
 from flask import Blueprint, abort, request  # 匯入 Flask 藍圖、中止請求、取得請求內容
 
+import line_commands  # 匯入關鍵字回覆（下一趟旅程、待辦事項等）
 import line_messaging  # 匯入 LINE 官方帳號共用工具
 
 line_webhook_bp = Blueprint("line_webhook", __name__)  # 建立 LINE 官方帳號 webhook 藍圖
 
 UNLINKED_HINT = (
     "歡迎加入 Travel Together！\n"
-    "請到網站使用「LINE 登入」，就能把 LINE 與網站帳號連結，接收行程通知。"
+    "請到網站「個人資料」頁按「綁定 LINE」，或直接使用「LINE 登入」，\n"
+    "把 LINE 與網站帳號連結後，行程出發前一天就會收到提醒。"
 )
 
 
@@ -39,4 +41,9 @@ def handle_event(event):
             line_messaging.reply_text(event["replyToken"], UNLINKED_HINT)
     elif event_type == "unfollow":  # 封鎖官方帳號（此事件沒有 replyToken）
         line_messaging.set_friend_status(line_sub, False)
+    elif event_type == "message" and event.get("message", {}).get("type") == "text":
+        # 圖文選單的「文字」按鈕和使用者自己打字都會走這裡；不是關鍵字就不回，留給真人客服
+        reply = line_commands.reply_for(line_sub, event["message"].get("text"))
+        if reply and event.get("replyToken"):
+            line_messaging.reply_text(event["replyToken"], reply, quick_replies=line_commands.COMMANDS)
 

@@ -1,3 +1,4 @@
+import os  # 匯入作業系統功能，用來判斷 Flask 開發伺服器是哪一個行程
 import re  # 匯入正規表示式模組，用來驗證註冊欄位格式
 from booking_search import booking_bp, filter_prices
 import requests  # 匯入 requests，用來呼叫 LINE 的個人資料 API
@@ -6,6 +7,7 @@ from authlib.integrations.flask_client import OAuth  # 匯入 Authlib 的 Flask 
 from flask import Flask, render_template, request, redirect, url_for, session, flash  # 匯入 Flask 核心功能：建立 App、渲染樣板、取得請求、導向、產生網址、session、顯示訊息
 from mysql.connector import Error  # 匯入 MySQL 連線錯誤類別，用來捕捉資料庫例外
 from werkzeug.security import check_password_hash, generate_password_hash  # 匯入密碼工具：驗證密碼、產生密碼雜湊值
+from werkzeug.middleware.proxy_fix import ProxyFix  # 匯入代理修正工具，讓 ngrok 轉發的請求能產生正確的 https 網址
 
 from config import GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, LINE_CHANNEL_ID, LINE_CHANNEL_SECRET  # 匯入第三方登入設定
 from db import get_db_connection  # 匯入自訂的資料庫連線函式
@@ -25,8 +27,12 @@ from activity_log import ACTION_LABELS, log_action
 from utils import google_maps_url, google_maps_embed_url, format_hm  # 匯入組 Google 地圖連結/嵌入縮圖地圖、格式化 TIME 欄位的共用函式，註冊成樣板全域函式讓所有頁面都能直接呼叫
 import weather  # 匯入中央氣象署天氣預報模組(訪客頁面「目的地天氣」功能用)
 import line_messaging  # 匯入 LINE 官方帳號共用工具(加好友連結、QR Code)
+import trip_reminders  # 匯入行程出發前一天的 LINE 提醒排程
 
 app = Flask(__name__)  # 建立 Flask 應用程式實例
+# 透過 ngrok 等 HTTPS 代理連線時，依代理送來的 X-Forwarded-Proto / Host 產生正確的 https 網址
+# （LINE 登入的回呼網址必須和 LINE Developers 登記的完全相同）；本機直接連線時沒有這些標頭，行為不變
+app.wsgi_app = ProxyFix(app.wsgi_app, x_proto=1, x_host=1)
 app.register_blueprint(booking_bp)
 
 # Session 加密金鑰，之後可以改成更複雜的字串
@@ -648,6 +654,77 @@ def line_login():
     return line_oauth.authorize_redirect(redirect_uri, bot_prompt="aggressive")
 
 
+@app.route("/auth/line/bind")
+def line_bind():  # 已登入的會員（不論用哪種方式註冊）把 LINE 綁定到目前帳號，之後就能收到行程通知
+    if session.get("role") != "member":
+        return redirect(url_for("login"))
+    if not LINE_CHANNEL_ID or not LINE_CHANNEL_SECRET:
+        flash("LINE 尚未完成設定，暫時無法綁定。", "error")
+        return redirect(url_for("member.profile"))
+    session["line_bind_user_id"] = session["user_id"]  # 讓 callback 知道這次是綁定，不是登入
+    redirect_uri = url_for("line_callback", _external=True)
+    return line_oauth.authorize_redirect(redirect_uri, bot_prompt="aggressive")
+
+
+@app.route("/auth/line/unbind", methods=["POST"])
+def line_unbind():  # 解除目前帳號的 LINE 綁定
+    if session.get("role") != "member":
+        return redirect(url_for("login"))
+    connection = get_db_connection()
+    if connection is None:
+        flash("資料庫連線失敗，請稍後再試。", "error")
+        return redirect(url_for("member.profile"))
+    cursor = connection.cursor(dictionary=True)
+    try:
+        cursor.execute("SELECT password_hash, google_sub FROM users WHERE user_id = %s", (session["user_id"],))
+        user = cursor.fetchone()
+        if user and not user["password_hash"] and not user["google_sub"]:  # 只能用 LINE 登入的帳號，解除後就無法登入
+            flash("這個帳號只能用 LINE 登入，解除綁定後將無法登入，請先設定密碼。", "error")
+            return redirect(url_for("member.profile"))
+        cursor.execute("UPDATE users SET line_sub = NULL, line_friend = 0 WHERE user_id = %s", (session["user_id"],))
+        connection.commit()
+    except Error as error:
+        connection.rollback()
+        print("解除 LINE 綁定失敗：", error)
+        flash("解除綁定失敗，請稍後再試。", "error")
+        return redirect(url_for("member.profile"))
+    finally:
+        cursor.close()
+        connection.close()
+    flash("已解除 LINE 綁定，之後不會再透過 LINE 收到行程通知。", "success")
+    return redirect(url_for("member.profile"))
+
+
+def bind_line_to_current_user(line_sub, friend_flag):  # LINE 授權完成後，把 LINE userId 寫到目前登入的帳號
+    connection = get_db_connection()
+    if connection is None:
+        flash("資料庫連線失敗，請稍後再試。", "error")
+        return redirect(url_for("member.profile"))
+    cursor = connection.cursor(dictionary=True)
+    try:
+        cursor.execute("SELECT user_id FROM users WHERE line_sub = %s AND user_id <> %s LIMIT 1",
+                       (line_sub, session["user_id"]))
+        if cursor.fetchone():
+            flash("這個 LINE 已經綁定其他帳號，請先在那個帳號解除綁定。", "error")
+            return redirect(url_for("member.profile"))
+        cursor.execute("UPDATE users SET line_sub = %s, line_friend = %s WHERE user_id = %s",
+                       (line_sub, 1 if friend_flag else 0, session["user_id"]))
+        connection.commit()
+    except Error as error:
+        connection.rollback()
+        print("綁定 LINE 失敗：", error)
+        flash("綁定 LINE 失敗，請稍後再試。", "error")
+        return redirect(url_for("member.profile"))
+    finally:
+        cursor.close()
+        connection.close()
+    if friend_flag:
+        flash("LINE 綁定完成！行程出發前一天會透過 LINE 提醒你。", "success")
+    else:
+        flash("LINE 綁定完成！再加入官方帳號好友，就能收到行程通知。", "success")
+    return redirect(url_for("member.profile"))
+
+
 def fetch_line_friend_flag(access_token):  # 查詢使用者是否為官方帳號好友，查不到時回傳 None
     try:
         response = requests.get(
@@ -664,6 +741,9 @@ def fetch_line_friend_flag(access_token):  # 查詢使用者是否為官方帳�
 
 @app.route("/auth/line/callback")
 def line_callback():
+    bind_user_id = session.pop("line_bind_user_id", None)
+    binding = bind_user_id is not None and bind_user_id == session.get("user_id")  # 綁定模式：從個人資料頁發起
+    fail_redirect = url_for("member.profile") if binding else url_for("login")
     try:
         token = line_oauth.authorize_access_token()
         profile_response = requests.get(
@@ -676,13 +756,16 @@ def line_callback():
         friend_flag = fetch_line_friend_flag(token["access_token"])
     except (Exception, requests.RequestException) as error:
         print("LINE 登入失敗：", error)
-        flash("LINE 登入失敗，請再試一次。", "error")
-        return redirect(url_for("login"))
+        flash("LINE 綁定失敗，請再試一次。" if binding else "LINE 登入失敗，請再試一次。", "error")
+        return redirect(fail_redirect)
 
     line_sub = profile.get("userId")
     if not line_sub:
         flash("無法取得 LINE 帳號資訊，請改用其他方式登入。", "error")
-        return redirect(url_for("login"))
+        return redirect(fail_redirect)
+
+    if binding:
+        return bind_line_to_current_user(line_sub, friend_flag)
 
     connection = get_db_connection()
     if connection is None:
@@ -1954,4 +2037,7 @@ def logout():  # 定義登出函式
 
 
 if __name__ == "__main__":  # 如果這個檔案是直接被執行(而不是被匯入)
+    # debug 模式會啟動兩個行程(監看程式碼 + 實際執行)，只在實際執行的那個啟動排程，避免提醒重複發送
+    if os.environ.get("WERKZEUG_RUN_MAIN") == "true":
+        trip_reminders.start_scheduler()  # 背景排程：行程出發前一天透過 LINE 提醒成員
     app.run(debug=True)  # 啟動 Flask 開發伺服器，開啟除錯模式

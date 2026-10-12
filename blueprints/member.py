@@ -2044,7 +2044,7 @@ def profile():
     if connection is None: return redirect(url_for("member.dashboard"))
     cursor=connection.cursor(dictionary=True)
     try:
-        cursor.execute("SELECT user_id,username,full_name,nickname,email,avatar_path,created_at,status,line_sub IS NOT NULL AS line_linked,line_friend FROM users WHERE user_id=%s",(session["user_id"],)); user=cursor.fetchone()
+        cursor.execute("SELECT user_id,username,full_name,nickname,email,avatar_path,created_at,status,line_sub IS NOT NULL AS line_linked,line_friend,(password_hash IS NOT NULL OR google_sub IS NOT NULL) AS can_unbind_line FROM users WHERE user_id=%s",(session["user_id"],)); user=cursor.fetchone()
         if user:
             user["status_label"] = {
                 "active": "正常",

@@ -44,15 +44,19 @@
                 <td>{{ accommodation.country_name }} / {{ accommodation.city_name }}</td>
                 <td>{{ accommodation.deleted_at }}</td>
                 <td>
+                    {% if content_admin_can('accommodations', 'edit') %}
                     <form method="POST" action="{{ url_for('accommodations.restore_accommodation', accommodation_id=accommodation.accommodation_id) }}" class="inline-form">
                         <button type="submit" class="small-button">復原</button>
                     </form>
+                    {% endif %}
+                    {% if content_admin_can('accommodations', 'delete') %}
                     <form method="POST"
                           action="{{ url_for('accommodations.permanently_delete_accommodation', accommodation_id=accommodation.accommodation_id) }}"
                           class="inline-form"
                           onsubmit="return confirm('確定要永久刪除這筆住宿嗎？刪除後無法復原！');">
                         <button type="submit" class="disable-button">永久刪除</button>
                     </form>
+                    {% endif %}
                 </td>
             </tr>
             {% else %}

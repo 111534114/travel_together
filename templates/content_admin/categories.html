@@ -39,22 +39,24 @@
                         <input type="hidden" name="category_type" value="{{ category_type }}">
                         <div style="display:table-row;">
                             <div style="display:table-cell; padding:14px; border-bottom:1px solid #eee;">
-                                <input type="text" name="category_name" value="{{ category.category_name }}" required style="width:90%;">
+                                <input type="text" name="category_name" value="{{ category.category_name }}" required style="width:90%;" {{ 'disabled' if not content_admin_can('categories', 'edit') }}>
                             </div>
                             <div style="display:table-cell; padding:14px; border-bottom:1px solid #eee;">
-                                <input type="text" name="description" value="{{ category.description or '' }}" style="width:90%;">
+                                <input type="text" name="description" value="{{ category.description or '' }}" style="width:90%;" {{ 'disabled' if not content_admin_can('categories', 'edit') }}>
                             </div>
                             <div style="display:table-cell; padding:14px; border-bottom:1px solid #eee;">
-                                <select name="status">
+                                <select name="status" {{ 'disabled' if not content_admin_can('categories', 'edit') }}>
                                     <option value="active" {{ 'selected' if category.status == 'active' else '' }}>啟用</option>
                                     <option value="hidden" {{ 'selected' if category.status == 'hidden' else '' }}>隱藏</option>
                                 </select>
                             </div>
                             <div style="display:table-cell; padding:14px; border-bottom:1px solid #eee; white-space:nowrap;">
-                                <button type="submit" class="small-button">更新</button>
+                                {% if content_admin_can('categories', 'edit') %}<button type="submit" class="small-button">更新</button>{% endif %}
+                                {% if content_admin_can('categories', 'delete') %}
                                 <button type="submit" formaction="{{ url_for('categories.delete_category', category_id=category.category_id) }}"
                                         class="disable-button"
                                         onclick="return confirm('確定要刪除這個類別嗎？');">刪除</button>
+                                {% endif %}
                             </div>
                         </div>
                     </form>
@@ -67,12 +69,12 @@
         </table>
     </div>
 
-    <form method="POST" action="{{ url_for('categories.create_category') }}" class="filter-form" style="margin-top:18px;">
+    {% if content_admin_can('categories', 'create') %}<form method="POST" action="{{ url_for('categories.create_category') }}" class="filter-form" style="margin-top:18px;">
         <input type="hidden" name="category_type" value="{{ category_type }}">
         <input type="text" name="category_name" placeholder="新增類別名稱" required>
         <input type="text" name="description" placeholder="說明（選填）">
         <button type="submit">＋ 新增類別</button>
-    </form>
+    </form>{% endif %}
 
 </div>
 

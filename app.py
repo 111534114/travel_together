@@ -19,6 +19,8 @@ from blueprints.ai_data import ai_data_bp  # 匯入 AI 使用資料維護的藍�
 from blueprints.reports import reports_bp  # 匯入統計報表匯出的藍圖
 from blueprints.logs import logs_bp  # 匯入操作紀錄查詢的藍圖
 from blueprints.ai_chat import ai_chat_bp  # 匯入 AI 助理對話的藍圖
+from blueprints.content_admin_accounts import content_admin_accounts_bp
+from content_admin_permissions import CONTENT_ADMIN_ACTIONS, content_admin_can
 from blueprints.member import ISSUE_PREFIX, member_bp  # 匯入會員功能的藍圖
 from blueprints.line_webhook import line_webhook_bp  # 匯入 LINE 官方帳號 webhook 的藍圖
 from activity_log import ACTION_LABELS, log_action
@@ -40,6 +42,7 @@ app.jinja_env.globals["google_maps_embed_url"] = google_maps_embed_url  # 註冊
 app.jinja_env.globals["line_add_friend_url"] = line_messaging.add_friend_url()  # LINE 官方帳號加好友連結，會員首頁與個人資料頁共用
 app.jinja_env.globals["line_qr_code_url"] = line_messaging.qr_code_url()  # LINE 官方帳號加好友 QR Code 圖片網址
 app.jinja_env.filters["hm"] = format_hm  # 註冊成樣板過濾器，任何頁面都能直接用 {{ 值 | hm }} 把 TIME 欄位格式化成 HH:MM
+app.jinja_env.globals["content_admin_can"] = content_admin_can
 
 oauth = OAuth(app)  # 建立 Authlib 的 OAuth 註冊器
 google_oauth = oauth.register(
@@ -74,6 +77,7 @@ app.register_blueprint(ai_data_bp)  # 註冊 AI 資料維護路由
 app.register_blueprint(reports_bp)  # 註冊統計報表路由
 app.register_blueprint(logs_bp)  # 註冊操作紀錄路由
 app.register_blueprint(ai_chat_bp)  # 註冊 AI 助理對話路由
+app.register_blueprint(content_admin_accounts_bp)
 app.register_blueprint(member_bp)  # 註冊會員功能路由
 app.register_blueprint(line_webhook_bp)  # 註冊 LINE 官方帳號 webhook 路由
 
@@ -1342,12 +1346,25 @@ def update_user_role(user_id):
 
         old_role = target["role"]
         cursor.execute("UPDATE users SET role = %s WHERE user_id = %s", (new_role, user_id))
+        if new_role == "content_admin":
+            cursor.execute("DELETE FROM content_admin_denials WHERE user_id = %s", (user_id,))
+            cursor.executemany(
+                "INSERT INTO content_admin_denials (user_id, module) VALUES (%s, %s)",
+                [
+                    (user_id, f"{module}:{action}")
+                    for module, actions in CONTENT_ADMIN_ACTIONS.items()
+                    for action in actions
+                ],
+            )
         log_action(
             cursor, "change_user_role", "user", user_id,
             f"帳號 {target['username']}：{role_labels[old_role]}改為{role_labels[new_role]}"
         )
         connection.commit()
-        flash(f"已將 {target['username']} 設為{role_labels[new_role]}，下次登入生效", "success")
+        if new_role == "content_admin":
+            flash(f"已將 {target['username']} 設為內容管理員；請接著設定權限，下次登入生效。", "success")
+        else:
+            flash(f"已將 {target['username']} 設為{role_labels[new_role]}，下次登入生效", "success")
     except Exception as error:
         connection.rollback()
         print("修改帳號角色失敗：", error)
@@ -1909,8 +1926,12 @@ def admin_logs():
         return denied
     keyword = request.args.get("keyword", "").strip()
     action = request.args.get("action", "").strip()
+    admin_id = request.args.get("admin_id", "").strip()
+    if not admin_id.isdigit() or int(admin_id) < 1:
+        admin_id = ""
     logs = []
     actions = []
+    filtered_admin = None
     connection = get_db_connection()
     if connection is None:
         flash("資料庫連線失敗", "error")
@@ -1922,10 +1943,15 @@ def admin_logs():
             if action:
                 conditions.append("l.action = %s")
                 params.append(action)
+            if admin_id:
+                conditions.append("l.admin_id = %s")
+                params.append(int(admin_id))
+                cursor.execute("SELECT username, full_name FROM users WHERE user_id = %s AND role = 'content_admin'", (int(admin_id),))
+                filtered_admin = cursor.fetchone()
             if keyword:
                 search = f"%{keyword}%"
-                conditions.append("(u.full_name LIKE %s OR l.description LIKE %s OR l.ip_address LIKE %s)")
-                params.extend([search, search, search])
+                conditions.append("(u.full_name LIKE %s OR u.username LIKE %s OR l.description LIKE %s OR l.ip_address LIKE %s)")
+                params.extend([search, search, search, search])
             where_clause = f"WHERE {' AND '.join(conditions)}" if conditions else ""
             cursor.execute(f"""
                 SELECT l.*, u.full_name AS admin_name, u.username AS admin_username
@@ -1943,7 +1969,8 @@ def admin_logs():
     labels.update({"handle_issue": "處理問題回報", "create_announcement": "新增公告",
                    "update_announcement": "更新公告"})
     return render_template("admin_logs.html", logs=logs, actions=actions,
-                           labels=labels, keyword=keyword, selected_action=action)
+                           labels=labels, keyword=keyword, selected_action=action,
+                           admin_id=admin_id, filtered_admin=filtered_admin)
 
 
 @app.route("/logout")  # 設定登出路由

@@ -44,15 +44,19 @@
                 <td>{{ attraction.country_name }} / {{ attraction.city_name }}</td>
                 <td>{{ attraction.deleted_at }}</td>
                 <td>
+                    {% if content_admin_can('attractions', 'edit') %}
                     <form method="POST" action="{{ url_for('attractions.restore_attraction', attraction_id=attraction.attraction_id) }}" class="inline-form">
                         <button type="submit" class="small-button">復原</button>
                     </form>
+                    {% endif %}
+                    {% if content_admin_can('attractions', 'delete') %}
                     <form method="POST"
                           action="{{ url_for('attractions.permanently_delete_attraction', attraction_id=attraction.attraction_id) }}"
                           class="inline-form"
                           onsubmit="return confirm('確定要永久刪除這個景點嗎？刪除後無法復原！');">
                         <button type="submit" class="disable-button">永久刪除</button>
                     </form>
+                    {% endif %}
                 </td>
             </tr>
             {% else %}

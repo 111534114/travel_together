@@ -3999,6 +3999,28 @@ html { scroll-behavior: smooth; }
 .trip-jump-nav a:focus-visible { outline: 2px solid var(--ocean-primary); outline-offset: 2px; }
 .trip-jump-nav .jump-badge { min-width: 18px; height: 18px; padding: 0 5px; color: #fff; background: #E5484D; border-radius: 999px; font-size: 11px; line-height: 18px; text-align: center; }
 .trip-jump-nav a.active .jump-badge { color: var(--ocean-primary-dark); background: #fff; }
+/* 帳號管理表單 */
+.admin-heading-actions { display: flex; align-items: center; flex-wrap: wrap; gap: 10px; }
+.admin-user-actions { display: flex; flex-wrap: wrap; gap: 6px; }
+.admin-user-actions .small-button { white-space: nowrap; }
+.admin-permission-matrix-form .admin-form-actions { margin-top: 16px; }
+.admin-permission-matrix th:not(:first-child), .admin-permission-matrix td { width: 17.5%; text-align: center; }
+.admin-permission-matrix th:first-child { width: 30%; min-width: 150px; text-align: left; }
+.admin-permission-choice { display: inline-flex; align-items: center; justify-content: center; min-width: 36px; min-height: 36px; cursor: pointer; }
+.admin-permission-choice input { width: 19px; height: 19px; margin: 0; accent-color: #087E96; cursor: pointer; }
+.admin-permission-choice input:disabled { cursor: not-allowed; }
+.admin-permission-unavailable { color: #94A4A8; }
+.admin-account-form { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; max-width: 780px; margin-top: 16px; }
+.admin-account-form label { display: grid; gap: 6px; min-width: 0; color: #40696F; font-weight: 700; }
+.admin-account-form input:not([type=checkbox]) { width: 100%; min-width: 0; padding: 9px 11px; border: 1px solid #B8CED2; border-radius: 6px; font: inherit; }
+.admin-account-form button, .admin-account-form .admin-form-actions, .admin-account-form .admin-permission-fieldset { justify-self: start; }
+.admin-form-actions { display: flex; align-items: center; gap: 16px; grid-column: 1 / -1; }
+.admin-permission-fieldset { grid-column: 1 / -1; width: 100%; padding: 12px; border: 1px solid #D5E5E8; border-radius: 6px; }
+.admin-permission-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 10px; margin: 12px 0; }
+.admin-permission-grid label { display: flex; align-items: center; gap: 8px; color: #315D64; font-weight: 600; }
+.admin-permission-grid input { accent-color: #087E96; }
+.admin-log-filter { padding: 10px 14px; color: #315D64; background: #EAF6F7; border-left: 3px solid #087E96; }
+@media (max-width: 640px) { .admin-account-form { grid-template-columns: 1fr; } }
 @media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } }
 @media (max-width: 640px) {
     .trip-jump-nav { margin-left: -4px; margin-right: -4px; border-radius: 10px; }

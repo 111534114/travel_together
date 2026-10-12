@@ -65,9 +65,11 @@
                     {% endif %}
                 </td>
                 <td>
+                    {% if content_admin_can('ai_data', 'edit') %}
                     <form method="POST" action="{{ url_for('ai_data.verify_item', item_type=item_type, item_id=item.item_id, keyword=keyword) }}" class="inline-form">
                         <button type="submit" class="small-button">標記今日已確認</button>
                     </form>
+                    {% endif %}
                 </td>
             </tr>
             {% else %}

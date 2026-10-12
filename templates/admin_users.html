@@ -24,7 +24,7 @@
 <section class="admin-section">
     <div class="section-title">
         <h2>帳號列表</h2>
-        <span>共 {{ users|length }} 筆</span>
+        <div class="admin-heading-actions"><span>共 {{ users|length }} 筆</span></div>
     </div>
     <div class="table-container">
         <table class="admin-table user-admin-table">
@@ -59,7 +59,10 @@
                     <td>{{ user.trip_count }}</td>
                     <td>{{ user.issue_count }}</td>
                     <td>{{ user.created_at }}</td>
-                    <td><a class="small-button" href="{{ url_for('admin_user_detail', user_id=user.user_id) }}">查看詳情</a></td>
+                    <td><div class="admin-user-actions">
+                        <a class="small-button" href="{{ url_for('admin_user_detail', user_id=user.user_id) }}">查看詳情</a>
+                        {% if user.role == 'content_admin' %}<a class="small-button" href="{{ url_for('content_admin_accounts.update_permissions', user_id=user.user_id) }}">權限設定</a>{% endif %}
+                    </div></td>
                 </tr>
             {% else %}
                 <tr><td colspan="9" class="empty-data">找不到符合條件的帳號</td></tr>

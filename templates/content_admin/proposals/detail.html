@@ -50,6 +50,7 @@
         {% endif %}
     </div>
 
+    {% if content_admin_can('proposals', 'edit') %}
     <form method="POST" action="{{ url_for('proposals.update_proposal', proposal_id=proposal.proposal_id) }}" class="content-form">
 
         <div class="form-grid">
@@ -106,6 +107,7 @@
         </form>
 
     </div>
+    {% endif %}
 
     <p style="margin-top:20px;">
         <a href="{{ url_for('proposals.list_proposals', status=proposal.content_review_status) }}">← 返回提案列表</a>

@@ -3,6 +3,7 @@ from flask import Blueprint, flash, redirect, render_template, request, session,
 from activity_log import log_action  # 匯入操作紀錄共用函式
 from ai_assistant import ClaudeApiError, call_claude, is_configured  # 匯入 Claude API 相關函式
 from auth import login_required  # 匯入登入/角色檢查裝飾器
+from content_admin_permissions import content_admin_can
 from db import get_db_connection  # 匯入取得資料庫連線的函式
 from utils import get_or_create_city, get_or_create_country  # 匯入國家/城市的取得(或新增)函式
 
@@ -14,6 +15,10 @@ CONTEXT_TURNS = 10  # 定義要把最近幾筆對話紀錄當作上下文一起�
 
 
 def _execute_tool(cursor, name, tool_input):  # 定義內部函式：實際執行 Claude 要求的工具動作，回傳文字結果給 Claude 參考
+    if name in {"add_country", "add_city"} and not content_admin_can("locations", "create"):
+        return "沒有國家與城市管理權限，無法執行這項操作。"
+    if name == "list_countries_and_cities" and not content_admin_can("locations", "view"):
+        return "沒有國家與城市查看權限，無法執行這項操作。"
     if name == "add_country":  # 如果 Claude 要新增國家
         country_name = (tool_input.get("name") or "").strip()  # 取得國家名稱並去除空白
 

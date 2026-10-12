@@ -27,19 +27,25 @@
             {% for country in countries %}
             <tr>
                 <td>
+                    {% if content_admin_can('locations', 'edit') %}
                     <form method="POST" action="{{ url_for('locations.edit_country', country_id=country.country_id) }}" class="inline-form">
                         <input type="text" name="name" value="{{ country.name }}" required style="width:220px;">
                         <button type="submit" class="small-button">更新</button>
                     </form>
+                    {% else %}{{ country.name }}{% endif %}
                 </td>
                 <td>{{ country.city_count }}</td>
                 <td>
+                    {% if content_admin_can('locations', 'create') %}
                     <form method="POST" action="{{ url_for('locations.import_preset_cities', country_id=country.country_id) }}" class="inline-form">
                         <button type="submit" class="small-button">⚡ 一鍵匯入所有城市</button>
                     </form>
+                    {% endif %}
+                    {% if content_admin_can('locations', 'delete') %}
                     <form method="POST" action="{{ url_for('locations.delete_country', country_id=country.country_id) }}" class="inline-form" onsubmit="return confirm('確定要刪除這個國家嗎？');">
                         <button type="submit" class="disable-button">刪除</button>
                     </form>
+                    {% endif %}
                 </td>
             </tr>
             {% else %}
@@ -49,10 +55,10 @@
         </table>
     </div>
 
-    <form method="POST" action="{{ url_for('locations.create_country') }}" class="filter-form" style="margin-top:18px;">
+    {% if content_admin_can('locations', 'create') %}<form method="POST" action="{{ url_for('locations.create_country') }}" class="filter-form" style="margin-top:18px;">
         <input type="text" name="name" placeholder="新增國家名稱" required>
         <button type="submit">＋ 新增國家</button>
-    </form>
+    </form>{% endif %}
 
 </div>
 
@@ -77,9 +83,11 @@
                     {% for city in region.cities %}
                     <span class="location-city-chip">
                         {{ city.name }}
+                        {% if content_admin_can('locations', 'delete') %}
                         <form method="POST" action="{{ url_for('locations.delete_city', city_id=city.city_id) }}" class="inline-form" onsubmit="return confirm('確定要刪除「{{ city.name }}」嗎？');">
                             <button type="submit" title="刪除「{{ city.name }}」">×</button>
                         </form>
+                        {% endif %}
                     </span>
                     {% endfor %}
                 </div>
@@ -93,7 +101,7 @@
     <p class="empty-data">請先新增國家</p>
     {% endfor %}
 
-    <form method="POST" action="{{ url_for('locations.create_city') }}" class="filter-form" style="margin-top:18px;">
+    {% if content_admin_can('locations', 'create') %}<form method="POST" action="{{ url_for('locations.create_city') }}" class="filter-form" style="margin-top:18px;">
         <select name="country_id" required>
             <option value="">選擇國家</option>
             {% for country in countries %}
@@ -103,7 +111,7 @@
         <input type="text" name="name" placeholder="新增城市名稱" required>
         <input type="text" name="region" placeholder="地區分類（選填，例如北部）">
         <button type="submit">＋ 新增城市</button>
-    </form>
+    </form>{% endif %}
 
 </div>
 

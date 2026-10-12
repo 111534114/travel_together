@@ -44,15 +44,19 @@
                 <td>{{ restaurant.country_name }} / {{ restaurant.city_name }}</td>
                 <td>{{ restaurant.deleted_at }}</td>
                 <td>
+                    {% if content_admin_can('restaurants', 'edit') %}
                     <form method="POST" action="{{ url_for('restaurants.restore_restaurant', restaurant_id=restaurant.restaurant_id) }}" class="inline-form">
                         <button type="submit" class="small-button">復原</button>
                     </form>
+                    {% endif %}
+                    {% if content_admin_can('restaurants', 'delete') %}
                     <form method="POST"
                           action="{{ url_for('restaurants.permanently_delete_restaurant', restaurant_id=restaurant.restaurant_id) }}"
                           class="inline-form"
                           onsubmit="return confirm('確定要永久刪除這間餐廳嗎？刪除後無法復原！');">
                         <button type="submit" class="disable-button">永久刪除</button>
                     </form>
+                    {% endif %}
                 </td>
             </tr>
             {% else %}

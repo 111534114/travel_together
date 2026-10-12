@@ -53,33 +53,41 @@
         <div>
             <span>共 {{ total }} 筆　</span>
             <a href="{{ url_for('accommodations.list_trash') }}" class="small-button">🗑️ 回收桶</a>
+            {% if content_admin_can('accommodations', 'create') %}
             <a href="{{ url_for('accommodations.import_from_google') }}" class="small-button">🔍 Google地圖匯入</a>
             <a href="{{ url_for('accommodations.import_accommodations') }}" class="small-button">⬆ 匯入 CSV</a>
             <a href="{{ url_for('accommodations.create_accommodation') }}" class="small-button">＋ 新增住宿</a>
+            {% endif %}
+            {% if content_admin_can('accommodations', 'edit') %}
             <form method="POST" action="{{ url_for('accommodations.backfill_descriptions') }}" class="inline-form"
                   onsubmit="return confirm('確定要幫所有還沒有描述、或描述太單調的住宿重新自動產生一段描述嗎？');">
                 <button type="submit" class="small-button">🖊 補上/更新描述</button>
             </form>
+            {% endif %}
         </div>
     </div>
 
     <form id="bulk-form" method="POST"></form>
 
-    <div class="bulk-actions">
+    {% if content_admin_can('accommodations', 'edit') or content_admin_can('accommodations', 'delete') %}<div class="bulk-actions">
         <span id="selected-count">已選取 0 筆</span>
+        {% if content_admin_can('accommodations', 'edit') %}
         <button type="submit" form="bulk-form" formaction="{{ url_for('accommodations.bulk_activate_accommodations') }}"
                 id="bulk-activate-btn" class="enable-button" disabled
                 onclick="return confirmBulkAction('啟用');">✅ 啟用選取項目</button>
+        {% endif %}
+        {% if content_admin_can('accommodations', 'delete') %}
         <button type="submit" form="bulk-form" formaction="{{ url_for('accommodations.bulk_delete_accommodations') }}"
                 id="bulk-delete-btn" class="disable-button" disabled
                 onclick="return confirmBulkAction('刪除');">🗑 刪除選取項目</button>
-    </div>
+        {% endif %}
+    </div>{% endif %}
 
     <div class="table-container">
         <table class="admin-table">
             <thead>
             <tr>
-                <th><input type="checkbox" id="select-all-checkbox" onchange="toggleSelectAll(this)"></th>
+                <th>{% if content_admin_can('accommodations', 'edit') or content_admin_can('accommodations', 'delete') %}<input type="checkbox" id="select-all-checkbox" onchange="toggleSelectAll(this)">{% endif %}</th>
                 <th>圖片</th>
                 <th>名稱</th>
                 <th>分類</th>
@@ -96,8 +104,8 @@
             {% for accommodation in accommodations %}
             <tr>
                 <td>
-                    <input type="checkbox" name="accommodation_ids" value="{{ accommodation.accommodation_id }}"
-                           form="bulk-form" class="row-checkbox" onchange="updateBulkSelection()">
+                    {% if content_admin_can('accommodations', 'edit') or content_admin_can('accommodations', 'delete') %}<input type="checkbox" name="accommodation_ids" value="{{ accommodation.accommodation_id }}"
+                           form="bulk-form" class="row-checkbox" onchange="updateBulkSelection()">{% endif %}
                 </td>
                 <td>
                     {% if accommodation.image_path %}
@@ -127,13 +135,15 @@
                 </td>
                 <td>{{ accommodation.ai_verified_at or '尚未確認' }}</td>
                 <td>
-                    <a href="{{ url_for('accommodations.edit_accommodation', accommodation_id=accommodation.accommodation_id) }}" class="small-button">編輯</a>
+                    {% if content_admin_can('accommodations', 'edit') %}<a href="{{ url_for('accommodations.edit_accommodation', accommodation_id=accommodation.accommodation_id) }}" class="small-button">編輯</a>{% endif %}
+                    {% if content_admin_can('accommodations', 'delete') %}
                     <form method="POST"
                           action="{{ url_for('accommodations.delete_accommodation', accommodation_id=accommodation.accommodation_id) }}"
                           class="inline-form"
                           onsubmit="return confirm('確定要刪除這筆住宿嗎？');">
                         <button type="submit" class="disable-button">刪除</button>
                     </form>
+                    {% endif %}
                 </td>
             </tr>
             {% else %}
@@ -162,12 +172,16 @@
 <script>
     function updateBulkSelection() {
         var checked = document.querySelectorAll('.row-checkbox:checked').length;
-        document.getElementById('selected-count').textContent = '已選取 ' + checked + ' 筆';
-        document.getElementById('bulk-activate-btn').disabled = checked === 0;
-        document.getElementById('bulk-delete-btn').disabled = checked === 0;
+        var counter = document.getElementById('selected-count');
+        if (counter) counter.textContent = '已選取 ' + checked + ' 筆';
+        var activate = document.getElementById('bulk-activate-btn');
+        var remove = document.getElementById('bulk-delete-btn');
+        if (activate) activate.disabled = checked === 0;
+        if (remove) remove.disabled = checked === 0;
 
         var all = document.querySelectorAll('.row-checkbox').length;
-        document.getElementById('select-all-checkbox').checked = (all > 0 && checked === all);
+        var selectAll = document.getElementById('select-all-checkbox');
+        if (selectAll) selectAll.checked = (all > 0 && checked === all);
     }
 
     function toggleSelectAll(source) {

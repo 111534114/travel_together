@@ -76,6 +76,11 @@
                     </div>
                     {% endif %}
                 </div>
+                {% if post.user_id == session.user_id and post.review_status != 'approved' %}
+                <p class="attraction-post-status attraction-post-status-{{ post.review_status }}">
+                    {% if post.review_status == 'pending' %}⏳ 審核中，目前只有你看得到，通過審核後才會顯示給其他人看{% else %}🚫 已退回{% if post.review_note %}：{{ post.review_note }}{% endif %}{% endif %}
+                </p>
+                {% endif %}
                 {% if post.images %}
                 <div class="attraction-post-images attraction-post-images-count-{{ post.images|length if post.images|length <= 4 else 'many' }}">
                     {% for img in post.images %}<img src="{{ url_for('static', filename=img.image_path) }}" alt="" loading="lazy">{% endfor %}

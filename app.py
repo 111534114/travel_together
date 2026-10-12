@@ -20,6 +20,7 @@ from blueprints.reports import reports_bp  # 匯入統計報表匯出的藍圖
 from blueprints.logs import logs_bp  # 匯入操作紀錄查詢的藍圖
 from blueprints.ai_chat import ai_chat_bp  # 匯入 AI 助理對話的藍圖
 from blueprints.member import ISSUE_PREFIX, member_bp  # 匯入會員功能的藍圖
+from blueprints.attraction_posts_admin import attraction_posts_admin_bp  # 匯入景點相簿貼文審核的藍圖
 from activity_log import ACTION_LABELS, log_action
 from utils import google_maps_url, google_maps_embed_url, format_hm  # 匯入組 Google 地圖連結/嵌入縮圖地圖、格式化 TIME 欄位的共用函式，註冊成樣板全域函式讓所有頁面都能直接呼叫
 import weather  # 匯入中央氣象署天氣預報模組(訪客頁面「目的地天氣」功能用)
@@ -71,6 +72,7 @@ app.register_blueprint(reports_bp)  # 註冊統計報表路由
 app.register_blueprint(logs_bp)  # 註冊操作紀錄路由
 app.register_blueprint(ai_chat_bp)  # 註冊 AI 助理對話路由
 app.register_blueprint(member_bp)  # 註冊會員功能路由
+app.register_blueprint(attraction_posts_admin_bp)  # 註冊景點相簿貼文審核路由
 
 
 def redirect_by_role(role):  # 定義函式：依照使用者角色導向對應首頁
@@ -210,6 +212,7 @@ def visitor():
                 JOIN attraction_post_images pi ON pi.post_id = p.post_id AND pi.sort_order = first_img.min_order
                 JOIN attractions a ON a.attraction_id = p.attraction_id
                 JOIN users u ON u.user_id = p.user_id
+                WHERE p.review_status = 'approved'
                 ORDER BY p.created_at DESC
                 LIMIT 8
             """)

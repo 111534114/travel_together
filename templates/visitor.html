@@ -296,7 +296,7 @@
       <article class="member-notification">
         <div><h3>🚨 {{ notification.title }}</h3><p>{{ notification.message }}</p><small>{{ notification.created_at.strftime('%Y-%m-%d %H:%M') if notification.created_at else '' }}</small></div>
         <div class="member-notification-actions">
-          {% if notification.target_url %}<a class="member-action secondary" href="{{ notification.target_url }}">查看行程</a>{% endif %}
+          {% if notification.target_url %}<a class="member-action secondary" href="{{ notification.target_url }}">查看詳情</a>{% endif %}
           <form method="post" action="{{ url_for('member.mark_notification_read', notification_id=notification.notification_id) }}"><button class="member-action" type="submit">我知道了</button></form>
         </div>
       </article>

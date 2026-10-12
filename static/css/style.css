@@ -3125,6 +3125,117 @@ body {
     color: var(--ocean-muted);
 }
 
+.attraction-post-status {
+    display: inline-block;
+    margin: 0 0 10px;
+    padding: 6px 12px;
+    border-radius: 999px;
+    font-size: 13px;
+}
+
+.attraction-post-status-pending {
+    color: #946c00;
+    background: #FFF3D6;
+}
+
+.attraction-post-status-rejected {
+    color: #a23a3a;
+    background: #FBE4E4;
+}
+
+.post-review-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    gap: 18px;
+}
+
+.post-review-card {
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    background: #fff;
+    border: 1px solid #E1EBEC;
+    border-radius: 10px;
+}
+
+.post-review-images {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(90px, 1fr));
+}
+
+.post-review-images img {
+    display: block;
+    width: 100%;
+    height: 140px;
+    object-fit: cover;
+}
+
+.post-review-images-empty {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: 80px;
+    color: #999;
+    background: #F6F8F9;
+    font-size: 13px;
+}
+
+.post-review-body {
+    padding: 14px;
+}
+
+.post-review-meta {
+    margin: 0 0 6px;
+    color: #4B5D60;
+    font-size: 13px;
+}
+
+.post-review-caption {
+    margin: 0 0 10px;
+    white-space: pre-wrap;
+    word-break: break-word;
+}
+
+.post-review-note {
+    display: block;
+    margin-top: 6px;
+    color: #a23a3a;
+    font-size: 13px;
+}
+
+.post-review-actions {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-start;
+    gap: 8px;
+    margin-top: 10px;
+}
+
+.post-review-actions .small-button,
+.post-review-reject .small-button {
+    border: 0;
+    cursor: pointer;
+}
+
+.small-button.danger {
+    background: #c84b4b;
+}
+
+.post-review-reject form {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-top: 8px;
+}
+
+.post-review-reject input[name="review_note"] {
+    flex: 1;
+    min-width: 180px;
+    padding: 8px 10px;
+    border: 1px solid #D6E0E1;
+    border-radius: 6px;
+}
+
 .attraction-post-images {
     display: grid;
     grid-template-columns: 1fr;

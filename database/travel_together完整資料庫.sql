@@ -363,9 +363,14 @@ CREATE TABLE attraction_posts (
  attraction_id BIGINT UNSIGNED NOT NULL,
  user_id BIGINT UNSIGNED NOT NULL,
  caption TEXT,
+ review_status ENUM('pending','approved','rejected') NOT NULL DEFAULT 'pending',
+ reviewed_by BIGINT UNSIGNED,
+ reviewed_at DATETIME,
+ review_note VARCHAR(255),
  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
  FOREIGN KEY(attraction_id) REFERENCES attractions(attraction_id) ON DELETE CASCADE,
- FOREIGN KEY(user_id) REFERENCES users(user_id) ON DELETE CASCADE
+ FOREIGN KEY(user_id) REFERENCES users(user_id) ON DELETE CASCADE,
+ FOREIGN KEY(reviewed_by) REFERENCES users(user_id) ON DELETE SET NULL
 ) ENGINE=InnoDB;
 
 CREATE TABLE attraction_post_images (

@@ -36,6 +36,8 @@ ACTION_LABELS = {  # 定義每種操作代碼對應的中文顯示名稱，給�
     "delete_category": "刪除分類",
     "approve_proposal": "核准提案",
     "return_proposal": "退回提案",
+    "approve_attraction_post": "核准景點相簿貼文",
+    "reject_attraction_post": "退回景點相簿貼文",
     "update_proposal": "修正提案",
     "verify_ai_data": "標記AI資料已確認",
     "change_user_role": "修改帳號角色",

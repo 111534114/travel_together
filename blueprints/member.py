@@ -1,5 +1,6 @@
 from datetime import date, datetime
 from decimal import ROUND_DOWN, Decimal, InvalidOperation
+import os
 import secrets
 
 from flask import Blueprint, current_app, flash, jsonify, redirect, render_template, request, session, url_for
@@ -8,6 +9,7 @@ from werkzeug.security import check_password_hash, generate_password_hash
 from auth import login_required
 from db import get_db_connection
 from utils import delete_uploaded_image, format_hm, get_cities, get_countries, save_uploaded_attachment, save_uploaded_image
+from content_moderation import is_image_explicit
 import theme_parks
 import weather
 
@@ -426,6 +428,7 @@ def dashboard():
             JOIN attraction_post_images pi ON pi.post_id = p.post_id AND pi.sort_order = first_img.min_order
             JOIN attractions a ON a.attraction_id = p.attraction_id
             JOIN users u ON u.user_id = p.user_id
+            WHERE p.review_status = 'approved'
             ORDER BY p.created_at DESC
             LIMIT 8
         """)
@@ -713,9 +716,9 @@ def attraction_detail(attraction_id):
             cursor.execute("""
                 SELECT p.*, u.nickname, u.full_name
                 FROM attraction_posts p JOIN users u ON u.user_id = p.user_id
-                WHERE p.attraction_id = %s
+                WHERE p.attraction_id = %s AND (p.review_status = 'approved' OR p.user_id = %s)
                 ORDER BY p.created_at DESC
-            """, (attraction_id,))
+            """, (attraction_id, session["user_id"]))
             posts = cursor.fetchall()
             if posts:
                 post_ids = [p["post_id"] for p in posts]
@@ -770,18 +773,33 @@ def add_attraction_post(attraction_id):
             flash(str(error), "error")
             return redirect(url_for("member.attraction_detail", attraction_id=attraction_id) + "#album")
 
+        # 先用本機的自動偵測初篩一次，偵測到疑似色情/裸露內容就直接退回，不會進入待審核清單
+        is_explicit = any(
+            is_image_explicit(os.path.join(current_app.static_folder, path)) for path in image_paths
+        )
+
         cursor.execute(
-            "INSERT INTO attraction_posts (attraction_id, user_id, caption) VALUES (%s,%s,%s)",
-            (attraction_id, session["user_id"], caption or None)
+            "INSERT INTO attraction_posts (attraction_id, user_id, caption, review_status, reviewed_at, review_note) VALUES (%s,%s,%s,%s,%s,%s)",
+            (attraction_id, session["user_id"], caption or None,
+             "rejected" if is_explicit else "pending",
+             datetime.now() if is_explicit else None,
+             "系統自動偵測到疑似不適當的照片內容，已自動退回，不會顯示在相簿中。如果你認為是誤判，可以聯絡內容管理員。" if is_explicit else None)
         )
         post_id = cursor.lastrowid
-        for order, path in enumerate(image_paths):
-            cursor.execute(
-                "INSERT INTO attraction_post_images (post_id, image_path, sort_order) VALUES (%s,%s,%s)",
-                (post_id, path, order)
-            )
+        if is_explicit:
+            for path in image_paths:
+                delete_uploaded_image(path)
+        else:
+            for order, path in enumerate(image_paths):
+                cursor.execute(
+                    "INSERT INTO attraction_post_images (post_id, image_path, sort_order) VALUES (%s,%s,%s)",
+                    (post_id, path, order)
+                )
         connection.commit()
-        flash("已分享到景點相簿。", "success")
+        if is_explicit:
+            flash("這則貼文的照片疑似含有不適當內容，已自動退回，不會顯示在相簿中。", "error")
+        else:
+            flash("已送出，審核通過後會顯示在景點相簿中給大家看。", "success")
     except Exception:
         connection.rollback(); flash("分享失敗，請再試一次。", "error")
     finally:
@@ -829,7 +847,18 @@ def edit_attraction_post(attraction_id, post_id):
             flash(str(error), "error")
             return redirect(url_for("member.attraction_detail", attraction_id=attraction_id) + "#album")
 
-        cursor.execute("UPDATE attraction_posts SET caption=%s WHERE post_id=%s", (caption or None, post_id))
+        # 先用本機的自動偵測初篩新上傳的照片，偵測到疑似色情/裸露內容就整次編輯都不儲存
+        if any(is_image_explicit(os.path.join(current_app.static_folder, path)) for path in new_image_paths):
+            for path in new_image_paths:
+                delete_uploaded_image(path)
+            flash("新上傳的照片疑似含有不適當內容，這次編輯沒有儲存。", "error")
+            return redirect(url_for("member.attraction_detail", attraction_id=attraction_id) + "#album")
+
+        # 編輯過的內容一律重新送審，避免有人先用正常內容過審，之後再偷換成不當照片
+        cursor.execute(
+            "UPDATE attraction_posts SET caption=%s, review_status='pending', reviewed_by=NULL, reviewed_at=NULL, review_note=NULL WHERE post_id=%s",
+            (caption or None, post_id)
+        )
 
         if removed_images:
             remove_ids = tuple(img["image_id"] for img in removed_images)
@@ -846,7 +875,7 @@ def edit_attraction_post(attraction_id, post_id):
         connection.commit()
         for img in removed_images:
             delete_uploaded_image(img["image_path"])
-        flash("已更新這則貼文。", "success")
+        flash("已更新這則貼文，會重新送審，審核通過後才會再顯示給其他人看。", "success")
     except Exception:
         connection.rollback(); flash("更新失敗，請再試一次。", "error")
     finally:

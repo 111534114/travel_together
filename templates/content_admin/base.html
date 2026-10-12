@@ -66,6 +66,11 @@
                 提案審核
             </a>
 
+            <a class="{{ 'active' if active_menu == 'attraction_posts' else '' }}"
+               href="{{ url_for('attraction_posts_admin.list_posts') }}">
+                景點相簿審核
+            </a>
+
             <a class="{{ 'active' if active_menu == 'ai_data' else '' }}"
                href="{{ url_for('ai_data.list_ai_data') }}">
                 AI資料維護

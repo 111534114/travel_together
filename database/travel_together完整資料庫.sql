@@ -151,10 +151,13 @@ CREATE TABLE trips (
  currency CHAR(3) NOT NULL DEFAULT 'TWD',
  introduction TEXT,
  visibility ENUM('private','public','link_only') NOT NULL DEFAULT 'private',
+ allow_copy TINYINT(1) NOT NULL DEFAULT 1,
  status ENUM('planning','upcoming','completed','cancelled') NOT NULL DEFAULT 'planning',
  share_token VARCHAR(100) UNIQUE,
  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
  updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+ deleted_at DATETIME,
+ deleted_by BIGINT UNSIGNED,
  FOREIGN KEY(owner_id) REFERENCES users(user_id),
  FOREIGN KEY(category_id) REFERENCES categories(category_id) ON DELETE SET NULL,
  FOREIGN KEY(country_id) REFERENCES countries(country_id),
@@ -353,6 +356,24 @@ CREATE TABLE favorites (
  FOREIGN KEY(user_id) REFERENCES users(user_id) ON DELETE CASCADE,
  FOREIGN KEY(trip_id) REFERENCES trips(trip_id) ON DELETE CASCADE,
  FOREIGN KEY(attraction_id) REFERENCES attractions(attraction_id) ON DELETE CASCADE
+) ENGINE=InnoDB;
+
+CREATE TABLE attraction_posts (
+ post_id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+ attraction_id BIGINT UNSIGNED NOT NULL,
+ user_id BIGINT UNSIGNED NOT NULL,
+ caption TEXT,
+ created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+ FOREIGN KEY(attraction_id) REFERENCES attractions(attraction_id) ON DELETE CASCADE,
+ FOREIGN KEY(user_id) REFERENCES users(user_id) ON DELETE CASCADE
+) ENGINE=InnoDB;
+
+CREATE TABLE attraction_post_images (
+ image_id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+ post_id BIGINT UNSIGNED NOT NULL,
+ image_path VARCHAR(255) NOT NULL,
+ sort_order INT NOT NULL DEFAULT 0,
+ FOREIGN KEY(post_id) REFERENCES attraction_posts(post_id) ON DELETE CASCADE
 ) ENGINE=InnoDB;
 
 CREATE TABLE notifications (

@@ -44,10 +44,89 @@
         </div>
 
         <div class="attraction-detail-actions">
-            <button type="button" class="member-btn primary" data-add-to-trip data-action="{{ url_for('member.add_attraction_to_trip', attraction_id=a.attraction_id) }}" data-name="{{ a.name }}" data-city-id="{{ a.city_id }}">＋ 加入行程</button>
+            <button type="button" class="member-btn primary" data-add-to-trip data-action="{{ url_for('member.add_attraction_to_trip', attraction_id=a.attraction_id) }}" data-name="{{ a.name }}" data-city-id="{{ a.city_id }}" data-lat="{{ a.latitude if a.latitude is not none else '' }}" data-lng="{{ a.longitude if a.longitude is not none else '' }}">＋ 加入行程</button>
             {% if a.website_url %}<a href="{{ a.website_url }}" target="_blank" rel="noopener" class="member-btn ghost">官方網站</a>{% endif %}
+        </div>
+    </div>
+
+    <div class="panel" id="album">
+        <h2>景點相簿</h2>
+        <p class="form-hint">分享你在這裡拍的照片跟旅遊心得，讓其他人更了解這個景點實際的樣子。</p>
+        <form method="post" action="{{ url_for('member.add_attraction_post', attraction_id=a.attraction_id) }}" enctype="multipart/form-data" class="attraction-post-form">
+            <textarea name="caption" rows="2" maxlength="1000" placeholder="分享這裡的心得⋯（選填）"></textarea>
+            <div class="attraction-post-form-actions">
+                <input type="file" name="images" accept=".png,.jpg,.jpeg,.gif,.webp" multiple>
+                <button type="submit" class="member-btn primary">發佈</button>
+            </div>
+            <p class="form-hint">一次最多可以上傳 6 張照片。</p>
+        </form>
+
+        <div class="attraction-post-feed">
+            {% for post in posts %}
+            <div class="attraction-post-card">
+                <div class="attraction-post-head">
+                    <i>{{ (post.nickname or post.full_name)[:1] }}</i>
+                    <div class="attraction-post-meta"><b>{{ post.nickname or post.full_name }}</b><small>{{ post.created_at.strftime('%Y/%m/%d %H:%M') }}</small></div>
+                    {% if post.user_id == session.user_id %}
+                    <div class="attraction-post-owner-actions">
+                        <button type="button" class="member-btn ghost small attraction-post-edit-trigger">編輯</button>
+                        <form method="post" action="{{ url_for('member.delete_attraction_post', attraction_id=a.attraction_id, post_id=post.post_id) }}" onsubmit="return confirm('確定要刪除這則貼文嗎？')">
+                            <button type="submit" class="member-btn ghost small">刪除</button>
+                        </form>
+                    </div>
+                    {% endif %}
+                </div>
+                {% if post.images %}
+                <div class="attraction-post-images attraction-post-images-count-{{ post.images|length if post.images|length <= 4 else 'many' }}">
+                    {% for img in post.images %}<img src="{{ url_for('static', filename=img.image_path) }}" alt="" loading="lazy">{% endfor %}
+                </div>
+                {% endif %}
+                {% if post.caption %}<p class="attraction-post-caption">{{ post.caption }}</p>{% endif %}
+                {% if post.user_id == session.user_id %}
+                <form method="post" action="{{ url_for('member.edit_attraction_post', attraction_id=a.attraction_id, post_id=post.post_id) }}" enctype="multipart/form-data" class="attraction-post-edit-form" hidden>
+                    <textarea name="caption" rows="2" maxlength="1000" placeholder="分享這裡的心得⋯（選填）">{{ post.caption or '' }}</textarea>
+                    {% if post.images %}
+                    <div class="attraction-post-edit-images">
+                        {% for img in post.images %}
+                        <label class="attraction-post-edit-image-item">
+                            <img src="{{ url_for('static', filename=img.image_path) }}" alt="">
+                            <span><input type="checkbox" name="remove_image_ids" value="{{ img.image_id }}"> 移除</span>
+                        </label>
+                        {% endfor %}
+                    </div>
+                    {% endif %}
+                    <div class="attraction-post-form-actions">
+                        <input type="file" name="images" accept=".png,.jpg,.jpeg,.gif,.webp" multiple>
+                    </div>
+                    <p class="form-hint">保留的照片加上新增的照片，一篇貼文最多 6 張。</p>
+                    <div class="attraction-post-form-actions">
+                        <button type="button" class="member-btn ghost small attraction-post-cancel-edit">取消</button>
+                        <button type="submit" class="member-btn primary small">儲存變更</button>
+                    </div>
+                </form>
+                {% endif %}
+            </div>
+            {% else %}
+            <p class="muted">還沒有人分享這個景點的照片，當第一個分享的人吧！</p>
+            {% endfor %}
         </div>
     </div>
 </div>
 {% include 'member/_add_to_trip_modal.html' %}
+<script>
+    // 景點相簿貼文的「編輯」按鈕：切換顯示／隱藏這則貼文底下的編輯表單，「取消」則收回表單
+    document.querySelectorAll('.attraction-post-edit-trigger').forEach(function (btn) {
+        btn.addEventListener('click', function () {
+            var card = btn.closest('.attraction-post-card');
+            var form = card ? card.querySelector('.attraction-post-edit-form') : null;
+            if (form) form.hidden = !form.hidden;
+        });
+    });
+    document.querySelectorAll('.attraction-post-cancel-edit').forEach(function (btn) {
+        btn.addEventListener('click', function () {
+            var form = btn.closest('.attraction-post-edit-form');
+            if (form) form.hidden = true;
+        });
+    });
+</script>
 {% endblock %}

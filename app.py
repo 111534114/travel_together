@@ -127,6 +127,7 @@ def visitor():
     announcements = []
     trips_timeline_json = {}
     city_weather = {}
+    recent_album_posts = []
 
     if connection:
         cursor = connection.cursor(dictionary=True)
@@ -195,6 +196,25 @@ def visitor():
             """)
             companions = cursor.fetchall()
 
+            # 4-1. 查詢最新的景點相簿照片(給首頁「旅遊相簿」區塊用，每篇貼文取第一張照片當縮圖)
+            cursor.execute("""
+                SELECT p.post_id, pi.image_path, p.caption,
+                       a.attraction_id, a.name AS attraction_name,
+                       u.nickname, u.full_name
+                FROM attraction_posts p
+                JOIN (
+                    SELECT post_id, MIN(sort_order) AS min_order
+                    FROM attraction_post_images
+                    GROUP BY post_id
+                ) first_img ON first_img.post_id = p.post_id
+                JOIN attraction_post_images pi ON pi.post_id = p.post_id AND pi.sort_order = first_img.min_order
+                JOIN attractions a ON a.attraction_id = p.attraction_id
+                JOIN users u ON u.user_id = p.user_id
+                ORDER BY p.created_at DESC
+                LIMIT 8
+            """)
+            recent_album_posts = cursor.fetchall()
+
             # 5. 查詢所有公開行程的每日詳細景點明細 (提供 Modal 彈窗即時動態預覽)
             if public_trips:
                 trip_ids = [t['trip_id'] for t in public_trips]
@@ -248,7 +268,8 @@ def visitor():
         public_trips=public_trips,
         companions=companions,
         trips_timeline_json=trips_timeline_json,
-        city_weather=city_weather
+        city_weather=city_weather,
+        recent_album_posts=recent_album_posts
     )
 
 

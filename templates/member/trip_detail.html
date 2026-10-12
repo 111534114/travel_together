@@ -1,9 +1,11 @@
 {% extends 'member/base.html' %}{% block title %}{{ trip.trip_name }}｜走吧揪團{% endblock %}{% block content %}
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="" />
 <section class="trip-cover {% if trip.cover_image_path %}with-image{% endif %}" {% if trip.cover_image_path %}style="background-image: url('{{ url_for('static', filename=trip.cover_image_path) }}')"{% endif %}><a href="{{ url_for('member.dashboard') }}">← 我的旅程</a><div class="trip-cover-body"><p>{{ trip.country }} · {{ trip.city }}　{{ trip.start_date }} — {{ trip.end_date }}</p><h1>{{ trip.trip_name }}</h1><p>{{ trip.introduction or '和旅伴一起把這趟旅行安排得剛剛好。' }}</p><div class="cover-actions">{% if is_owner %}<a class="member-btn light" href="{{ url_for('member.edit_trip', trip_id=trip.trip_id) }}">編輯旅程資訊</a>{% endif %}<span>{{ {'owner':'建立者','editor':'共同編輯者','viewer':'查看者'}[trip.member_role] }}</span></div></div></section>
 <nav class="trip-section-nav" aria-label="行程區塊導覽"><button type="button" class="trip-tab" data-tab-target="itinerary">每日行程</button><button type="button" class="trip-tab" data-tab-target="preferences">旅伴偏好</button><button type="button" class="trip-tab" data-tab-target="proposals">提案投票</button><button type="button" class="trip-tab" data-tab-target="budget">預算</button><button type="button" class="trip-tab" data-tab-target="discussion">留言</button><button type="button" class="trip-tab" data-tab-target="chat">聊天室<b class="jump-badge" data-chat-unread hidden></b></button><button type="button" class="trip-tab" data-tab-target="attachments">附件</button></nav>
 <div class="trip-layout"><div class="trip-content">
-<section class="panel trip-tab-panel" id="itinerary"><div class="panel-title"><div><p class="eyebrow">ITINERARY</p><h2>每日行程</h2></div></div>{% if itinerary %}{% for day, day_items in itinerary|groupby('itinerary_date') %}{% set day_weather = city_weather_days.get(day.isoformat()) %}<div class="itinerary-day-divider"><span class="itinerary-day-date">{{ day.strftime('%m/%d') }}（週{{ ['一','二','三','四','五','六','日'][day.weekday()] }}）</span>{% if day_weather %}<span class="itinerary-day-weather" title="{{ day_weather.weather }}">{{ day_weather.emoji }} {{ day_weather.min }}°–{{ day_weather.max }}°</span>{% endif %}</div><div class="itinerary-day-group">{% for item in day_items %}{% set item_time_mode = 'all_day' if item.is_all_day else ('range' if (item.start_time and item.end_time) else ('start_only' if item.start_time else ('end_only' if item.end_time else 'range'))) %}{% if not loop.first and (item.transport_method or item.transport_minutes) %}<div class="itinerary-connector"><div class="itinerary-connector-marker"><span class="itinerary-connector-icon">🚗</span></div><div class="itinerary-connector-text">{% if item.transport_method %}{{ item.transport_method }}{% endif %}{% if item.transport_minutes %}{% if item.transport_method %} · {% endif %}約 {{ item.transport_minutes }} 分鐘{% endif %}</div></div>{% endif %}<div class="itinerary-row"><div class="itinerary-thumb">{% if item.attraction_image %}<img src="{{ url_for('static', filename=item.attraction_image) }}" alt="" loading="lazy">{% else %}{{ item_type_labels[item.item_type].icon }}{% endif %}<span class="itinerary-marker-number">{{ loop.index }}</span></div><div><span class="type-pill">{{ item_type_labels[item.item_type].icon }} {{ item_type_labels[item.item_type].label }}</span><h3>{{ item.title }}</h3><p>{% if item.attraction_duration %}建議停留 {{ item.attraction_duration }} 分鐘　·　{% endif %}🕐 {% if item.is_all_day %}全天{% elif item.start_time and item.end_time %}{{ item.start_time|hm }} — {{ item.end_time|hm }}{% elif item.start_time %}{{ item.start_time|hm }} 開始{% elif item.end_time %}{{ item.end_time|hm }} 前{% else %}未設定時間{% endif %}{% if item.address %}　·　{{ item.address }}{% set map_url = google_maps_url(item.address) %}{% if map_url %} <a href="{{ map_url }}" target="_blank" rel="noopener" class="map-link">🗺️ 地圖</a>{% endif %}{% endif %}</p>{% if item.notes %}<small>{{ item.notes }}</small>{% endif %}{% include 'member/_itinerary_attraction_details.html' %}</div><div class="itinerary-cell-end"><strong>{{ trip.currency }} {{ '{:,.0f}'.format(item.estimated_cost) }}</strong>{% if can_edit %}<button type="button" class="itinerary-edit-trigger" title="編輯／刪除這個項目">⋯</button>{% endif %}</div></div>{% if can_edit %}<div class="itinerary-edit-panel" hidden><form method="post" action="{{ url_for('member.edit_itinerary', trip_id=trip.trip_id, itinerary_id=item.itinerary_id) }}" class="form-grid-member"><label>項目名稱<input required name="title" value="{{ item.title }}"></label><label>類型<select name="item_type"><option value="attraction" {{ 'selected' if item.item_type=='attraction' }}>景點</option><option value="restaurant" {{ 'selected' if item.item_type=='restaurant' }}>餐廳</option><option value="accommodation" {{ 'selected' if item.item_type=='accommodation' }}>住宿</option><option value="transport" {{ 'selected' if item.item_type=='transport' }}>交通</option><option value="amusement_park" {{ 'selected' if item.item_type=='amusement_park' }}>遊樂園</option><option value="free_time" {{ 'selected' if item.item_type=='free_time' }}>自由活動</option><option value="other" {{ 'selected' if item.item_type=='other' }}>其他</option></select></label><label>日期<input required type="date" name="itinerary_date" value="{{ item.itinerary_date }}" min="{{ trip.start_date }}" max="{{ trip.end_date }}"></label><label>預估費用<input type="number" min="0" name="estimated_cost" value="{{ item.estimated_cost }}"></label><label>時間模式<select name="time_mode" class="time-mode-select"><option value="range" {{ 'selected' if item_time_mode=='range' }}>指定時段</option><option value="all_day" {{ 'selected' if item_time_mode=='all_day' }}>整天</option><option value="start_only" {{ 'selected' if item_time_mode=='start_only' }}>只填開始</option><option value="end_only" {{ 'selected' if item_time_mode=='end_only' }}>只填結束</option></select></label><label class="time-field-start">開始時間<input type="time" name="start_time" value="{{ item.start_time|hm }}"></label><label class="time-field-end">結束時間<input type="time" name="end_time" value="{{ item.end_time|hm }}"></label><label>交通／移動時間(分鐘)<input type="number" min="0" name="transport_minutes" value="{{ item.transport_minutes or 0 }}"></label><div class="span-2"><button type="button" class="member-btn ghost small park-hours-trigger">🎢 查詢樂園開放時間</button></div><label>地點<input name="address" value="{{ item.address or '' }}" class="place-input" autocomplete="off" placeholder="從清單選擇或自行輸入"></label><label>交通方式<input name="transport_method" value="{{ item.transport_method or '' }}" list="transport-method-list" autocomplete="off" placeholder="從清單選擇或自行輸入" class="transport-method-estimate" data-prev-lat="{{ item.prev_lat if item.prev_lat is not none else '' }}" data-prev-lng="{{ item.prev_lng if item.prev_lng is not none else '' }}" data-item-lat="{{ item.attraction_lat if item.attraction_lat is not none else '' }}" data-item-lng="{{ item.attraction_lng if item.attraction_lng is not none else '' }}"></label><label class="span-2">備註<textarea name="notes" rows="2">{{ item.notes or '' }}</textarea></label><button class="member-btn primary" type="submit">儲存變更</button></form><form method="post" action="{{ url_for('member.delete_itinerary', trip_id=trip.trip_id, itinerary_id=item.itinerary_id) }}" onsubmit="return confirm('確定要刪除這個行程項目嗎？')" style="margin-top: 10px;"><button class="member-btn danger small" type="submit">刪除這個項目</button></form></div>{% endif %}{% endfor %}</div>{% endfor %}{% else %}<p class="muted">尚未安排項目，先加入第一個期待的地方吧。</p>{% endif %}{% if transport_summary %}<div class="transport-summary"><h4>🚗 各交通方式通勤時間</h4>{% for row in transport_summary %}<div class="transport-summary-row"><span>{{ row.method }}</span><b>{{ (row.minutes // 60) }} 小時 {{ row.minutes % 60 }} 分</b></div>{% endfor %}</div>{% endif %}{% if can_edit %}<details class="quick-add"><summary>＋ 新增行程項目</summary><div class="itinerary-add-layout"><div class="itinerary-attraction-picker"><h4>{{ trip.country }} 熱門景點</h4><p class="form-hint">點選直接加入這趟行程，不用手動輸入。</p><div class="attraction-pick-list">{% for a in popular_attractions %}<div class="attraction-pick-card"><button type="button" class="attraction-preview-trigger" data-attraction-preview="attraction-preview-{{ a.attraction_id }}" aria-haspopup="dialog" aria-label="查看 {{ a.name }} 景點介紹"><span class="attraction-pick-art">{% if a.image_path %}<img src="{{ url_for('static', filename=a.image_path) }}" alt="{{ a.name }}">{% else %}<span class="art-fallback">{{ a.name[:1] }}</span>{% endif %}</span><span class="attraction-pick-info"><b>{{ a.name }}</b><span>{{ a.city }}{% if a.category_name %} · {{ a.category_name }}{% endif %}</span><strong>{{ 'NT$ {:,.0f}'.format(a.ticket_price) if a.ticket_price else '免費' }}</strong></span></button><button type="button" class="member-btn outline small" data-add-to-trip data-action="{{ url_for('member.add_attraction_to_trip', attraction_id=a.attraction_id) }}" data-name="{{ a.name }}" data-city-id="{{ a.city_id }}" data-lat="{{ a.latitude if a.latitude is not none else '' }}" data-lng="{{ a.longitude if a.longitude is not none else '' }}">＋ 加入</button></div>{% else %}<p class="muted">目前還沒有這個目的地的景點資料。</p>{% endfor %}</div></div><form method="post" action="{{ url_for('member.add_itinerary', trip_id=trip.trip_id) }}" class="form-grid-member itinerary-manual-form"><label>項目名稱<input required name="title"></label><label>類型<select name="item_type"><option value="attraction">景點</option><option value="restaurant">餐廳</option><option value="accommodation">住宿</option><option value="transport">交通</option><option value="amusement_park">遊樂園</option><option value="free_time">自由活動</option><option value="other">其他</option></select></label><label>日期<input required type="date" name="itinerary_date" min="{{ trip.start_date }}" max="{{ trip.end_date }}"></label><label>預估費用<input type="number" min="0" name="estimated_cost" value="0"></label><label>時間模式<select name="time_mode" class="time-mode-select"><option value="range">指定時段</option><option value="all_day">整天</option><option value="start_only">只填開始</option><option value="end_only">只填結束</option></select></label><label class="time-field-start">開始時間<input type="time" name="start_time"></label><label class="time-field-end">結束時間<input type="time" name="end_time"></label><label>交通／移動時間(分鐘)<input type="number" min="0" name="transport_minutes" value="0"></label><div class="span-2"><button type="button" class="member-btn ghost small park-hours-trigger">🎢 查詢樂園開放時間</button></div><label>地點<input name="address" class="place-input" autocomplete="off" placeholder="從清單選擇或自行輸入"></label><label>交通方式<input name="transport_method" list="transport-method-list" autocomplete="off" placeholder="從清單選擇或自行輸入"></label><label class="span-2">備註<textarea name="notes" rows="2"></textarea></label><button class="member-btn primary" type="submit">加入行程</button></form></div></details>{% endif %}</section>
+<section class="panel trip-tab-panel" id="itinerary"><div class="panel-title"><div><p class="eyebrow">ITINERARY</p><h2>每日行程</h2></div></div><div class="itinerary-with-map"><div class="itinerary-list-col">{% if itinerary %}{% for day, day_items in itinerary|groupby('itinerary_date') %}{% set day_weather = city_weather_days.get(day.isoformat()) %}<div class="itinerary-day-divider"><span class="itinerary-day-date">{{ day.strftime('%m/%d') }}（週{{ ['一','二','三','四','五','六','日'][day.weekday()] }}）</span>{% if day_weather %}<span class="itinerary-day-weather" title="{{ day_weather.weather }}">{{ day_weather.emoji }} {{ day_weather.min }}°–{{ day_weather.max }}°</span>{% endif %}</div><div class="itinerary-day-group" data-date="{{ day.isoformat() }}">{% for item in day_items %}{% set item_time_mode = 'all_day' if item.is_all_day else ('range' if (item.start_time and item.end_time) else ('start_only' if item.start_time else ('end_only' if item.end_time else 'range'))) %}<div class="itinerary-item" data-itinerary-id="{{ item.itinerary_id }}"{% if item.attraction_lat is not none and item.attraction_lng is not none %} data-lat="{{ item.attraction_lat }}" data-lng="{{ item.attraction_lng }}" data-title="{{ item.title }}"{% endif %}>{% if not loop.first and (item.transport_method or item.transport_minutes) %}<div class="itinerary-connector"><div class="itinerary-connector-marker"><span class="itinerary-connector-icon">🚗</span></div><div class="itinerary-connector-text">{% if item.transport_method %}{{ item.transport_method }}{% endif %}{% if item.transport_minutes %}{% if item.transport_method %} · {% endif %}約 {{ item.transport_minutes }} 分鐘{% endif %}</div></div>{% endif %}<div class="itinerary-row"><div class="itinerary-thumb">{% if item.attraction_image %}<img src="{{ url_for('static', filename=item.attraction_image) }}" alt="" loading="lazy">{% else %}{{ item_type_labels[item.item_type].icon }}{% endif %}<span class="itinerary-marker-number">{{ loop.index }}</span></div><div><span class="type-pill">{{ item_type_labels[item.item_type].icon }} {{ item_type_labels[item.item_type].label }}</span><h3>{{ item.title }}</h3><p>{% if item.attraction_duration %}建議停留 {{ item.attraction_duration }} 分鐘　·　{% endif %}🕐 {% if item.is_all_day %}全天{% elif item.start_time and item.end_time %}{{ item.start_time|hm }} — {{ item.end_time|hm }}{% elif item.start_time %}{{ item.start_time|hm }} 開始{% elif item.end_time %}{{ item.end_time|hm }} 前{% else %}未設定時間{% endif %}{% if item.address %}　·　{{ item.address }}{% set map_url = google_maps_url(item.address) %}{% if map_url %} <a href="{{ map_url }}" target="_blank" rel="noopener" class="map-link">🗺️ 地圖</a>{% endif %}{% endif %}</p>{% if item.notes %}<small>{{ item.notes }}</small>{% endif %}{% include 'member/_itinerary_attraction_details.html' %}</div><div class="itinerary-cell-end"><strong>{{ trip.currency }} {{ '{:,.0f}'.format(item.estimated_cost) }}</strong>{% if can_edit %}<span class="itinerary-drag-handle" draggable="true" title="拖曳調整這一天的順序">⠿</span><button type="button" class="itinerary-edit-trigger" title="編輯／刪除這個項目">⋯</button>{% endif %}</div></div>{% if can_edit %}<div class="itinerary-edit-panel" hidden><form method="post" action="{{ url_for('member.edit_itinerary', trip_id=trip.trip_id, itinerary_id=item.itinerary_id) }}" class="form-grid-member"><label>項目名稱<input required name="title" value="{{ item.title }}"></label><label>類型<select name="item_type"><option value="attraction" {{ 'selected' if item.item_type=='attraction' }}>景點</option><option value="restaurant" {{ 'selected' if item.item_type=='restaurant' }}>餐廳</option><option value="accommodation" {{ 'selected' if item.item_type=='accommodation' }}>住宿</option><option value="transport" {{ 'selected' if item.item_type=='transport' }}>交通</option><option value="amusement_park" {{ 'selected' if item.item_type=='amusement_park' }}>遊樂園</option><option value="free_time" {{ 'selected' if item.item_type=='free_time' }}>自由活動</option><option value="other" {{ 'selected' if item.item_type=='other' }}>其他</option></select></label><label>日期<input required type="date" name="itinerary_date" value="{{ item.itinerary_date }}" min="{{ trip.start_date }}" max="{{ trip.end_date }}"></label><label>預估費用<input type="number" min="0" name="estimated_cost" value="{{ item.estimated_cost }}"></label><label>時間模式<select name="time_mode" class="time-mode-select"><option value="range" {{ 'selected' if item_time_mode=='range' }}>指定時段</option><option value="all_day" {{ 'selected' if item_time_mode=='all_day' }}>整天</option><option value="start_only" {{ 'selected' if item_time_mode=='start_only' }}>只填開始</option><option value="end_only" {{ 'selected' if item_time_mode=='end_only' }}>只填結束</option></select></label><label class="time-field-start">開始時間<input type="time" name="start_time" value="{{ item.start_time|hm }}"></label><label class="time-field-end">結束時間<input type="time" name="end_time" value="{{ item.end_time|hm }}"></label><label>交通／移動時間(分鐘)<input type="number" min="0" name="transport_minutes" value="{{ item.transport_minutes or 0 }}"></label><div class="span-2"><button type="button" class="member-btn ghost small park-hours-trigger">🎢 查詢樂園開放時間</button></div><label>地點<input name="address" value="{{ item.address or '' }}" class="place-input" autocomplete="off" placeholder="從清單選擇或自行輸入"></label><label>交通方式<input name="transport_method" value="{{ item.transport_method or '' }}" list="transport-method-list" autocomplete="off" placeholder="從清單選擇或自行輸入" class="transport-method-estimate" data-prev-lat="{{ item.prev_lat if item.prev_lat is not none else '' }}" data-prev-lng="{{ item.prev_lng if item.prev_lng is not none else '' }}" data-item-lat="{{ item.attraction_lat if item.attraction_lat is not none else '' }}" data-item-lng="{{ item.attraction_lng if item.attraction_lng is not none else '' }}"></label><label class="span-2">備註<textarea name="notes" rows="2">{{ item.notes or '' }}</textarea></label><button class="member-btn primary" type="submit">儲存變更</button></form><form method="post" action="{{ url_for('member.delete_itinerary', trip_id=trip.trip_id, itinerary_id=item.itinerary_id) }}" onsubmit="return confirm('確定要刪除這個行程項目嗎？')" style="margin-top: 10px;"><button class="member-btn danger small" type="submit">刪除這個項目</button></form></div>{% endif %}</div>{% endfor %}</div>{% endfor %}{% else %}<p class="muted">尚未安排項目，先加入第一個期待的地方吧。</p>{% endif %}{% if transport_summary %}<div class="transport-summary"><h4>🚗 各交通方式通勤時間</h4>{% for row in transport_summary %}<div class="transport-summary-row"><span>{{ row.method }}</span><b>{{ (row.minutes // 60) }} 小時 {{ row.minutes % 60 }} 分</b></div>{% endfor %}</div>{% endif %}</div><div class="itinerary-map-col"><div id="itineraryMap"></div><p class="form-hint itinerary-map-hint">地圖只會顯示有座標資料的景點（手動輸入的餐廳／住宿等項目暫不支援定位），路線依照左邊目前的排序連線。</p></div></div>{% if can_edit %}<details class="quick-add"><summary>＋ 新增行程項目</summary><div class="itinerary-add-layout"><div class="itinerary-attraction-picker"><h4>{{ trip.country }} 熱門景點</h4><p class="form-hint">點選直接加入這趟行程，不用手動輸入。</p><div class="attraction-pick-list">{% for a in popular_attractions %}<div class="attraction-pick-card"><button type="button" class="attraction-preview-trigger" data-attraction-preview="attraction-preview-{{ a.attraction_id }}" aria-haspopup="dialog" aria-label="查看 {{ a.name }} 景點介紹"><span class="attraction-pick-art">{% if a.image_path %}<img src="{{ url_for('static', filename=a.image_path) }}" alt="{{ a.name }}">{% else %}<span class="art-fallback">{{ a.name[:1] }}</span>{% endif %}</span><span class="attraction-pick-info"><b>{{ a.name }}</b><span>{{ a.city }}{% if a.category_name %} · {{ a.category_name }}{% endif %}</span><strong>{{ 'NT$ {:,.0f}'.format(a.ticket_price) if a.ticket_price else '免費' }}</strong></span></button><button type="button" class="member-btn outline small" data-add-to-trip data-action="{{ url_for('member.add_attraction_to_trip', attraction_id=a.attraction_id) }}" data-name="{{ a.name }}" data-city-id="{{ a.city_id }}" data-lat="{{ a.latitude if a.latitude is not none else '' }}" data-lng="{{ a.longitude if a.longitude is not none else '' }}">＋ 加入</button></div>{% else %}<p class="muted">目前還沒有這個目的地的景點資料。</p>{% endfor %}</div></div><form method="post" action="{{ url_for('member.add_itinerary', trip_id=trip.trip_id) }}" class="form-grid-member itinerary-manual-form"><label>項目名稱<input required name="title"></label><label>類型<select name="item_type"><option value="attraction">景點</option><option value="restaurant">餐廳</option><option value="accommodation">住宿</option><option value="transport">交通</option><option value="amusement_park">遊樂園</option><option value="free_time">自由活動</option><option value="other">其他</option></select></label><label>日期<input required type="date" name="itinerary_date" min="{{ trip.start_date }}" max="{{ trip.end_date }}"></label><label>預估費用<input type="number" min="0" name="estimated_cost" value="0"></label><label>時間模式<select name="time_mode" class="time-mode-select"><option value="range">指定時段</option><option value="all_day">整天</option><option value="start_only">只填開始</option><option value="end_only">只填結束</option></select></label><label class="time-field-start">開始時間<input type="time" name="start_time"></label><label class="time-field-end">結束時間<input type="time" name="end_time"></label><label>交通／移動時間(分鐘)<input type="number" min="0" name="transport_minutes" value="0"></label><div class="span-2"><button type="button" class="member-btn ghost small park-hours-trigger">🎢 查詢樂園開放時間</button></div><label>地點<input name="address" class="place-input" autocomplete="off" placeholder="從清單選擇或自行輸入"></label><label>交通方式<input name="transport_method" list="transport-method-list" autocomplete="off" placeholder="從清單選擇或自行輸入"></label><label class="span-2">備註<textarea name="notes" rows="2"></textarea></label><button class="member-btn primary" type="submit">加入行程</button></form></div></details>{% endif %}</section>
 {% include 'member/_add_to_trip_modal.html' %}
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
 {% include 'member/_park_hours_modal.html' %}
 {% include 'member/_attraction_preview.html' %}
 <section class="panel trip-tab-panel" id="preferences">
@@ -128,6 +130,106 @@
         });
     });
 
+    // 拖曳排序：抓著「⠿」把同一天內的行程項目拖到想要的順序，放開後立刻存檔；
+    // 跨天拖曳不處理（只在放開時所在的那個 day-group 裡面才會生效）。
+    (function () {
+        var draggingItem = null;
+        var draggingGroup = null;
+
+        document.querySelectorAll('.itinerary-day-group').forEach(function (group) {
+            group.querySelectorAll('.itinerary-drag-handle').forEach(function (handle) {
+                handle.addEventListener('dragstart', function (e) {
+                    draggingItem = handle.closest('.itinerary-item');
+                    draggingGroup = group;
+                    e.dataTransfer.effectAllowed = 'move';
+                    try { e.dataTransfer.setData('text/plain', draggingItem.dataset.itineraryId); } catch (err) {}
+                    try { e.dataTransfer.setDragImage(draggingItem, 20, 20); } catch (err) {}
+                    setTimeout(function () { draggingItem.classList.add('dragging'); }, 0);
+                });
+                handle.addEventListener('dragend', function () {
+                    if (draggingItem) draggingItem.classList.remove('dragging');
+                    draggingItem = null;
+                    draggingGroup = null;
+                });
+            });
+
+            group.addEventListener('dragover', function (e) {
+                if (!draggingItem || draggingGroup !== group) return;
+                e.preventDefault();
+                e.dataTransfer.dropEffect = 'move';
+                var afterItem = null;
+                var items = Array.prototype.slice.call(group.querySelectorAll('.itinerary-item:not(.dragging)'));
+                for (var i = 0; i < items.length; i++) {
+                    var rect = items[i].getBoundingClientRect();
+                    if (e.clientY < rect.top + rect.height / 2) { afterItem = items[i]; break; }
+                }
+                if (afterItem) group.insertBefore(draggingItem, afterItem);
+                else group.appendChild(draggingItem);
+            });
+
+            group.addEventListener('drop', function (e) {
+                if (!draggingItem || draggingGroup !== group) return;
+                e.preventDefault();
+                var orderedIds = Array.prototype.map.call(
+                    group.querySelectorAll('.itinerary-item'),
+                    function (el) { return parseInt(el.dataset.itineraryId, 10); }
+                );
+                fetch("{{ url_for('member.reorder_itinerary', trip_id=trip.trip_id) }}", {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ itinerary_date: group.dataset.date, ordered_ids: orderedIds })
+                }).then(function (res) { return res.json(); }).then(function (data) {
+                    if (!data.ok) alert(data.error || '排序更新失敗，請重新整理頁面再試一次。');
+                    location.reload();
+                }).catch(function () {
+                    alert('排序更新失敗，請檢查網路連線後重新整理頁面。');
+                    location.reload();
+                });
+            });
+        });
+    })();
+
+    // 行程地圖：把有座標的景點依目前排序連成路線，不同天用不同顏色區分
+    (function () {
+        var mapEl = document.getElementById('itineraryMap');
+        if (!mapEl || typeof L === 'undefined') return;
+        var dayColors = ['#2a78d6', '#eb6834', '#1baf7a', '#eda100', '#e87ba4', '#008300', '#4a3aa7', '#e34948'];
+        var map = L.map(mapEl).setView([23.6978, 120.9605], 7);
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+            maxZoom: 19
+        }).addTo(map);
+
+        var bounds = [];
+        var dayIndex = -1;
+        document.querySelectorAll('.itinerary-day-group').forEach(function (group) {
+            dayIndex++;
+            var color = dayColors[dayIndex % dayColors.length];
+            var points = [];
+            var order = 0;
+            group.querySelectorAll('.itinerary-item[data-lat][data-lng]').forEach(function (item) {
+                order++;
+                var lat = parseFloat(item.dataset.lat), lng = parseFloat(item.dataset.lng);
+                if (isNaN(lat) || isNaN(lng)) return;
+                points.push([lat, lng]);
+                bounds.push([lat, lng]);
+                var marker = L.circleMarker([lat, lng], {
+                    radius: 11, color: '#fff', weight: 2, fillColor: color, fillOpacity: 1
+                }).addTo(map);
+                marker.bindTooltip(String(order), { permanent: true, direction: 'center', className: 'itinerary-map-marker-label' });
+                marker.bindPopup('<b>' + (item.dataset.title || '') + '</b>');
+            });
+            if (points.length > 1) L.polyline(points, { color: color, weight: 3, opacity: .75 }).addTo(map);
+        });
+
+        if (bounds.length > 0) {
+            map.fitBounds(bounds, { padding: [30, 30] });
+        } else {
+            var col = mapEl.closest('.itinerary-map-col');
+            if (col) col.innerHTML = '<p class="muted">目前的行程項目還沒有座標資料，無法顯示在地圖上。</p>';
+        }
+    })();
+
     // 時間模式：指定時段／整天／只填開始／只填結束，依選擇顯示或隱藏開始、結束時間欄位
     document.querySelectorAll('.time-mode-select').forEach(function (modeSelect) {
         var form = modeSelect.form;
@@ -142,6 +244,21 @@
         };
         modeSelect.addEventListener('change', syncFields);
         syncFields();
+    });
+
+    // 編輯既有行程項目時，依交通方式＋跟上一個行程點的座標，粗估通勤時間並自動帶入
+    document.querySelectorAll('.transport-method-estimate').forEach(function (methodInput) {
+        var form = methodInput.form;
+        var minutesInput = form.querySelector('input[name="transport_minutes"]');
+        if (!minutesInput || typeof window.estimateTransportMinutesAccurate !== 'function') return;
+        methodInput.addEventListener('change', function () {
+            window.estimateTransportMinutesAccurate(
+                methodInput.dataset.prevLat, methodInput.dataset.prevLng,
+                methodInput.dataset.itemLat, methodInput.dataset.itemLng,
+                methodInput.value,
+                function (minutes) { if (minutes != null) minutesInput.value = minutes; }
+            );
+        });
     });
 
     // 地點：依類型切換可選清單（也可自行輸入），選到資料庫裡的地點時自動帶入名稱與費用

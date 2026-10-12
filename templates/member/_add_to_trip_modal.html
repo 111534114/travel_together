@@ -25,7 +25,7 @@
                 <label class="time-field-end">結束時間<input type="time" name="end_time"></label>
                 <label>交通方式<input name="transport_method" id="addToTripTransportMethod" list="transport-method-list" autocomplete="off" placeholder="選填，例如：捷運／地鐵"></label>
                 <label>交通／移動時間(分鐘)<input type="number" min="0" name="transport_minutes" id="addToTripTransportMinutes"></label>
-                <p class="form-hint add-trip-full" id="addToTripEstimateHint" hidden>已依選擇的交通方式，自動估算跟上一個行程點的通勤時間，你可以再自行調整。</p>
+                <p class="form-hint add-trip-full" id="addToTripEstimateHint" hidden>已依選擇的交通方式，自動估算跟上一個行程點的通勤時間（開車／計程車／租車採用 OSRM 實際路網車程，其餘交通方式採用實際道路距離估算），你可以再自行調整。</p>
                 <label class="add-trip-full">備註<input name="notes" maxlength="500" placeholder="選填，例如：想看夕陽"></label>
             </div>
             <div class="form-actions-member">
@@ -66,6 +66,34 @@ window.estimateTransportMinutes = function (lat1, lng1, lat2, lng2, method) {
     var minutes = Math.round(distanceKm / speed * 60);
     return Math.max(minutes, 1);
 };
+
+// 開車類的交通方式，OSRM 回傳的車程時間可以直接採用；其餘交通方式沒有對應路網資料，
+// 改用 OSRM 算出來的「實際道路距離」(比直線距離準)，再套用各交通方式的平均速度。
+window.OSRM_DRIVING_METHODS = ['開車', '計程車', '租車'];
+
+// 先用直線距離粗估（callback 馬上收到一次），再串接 OSRM 免費路網服務算出更準確的距離／車程，
+// 算完後用比較準的結果再呼叫一次 callback 替換掉畫面上的粗估值；OSRM 連不上時就維持粗估值，不會報錯。
+window.estimateTransportMinutesAccurate = function (lat1, lng1, lat2, lng2, method, callback) {
+    var fallback = window.estimateTransportMinutes(lat1, lng1, lat2, lng2, method);
+    if (fallback == null) { callback(null); return; }
+    callback(fallback);
+    var speed = window.TRANSPORT_SPEED_KMH[method];
+    var url = 'https://router.project-osrm.org/route/v1/driving/' + lng1 + ',' + lat1 + ';' + lng2 + ',' + lat2 + '?overview=false';
+    fetch(url).then(function (res) { return res.json(); }).then(function (data) {
+        if (data.code !== 'Ok' || !data.routes || !data.routes[0]) return;
+        var route = data.routes[0];
+        var minutes;
+        if (window.OSRM_DRIVING_METHODS.indexOf(method) !== -1) {
+            minutes = Math.max(Math.round(route.duration / 60), 1);
+        } else if (speed) {
+            minutes = Math.max(Math.round((route.distance / 1000) / speed * 60), 1);
+        } else {
+            return;
+        }
+        callback(minutes);
+    }).catch(function () { /* OSRM 連不上就保留剛剛的粗估值，不影響使用 */ });
+};
+
 (function () {
     var modal = document.getElementById('addToTripModal');
     if (!modal) return;
@@ -88,13 +116,18 @@ window.estimateTransportMinutes = function (lat1, lng1, lat2, lng2, method) {
     function updateEstimate() {
         if (!transportMethodInput || !transportMinutesInput) return;
         var prev = dayLastCoords[dateInput.value];
-        var minutes = prev ? window.estimateTransportMinutes(prev[0], prev[1], targetLat, targetLng, transportMethodInput.value) : null;
-        if (minutes != null) {
-            transportMinutesInput.value = minutes;
-            if (estimateHint) estimateHint.hidden = false;
-        } else if (estimateHint) {
-            estimateHint.hidden = true;
+        if (!prev || targetLat == null || targetLng == null) {
+            if (estimateHint) estimateHint.hidden = true;
+            return;
         }
+        window.estimateTransportMinutesAccurate(prev[0], prev[1], targetLat, targetLng, transportMethodInput.value, function (minutes) {
+            if (minutes != null) {
+                transportMinutesInput.value = minutes;
+                if (estimateHint) estimateHint.hidden = false;
+            } else if (estimateHint) {
+                estimateHint.hidden = true;
+            }
+        });
     }
     if (transportMethodInput) transportMethodInput.addEventListener('change', updateEstimate);
 

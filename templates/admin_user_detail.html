@@ -13,6 +13,24 @@
     <article><span>提出問題回報</span><strong>{{ issue_count }}</strong></article>
 </section>
 
+{% if user.role == 'content_admin' %}
+<section class="admin-section">
+    <div class="section-title"><h2>內容管理員設定</h2></div>
+    <div class="admin-heading-actions">
+        <a class="small-button" href="{{ url_for('content_admin_accounts.edit_account', user_id=user.user_id) }}">修改基本資料</a>
+        <a class="small-button" href="{{ url_for('content_admin_accounts.update_permissions', user_id=user.user_id) }}">權限設定</a>
+        <a class="small-button" href="{{ url_for('admin_logs', admin_id=user.user_id) }}">查看操作紀錄</a>
+    </div>
+    <h3>重設密碼</h3>
+    <form method="post" action="{{ url_for('content_admin_accounts.reset_password', user_id=user.user_id) }}" class="admin-account-form" onsubmit="return confirm('確定要重設此管理員的密碼嗎？');">
+        <input type="hidden" name="csrf" value="{{ admin_account_csrf }}">
+        <label>新密碼<input type="password" name="password" required minlength="9" autocomplete="new-password"></label>
+        <label>確認新密碼<input type="password" name="confirm_password" required minlength="9" autocomplete="new-password"></label>
+        <button class="small-button">重設密碼</button>
+    </form>
+</section>
+{% endif %}
+
 <section class="admin-section">
     <div class="section-title"><h2>基本資料</h2><span>會員 ID {{ user.user_id }}</span></div>
     <div class="detail-grid admin-user-detail-grid">

@@ -1,0 +1,26 @@
+{% extends "content_admin/base.html" %}
+{% set active_menu = "attraction_posts" %}
+{% block title %}景點相簿審核｜Travel Together{% endblock %}
+{% block page_title %}景點相簿貼文審核{% endblock %}
+{% block page_subtitle %}會員上傳的照片通過審核後才會公開顯示{% endblock %}
+{% block content %}
+<div class="type-tabs">
+  {% for value, label in status_labels.items() %}<a class="{{ 'active' if status == value else '' }}" href="{{ url_for('attraction_posts_admin.list_posts', status=value) }}">{{ label }}</a>{% endfor %}
+  <a class="{{ 'active' if status == 'all' else '' }}" href="{{ url_for('attraction_posts_admin.list_posts', status='all') }}">全部</a>
+</div>
+<div class="admin-section">
+  <div class="section-title"><h2>貼文列表</h2><span>共 {{ total }} 筆</span></div>
+  {% if posts %}<div class="post-review-grid">{% for post in posts %}<article class="post-review-card">
+    {% if post.images %}<div class="post-review-images">{% for path in post.images %}<img src="{{ url_for('static', filename=path) }}" alt="" loading="lazy">{% endfor %}</div>{% else %}<div class="post-review-images post-review-images-empty">沒有照片，只有文字</div>{% endif %}
+    <div class="post-review-body"><p class="post-review-meta"><b>{{ post.attraction_name }}</b> · {{ post.poster_nickname or post.poster_name }} · {{ post.created_at.strftime('%Y/%m/%d %H:%M') }}</p>
+      {% if post.caption %}<p class="post-review-caption">{{ post.caption }}</p>{% endif %}
+      <p><span class="status-{{ 'active' if post.review_status == 'approved' else post.review_status }}">{{ status_labels[post.review_status] }}</span>{% if post.review_note %}<span class="post-review-note">退回原因：{{ post.review_note }}</span>{% endif %}</p>
+      {% if post.review_status == 'pending' and content_admin_can('attraction_posts_admin', 'edit') %}<div class="post-review-actions">
+        <form method="post" action="{{ url_for('attraction_posts_admin.approve_post', post_id=post.post_id) }}"><input type="hidden" name="status" value="{{ status }}"><button class="small-button">核准</button></form>
+        <details class="post-review-reject"><summary class="small-button danger">退回</summary><form method="post" action="{{ url_for('attraction_posts_admin.reject_post', post_id=post.post_id) }}"><input type="hidden" name="status" value="{{ status }}"><input name="review_note" maxlength="255" required placeholder="請填寫退回原因"><button class="small-button danger">確定退回並刪除照片</button></form></details>
+      </div>{% endif %}
+    </div>
+  </article>{% endfor %}</div>{% else %}<p class="empty-data">目前沒有符合條件的貼文</p>{% endif %}
+  {% if total_pages > 1 %}<div class="pagination">{% for p in range(1, total_pages + 1) %}{% if p == page %}<span class="current">{{ p }}</span>{% else %}<a href="{{ url_for('attraction_posts_admin.list_posts', status=status, page=p) }}">{{ p }}</a>{% endif %}{% endfor %}</div>{% endif %}
+</div>
+{% endblock %}

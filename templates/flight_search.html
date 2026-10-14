@@ -157,11 +157,11 @@
           {% for flight in outbound_flights %}
             <article class="flight-card">
 {% set save_kind='flight' %}{% set save_id=flight.flight_id %}{% include 'partials/booking_favorite_button.html' %}
-              <div class="flight-airline"><b>{{ flight.airline_name }}</b><span>{{ flight.flight_number }}・{{ flight.cabin_class }}</span></div>
+              <div class="flight-airline"><b>{{ flight.airline_name }}</b><span>{{ flight.flight_number }}・{{ flight.cabin_class }}・{{ '直飛' if not flight.stops else ('轉機 ' ~ flight.stops ~ ' 次') }}</span></div>
               <div class="flight-route">
-                <div class="flight-time"><b>{{ flight.departure_time }}</b><span>{{ flight.origin_city }}</span></div>
+                <div class="flight-time"><b>{{ flight.departure_time|hm }}</b><span>{{ flight.origin_city }}</span></div>
                 <div class="flight-path"><div class="line"></div><span>{{ (flight.duration_minutes // 60) }} 小時 {{ (flight.duration_minutes % 60) }} 分</span></div>
-                <div class="flight-time"><b>{{ flight.arrival_time }}</b><span>{{ flight.destination_city }}</span></div>
+                <div class="flight-time"><b>{{ flight.arrival_time|hm }}</b><span>{{ flight.destination_city }}</span></div>
               </div>
               <div class="flight-meta"><span>{{ flight.origin_country }} → {{ flight.destination_country }}</span><span>剩餘 {{ flight.seats_available }} 席</span></div>
               <div class="flight-footer">
@@ -181,11 +181,11 @@
           {% for flight in return_flights %}
             <article class="flight-card">
 {% set save_kind='flight' %}{% set save_id=flight.flight_id %}{% include 'partials/booking_favorite_button.html' %}
-              <div class="flight-airline"><b>{{ flight.airline_name }}</b><span>{{ flight.flight_number }}・{{ flight.cabin_class }}</span></div>
+              <div class="flight-airline"><b>{{ flight.airline_name }}</b><span>{{ flight.flight_number }}・{{ flight.cabin_class }}・{{ '直飛' if not flight.stops else ('轉機 ' ~ flight.stops ~ ' 次') }}</span></div>
               <div class="flight-route">
-                <div class="flight-time"><b>{{ flight.departure_time }}</b><span>{{ flight.origin_city }}</span></div>
+                <div class="flight-time"><b>{{ flight.departure_time|hm }}</b><span>{{ flight.origin_city }}</span></div>
                 <div class="flight-path"><div class="line"></div><span>{{ (flight.duration_minutes // 60) }} 小時 {{ (flight.duration_minutes % 60) }} 分</span></div>
-                <div class="flight-time"><b>{{ flight.arrival_time }}</b><span>{{ flight.destination_city }}</span></div>
+                <div class="flight-time"><b>{{ flight.arrival_time|hm }}</b><span>{{ flight.destination_city }}</span></div>
               </div>
               <div class="flight-meta"><span>{{ flight.origin_country }} → {{ flight.destination_country }}</span><span>剩餘 {{ flight.seats_available }} 席</span></div>
               <div class="flight-footer">

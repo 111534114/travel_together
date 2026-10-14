@@ -5,11 +5,19 @@ import secrets
 from flask import Blueprint, abort, current_app, flash, redirect, render_template, request, session, url_for
 from auth import login_required
 from db import get_db_connection
+from utils import format_hm
 
 booking_bp = Blueprint('booking', __name__)
 TABLES = {'hotel': ('accommodations', 'accommodation_id'), 'flight': ('flights', 'flight_id'), 'train': ('trains', 'train_id')}
 ENDPOINTS = {'visitor_hotel_search': 'hotel', 'visitor_flight_search': 'flight', 'visitor_train_search': 'train'}
 FARES = {'all': '全部票種', 'regular': '一般票', 'discount': '打折票', 'promotion': '優惠票', 'student': '學生票'}
+TRAIN_TYPE_LABELS = {'thsr': '高鐵', 'tra': '台鐵'}
+TIME_BANDS = [
+    ('dawn', '凌晨 00:00–06:00', '00:00', '06:00'),
+    ('morning', '上午 06:00–12:00', '06:00', '12:00'),
+    ('afternoon', '下午 12:00–18:00', '12:00', '18:00'),
+    ('evening', '晚上 18:00–24:00', '18:00', '24:00'),
+]
 
 
 def validate_search(kind, args):
@@ -52,6 +60,8 @@ def validate_search(kind, args):
             errors['max_price'] = '最高預算不能小於最低預算'
     if args.get('fare', 'all') not in FARES:
         errors['fare'] = '請選擇有效票種'
+    if kind == 'flight' and args.get('stops', '') not in ('', 'direct', 'connecting'):
+        errors['stops'] = '請選擇有效的轉機條件'
     count_key = 'guests' if kind == 'hotel' else 'pax'
     if args.get(count_key) and (not args[count_key].isdigit() or not 1 <= int(args[count_key]) <= 99):
         errors[count_key] = '人數須介於 1 與 99'
@@ -71,17 +81,89 @@ def guard_search():
                            origin=request.args.get('from', ''), checkin=request.args.get('checkin', ''),
                            checkout=request.args.get('checkout', ''), depart_date=request.args.get('depart', ''),
                            return_date=request.args.get('return', ''), travel_date=request.args.get('date', ''),
-                           guests=2, pax=1, nights=None, accommodations=[], outbound_flights=[], return_flights=[], trains=[]), 400
+                           guests=2, pax=1, nights=None, accommodations=[], outbound_flights=[], return_flights=[], trains=[],
+                           price_buckets=[], airline_facets=[], train_type_facets=[], car_class_facets=[], depart_band_options=[]), 400
 
 
-def filter_prices(rows, field):
+def price_buckets(rows, field, count=4):
+    """Build useful price ranges from the prices present in the current result set."""
+    all_prices = sorted(float(row[field]) for row in rows if row.get(field) and row[field] > 0)
+    unique_prices = sorted(set(all_prices))
+    if len(unique_prices) < count:
+        return []
+    step = 50 if unique_prices[-1] < 2000 else (100 if unique_prices[-1] < 10000 else 500)
+
+    def nice(value):
+        return int(round(value / step) * step)
+
+    size = len(unique_prices)
+    edges = sorted({0} | {nice(unique_prices[min(int(i * size / count), size - 1)]) for i in range(1, count)})
+    buckets = []
+    for index, low in enumerate(edges):
+        high = edges[index + 1] if index + 1 < len(edges) else None
+        matched = sum(1 for price in all_prices if price >= low and (high is None or price < high))
+        if matched:
+            buckets.append({'low': low, 'high': high, 'count': matched})
+    return buckets
+
+
+def facet_options(rows, field, labels=None):
+    counts = {}
+    for row in rows:
+        value = row.get(field)
+        if value:
+            counts[value] = counts.get(value, 0) + 1
+    if len(counts) < 2:
+        return []
+    return sorted(
+        ({'value': value, 'label': (labels or {}).get(value, value), 'count': count}
+         for value, count in counts.items()),
+        key=lambda option: -option['count'],
+    )
+
+
+def apply_facets(rows, fields):
+    result = rows
+    for field, parameter in fields:
+        selected = request.args.getlist(parameter)
+        if selected:
+            result = [row for row in result if row.get(field) in selected]
+    return result
+
+
+def time_band_options(rows, field):
+    options = []
+    for key, label, start, end in TIME_BANDS:
+        count = sum(1 for row in rows if row.get(field) and start <= format_hm(row[field]) < end)
+        if count:
+            options.append({'value': key, 'label': label, 'count': count})
+    return options if len(options) >= 2 else []
+
+
+def apply_time_band(rows, field):
+    selected = request.args.getlist('depart_band')
+    if not selected:
+        return rows
+    bands = [band for band in TIME_BANDS if band[0] in selected]
+    return [
+        row for row in rows if row.get(field)
+        and any(start <= format_hm(row[field]) < end for _, _, start, end in bands)
+    ]
+
+
+def filter_prices(rows, field, duration_field=None, stops_field=None):
     low = Decimal(request.args.get('min_price') or '0')
     high = Decimal(request.args['max_price']) if request.args.get('max_price') else None
     fare = request.args.get('fare', 'all')
+    stops_filter = request.args.get('stops', '') if stops_field else ''
     result = []
     for row in rows:
         # Existing transport records are standard fares; no discount is inferred.
         if fare not in ('all', row.get('fare_type', 'regular')):
+            continue
+        if stops_filter == 'direct' and row.get(stops_field):
+            continue
+        if stops_filter == 'connecting' and not row.get(stops_field):
             continue
         price = row.get(field)
         known = price is not None and price > 0
@@ -91,6 +173,10 @@ def filter_prices(rows, field):
     sort = request.args.get('sort', '')
     if sort in ('price_asc', 'price_desc'):
         result.sort(key=lambda r: (not bool(r.get(field)), (r.get(field) or 0) * (-1 if sort == 'price_desc' else 1)))
+    elif sort == 'featured' and duration_field:
+        result.sort(key=lambda row: (
+            not bool(row.get(field)), (row.get(field) or 0) + (row.get(duration_field) or 0) * 20
+        ))
     return result
 
 

@@ -44,6 +44,12 @@ ACTION_LABELS = {  # 定義每種操作代碼對應的中文顯示名稱，給�
     "enable_user": "恢復帳號",
     "restore_user": "恢復帳號",
     "delete_user": "刪除帳號",
+    "create_content_admin": "新增內容管理員",
+    "update_content_admin": "修改內容管理員資料",
+    "reset_content_admin_password": "重設內容管理員密碼",
+    "update_content_admin_permissions": "設定內容管理員權限",
+    "approve_attraction_post": "核准景點相簿貼文",
+    "reject_attraction_post": "退回景點相簿貼文",
 }
 
 

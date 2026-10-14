@@ -9,41 +9,41 @@
 
 <div class="dashboard-cards">
 
-    <a class="dashboard-card" href="{{ url_for('attractions.list_attractions') }}">
+    {% if content_admin_can('attractions') %}<a class="dashboard-card" href="{{ url_for('attractions.list_attractions') }}">
         <div class="card-icon">📍</div>
         <div>
             <p>景點總數</p>
             <h2>{{ attraction_count }}</h2>
         </div>
-    </a>
+    </a>{% endif %}
 
-    <a class="dashboard-card" href="{{ url_for('restaurants.list_restaurants') }}">
+    {% if content_admin_can('restaurants') %}<a class="dashboard-card" href="{{ url_for('restaurants.list_restaurants') }}">
         <div class="card-icon">🍜</div>
         <div>
             <p>餐廳總數</p>
             <h2>{{ restaurant_count }}</h2>
         </div>
-    </a>
+    </a>{% endif %}
 
-    <a class="dashboard-card" href="{{ url_for('accommodations.list_accommodations') }}">
+    {% if content_admin_can('accommodations') %}<a class="dashboard-card" href="{{ url_for('accommodations.list_accommodations') }}">
         <div class="card-icon">🏨</div>
         <div>
             <p>住宿總數</p>
             <h2>{{ accommodation_count }}</h2>
         </div>
-    </a>
+    </a>{% endif %}
 
-    <a class="dashboard-card" href="{{ url_for('proposals.list_proposals', status='pending') }}">
+    {% if content_admin_can('proposals') %}<a class="dashboard-card" href="{{ url_for('proposals.list_proposals', status='pending') }}">
         <div class="card-icon">📥</div>
         <div>
             <p>待審核提案</p>
             <h2>{{ pending_proposal_count }}</h2>
         </div>
-    </a>
+    </a>{% endif %}
 
 </div>
 
-<div class="admin-section">
+{% if content_admin_can('reports') %}<div class="admin-section" id="reports">
 
     <div class="section-title">
         <h2>資料狀態分布</h2>
@@ -112,7 +112,7 @@
         </table>
     </div>
 
-</div>
+</div>{% endif %}
 
 <div class="admin-section">
 

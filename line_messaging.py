@@ -60,8 +60,14 @@ def _text_messages(text):  # 把文字包成 LINE 訊息物件（單則上限 50
     return [{"type": "text", "text": text[:5000]}]
 
 
-def reply_text(reply_token, text):  # 回覆使用者的訊息（不計費，replyToken 只能用一次且有時效）
-    return _post("/message/reply", {"replyToken": reply_token, "messages": _text_messages(text)})
+def reply_text(reply_token, text, quick_replies=None):  # 回覆使用者的訊息（不計費，replyToken 只能用一次且有時效）
+    messages = _text_messages(text)
+    if quick_replies:
+        messages[0]["quickReply"] = {"items": [
+            {"type": "action", "action": {"type": "message", "label": label[:20], "text": label}}
+            for label in quick_replies[:13]
+        ]}
+    return _post("/message/reply", {"replyToken": reply_token, "messages": messages})
 
 
 def _line_targets(user_ids):  # 依網站 user_id 查出已加好友的 LINE userId

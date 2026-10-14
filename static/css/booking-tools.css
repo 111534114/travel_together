@@ -20,3 +20,13 @@
 .booking-heart.is-saved { color:#e63861; border-color:#e99aae; background:#fff0f4; }
 .booking-heart:focus-visible { outline:3px solid rgba(7,141,164,.25); outline-offset:2px; }
 @media(max-width:620px) { .price-range-filter { grid-template-columns:1fr; } .price-range-heading { grid-column:1; } }
+.price-bucket-list,.facet-options{display:flex;flex-wrap:wrap;gap:6px}
+.price-bucket,.facet-chip{display:inline-flex;align-items:center;gap:5px;padding:5px 10px;color:#2f4a4f;background:#f7fbfc;border:1px solid #cadfe3;border-radius:7px;font-size:12px;font-weight:600;text-decoration:none;cursor:pointer}
+.price-bucket:hover,.facet-chip:hover{color:#078da4;border-color:#078da4}
+.price-bucket.active,.facet-chip:has(input:checked){color:#fff;background:#078da4;border-color:#078da4}
+.price-bucket small,.facet-chip small{color:inherit;font-size:10px}
+.price-bucket-placeholder{display:flex;align-items:center;color:#89999c;font-size:12px}
+.facet-group{display:flex;align-items:center;gap:8px;max-width:100%}
+.facet-title{color:#536970;font-size:13px;font-weight:600;white-space:nowrap}
+.facet-chip input{margin:0;accent-color:#078da4}
+.price-range-note{margin-top:8px;font-size:12px}

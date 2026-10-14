@@ -1,5 +1,6 @@
 from datetime import date, datetime
 from decimal import ROUND_DOWN, Decimal, InvalidOperation
+import os
 import secrets
 
 from flask import Blueprint, current_app, flash, jsonify, redirect, render_template, request, session, url_for
@@ -8,6 +9,7 @@ from werkzeug.security import check_password_hash, generate_password_hash
 from auth import login_required
 from db import get_db_connection
 from utils import delete_uploaded_image, format_hm, get_cities, get_countries, save_uploaded_attachment, save_uploaded_image
+from content_moderation import is_image_explicit
 import theme_parks
 import weather
 
@@ -40,6 +42,7 @@ ISSUE_REASONS = (
 )
 ISSUE_PREFIX = "問題回報："
 TRIP_TRASH_DAYS = 30  # 軟刪除的行程保留天數，過期後自動永久刪除
+MAX_POST_IMAGES = 6
 
 
 def _connection_or_home():
@@ -303,7 +306,8 @@ def dashboard():
             "visitor.html", is_member=True, trips=[], invitations=[], member_stats={},
             announcements=[], public_trips=[], companions=[], trips_timeline_json={},
             city_weather={}, notifications=[], issue_reasons=ISSUE_REASONS,
-            favorited_trips=[], favorite_trip_ids=set(), line_status=None
+            favorited_trips=[], favorite_trip_ids=set(), line_status=None,
+            recent_album_posts=[]
         )
     cursor = connection.cursor(dictionary=True)
     try:
@@ -416,6 +420,23 @@ def dashboard():
         companions = cursor.fetchall()
 
         cursor.execute("""
+            SELECT p.post_id, pi.image_path, p.caption,
+                   a.attraction_id, a.name AS attraction_name,
+                   u.nickname, u.full_name
+            FROM attraction_posts p
+            JOIN (SELECT post_id, MIN(sort_order) AS min_order
+                  FROM attraction_post_images GROUP BY post_id) first_img
+              ON first_img.post_id = p.post_id
+            JOIN attraction_post_images pi
+              ON pi.post_id = p.post_id AND pi.sort_order = first_img.min_order
+            JOIN attractions a ON a.attraction_id = p.attraction_id
+            JOIN users u ON u.user_id = p.user_id
+            WHERE p.review_status = 'approved'
+            ORDER BY p.created_at DESC LIMIT 8
+        """)
+        recent_album_posts = cursor.fetchall()
+
+        cursor.execute("""
             SELECT target_id FROM reports
             WHERE reporter_id = %s AND target_type = 'trip' AND reason LIKE %s
               AND status IN ('pending', 'processing')
@@ -482,7 +503,8 @@ def dashboard():
         trips_timeline_json=trips_timeline_json, city_weather=city_weather,
         notifications=notifications, issue_reasons=ISSUE_REASONS,
         favorited_trips=favorited_trips, favorite_trip_ids=favorite_trip_ids,
-        deleted_trips=deleted_trips, trip_trash_days=TRIP_TRASH_DAYS, line_status=line_status
+        deleted_trips=deleted_trips, trip_trash_days=TRIP_TRASH_DAYS, line_status=line_status,
+        recent_album_posts=recent_album_posts,
     )
 
 
@@ -686,6 +708,28 @@ def attraction_detail(attraction_id):
         """, (session["user_id"], attraction_id))
         attraction = cursor.fetchone()
         addable_trips = _addable_trips(cursor, session["user_id"]) if attraction else []
+        posts = []
+        if attraction:
+            cursor.execute("""
+                SELECT p.*, u.nickname, u.full_name
+                FROM attraction_posts p JOIN users u ON u.user_id = p.user_id
+                WHERE p.attraction_id=%s AND (p.review_status='approved' OR p.user_id=%s)
+                ORDER BY p.created_at DESC
+            """, (attraction_id, session["user_id"]))
+            posts = cursor.fetchall()
+            if posts:
+                post_ids = [post["post_id"] for post in posts]
+                placeholders = ",".join(["%s"] * len(post_ids))
+                cursor.execute(
+                    f"SELECT post_id,image_id,image_path,sort_order FROM attraction_post_images "
+                    f"WHERE post_id IN ({placeholders}) ORDER BY post_id,sort_order,image_id",
+                    tuple(post_ids),
+                )
+                images_by_post = {}
+                for row in cursor.fetchall():
+                    images_by_post.setdefault(row["post_id"], []).append(row)
+                for post in posts:
+                    post["images"] = images_by_post.get(post["post_id"], [])
     finally:
         cursor.close(); connection.close()
 
@@ -693,7 +737,167 @@ def attraction_detail(attraction_id):
         flash("找不到這個景點，或已被下架。", "error")
         return redirect(url_for("member.browse_attractions"))
 
-    return render_template("member/attraction_detail.html", a=attraction, addable_trips=addable_trips)
+    return render_template("member/attraction_detail.html", a=attraction, addable_trips=addable_trips, posts=posts)
+
+
+@member_bp.route("/attractions/<int:attraction_id>/posts", methods=["POST"])
+@login_required("member")
+def add_attraction_post(attraction_id):
+    caption = request.form.get("caption", "").strip()
+    image_files = [file for file in request.files.getlist("images") if file and file.filename]
+    target = url_for("member.attraction_detail", attraction_id=attraction_id) + "#album"
+    if not caption and not image_files:
+        flash("請至少上傳一張照片，或寫點什麼。", "error")
+        return redirect(target)
+    if len(image_files) > MAX_POST_IMAGES:
+        flash(f"一篇貼文最多上傳 {MAX_POST_IMAGES} 張照片。", "error")
+        return redirect(target)
+    connection = _connection_or_home()
+    if connection is None:
+        return redirect(target)
+    cursor = connection.cursor()
+    image_paths = []
+    try:
+        cursor.execute("SELECT attraction_id FROM attractions WHERE attraction_id=%s AND status='active' AND deleted_at IS NULL", (attraction_id,))
+        if not cursor.fetchone():
+            flash("找不到這個景點，或已被下架。", "error")
+            return redirect(url_for("member.browse_attractions"))
+        image_paths = [save_uploaded_image(file, "attraction_posts") for file in image_files]
+        is_explicit = any(is_image_explicit(os.path.join(current_app.static_folder, path)) for path in image_paths)
+        review_note = ("系統自動偵測到疑似不適當的照片內容，已自動退回。"
+                       if is_explicit else None)
+        cursor.execute(
+            "INSERT INTO attraction_posts "
+            "(attraction_id,user_id,caption,review_status,reviewed_at,review_note) "
+            "VALUES (%s,%s,%s,%s,%s,%s)",
+            (attraction_id, session["user_id"], caption or None,
+             "rejected" if is_explicit else "pending", datetime.now() if is_explicit else None, review_note),
+        )
+        post_id = cursor.lastrowid
+        if is_explicit:
+            for path in image_paths:
+                delete_uploaded_image(path)
+            image_paths = []
+        else:
+            cursor.executemany(
+                "INSERT INTO attraction_post_images (post_id,image_path,sort_order) VALUES (%s,%s,%s)",
+                [(post_id, path, order) for order, path in enumerate(image_paths)],
+            )
+        connection.commit()
+        flash("照片疑似含有不適當內容，已自動退回。" if is_explicit else "已送出，審核通過後會公開顯示。",
+              "error" if is_explicit else "success")
+    except ValueError as error:
+        for path in image_paths:
+            delete_uploaded_image(path)
+        connection.rollback()
+        flash(str(error), "error")
+    except Exception as error:
+        for path in image_paths:
+            delete_uploaded_image(path)
+        connection.rollback()
+        print("新增景點相簿貼文失敗：", error)
+        flash("分享失敗，請再試一次。", "error")
+    finally:
+        cursor.close()
+        connection.close()
+    return redirect(target)
+
+
+@member_bp.route("/attractions/<int:attraction_id>/posts/<int:post_id>/edit", methods=["POST"])
+@login_required("member")
+def edit_attraction_post(attraction_id, post_id):
+    caption = request.form.get("caption", "").strip()
+    new_files = [file for file in request.files.getlist("images") if file and file.filename]
+    remove_ids = {int(value) for value in request.form.getlist("remove_image_ids") if value.isdigit()}
+    target = url_for("member.attraction_detail", attraction_id=attraction_id) + "#album"
+    connection = _connection_or_home()
+    if connection is None:
+        return redirect(target)
+    cursor = connection.cursor(dictionary=True)
+    new_paths = []
+    try:
+        cursor.execute("SELECT user_id FROM attraction_posts WHERE post_id=%s AND attraction_id=%s FOR UPDATE", (post_id, attraction_id))
+        post = cursor.fetchone()
+        if not post or post["user_id"] != session["user_id"]:
+            flash("找不到這則貼文，或你沒有編輯權限。", "error")
+            return redirect(target)
+        cursor.execute("SELECT image_id,image_path,sort_order FROM attraction_post_images WHERE post_id=%s ORDER BY sort_order,image_id", (post_id,))
+        existing = cursor.fetchall()
+        kept = [image for image in existing if image["image_id"] not in remove_ids]
+        removed = [image for image in existing if image["image_id"] in remove_ids]
+        if len(kept) + len(new_files) > MAX_POST_IMAGES:
+            flash(f"一篇貼文最多 {MAX_POST_IMAGES} 張照片。", "error")
+            return redirect(target)
+        if not caption and not kept and not new_files:
+            flash("請至少保留一張照片，或寫點什麼。", "error")
+            return redirect(target)
+        new_paths = [save_uploaded_image(file, "attraction_posts") for file in new_files]
+        if any(is_image_explicit(os.path.join(current_app.static_folder, path)) for path in new_paths):
+            for path in new_paths:
+                delete_uploaded_image(path)
+            new_paths = []
+            flash("新照片疑似含有不適當內容，本次編輯未儲存。", "error")
+            return redirect(target)
+        cursor.execute("UPDATE attraction_posts SET caption=%s,review_status='pending',reviewed_by=NULL,reviewed_at=NULL,review_note=NULL WHERE post_id=%s", (caption or None, post_id))
+        if removed:
+            placeholders = ",".join(["%s"] * len(removed))
+            cursor.execute(f"DELETE FROM attraction_post_images WHERE image_id IN ({placeholders})", tuple(image["image_id"] for image in removed))
+        next_order = max((image["sort_order"] for image in kept), default=-1) + 1
+        cursor.executemany(
+            "INSERT INTO attraction_post_images (post_id,image_path,sort_order) VALUES (%s,%s,%s)",
+            [(post_id, path, next_order + offset) for offset, path in enumerate(new_paths)],
+        )
+        connection.commit()
+        for image in removed:
+            delete_uploaded_image(image["image_path"])
+        flash("貼文已更新並重新送審。", "success")
+    except ValueError as error:
+        for path in new_paths:
+            delete_uploaded_image(path)
+        connection.rollback()
+        flash(str(error), "error")
+    except Exception as error:
+        for path in new_paths:
+            delete_uploaded_image(path)
+        connection.rollback()
+        print("更新景點相簿貼文失敗：", error)
+        flash("更新失敗，請再試一次。", "error")
+    finally:
+        cursor.close()
+        connection.close()
+    return redirect(target)
+
+
+@member_bp.route("/attractions/<int:attraction_id>/posts/<int:post_id>/delete", methods=["POST"])
+@login_required("member")
+def delete_attraction_post(attraction_id, post_id):
+    target = url_for("member.attraction_detail", attraction_id=attraction_id) + "#album"
+    connection = _connection_or_home()
+    if connection is None:
+        return redirect(target)
+    cursor = connection.cursor(dictionary=True)
+    image_paths = []
+    try:
+        cursor.execute("SELECT user_id FROM attraction_posts WHERE post_id=%s AND attraction_id=%s FOR UPDATE", (post_id, attraction_id))
+        post = cursor.fetchone()
+        if not post or post["user_id"] != session["user_id"]:
+            flash("找不到這則貼文，或你沒有刪除權限。", "error")
+            return redirect(target)
+        cursor.execute("SELECT image_path FROM attraction_post_images WHERE post_id=%s", (post_id,))
+        image_paths = [row["image_path"] for row in cursor.fetchall()]
+        cursor.execute("DELETE FROM attraction_posts WHERE post_id=%s", (post_id,))
+        connection.commit()
+        for path in image_paths:
+            delete_uploaded_image(path)
+        flash("已刪除這則貼文。", "success")
+    except Exception as error:
+        connection.rollback()
+        print("刪除景點相簿貼文失敗：", error)
+        flash("刪除失敗，請再試一次。", "error")
+    finally:
+        cursor.close()
+        connection.close()
+    return redirect(target)
 
 
 @member_bp.route("/attractions/<int:attraction_id>/add-to-trip", methods=["POST"])
@@ -2044,7 +2248,10 @@ def profile():
     if connection is None: return redirect(url_for("member.dashboard"))
     cursor=connection.cursor(dictionary=True)
     try:
-        cursor.execute("SELECT user_id,username,full_name,nickname,email,avatar_path,created_at,status,line_sub IS NOT NULL AS line_linked,line_friend FROM users WHERE user_id=%s",(session["user_id"],)); user=cursor.fetchone()
+        cursor.execute("SELECT user_id,username,full_name,nickname,email,avatar_path,created_at,status,"
+                       "line_sub IS NOT NULL AS line_linked,line_friend,"
+                       "(password_hash IS NOT NULL OR google_sub IS NOT NULL) AS can_unbind_line "
+                       "FROM users WHERE user_id=%s",(session["user_id"],)); user=cursor.fetchone()
         if user:
             user["status_label"] = {
                 "active": "正常",

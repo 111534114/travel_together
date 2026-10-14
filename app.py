@@ -1,11 +1,16 @@
+import os  # 匯入作業系統功能，用來判斷 Flask 開發伺服器是哪一個行程
 import re  # 匯入正規表示式模組，用來驗證註冊欄位格式
-from booking_search import booking_bp, filter_prices
+from booking_search import (
+    TRAIN_TYPE_LABELS, apply_facets, apply_time_band, booking_bp, facet_options,
+    filter_prices, price_buckets, time_band_options,
+)
 import requests  # 匯入 requests，用來呼叫 LINE 的個人資料 API
 from datetime import datetime, timedelta  # 匯入日期工具，用來解析日期與建立月份統計區間
 from authlib.integrations.flask_client import OAuth  # 匯入 Authlib 的 Flask 整合，處理 Google 登入 OAuth 流程
 from flask import Flask, render_template, request, redirect, url_for, session, flash  # 匯入 Flask 核心功能：建立 App、渲染樣板、取得請求、導向、產生網址、session、顯示訊息
 from mysql.connector import Error  # 匯入 MySQL 連線錯誤類別，用來捕捉資料庫例外
 from werkzeug.security import check_password_hash, generate_password_hash  # 匯入密碼工具：驗證密碼、產生密碼雜湊值
+from werkzeug.middleware.proxy_fix import ProxyFix
 
 from config import GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, LINE_CHANNEL_ID, LINE_CHANNEL_SECRET  # 匯入第三方登入設定
 from db import get_db_connection  # 匯入自訂的資料庫連線函式
@@ -19,14 +24,19 @@ from blueprints.ai_data import ai_data_bp  # 匯入 AI 使用資料維護的藍�
 from blueprints.reports import reports_bp  # 匯入統計報表匯出的藍圖
 from blueprints.logs import logs_bp  # 匯入操作紀錄查詢的藍圖
 from blueprints.ai_chat import ai_chat_bp  # 匯入 AI 助理對話的藍圖
+from blueprints.content_admin_accounts import content_admin_accounts_bp
+from blueprints.attraction_posts_admin import attraction_posts_admin_bp
+from content_admin_permissions import CONTENT_ADMIN_ACTIONS, content_admin_can
 from blueprints.member import ISSUE_PREFIX, member_bp  # 匯入會員功能的藍圖
 from blueprints.line_webhook import line_webhook_bp  # 匯入 LINE 官方帳號 webhook 的藍圖
 from activity_log import ACTION_LABELS, log_action
 from utils import google_maps_url, google_maps_embed_url, format_hm  # 匯入組 Google 地圖連結/嵌入縮圖地圖、格式化 TIME 欄位的共用函式，註冊成樣板全域函式讓所有頁面都能直接呼叫
 import weather  # 匯入中央氣象署天氣預報模組(訪客頁面「目的地天氣」功能用)
 import line_messaging  # 匯入 LINE 官方帳號共用工具(加好友連結、QR Code)
+import trip_reminders
 
 app = Flask(__name__)  # 建立 Flask 應用程式實例
+app.wsgi_app = ProxyFix(app.wsgi_app, x_proto=1, x_host=1)
 app.register_blueprint(booking_bp)
 
 # Session 加密金鑰，之後可以改成更複雜的字串
@@ -40,6 +50,7 @@ app.jinja_env.globals["google_maps_embed_url"] = google_maps_embed_url  # 註冊
 app.jinja_env.globals["line_add_friend_url"] = line_messaging.add_friend_url()  # LINE 官方帳號加好友連結，會員首頁與個人資料頁共用
 app.jinja_env.globals["line_qr_code_url"] = line_messaging.qr_code_url()  # LINE 官方帳號加好友 QR Code 圖片網址
 app.jinja_env.filters["hm"] = format_hm  # 註冊成樣板過濾器，任何頁面都能直接用 {{ 值 | hm }} 把 TIME 欄位格式化成 HH:MM
+app.jinja_env.globals["content_admin_can"] = content_admin_can
 
 oauth = OAuth(app)  # 建立 Authlib 的 OAuth 註冊器
 google_oauth = oauth.register(
@@ -74,6 +85,8 @@ app.register_blueprint(ai_data_bp)  # 註冊 AI 資料維護路由
 app.register_blueprint(reports_bp)  # 註冊統計報表路由
 app.register_blueprint(logs_bp)  # 註冊操作紀錄路由
 app.register_blueprint(ai_chat_bp)  # 註冊 AI 助理對話路由
+app.register_blueprint(content_admin_accounts_bp)
+app.register_blueprint(attraction_posts_admin_bp)
 app.register_blueprint(member_bp)  # 註冊會員功能路由
 app.register_blueprint(line_webhook_bp)  # 註冊 LINE 官方帳號 webhook 路由
 
@@ -149,6 +162,7 @@ def visitor():
     announcements = []
     trips_timeline_json = {}
     city_weather = {}
+    recent_album_posts = []
 
     if connection:
         cursor = connection.cursor(dictionary=True)
@@ -217,6 +231,24 @@ def visitor():
             """)
             companions = cursor.fetchall()
 
+            cursor.execute("""
+                SELECT p.post_id, pi.image_path, p.caption,
+                       a.attraction_id, a.name AS attraction_name,
+                       u.nickname, u.full_name
+                FROM attraction_posts p
+                JOIN (
+                    SELECT post_id, MIN(sort_order) AS min_order
+                    FROM attraction_post_images GROUP BY post_id
+                ) first_img ON first_img.post_id = p.post_id
+                JOIN attraction_post_images pi
+                  ON pi.post_id = p.post_id AND pi.sort_order = first_img.min_order
+                JOIN attractions a ON a.attraction_id = p.attraction_id
+                JOIN users u ON u.user_id = p.user_id
+                WHERE p.review_status = 'approved'
+                ORDER BY p.created_at DESC LIMIT 8
+            """)
+            recent_album_posts = cursor.fetchall()
+
             # 5. 查詢所有公開行程的每日詳細景點明細 (提供 Modal 彈窗即時動態預覽)
             if public_trips:
                 trip_ids = [t['trip_id'] for t in public_trips]
@@ -270,7 +302,8 @@ def visitor():
         public_trips=public_trips,
         companions=companions,
         trips_timeline_json=trips_timeline_json,
-        city_weather=city_weather
+        city_weather=city_weather,
+        recent_album_posts=recent_album_posts,
     )
 
 
@@ -332,6 +365,8 @@ def visitor_hotel_search():
             cursor.close()
             connection.close()
 
+    hotel_price_buckets = price_buckets(accommodations, "price_per_night")
+    accommodations = filter_prices(accommodations, 'price_per_night')
     return render_template(
         "hotel_search.html",
         destination=destination,
@@ -339,7 +374,8 @@ def visitor_hotel_search():
         checkout=checkout,
         guests=guests,
         nights=nights,
-        accommodations=filter_prices(accommodations, 'price_per_night'),
+        accommodations=accommodations,
+        price_buckets=hotel_price_buckets,
     )
 
 
@@ -378,7 +414,7 @@ def visitor_flight_search():
                     f"""
                     SELECT f.flight_id, f.airline_name, f.flight_number,
                            f.departure_time, f.arrival_time, f.duration_minutes,
-                           f.price, f.cabin_class, f.seats_available,
+                           f.price, f.cabin_class, f.stops, f.seats_available,
                            ocn.name AS origin_country, oc.name AS origin_city,
                            dcn.name AS destination_country, dc.name AS destination_city
                     FROM flights f
@@ -402,6 +438,13 @@ def visitor_flight_search():
     outbound_flights = search_flights(origin, destination)  # 去程：出發地 -> 目的地
     return_flights = search_flights(destination, origin) if return_date and request.args.get('trip_mode', 'roundtrip') == 'roundtrip' else []
 
+    all_flights = outbound_flights + return_flights
+    flight_price_buckets = price_buckets(all_flights, "price")
+    airline_facets = facet_options(all_flights, "airline_name")
+    depart_band_options = time_band_options(all_flights, "departure_time")
+    outbound_flights = apply_time_band(apply_facets(outbound_flights, (("airline_name", "airline"),)), "departure_time")
+    return_flights = apply_time_band(apply_facets(return_flights, (("airline_name", "airline"),)), "departure_time")
+
     return render_template(
         "flight_search.html",
         origin=origin,
@@ -409,8 +452,11 @@ def visitor_flight_search():
         depart_date=depart_date,
         return_date=return_date,
         pax=pax,
-        outbound_flights=filter_prices(outbound_flights, 'price'),
-        return_flights=filter_prices(return_flights, 'price'),
+        outbound_flights=filter_prices(outbound_flights, 'price', 'duration_minutes', 'stops'),
+        return_flights=filter_prices(return_flights, 'price', 'duration_minutes', 'stops'),
+        price_buckets=flight_price_buckets,
+        airline_facets=airline_facets,
+        depart_band_options=depart_band_options,
     )
 
 
@@ -467,14 +513,25 @@ def visitor_train_search():
             cursor.close()
             connection.close()
 
+    all_trains = trains + return_trains
+    train_price_buckets = price_buckets(all_trains, "price")
+    train_type_facets = facet_options(all_trains, "train_type", TRAIN_TYPE_LABELS)
+    car_class_facets = facet_options(all_trains, "car_class")
+    depart_band_options = time_band_options(all_trains, "departure_time")
+    trains = apply_time_band(apply_facets(trains, (("train_type", "train_type"), ("car_class", "car_class"))), "departure_time")
+    return_trains = apply_time_band(apply_facets(return_trains, (("train_type", "train_type"), ("car_class", "car_class"))), "departure_time")
     return render_template(
         "train_search.html",
         origin=origin,
         destination=destination,
         travel_date=travel_date,
         pax=pax,
-        trains=filter_prices(trains, 'price'),
-        return_trains=filter_prices(return_trains, 'price'),
+        trains=filter_prices(trains, 'price', 'duration_minutes'),
+        return_trains=filter_prices(return_trains, 'price', 'duration_minutes'),
+        price_buckets=train_price_buckets,
+        train_type_facets=train_type_facets,
+        car_class_facets=car_class_facets,
+        depart_band_options=depart_band_options,
     )
 
 
@@ -648,6 +705,71 @@ def line_login():
     return line_oauth.authorize_redirect(redirect_uri, bot_prompt="aggressive")
 
 
+@app.route("/auth/line/bind")
+def line_bind():
+    if session.get("role") != "member":
+        return redirect(url_for("login"))
+    if not LINE_CHANNEL_ID or not LINE_CHANNEL_SECRET:
+        flash("LINE 尚未完成設定，暫時無法綁定。", "error")
+        return redirect(url_for("member.profile"))
+    session["line_bind_user_id"] = session["user_id"]
+    return line_oauth.authorize_redirect(url_for("line_callback", _external=True), bot_prompt="aggressive")
+
+
+@app.route("/auth/line/unbind", methods=["POST"])
+def line_unbind():
+    if session.get("role") != "member":
+        return redirect(url_for("login"))
+    connection = get_db_connection()
+    if connection is None:
+        flash("資料庫連線失敗，請稍後再試。", "error")
+        return redirect(url_for("member.profile"))
+    cursor = connection.cursor(dictionary=True)
+    try:
+        cursor.execute("SELECT password_hash,google_sub FROM users WHERE user_id=%s", (session["user_id"],))
+        user = cursor.fetchone()
+        if user and not user["password_hash"] and not user["google_sub"]:
+            flash("這個帳號只能用 LINE 登入，請先設定其他登入方式再解除綁定。", "error")
+            return redirect(url_for("member.profile"))
+        cursor.execute("UPDATE users SET line_sub=NULL,line_friend=0 WHERE user_id=%s", (session["user_id"],))
+        connection.commit()
+        flash("已解除 LINE 綁定。", "success")
+    except Error as error:
+        connection.rollback()
+        print("解除 LINE 綁定失敗：", error)
+        flash("解除綁定失敗，請稍後再試。", "error")
+    finally:
+        cursor.close()
+        connection.close()
+    return redirect(url_for("member.profile"))
+
+
+def bind_line_to_current_user(line_sub, friend_flag):
+    connection = get_db_connection()
+    if connection is None:
+        flash("資料庫連線失敗，請稍後再試。", "error")
+        return redirect(url_for("member.profile"))
+    cursor = connection.cursor(dictionary=True)
+    try:
+        cursor.execute("SELECT user_id FROM users WHERE line_sub=%s AND user_id<>%s LIMIT 1",
+                       (line_sub, session["user_id"]))
+        if cursor.fetchone():
+            flash("這個 LINE 已經綁定其他帳號。", "error")
+            return redirect(url_for("member.profile"))
+        cursor.execute("UPDATE users SET line_sub=%s,line_friend=%s WHERE user_id=%s",
+                       (line_sub, 1 if friend_flag else 0, session["user_id"]))
+        connection.commit()
+        flash("LINE 綁定完成！" + ("之後會收到行程提醒。" if friend_flag else "請再加入官方帳號好友。"), "success")
+    except Error as error:
+        connection.rollback()
+        print("綁定 LINE 失敗：", error)
+        flash("綁定 LINE 失敗，請稍後再試。", "error")
+    finally:
+        cursor.close()
+        connection.close()
+    return redirect(url_for("member.profile"))
+
+
 def fetch_line_friend_flag(access_token):  # 查詢使用者是否為官方帳號好友，查不到時回傳 None
     try:
         response = requests.get(
@@ -664,6 +786,9 @@ def fetch_line_friend_flag(access_token):  # 查詢使用者是否為官方帳�
 
 @app.route("/auth/line/callback")
 def line_callback():
+    bind_user_id = session.pop("line_bind_user_id", None)
+    binding = bind_user_id is not None and bind_user_id == session.get("user_id")
+    fail_redirect = url_for("member.profile") if binding else url_for("login")
     try:
         token = line_oauth.authorize_access_token()
         profile_response = requests.get(
@@ -676,13 +801,16 @@ def line_callback():
         friend_flag = fetch_line_friend_flag(token["access_token"])
     except (Exception, requests.RequestException) as error:
         print("LINE 登入失敗：", error)
-        flash("LINE 登入失敗，請再試一次。", "error")
-        return redirect(url_for("login"))
+        flash("LINE 綁定失敗，請再試一次。" if binding else "LINE 登入失敗，請再試一次。", "error")
+        return redirect(fail_redirect)
 
     line_sub = profile.get("userId")
     if not line_sub:
         flash("無法取得 LINE 帳號資訊，請改用其他方式登入。", "error")
-        return redirect(url_for("login"))
+        return redirect(fail_redirect)
+
+    if binding:
+        return bind_line_to_current_user(line_sub, friend_flag)
 
     connection = get_db_connection()
     if connection is None:
@@ -1342,12 +1470,22 @@ def update_user_role(user_id):
 
         old_role = target["role"]
         cursor.execute("UPDATE users SET role = %s WHERE user_id = %s", (new_role, user_id))
+        if new_role == "content_admin":
+            cursor.execute("DELETE FROM content_admin_denials WHERE user_id = %s", (user_id,))
+            cursor.executemany(
+                "INSERT INTO content_admin_denials (user_id, module) VALUES (%s, %s)",
+                [(user_id, f"{module}:{action}")
+                 for module, actions in CONTENT_ADMIN_ACTIONS.items() for action in actions],
+            )
         log_action(
             cursor, "change_user_role", "user", user_id,
             f"帳號 {target['username']}：{role_labels[old_role]}改為{role_labels[new_role]}"
         )
         connection.commit()
-        flash(f"已將 {target['username']} 設為{role_labels[new_role]}，下次登入生效", "success")
+        if new_role == "content_admin":
+            flash(f"已將 {target['username']} 設為內容管理員；請接著設定權限。", "success")
+        else:
+            flash(f"已將 {target['username']} 設為{role_labels[new_role]}，下次登入生效", "success")
     except Exception as error:
         connection.rollback()
         print("修改帳號角色失敗：", error)
@@ -1909,8 +2047,12 @@ def admin_logs():
         return denied
     keyword = request.args.get("keyword", "").strip()
     action = request.args.get("action", "").strip()
+    admin_id = request.args.get("admin_id", "").strip()
+    if not admin_id.isdigit() or int(admin_id) < 1:
+        admin_id = ""
     logs = []
     actions = []
+    filtered_admin = None
     connection = get_db_connection()
     if connection is None:
         flash("資料庫連線失敗", "error")
@@ -1922,10 +2064,15 @@ def admin_logs():
             if action:
                 conditions.append("l.action = %s")
                 params.append(action)
+            if admin_id:
+                conditions.append("l.admin_id = %s")
+                params.append(int(admin_id))
+                cursor.execute("SELECT username,full_name FROM users WHERE user_id=%s AND role='content_admin'", (int(admin_id),))
+                filtered_admin = cursor.fetchone()
             if keyword:
                 search = f"%{keyword}%"
-                conditions.append("(u.full_name LIKE %s OR l.description LIKE %s OR l.ip_address LIKE %s)")
-                params.extend([search, search, search])
+                conditions.append("(u.full_name LIKE %s OR u.username LIKE %s OR l.description LIKE %s OR l.ip_address LIKE %s)")
+                params.extend([search, search, search, search])
             where_clause = f"WHERE {' AND '.join(conditions)}" if conditions else ""
             cursor.execute(f"""
                 SELECT l.*, u.full_name AS admin_name, u.username AS admin_username
@@ -1943,7 +2090,8 @@ def admin_logs():
     labels.update({"handle_issue": "處理問題回報", "create_announcement": "新增公告",
                    "update_announcement": "更新公告"})
     return render_template("admin_logs.html", logs=logs, actions=actions,
-                           labels=labels, keyword=keyword, selected_action=action)
+                           labels=labels, keyword=keyword, selected_action=action,
+                           admin_id=admin_id, filtered_admin=filtered_admin)
 
 
 @app.route("/logout")  # 設定登出路由
@@ -1954,4 +2102,6 @@ def logout():  # 定義登出函式
 
 
 if __name__ == "__main__":  # 如果這個檔案是直接被執行(而不是被匯入)
+    if os.environ.get("WERKZEUG_RUN_MAIN") == "true":
+        trip_reminders.start_scheduler()
     app.run(debug=True)  # 啟動 Flask 開發伺服器，開啟除錯模式

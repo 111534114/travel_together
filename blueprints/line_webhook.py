@@ -40,8 +40,12 @@ def handle_event(event):
             line_messaging.reply_text(event["replyToken"], UNLINKED_HINT)
     elif event_type == "unfollow":  # 封鎖官方帳號（此事件沒有 replyToken）
         line_messaging.set_friend_status(line_sub, False)
-    elif event_type == "message" and event.get("message", {}).get("type") == "text":
-        reply = line_commands.reply_for(line_sub, event["message"].get("text"))
-        if reply and event.get("replyToken"):
-            line_messaging.reply_text(event["replyToken"], reply, quick_replies=line_commands.COMMANDS)
+    elif event_type == "message" and event.get("replyToken"):
+        # 圖文選單的「文字」按鈕和使用者打字都會走這裡；看不懂的文字、貼圖、圖片等回覆使用說明提示
+        message = event.get("message", {})
+        if message.get("type") == "text":
+            reply = line_commands.reply_for(line_sub, message.get("text"))
+        else:
+            reply = line_commands.unknown_text()
+        line_messaging.reply_text(event["replyToken"], reply, quick_replies=line_commands.COMMANDS)
 

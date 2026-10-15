@@ -2559,6 +2559,20 @@ body {
     margin-top: 16px;
 }
 
+/* 行程頁：用 LINE 分享邀請連結 */
+.member-btn.line-share-btn {
+    display: block;
+    margin-top: 10px;
+    color: #fff;
+    text-align: center;
+    background: #06c755;
+    border-color: #06c755;
+}
+
+.member-btn.line-share-btn:hover {
+    background: #05b04b;
+}
+
 .proposal-row-actions {
     display: flex;
     flex-direction: column;

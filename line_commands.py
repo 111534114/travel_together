@@ -168,15 +168,35 @@ def todo_text(cursor, user_id):
     return _with_link(lines, "到網站處理", "/member/")
 
 
+def unknown_text():  # 看不懂的訊息（或貼圖、圖片）給的提示，搭配快速回覆按鈕使用
+    return (
+        "抱歉，我還看不懂這則訊息 🙇\n"
+        "可以點下方按鈕，或輸入：\n"
+        f"・{NEXT_TRIP}\n・{TODO}\n・{MY_TRIPS}"
+    )
+
+
+# 句子裡有包含關鍵字也算（例如「我想看下一趟旅程」），先比對較長的詞，避免被短詞搶先
+_KEYWORDS = sorted([(word, word) for word in COMMANDS] + list(ALIASES.items()), key=lambda pair: -len(pair[0]))
+
+
 def normalize(text):
     text = (text or "").strip()
-    return text if text in COMMANDS else ALIASES.get(text.lower())
+    if text in COMMANDS:
+        return text
+    if text.lower() in ALIASES:
+        return ALIASES[text.lower()]
+    lowered = text.lower()
+    for word, command in _KEYWORDS:
+        if word.lower() in lowered:
+            return command
+    return None
 
 
 def reply_for(line_sub, text):
     command = normalize(text)
     if command is None:
-        return None
+        return unknown_text()
     if command == HELP:
         return help_text()
     connection = get_db_connection()

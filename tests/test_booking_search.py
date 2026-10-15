@@ -45,6 +45,17 @@ class BookingSearchTests(unittest.TestCase):
         connection.assert_not_called()
         self.assertIn(b'booking-errors', response.data)
 
+    def test_google_login_connection_failure_returns_to_login(self):
+        import requests
+
+        with patch('app.GOOGLE_CLIENT_ID', 'test-id'), patch('app.GOOGLE_CLIENT_SECRET', 'test-secret'):
+            with patch('app.google_oauth.authorize_redirect', side_effect=requests.ConnectionError('offline')):
+                response = self.client.get('/auth/google/login')
+        self.assertEqual(response.status_code, 302)
+        self.assertTrue(response.location.endswith('/login'))
+        with self.client.session_transaction() as session:
+            self.assertIn('Google', session['_flashes'][0][1])
+
     def login(self, user_id):
         with self.client.session_transaction() as session:
             session['user_id'] = user_id

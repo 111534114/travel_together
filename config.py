@@ -42,3 +42,9 @@ LINE_BOT_CHANNEL_SECRET = os.environ.get("LINE_BOT_CHANNEL_SECRET", "")
 LINE_BOT_ACCESS_TOKEN = os.environ.get("LINE_BOT_ACCESS_TOKEN", "")
 # 官方帳號的 Basic ID（例如 @861vahjn，不是機密），用來產生網站上的加好友連結與 QR Code
 LINE_BOT_BASIC_ID = os.environ.get("LINE_BOT_BASIC_ID", "")
+
+try:
+    TRIP_REMINDER_HOUR = max(0, min(23, int(os.environ.get("TRIP_REMINDER_HOUR", "9"))))
+except ValueError:
+    TRIP_REMINDER_HOUR = 9
+PUBLIC_BASE_URL = os.environ.get("PUBLIC_BASE_URL", "").rstrip("/")

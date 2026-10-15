@@ -11,6 +11,13 @@ booking_bp = Blueprint('booking', __name__)
 TABLES = {'hotel': ('accommodations', 'accommodation_id'), 'flight': ('flights', 'flight_id'), 'train': ('trains', 'train_id')}
 ENDPOINTS = {'visitor_hotel_search': 'hotel', 'visitor_flight_search': 'flight', 'visitor_train_search': 'train'}
 FARES = {'all': '全部票種', 'regular': '一般票', 'discount': '打折票', 'promotion': '優惠票', 'student': '學生票'}
+TRAIN_TYPE_LABELS = {'thsr': '高鐵', 'tra': '台鐵'}
+TIME_BANDS = [
+    ('dawn', '凌晨 00:00–06:00', '00:00', '06:00'),
+    ('morning', '上午 06:00–12:00', '06:00', '12:00'),
+    ('afternoon', '下午 12:00–18:00', '12:00', '18:00'),
+    ('evening', '晚上 18:00–24:00', '18:00', '24:00'),
+]
 
 TRAIN_TYPE_LABELS = {'thsr': '高鐵', 'tra': '台鐵'}
 
@@ -86,6 +93,7 @@ def guard_search():
                            return_date=request.args.get('return', ''), travel_date=request.args.get('date', ''),
                            guests=2, pax=1, nights=None, accommodations=[], outbound_flights=[], return_flights=[], trains=[],
                            price_buckets=[], airline_facets=[], train_type_facets=[], car_class_facets=[], depart_band_options=[]), 400
+<<<<<<< .merge_file_94web3
 
 
 def price_buckets(rows, field, count=4):
@@ -139,6 +147,8 @@ def apply_facets(rows, fields):
             result = [row for row in result if row.get(field) in selected]
     return result
 
+=======
+>>>>>>> .merge_file_klFDn2
 
 def time_band_options(rows, field):
     options = []
@@ -148,11 +158,69 @@ def time_band_options(rows, field):
             options.append({'value': key, 'label': label, 'count': count})
     return options if len(options) >= 2 else []
 
+<<<<<<< .merge_file_94web3
+=======
+def price_buckets(rows, field, count=4):
+    """Build useful price ranges from the prices present in the current result set."""
+    all_prices = sorted(float(row[field]) for row in rows if row.get(field) and row[field] > 0)
+    unique_prices = sorted(set(all_prices))
+    if len(unique_prices) < count:
+        return []
+    step = 50 if unique_prices[-1] < 2000 else (100 if unique_prices[-1] < 10000 else 500)
+
+    def nice(value):
+        return int(round(value / step) * step)
+
+    size = len(unique_prices)
+    edges = sorted({0} | {nice(unique_prices[min(int(i * size / count), size - 1)]) for i in range(1, count)})
+    buckets = []
+    for index, low in enumerate(edges):
+        high = edges[index + 1] if index + 1 < len(edges) else None
+        matched = sum(1 for price in all_prices if price >= low and (high is None or price < high))
+        if matched:
+            buckets.append({'low': low, 'high': high, 'count': matched})
+    return buckets
+
+
+def facet_options(rows, field, labels=None):
+    counts = {}
+    for row in rows:
+        value = row.get(field)
+        if value:
+            counts[value] = counts.get(value, 0) + 1
+    if len(counts) < 2:
+        return []
+    return sorted(
+        ({'value': value, 'label': (labels or {}).get(value, value), 'count': count}
+         for value, count in counts.items()),
+        key=lambda option: -option['count'],
+    )
+
+
+def apply_facets(rows, fields):
+    result = rows
+    for field, parameter in fields:
+        selected = request.args.getlist(parameter)
+        if selected:
+            result = [row for row in result if row.get(field) in selected]
+    return result
+
+
+def time_band_options(rows, field):
+    options = []
+    for key, label, start, end in TIME_BANDS:
+        count = sum(1 for row in rows if row.get(field) and start <= format_hm(row[field]) < end)
+        if count:
+            options.append({'value': key, 'label': label, 'count': count})
+    return options if len(options) >= 2 else []
+
+>>>>>>> .merge_file_klFDn2
 
 def apply_time_band(rows, field):
     selected = request.args.getlist('depart_band')
     if not selected:
         return rows
+<<<<<<< .merge_file_94web3
     bands = [b for b in TIME_BANDS if b[0] in selected]
     def matches(row):
         value = row.get(field)
@@ -161,6 +229,13 @@ def apply_time_band(rows, field):
         hm = format_hm(value)
         return any(start <= hm < end for _, _, start, end in bands)
     return [row for row in rows if matches(row)]
+=======
+    bands = [band for band in TIME_BANDS if band[0] in selected]
+    return [
+        row for row in rows if row.get(field)
+        and any(start <= format_hm(row[field]) < end for _, _, start, end in bands)
+    ]
+>>>>>>> .merge_file_klFDn2
 
 
 def filter_prices(rows, field, duration_field=None, stops_field=None):
@@ -186,8 +261,14 @@ def filter_prices(rows, field, duration_field=None, stops_field=None):
     if sort in ('price_asc', 'price_desc'):
         result.sort(key=lambda r: (not bool(r.get(field)), (r.get(field) or 0) * (-1 if sort == 'price_desc' else 1)))
     elif sort == 'featured' and duration_field:
+<<<<<<< .merge_file_94web3
         # 精選：同時考慮價格與耗時，概算每分鐘車程/航程約值 NT$20，取總分最低的排前面。
         result.sort(key=lambda r: (not bool(r.get(field)), (r.get(field) or 0) + (r.get(duration_field) or 0) * 20))
+=======
+        result.sort(key=lambda row: (
+            not bool(row.get(field)), (row.get(field) or 0) + (row.get(duration_field) or 0) * 20
+        ))
+>>>>>>> .merge_file_klFDn2
     return result
 
 

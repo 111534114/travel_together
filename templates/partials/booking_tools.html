@@ -1,5 +1,6 @@
 <link rel="stylesheet" href="{{ url_for('static', filename='css/booking-tools.css') }}">
 {% macro facet_checkboxes(title, param, options) %}
+<<<<<<< .merge_file_nqQoCs
 {% if options %}
 <div class="facet-group">
   <span class="facet-title">{{ title }}</span>
@@ -40,9 +41,33 @@
     <button type="submit" class="view-button">套用篩選</button>
   </form>
   <p class="price-range-note">{{ '僅供估算，實際空房與價格請洽業者確認。' if booking_kind == 'hotel' else '僅供估算，為資料庫參考票價，尚無學生票或優惠票資訊，實際票價以售票平台為準。' }}</p>
+=======
+{% if options %}<div class="facet-group"><span class="facet-title">{{ title }}</span><div class="facet-options">
+  {% for opt in options %}<label class="facet-chip"><input type="checkbox" name="{{ param }}" value="{{ opt.value }}" {{ 'checked' if opt.value in request.args.getlist(param) }} onchange="this.form.requestSubmit()">{{ opt.label }}<small>{{ opt.count }}</small></label>{% endfor %}
+</div></div>{% endif %}
+{% endmacro %}
+{% if booking_kind or search_errors %}<div class="booking-tools">
+  {% if booking_kind %}
+  {% set base_qs = request.args.to_dict() %}{% set _ = base_qs.pop('min_price', None) %}{% set _ = base_qs.pop('max_price', None) %}
+  {% set own_params = ['sort','fare','stops','airline','train_type','car_class','depart_band'] %}
+  <form method="get" class="booking-filters">
+    {% for key, value in request.args.items(multi=True) %}{% if key not in own_params and key not in ['min_price','max_price'] %}<input type="hidden" name="{{ key }}" value="{{ value }}">{% endif %}{% endfor %}
+    <div class="price-range-filter"><span class="price-range-heading">價格範圍</span><div class="price-bucket-list">
+      <a class="price-bucket {{ 'active' if not request.args.get('min_price') and not request.args.get('max_price') }}" href="?{{ base_qs|urlencode }}">不限</a>
+      {% for bucket in price_buckets %}{% set qs = dict(base_qs) %}{% set _ = qs.update({'min_price': bucket.low, 'max_price': (bucket.high if bucket.high is not none else '')}) %}<a class="price-bucket" href="?{{ qs|urlencode }}">NT$ {{ '{:,}'.format(bucket.low) }}{% if bucket.high is not none %} - {{ '{:,}'.format(bucket.high) }}{% else %}+{% endif %}<small>{{ bucket.count }} 筆</small></a>{% endfor %}
+      {% if not price_buckets %}<span class="price-bucket-placeholder">目前資料不足，暫時無法切分價格區間</span>{% endif %}
+    </div></div>
+    <label>排序<select name="sort"><option value="">預設</option>{% if booking_kind != 'hotel' %}<option value="featured" {{ 'selected' if request.args.get('sort') == 'featured' }}>精選</option>{% endif %}<option value="price_asc" {{ 'selected' if request.args.get('sort') == 'price_asc' }}>價格由低至高</option><option value="price_desc" {{ 'selected' if request.args.get('sort') == 'price_desc' }}>價格由高至低</option></select></label>
+    {% if booking_kind != 'hotel' %}<label>票種<select name="fare">{% for key,label in fare_options.items() %}<option value="{{ key }}" {{ 'selected' if request.args.get('fare','all') == key }}>{{ label }}</option>{% endfor %}</select></label>{% endif %}
+    {% if booking_kind == 'flight' %}<label>轉機<select name="stops"><option value="">不限</option><option value="direct" {{ 'selected' if request.args.get('stops') == 'direct' }}>直飛</option><option value="connecting" {{ 'selected' if request.args.get('stops') == 'connecting' }}>轉機</option></select></label>{{ facet_checkboxes('航空公司', 'airline', airline_facets) }}{% endif %}
+    {% if booking_kind == 'train' %}{{ facet_checkboxes('車種', 'train_type', train_type_facets) }}{{ facet_checkboxes('車廂等級', 'car_class', car_class_facets) }}{% endif %}
+    {{ facet_checkboxes('出發時段', 'depart_band', depart_band_options) }}
+    <button type="submit" class="view-button">套用篩選</button>
+  </form>
+  <p class="price-range-note">{{ '僅供估算，實際空房與價格請洽業者確認。' if booking_kind == 'hotel' else '票價為資料庫參考資料，實際票價以售票平台為準。' }}</p>
+>>>>>>> .merge_file_Glg0jU
   {% endif %}
   {% if search_errors %}<div class="booking-errors" role="alert">{% for key, message in search_errors.items() %}<p>{{ message }}</p>{% endfor %}</div>{% endif %}
-</div>
-{% endif %}
+</div>{% endif %}
 <script id="booking-errors-data" type="application/json">{{ (search_errors or {})|tojson }}</script>
 <script src="{{ url_for('static', filename='js/booking-tools.js') }}" defer></script>

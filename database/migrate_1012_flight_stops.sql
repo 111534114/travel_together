@@ -1,3 +1,4 @@
+<<<<<<< .merge_file_cW5mDJ
 -- 機票新增「轉機次數」欄位，對應機票搜尋頁的「直飛／轉機」篩選功能。
 -- 既有航班都是單一航段資料，預設一律視為直飛(0)；之後要新增轉機航班，
 -- 把 stops 設成 1(轉機1次)或以上即可，不需要另外的轉機航段資料表。
@@ -6,6 +7,10 @@
 ALTER TABLE flights ADD COLUMN IF NOT EXISTS stops TINYINT UNSIGNED NOT NULL DEFAULT 0 AFTER cabin_class;
 
 -- 補兩筆示範用的轉機航班，方便展示「轉機」篩選的效果。
+=======
+ALTER TABLE flights ADD COLUMN IF NOT EXISTS stops TINYINT UNSIGNED NOT NULL DEFAULT 0 AFTER cabin_class;
+
+>>>>>>> .merge_file_kcXs65
 INSERT INTO flights
   (airline_name, flight_number, origin_country_id, origin_city_id, destination_country_id, destination_city_id,
    departure_time, arrival_time, duration_minutes, price, cabin_class, stops, seats_available, status)
@@ -18,8 +23,13 @@ FROM (
 JOIN cities o ON o.name = v.origin_city
 JOIN cities d ON d.name = v.destination_city
 WHERE NOT EXISTS (
+<<<<<<< .merge_file_cW5mDJ
   SELECT 1 FROM flights f
   WHERE f.flight_number = v.flight_number
     AND f.origin_city_id = o.city_id
     AND f.destination_city_id = d.city_id
+=======
+  SELECT 1 FROM flights f WHERE f.flight_number = v.flight_number
+    AND f.origin_city_id = o.city_id AND f.destination_city_id = d.city_id
+>>>>>>> .merge_file_kcXs65
 );

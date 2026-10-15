@@ -2,6 +2,8 @@ from functools import wraps  # 匯入 wraps，用來保留被裝飾函式原本�
 
 from flask import redirect, session, url_for  # 匯入 Flask 的導向、session、產生網址功能
 
+from content_admin_permissions import require_content_admin_module
+
 
 def login_required(role=None):  # 定義裝飾器工廠函式：可指定必須符合的角色(role)，不指定則只檢查是否登入
     def decorator(view):  # 定義實際的裝飾器，接收要保護的路由函式(view)
@@ -12,6 +14,9 @@ def login_required(role=None):  # 定義裝飾器工廠函式：可指定必須�
 
             if role and session.get("role") != role:  # 如果有指定角色，且登入者角色不符合
                 return redirect(url_for("login"))  # 導向登入頁
+
+            if role == "content_admin":
+                require_content_admin_module()
 
             return view(*args, **kwargs)  # 通過檢查，執行原本的路由函式並回傳結果
 

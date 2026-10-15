@@ -1,4 +1,32 @@
 (() => {
+  // 價格滑桿：跟搜尋表單(.search-panel)無關，首頁跟三個搜尋結果頁都可能有，所以獨立成一段，
+  // 不能放在下面那段「找不到 .search-panel 表單就整段不執行」的邏輯裡面。
+  document.querySelectorAll('[data-price-slider]').forEach((slider) => {
+    const minInput = slider.querySelector('[name="min_price"]');
+    const maxInput = slider.querySelector('[name="max_price"]');
+    const fill = slider.querySelector('[data-price-fill]');
+    const output = slider.closest('.price-slider-row')?.querySelector('[data-price-slider-output]');
+    const sliderForm = slider.closest('form');
+    const sliderMin = Number(minInput.min);
+    const sliderMax = Number(minInput.max);
+    const money = (value) => 'NT$ ' + Number(value).toLocaleString('zh-TW');
+    const percent = (value) => ((Number(value) - sliderMin) / (sliderMax - sliderMin)) * 100;
+    function render(changed) {
+      if (Number(minInput.value) > Number(maxInput.value)) {
+        if (changed === minInput) maxInput.value = minInput.value;
+        else minInput.value = maxInput.value;
+      }
+      fill.style.left = percent(minInput.value) + '%';
+      fill.style.right = (100 - percent(maxInput.value)) + '%';
+      if (output) output.textContent = money(minInput.value) + ' ～ ' + money(maxInput.value);
+    }
+    minInput.addEventListener('input', () => render(minInput));
+    maxInput.addEventListener('input', () => render(maxInput));
+    minInput.addEventListener('change', () => sliderForm && sliderForm.requestSubmit());
+    maxInput.addEventListener('change', () => sliderForm && sliderForm.requestSubmit());
+    render();
+  });
+
   const form = document.querySelector('.search-panel form');
   if (!form) return;
   form.noValidate = true;

@@ -17,7 +17,7 @@
   {% set base_qs = request.args.to_dict() %}
   {% set _ = base_qs.pop('min_price', None) %}
   {% set _ = base_qs.pop('max_price', None) %}
-  {% set own_params = ['sort','fare','stops','airline','train_type','car_class','depart_band'] %}
+  {% set own_params = ['sort','fare','stops','airline','train_type','car_class','depart_band','min_price','max_price'] %}
   <form method="get" class="booking-filters">
     {% for key, value in request.args.items(multi=True) %}{% if key not in own_params %}<input type="hidden" name="{{ key }}" value="{{ value }}">{% endif %}{% endfor %}
     <div class="price-range-filter">
@@ -32,6 +32,17 @@
         {% if not price_buckets %}<span class="price-bucket-placeholder">目前資料還不夠多，暫時切不出價格區間</span>{% endif %}
       </div>
     </div>
+    {% if price_max %}
+    <div class="price-slider-row">
+      <span class="price-range-heading">自訂範圍</span>
+      <div class="price-slider" data-price-slider>
+        <div class="price-slider-fill" data-price-fill></div>
+        <input type="range" name="min_price" min="0" max="{{ price_max }}" step="{{ 50 if price_max < 2000 else (100 if price_max < 10000 else 500) }}" value="{{ request.args.get('min_price', '0') }}" aria-label="最低價格">
+        <input type="range" name="max_price" min="0" max="{{ price_max }}" step="{{ 50 if price_max < 2000 else (100 if price_max < 10000 else 500) }}" value="{{ request.args.get('max_price', price_max) }}" aria-label="最高價格">
+      </div>
+      <output data-price-slider-output>NT$ {{ '{:,}'.format(request.args.get('min_price', '0')|int) }} ～ NT$ {{ '{:,}'.format(request.args.get('max_price', price_max)|int) }}</output>
+    </div>
+    {% endif %}
     <label>排序<select name="sort"><option value="">預設</option>{% if booking_kind != 'hotel' %}<option value="featured" {{ 'selected' if request.args.get('sort') == 'featured' }}>精選</option>{% endif %}<option value="price_asc" {{ 'selected' if request.args.get('sort') == 'price_asc' }}>價格由低至高</option><option value="price_desc" {{ 'selected' if request.args.get('sort') == 'price_desc' }}>價格由高至低</option></select></label>
     {% if booking_kind != 'hotel' %}<label>票種<select name="fare">{% for key,label in fare_options.items() %}<option value="{{ key }}" {{ 'selected' if request.args.get('fare','all') == key }}>{{ label }}</option>{% endfor %}</select></label>{% endif %}
     {% if booking_kind == 'flight' %}<label>轉機<select name="stops"><option value="">不限</option><option value="direct" {{ 'selected' if request.args.get('stops') == 'direct' }}>直飛</option><option value="connecting" {{ 'selected' if request.args.get('stops') == 'connecting' }}>轉機</option></select></label>{% endif %}

@@ -1,7 +1,7 @@
 import os  # 匯入作業系統功能，用來判斷 Flask 開發伺服器是哪一個行程
 import re  # 匯入正規表示式模組，用來驗證註冊欄位格式
 from booking_search import (
-    booking_bp, filter_prices, price_buckets,
+    booking_bp, filter_prices, price_buckets, price_range,
     apply_facets, apply_time_band, facet_options, time_band_options, TRAIN_TYPE_LABELS,
 )
 import requests  # 匯入 requests，用來呼叫 LINE 的個人資料 API
@@ -366,6 +366,7 @@ def visitor_hotel_search():
             connection.close()
 
     hotel_price_buckets = price_buckets(accommodations, "price_per_night")
+    hotel_price_max = price_range(accommodations, "price_per_night")
     accommodations = filter_prices(accommodations, 'price_per_night')
     return render_template(
         "hotel_search.html",
@@ -376,6 +377,7 @@ def visitor_hotel_search():
         nights=nights,
         accommodations=accommodations,
         price_buckets=hotel_price_buckets,
+        price_max=hotel_price_max,
     )
 
 
@@ -440,6 +442,7 @@ def visitor_flight_search():
 
     all_flights = outbound_flights + return_flights
     flight_price_buckets = price_buckets(all_flights, "price")
+    flight_price_max = price_range(all_flights, "price")
     airline_facets = facet_options(all_flights, "airline_name")
     depart_band_options = time_band_options(all_flights, "departure_time")
     outbound_flights = apply_time_band(apply_facets(outbound_flights, (("airline_name", "airline"),)), "departure_time")
@@ -455,6 +458,7 @@ def visitor_flight_search():
         outbound_flights=filter_prices(outbound_flights, 'price', 'duration_minutes', 'stops'),
         return_flights=filter_prices(return_flights, 'price', 'duration_minutes', 'stops'),
         price_buckets=flight_price_buckets,
+        price_max=flight_price_max,
         airline_facets=airline_facets,
         depart_band_options=depart_band_options,
     )
@@ -515,6 +519,7 @@ def visitor_train_search():
 
     all_trains = trains + return_trains
     train_price_buckets = price_buckets(all_trains, "price")
+    train_price_max = price_range(all_trains, "price")
     train_type_facets = facet_options(all_trains, "train_type", TRAIN_TYPE_LABELS)
     car_class_facets = facet_options(all_trains, "car_class")
     depart_band_options = time_band_options(all_trains, "departure_time")
@@ -529,6 +534,7 @@ def visitor_train_search():
         trains=filter_prices(trains, 'price', 'duration_minutes'),
         return_trains=filter_prices(return_trains, 'price', 'duration_minutes'),
         price_buckets=train_price_buckets,
+        price_max=train_price_max,
         train_type_facets=train_type_facets,
         car_class_facets=car_class_facets,
         depart_band_options=depart_band_options,

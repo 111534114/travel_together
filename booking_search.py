@@ -92,7 +92,9 @@ def guard_search():
                            checkout=request.args.get('checkout', ''), depart_date=request.args.get('depart', ''),
                            return_date=request.args.get('return', ''), travel_date=request.args.get('date', ''),
                            guests=2, pax=1, nights=None, accommodations=[], outbound_flights=[], return_flights=[], trains=[],
-                           price_buckets=[], airline_facets=[], train_type_facets=[], car_class_facets=[], depart_band_options=[]), 400
+                           price_buckets=[], price_max=None, airline_facets=[], train_type_facets=[], car_class_facets=[], depart_band_options=[]), 400
+
+
 def price_buckets(rows, field, count=4):
     """依照目前搜尋結果的實際價格分布，動態切出幾個價格區間(仿照常見訂票網站的做法，
     不是寫死固定的級距)。結果數量或價格種類太少時切不出有意義的區間，就不提供篩選。"""
@@ -115,6 +117,17 @@ def price_buckets(rows, field, count=4):
         if matched:
             buckets.append({'low': low, 'high': high, 'count': matched})
     return buckets
+
+
+def price_range(rows, field):
+    """目前搜尋結果裡實際出現過的最高價格(無條件進位到整數級距)，當做價格滑桿的拖曳上限。
+    完全沒有價格資料就回傳 None，不顯示滑桿。"""
+    prices = [float(r[field]) for r in rows if r.get(field) and r[field] > 0]
+    if not prices:
+        return None
+    top = max(prices)
+    step = 50 if top < 2000 else (100 if top < 10000 else 500)
+    return int((top // step + 1) * step)
 
 
 def facet_options(rows, field, labels=None):

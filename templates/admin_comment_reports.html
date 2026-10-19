@@ -1,0 +1,54 @@
+{% extends "system_admin_base.html" %}
+{% set active_page = "comment_reports" %}
+{% block title %}留言檢舉{% endblock %}
+{% block page_title %}留言檢舉{% endblock %}
+{% block page_description %}會員檢舉的行程留言{% endblock %}
+{% block content %}
+<section class="admin-section">
+    <form method="get" action="{{ url_for('admin_comment_reports') }}" class="admin-search">
+        <label for="reportStatus">處理狀態</label>
+        <select id="reportStatus" name="status">
+            <option value="">全部</option>
+            {% for value, label in [('pending', '待處理'), ('processing', '處理中'), ('resolved', '已結案'), ('rejected', '已駁回')] %}
+            <option value="{{ value }}" {{ 'selected' if report_status == value }}>{{ label }}（{{ counts[value] }}）</option>
+            {% endfor %}
+        </select>
+        <button type="submit">查詢</button>
+    </form>
+</section>
+<section class="admin-section">
+    <div class="section-title"><h2>收到的檢舉</h2><span>共 {{ reports|length }} 筆</span></div>
+    <div class="table-container">
+        <table class="admin-table">
+            <thead><tr><th>留言內容</th><th>留言者</th><th>檢舉人</th><th>檢舉原因與描述</th><th>狀態</th><th>收到時間</th><th>處理</th></tr></thead>
+            <tbody>
+            {% for report in reports %}
+            <tr>
+                <td>{% if report.comment_content %}<span class="issue-description">「{{ report.comment_content }}」</span><br><small>{{ '留言已隱藏' if report.comment_status == 'hidden' else ('留言已刪除' if report.comment_status == 'deleted' else '') }} · 行程：{{ report.trip_name or '已不存在' }}</small>{% else %}<small>留言已不存在</small>{% endif %}</td>
+                <td>{{ report.comment_author_name or '未知' }}{% if report.comment_author_username %}<br><small>@{{ report.comment_author_username }}</small>{% endif %}</td>
+                <td>{{ report.reporter_name }}<br><small>@{{ report.reporter_username }}</small></td>
+                <td><strong>{{ report.reason }}</strong><br><span class="issue-description">{{ report.description or '未填寫描述' }}</span>
+                    {% if report.handling_result %}<div class="result-note">處理結果：{{ report.handling_result }}</div>{% endif %}</td>
+                <td><span class="status-badge status-{{ report.status }}">{{ {'pending':'待處理','processing':'處理中','resolved':'已結案','rejected':'已駁回'}[report.status] }}</span></td>
+                <td>{{ report.created_at }}</td>
+                <td>
+                    <form method="post" action="{{ url_for('handle_admin_comment_report', report_id=report.report_id) }}" class="stack-form">
+                        <select name="status" aria-label="處理狀態">
+                            {% if report.status == 'pending' %}
+                            <option value="" selected disabled>請選擇處理狀態</option>
+                            {% endif %}
+                            <option value="processing" {{ 'selected' if report.status == 'processing' }}>處理中</option>
+                            <option value="resolved" {{ 'selected' if report.status == 'resolved' }}>已結案（隱藏留言）</option>
+                            <option value="rejected" {{ 'selected' if report.status == 'rejected' }}>已駁回</option>
+                        </select>
+                        <textarea name="handling_result" rows="2" maxlength="1000" placeholder="處理結果">{{ report.handling_result or '' }}</textarea>
+                        <button type="submit" class="small-button">更新</button>
+                    </form>
+                </td>
+            </tr>
+            {% else %}<tr><td colspan="7" class="empty-data">目前沒有符合條件的留言檢舉</td></tr>{% endfor %}
+            </tbody>
+        </table>
+    </div>
+</section>
+{% endblock %}

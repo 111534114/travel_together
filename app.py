@@ -1,5 +1,6 @@
 import os  # 匯入作業系統功能，用來判斷 Flask 開發伺服器是哪一個行程
 import re  # 匯入正規表示式模組，用來驗證註冊欄位格式
+import secrets  # 匯入 secrets 模組，用來產生忘記密碼用的隨機 token
 from booking_search import (
     TRAIN_TYPE_LABELS, apply_facets, apply_time_band, booking_bp, facet_options,
     filter_prices, price_buckets, price_range, time_band_options,
@@ -28,9 +29,10 @@ from blueprints.ai_chat import ai_chat_bp  # 匯入 AI 助理對話的藍圖
 from blueprints.content_admin_accounts import content_admin_accounts_bp
 from blueprints.attraction_posts_admin import attraction_posts_admin_bp
 from content_admin_permissions import CONTENT_ADMIN_ACTIONS, content_admin_can
-from blueprints.member import ISSUE_PREFIX, member_bp  # 匯入會員功能的藍圖
+from blueprints.member import COMMENT_REPORT_PREFIX, ISSUE_PREFIX, member_bp  # 匯入會員功能的藍圖
 from blueprints.line_webhook import line_webhook_bp  # 匯入 LINE 官方帳號 webhook 的藍圖
 from activity_log import ACTION_LABELS, log_action
+from mailer import send_password_reset_email  # 匯入忘記密碼重設信的寄送函式
 from utils import google_maps_url, google_maps_embed_url, format_hm  # 匯入組 Google 地圖連結/嵌入縮圖地圖、格式化 TIME 欄位的共用函式，註冊成樣板全域函式讓所有頁面都能直接呼叫
 import weather  # 匯入中央氣象署天氣預報模組(訪客頁面「目的地天氣」功能用)
 import line_messaging  # 匯入 LINE 官方帳號共用工具(加好友連結、QR Code)
@@ -615,6 +617,101 @@ def login():  # 定義登入功能函式
         return redirect_by_role(user["role"])  # 登入成功，依角色導向對應首頁
 
     return render_template("login.html")  # GET 請求，直接顯示登入表單頁
+
+
+PASSWORD_RESET_TTL_MINUTES = 30  # 重設密碼連結的有效時間(分鐘)
+
+
+@app.route("/forgot-password", methods=["GET", "POST"])
+def forgot_password():
+    if request.method == "POST":
+        username = request.form.get("username", "").strip()
+        email = request.form.get("email", "").strip()
+
+        if not username or not email:
+            flash("請輸入帳號和電子郵件。", "error")
+            return render_template("forgot_password.html")
+
+        connection = get_db_connection()
+        if connection is None:
+            flash("資料庫連線失敗，請稍後再試。", "error")
+            return render_template("forgot_password.html")
+
+        cursor = connection.cursor(dictionary=True)
+        try:
+            cursor.execute(
+                "SELECT user_id, email, status FROM users WHERE username = %s AND email = %s LIMIT 1",
+                (username, email),
+            )
+            user = cursor.fetchone()
+            if user and user["status"] == "active":
+                token = secrets.token_urlsafe(32)
+                expires_at = datetime.now() + timedelta(minutes=PASSWORD_RESET_TTL_MINUTES)
+                cursor.execute(
+                    "INSERT INTO password_resets (user_id, token, expires_at) VALUES (%s, %s, %s)",
+                    (user["user_id"], token, expires_at),
+                )
+                connection.commit()
+                reset_url = public_url("reset_password", token=token)
+                send_password_reset_email(user["email"], reset_url)
+        finally:
+            cursor.close()
+            connection.close()
+
+        # 不論帳號／Email 是否存在或對得上，都顯示同一句訊息，避免讓人用這個表單去試探帳號是否存在
+        flash("如果帳號與電子郵件相符，我們已經寄出重設密碼信，請到信箱收信（記得看一下垃圾郵件）。", "success")
+        return redirect(url_for("login"))
+
+    return render_template("forgot_password.html")
+
+
+@app.route("/reset-password/<token>", methods=["GET", "POST"])
+def reset_password(token):
+    connection = get_db_connection()
+    if connection is None:
+        flash("資料庫連線失敗，請稍後再試。", "error")
+        return redirect(url_for("login"))
+
+    cursor = connection.cursor(dictionary=True)
+    try:
+        cursor.execute(
+            "SELECT reset_id, user_id, expires_at, used_at FROM password_resets WHERE token = %s LIMIT 1",
+            (token,),
+        )
+        reset_row = cursor.fetchone()
+
+        if not reset_row or reset_row["used_at"] is not None or reset_row["expires_at"] < datetime.now():
+            flash("這個重設密碼連結已失效，請重新申請。", "error")
+            return redirect(url_for("forgot_password"))
+
+        if request.method == "POST":
+            password = request.form.get("password", "")
+            confirm_password = request.form.get("confirm_password", "")
+
+            if not re.fullmatch(r"(?=.*[A-Za-z])(?=.*\d)\S{9,}", password):
+                flash("密碼至少需要9碼，並同時包含英文與數字。", "error")
+                return render_template("reset_password.html", token=token)
+
+            if password != confirm_password:
+                flash("兩次輸入的密碼不一致。", "error")
+                return render_template("reset_password.html", token=token)
+
+            cursor.execute(
+                "UPDATE users SET password_hash = %s WHERE user_id = %s",
+                (generate_password_hash(password), reset_row["user_id"]),
+            )
+            cursor.execute(
+                "UPDATE password_resets SET used_at = NOW() WHERE reset_id = %s",
+                (reset_row["reset_id"],),
+            )
+            connection.commit()
+            flash("密碼已重設，請用新密碼登入。", "success")
+            return redirect(url_for("login"))
+    finally:
+        cursor.close()
+        connection.close()
+
+    return render_template("reset_password.html", token=token)
 
 
 @app.route("/auth/google/login")
@@ -1890,6 +1987,102 @@ def handle_admin_issue(issue_id):
         cursor.close()
         connection.close()
     return redirect(url_for("admin_issues"))
+
+
+@app.route("/system-admin/comment-reports")
+def admin_comment_reports():
+    denied = system_admin_required()
+    if denied:
+        return denied
+    status = request.args.get("status", "").strip()
+    if status not in {"pending", "processing", "resolved", "rejected"}:
+        status = ""
+    reports_rows = []
+    counts = {"pending": 0, "processing": 0, "resolved": 0, "rejected": 0}
+    connection = get_db_connection()
+    if connection is None:
+        flash("資料庫連線失敗", "error")
+    else:
+        cursor = connection.cursor(dictionary=True)
+        try:
+            cursor.execute("""
+                SELECT status, COUNT(*) AS total FROM reports
+                WHERE target_type = 'comment' AND reason LIKE %s
+                GROUP BY status
+            """, (COMMENT_REPORT_PREFIX + "%",))
+            for row in cursor.fetchall():
+                counts[row["status"]] = row["total"]
+            cursor.execute("""
+                SELECT r.report_id, r.target_id AS comment_id, r.reason, r.description,
+                       r.status, r.created_at, r.handling_result, r.handled_at,
+                       c.content AS comment_content, c.status AS comment_status, c.trip_id,
+                       t.trip_name, au.username AS comment_author_username, au.full_name AS comment_author_name,
+                       u.username AS reporter_username, u.full_name AS reporter_name
+                FROM reports r
+                LEFT JOIN comments c ON c.comment_id = r.target_id
+                LEFT JOIN trips t ON t.trip_id = c.trip_id
+                LEFT JOIN users au ON au.user_id = c.user_id
+                JOIN users u ON u.user_id = r.reporter_id
+                WHERE r.target_type = 'comment' AND r.reason LIKE %s
+                  AND (%s = '' OR r.status = %s)
+                ORDER BY FIELD(r.status, 'pending', 'processing', 'resolved', 'rejected'),
+                         r.created_at DESC
+                LIMIT 200
+            """, (COMMENT_REPORT_PREFIX + "%", status, status))
+            reports_rows = cursor.fetchall()
+            for row in reports_rows:
+                row["reason"] = row["reason"][len(COMMENT_REPORT_PREFIX):]
+        finally:
+            cursor.close()
+            connection.close()
+    return render_template("admin_comment_reports.html", reports=reports_rows, counts=counts, report_status=status)
+
+
+@app.route("/system-admin/comment-reports/<int:report_id>/handle", methods=["POST"])
+def handle_admin_comment_report(report_id):
+    denied = system_admin_required()
+    if denied:
+        return denied
+    status = request.form.get("status", "").strip()
+    result = request.form.get("handling_result", "").strip()
+    if status not in {"processing", "resolved", "rejected"}:
+        flash("處理狀態不正確。", "error")
+        return redirect(url_for("admin_comment_reports"))
+    if len(result) > 1000 or (status in {"resolved", "rejected"} and not result):
+        flash("結案或駁回時請填寫不超過 1000 字的處理結果。", "error")
+        return redirect(url_for("admin_comment_reports"))
+    connection = get_db_connection()
+    if connection is None:
+        flash("資料庫連線失敗", "error")
+        return redirect(url_for("admin_comment_reports"))
+    cursor = connection.cursor(dictionary=True)
+    try:
+        cursor.execute("""
+            SELECT report_id, target_id AS comment_id FROM reports
+            WHERE report_id = %s AND target_type = 'comment' AND reason LIKE %s
+        """, (report_id, COMMENT_REPORT_PREFIX + "%"))
+        report = cursor.fetchone()
+        if not report:
+            flash("找不到這筆檢舉。", "error")
+            return redirect(url_for("admin_comment_reports"))
+        if status == "resolved":
+            cursor.execute("UPDATE comments SET status='hidden' WHERE comment_id=%s AND status='visible'", (report["comment_id"],))
+        cursor.execute("""
+            UPDATE reports SET status = %s, handling_result = %s, handled_by = %s,
+                handled_at = CASE WHEN %s IN ('resolved', 'rejected') THEN NOW() ELSE NULL END
+            WHERE report_id = %s AND target_type = 'comment' AND reason LIKE %s
+        """, (status, result or None, session["user_id"], status, report_id, COMMENT_REPORT_PREFIX + "%"))
+        log_action(cursor, "handle_comment_report", "comment", report["comment_id"], f"留言檢舉狀態更新為 {status}")
+        connection.commit()
+        flash("檢舉已結案，該留言已隱藏。" if status == "resolved" else "檢舉已更新。", "success")
+    except Exception as error:
+        connection.rollback()
+        print("更新留言檢舉失敗：", error)
+        flash("更新失敗。", "error")
+    finally:
+        cursor.close()
+        connection.close()
+    return redirect(url_for("admin_comment_reports"))
 
 
 @app.route("/system-admin/announcements", methods=["GET", "POST"])

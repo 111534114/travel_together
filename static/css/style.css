@@ -2581,6 +2581,21 @@ body {
     flex-shrink: 0;
 }
 
+.proposal-thumb {
+    display: block;
+    width: 100%;
+    max-width: 220px;
+    height: 110px;
+    margin-bottom: 8px;
+    object-fit: cover;
+    border-radius: 8px;
+}
+
+.proposal-desc {
+    color: #5c6568;
+    font-size: 13px;
+}
+
 .proposal-vote-trigger {
     margin-top: 0;
     padding-top: 0;
@@ -3027,6 +3042,56 @@ body {
 .comment-replies .comment-row {
     border-bottom: none;
     padding: 10px 0;
+}
+
+.comment-row.small {
+    padding: 8px 0;
+    font-size: 13px;
+}
+
+.comment-edited {
+    color: var(--ocean-muted);
+    font-style: italic;
+}
+
+.small-note {
+    font-size: 12px;
+}
+
+.item-comment-thread summary {
+    color: var(--ocean-primary-dark);
+    font-weight: 600;
+    cursor: pointer;
+    font-size: 13px;
+}
+
+.diff-table {
+    width: 100%;
+    margin: 8px 0;
+    border-collapse: collapse;
+    font-size: 13px;
+}
+
+.diff-table th,
+.diff-table td {
+    padding: 6px 10px;
+    text-align: left;
+    border-bottom: 1px solid #E9F0F1;
+}
+
+.diff-table th {
+    color: var(--ocean-muted);
+    font-weight: 600;
+}
+
+.diff-table tr.diff-changed td:nth-child(2) {
+    color: #B23B3B;
+    text-decoration: line-through;
+}
+
+.diff-table tr.diff-changed td:nth-child(3) {
+    color: #1E7A4C;
+    font-weight: 600;
 }
 
 .comment-form {

@@ -63,7 +63,7 @@ class LineWebhookTests(unittest.TestCase):
         }]}
         body = json.dumps(payload, separators=(",", ":")).encode("utf-8")
         with patch("line_messaging.LINE_BOT_CHANNEL_SECRET", secret), \
-             patch("blueprints.line_webhook.line_messaging.reply_text") as reply:
+             patch("blueprints.line_webhook.line_messaging.reply_message") as reply:
             response = self.client.post(
                 "/line/webhook", data=body, content_type="application/json",
                 headers={"X-Line-Signature": signature(secret, body)},

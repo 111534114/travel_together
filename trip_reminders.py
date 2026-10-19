@@ -7,6 +7,7 @@ from datetime import date, datetime, timedelta
 from mysql.connector import Error
 
 import line_messaging
+import weather
 from config import PUBLIC_BASE_URL, TRIP_REMINDER_HOUR
 from db import get_db_connection
 from utils import format_hm
@@ -17,12 +18,19 @@ CHECK_INTERVAL_SECONDS = 600
 FIRST_DAY_ITEMS = 5
 
 
-def build_message(trip, first_day_items):
+def weather_lines(forecast):  # 出發當天的天氣與建議；沒有預報(國外城市等)就回傳空清單
+    if not forecast:
+        return []
+    return [f"天氣：{weather.describe_forecast(forecast)}"] + weather.travel_tips(forecast)
+
+
+def build_message(trip, first_day_items, forecast=None):
     period = trip["start_date"].strftime("%Y/%m/%d")
     if trip["end_date"] != trip["start_date"]:
         period += " – " + trip["end_date"].strftime("%m/%d")
     lines = ["🧳 明天就要出發囉！", "", f"行程：{trip['trip_name']}",
              f"日期：{period}", f"地點：{trip['country']} {trip['city']}"]
+    lines += weather_lines(forecast)
     if first_day_items:
         lines += ["", "第一天安排："]
         for item in first_day_items[:FIRST_DAY_ITEMS]:
@@ -72,7 +80,8 @@ def send_trip_reminders(today=None):
                 "ORDER BY is_all_day DESC,start_time IS NULL,start_time,sort_order",
                 (trip["trip_id"], trip["start_date"]),
             )
-            if not line_messaging.push_to_users(trip["user_ids"], build_message(trip, cursor.fetchall())):
+            forecast = weather.get_day_forecast(trip["city"], trip["start_date"])  # 只有台灣縣市查得到
+            if not line_messaging.push_to_users(trip["user_ids"], build_message(trip, cursor.fetchall(), forecast)):
                 continue
             cursor.executemany(
                 "INSERT IGNORE INTO line_notification_logs (trip_id,user_id,notify_type,notify_date) VALUES (%s,%s,%s,%s)",

@@ -61,7 +61,11 @@ def _text_messages(text):  # 把文字包成 LINE 訊息物件（單則上限 50
 
 
 def reply_text(reply_token, text, quick_replies=None):  # 回覆使用者的訊息（不計費，replyToken 只能用一次且有時效）
-    messages = _text_messages(text)
+    return reply_message(reply_token, text, quick_replies)
+
+
+def reply_message(reply_token, message, quick_replies=None):  # 回覆文字（str）或卡片等訊息物件（dict）
+    messages = _text_messages(message) if isinstance(message, str) else [dict(message)]
     if quick_replies:
         messages[0]["quickReply"] = {"items": [
             {"type": "action", "action": {"type": "message", "label": label[:20], "text": label}}

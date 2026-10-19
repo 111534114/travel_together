@@ -47,5 +47,5 @@ def handle_event(event):
             reply = line_commands.reply_for(line_sub, message.get("text"))
         else:
             reply = line_commands.unknown_text()
-        line_messaging.reply_text(event["replyToken"], reply, quick_replies=line_commands.COMMANDS)
+        line_messaging.reply_message(event["replyToken"], reply, quick_replies=line_commands.COMMANDS)
 

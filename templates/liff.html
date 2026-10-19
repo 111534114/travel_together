@@ -1,0 +1,76 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>走吧揪團</title>
+  <link rel="icon" type="image/png" href="{{ url_for('static', filename='images/logo.png') }}">
+  <style>
+    :root { --primary: #00A9C0; --deep: #066275; --muted: #708284; --page: #EAF8F9; }
+    * { box-sizing: border-box; }
+    body { margin: 0; min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 24px;
+           font-family: "Noto Sans TC", "Microsoft JhengHei", sans-serif; background: var(--page); color: var(--deep); }
+    .liff-card { width: 100%; max-width: 360px; padding: 36px 28px; text-align: center; background: #fff; border-radius: 18px;
+                 box-shadow: 0 10px 30px rgba(6, 98, 117, .12); }
+    .liff-card img { width: 120px; }
+    .spinner { width: 36px; height: 36px; margin: 22px auto 14px; border: 4px solid #CDEBEF; border-top-color: var(--primary);
+               border-radius: 50%; animation: spin .8s linear infinite; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    p { margin: 0; color: var(--muted); line-height: 1.6; }
+    .error { display: none; }
+    .error a { display: inline-block; margin-top: 16px; padding: 10px 22px; color: #fff; background: var(--primary);
+               border-radius: 8px; font-weight: 700; text-decoration: none; }
+  </style>
+</head>
+<body>
+  <div class="liff-card">
+    <img src="{{ url_for('static', filename='images/logo.png') }}" alt="走吧揪團">
+    <div id="loading"><div class="spinner"></div><p>正在用 LINE 登入…</p></div>
+    <div class="error" id="error"><p id="errorText">LINE 自動登入失敗。</p><a href="{{ url_for('login') }}">改用一般方式登入</a></div>
+  </div>
+
+  {# LIFF 拿到 ID token 後，用一般表單 POST 給後端驗證，後端登入完成會直接轉到目標頁面 #}
+  <form id="liffForm" method="post" action="{{ url_for('liff_login') }}" hidden>
+    <input type="hidden" name="id_token">
+    <input type="hidden" name="friend">
+    <input type="hidden" name="next">
+  </form>
+
+  <script src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
+  <script>
+    (function () {
+      function fail(message) {
+        document.getElementById('loading').style.display = 'none';
+        document.getElementById('errorText').textContent = message;
+        document.getElementById('error').style.display = 'block';
+      }
+
+      // 目標頁面：liff.line.me/{LIFF ID}/member/profile 會被帶到 /liff/member/profile；也支援 ?next=/member/profile
+      function targetPath() {
+        var params = new URLSearchParams(window.location.search);
+        var next = params.get('next');
+        if (next) return next;
+        var path = window.location.pathname.replace(/^\/liff/, '');
+        return path && path !== '/' ? path + window.location.search : '/member/';
+      }
+
+      if (typeof liff === 'undefined') { fail('無法載入 LINE 元件，請檢查網路後重新整理。'); return; }
+      liff.init({ liffId: {{ liff_id|tojson }} }).then(function () {
+        if (new URLSearchParams(window.location.search).has('liff.state')) return;  // LIFF 正在轉到目標路徑，等轉完再處理
+        if (!liff.isLoggedIn()) { liff.login({ redirectUri: window.location.href }); return; }  // 在一般瀏覽器打開時先登入 LINE
+        var idToken = liff.getIDToken();
+        if (!idToken) { fail('LIFF 沒有取得 openid 權限，請聯絡管理員。'); return; }
+        var form = document.getElementById('liffForm');
+        form.id_token.value = idToken;
+        form.next.value = targetPath();
+        liff.getFriendship().then(function (result) {
+          form.friend.value = result.friendFlag ? '1' : '0';
+        }).catch(function () {}).then(function () { form.submit(); });
+      }).catch(function (error) {
+        console.error(error);
+        fail('LINE 自動登入失敗（' + (error.message || error) + '）。');
+      });
+    })();
+  </script>
+</body>
+</html>

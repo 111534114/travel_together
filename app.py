@@ -13,7 +13,7 @@ from werkzeug.security import check_password_hash, generate_password_hash  # 匯
 from werkzeug.middleware.proxy_fix import ProxyFix
 
 from config import GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, LINE_CHANNEL_ID, LINE_CHANNEL_SECRET  # 匯入第三方登入設定
-from config import PUBLIC_BASE_URL
+from config import LIFF_ID, PUBLIC_BASE_URL  # 匯入 LIFF ID 與網站公開網址(分享給別人的連結要用這個網址)
 from db import get_db_connection  # 匯入自訂的資料庫連線函式
 from blueprints.attractions import attractions_bp  # 匯入景點管理的藍圖(Blueprint)
 from blueprints.restaurants import restaurants_bp  # 匯入餐廳管理的藍圖
@@ -832,7 +832,10 @@ def line_callback():
 
     if binding:
         return bind_line_to_current_user(line_sub, friend_flag)
+    return finish_line_login(line_sub, profile.get("displayName"), friend_flag)
 
+
+def finish_line_login(line_sub, display_name, friend_flag, next_url=None):  # LINE 登入與 LIFF 共用：找到綁定的帳號就登入，找不到就進入補填資料註冊
     connection = get_db_connection()
     if connection is None:
         flash("資料庫連線失敗，請稍後再試。", "error")
@@ -864,7 +867,7 @@ def line_callback():
 
     if user is None:
         session["pending_line_sub"] = line_sub
-        session["pending_line_name"] = profile.get("displayName") or "LINE 使用者"
+        session["pending_line_name"] = display_name or "LINE 使用者"
         session["pending_line_friend"] = 1 if friend_flag else 0
         return redirect(url_for("line_complete_profile"))
 
@@ -880,7 +883,65 @@ def line_callback():
     )
     if pending_invite_token:
         session["pending_invite_token"] = pending_invite_token
+    if next_url and not pending_invite_token:
+        return redirect(next_url)
     return redirect_by_role(user["role"])
+
+
+def safe_next_url(value):  # 只允許站內路徑，避免被當成跳轉到外部網站的跳板
+    value = (value or "").strip()
+    if value.startswith("/") and not value.startswith("//") and "\\" not in value:
+        return value
+    return None
+
+
+@app.route("/liff")
+@app.route("/liff/<path:subpath>")
+def liff_entry(subpath=""):  # LIFF 入口：在 LINE 裡打開時自動用 LINE 身分登入網站，再轉到目標頁面
+    if not LIFF_ID:
+        flash("LIFF 尚未設定，請先使用一般方式登入。", "error")
+        return redirect(url_for("login"))
+    return render_template("liff.html", liff_id=LIFF_ID)
+
+
+@app.route("/auth/liff", methods=["POST"])
+def liff_login():  # LIFF 頁面拿到 LINE 的 ID token 後送來這裡驗證並登入
+    next_url = safe_next_url(request.form.get("next")) or url_for("member.dashboard")
+    try:
+        response = requests.post(  # 請 LINE 驗證 ID token，確認是發給我們 LINE Login channel 的
+            "https://api.line.me/oauth2/v2.1/verify",
+            data={"id_token": request.form.get("id_token", ""), "client_id": LINE_CHANNEL_ID},
+            timeout=10,
+        )
+        response.raise_for_status()
+        claims = response.json()
+    except (requests.RequestException, ValueError) as error:
+        print("LIFF 登入驗證失敗：", error)
+        flash("LINE 自動登入失敗，請改用一般方式登入。", "error")
+        return redirect(url_for("login"))
+
+    line_sub = claims.get("sub")
+    if not line_sub:
+        flash("無法取得 LINE 帳號資訊，請改用一般方式登入。", "error")
+        return redirect(url_for("login"))
+    friend_flag = {"1": True, "0": False}.get(request.form.get("friend"))  # 前端查不到好友狀態時是空值
+
+    if session.get("role") == "member":  # 已經登入的會員：就是這個 LINE 的帳號，或帳號還沒綁 LINE，都直接沿用目前登入狀態
+        connection = get_db_connection()
+        if connection is not None:
+            cursor = connection.cursor()
+            try:
+                cursor.execute("SELECT line_sub FROM users WHERE user_id = %s", (session["user_id"],))
+                row = cursor.fetchone()
+            finally:
+                cursor.close()
+                connection.close()
+            if row and row[0] == line_sub:
+                return redirect(next_url)
+            if row and not row[0]:
+                flash("你的 LINE 還沒綁定這個帳號，可以到個人資料頁按「綁定 LINE」。", "success")
+                return redirect(next_url)
+    return finish_line_login(line_sub, claims.get("name"), friend_flag, next_url)
 
 
 @app.route("/auth/line/complete-profile", methods=["GET", "POST"])

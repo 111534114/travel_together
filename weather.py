@@ -126,6 +126,7 @@ def _parse_locations(raw):  # 定義函式：把中央氣象署回傳的原始�
             wx_times = elements.get("天氣現象", [])  # 取得天氣現象(晴、陰、陣雨等)的逐時段資料
             max_times = elements.get("最高溫度", [])  # 取得最高溫的逐時段資料
             min_times = elements.get("最低溫度", [])  # 取得最低溫的逐時段資料
+            rain_times = elements.get("12小時降雨機率", [])  # 取得降雨機率的逐時段資料(LINE 出發提醒用)
 
             periods = []  # 準備這個縣市每 12 小時一筆的天氣清單
 
@@ -138,6 +139,7 @@ def _parse_locations(raw):  # 定義函式：把中央氣象署回傳的原始�
                     "emoji": _weather_emoji(weather_text),  # 依文字描述判斷的 emoji 圖示
                     "max": max_times[idx].get("ElementValue", [{}])[0].get("MaxTemperature") if idx < len(max_times) else None,
                     "min": min_times[idx].get("ElementValue", [{}])[0].get("MinTemperature") if idx < len(min_times) else None,
+                    "rain": rain_times[idx].get("ElementValue", [{}])[0].get("ProbabilityOfPrecipitation") if idx < len(rain_times) else None,
                 })
 
             if not periods:  # 如果這個縣市完全沒有可用的逐時段資料
@@ -152,6 +154,7 @@ def _parse_locations(raw):  # 定義函式：把中央氣象署回傳的原始�
                 "location_name": name,  # 氣象署原本的縣市名稱(顯示用)
                 "today": days[0],  # 最近一天的天氣，卡片摘要用
                 "days": days,  # 完整的逐日清單(通常 7 天)，Modal 完整預報用
+                "periods": periods,  # 原始的每 12 小時資料，get_day_forecast 依日期查詢用
             }
 
     return result  # 回傳整理好的 {正規化縣市名: 天氣資料} 字典
@@ -193,3 +196,62 @@ def get_weather_by_cities(city_names):  # 定義函式：依城市名稱清單�
             result[name] = all_weather[key]  # 用原始名稱當 key，存入回傳結果
 
     return result  # 回傳查得到資料的城市天氣
+
+
+def _to_int(value):  # 氣象署的數值是字串，偶爾會是空白或「-」，轉不成數字就回傳 None
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return None
+
+
+def get_day_forecast(city_name, target_date):  # 定義函式：查詢某個台灣縣市在指定日期的天氣(LINE 出發提醒用)
+    """
+    回傳 {'weather', 'emoji', 'max', 'min', 'rain'}(溫度與降雨機率為整數，可能是 None)；
+    國外城市、超過一週預報範圍、或沒有設定授權碼時回傳 None。
+    """
+    if not is_configured() or not city_name:
+        return None
+    location = _get_all_weather().get(normalize_city_name(city_name))
+    if not location:
+        return None
+    day_text = target_date.isoformat()
+    periods = [p for p in location.get("periods", []) if (p["start"] or "")[:10] == day_text]
+    if not periods:
+        return None
+    daytime = next((p for p in periods if (p["start"] or "")[11:13] == "06"), periods[0])  # 優先用白天時段代表當天天氣
+    max_values = [v for v in (_to_int(p["max"]) for p in periods) if v is not None]
+    min_values = [v for v in (_to_int(p["min"]) for p in periods) if v is not None]
+    rain_values = [v for v in (_to_int(p.get("rain")) for p in periods) if v is not None]
+    return {
+        "weather": daytime["weather"],
+        "emoji": daytime["emoji"],
+        "max": max(max_values) if max_values else None,
+        "min": min(min_values) if min_values else None,
+        "rain": max(rain_values) if rain_values else None,  # 白天和晚上取較高的降雨機率，提醒比較保險
+    }
+
+
+RAINY_PERCENT = 50  # 降雨機率達到這個值就提醒帶傘
+HOT_CELSIUS = 30  # 最高溫達到這個值就提醒防曬
+COOL_CELSIUS = 18  # 最低溫低於等於這個值就提醒帶外套
+
+
+def describe_forecast(forecast):  # 把 get_day_forecast 的結果組成一行文字，例如「⛅ 多雲時晴 25–34°C・降雨機率 20%」
+    detail = f"{forecast['emoji']} {forecast['weather']}"
+    if forecast["min"] is not None and forecast["max"] is not None:
+        detail += f" {forecast['min']}–{forecast['max']}°C"
+    if forecast["rain"] is not None:
+        detail += f"・降雨機率 {forecast['rain']}%"
+    return detail
+
+
+def travel_tips(forecast):  # 依天氣給出門建議(帶傘、防曬、外套)，LINE 出發提醒與行程卡片共用
+    tips = []
+    if forecast["rain"] is not None and forecast["rain"] >= RAINY_PERCENT:
+        tips.append("☔ 降雨機率偏高，記得帶傘！")
+    if forecast["max"] is not None and forecast["max"] >= HOT_CELSIUS:
+        tips.append("🥵 天氣炎熱，注意防曬、多補充水分")
+    if forecast["min"] is not None and forecast["min"] <= COOL_CELSIUS:
+        tips.append("🧥 早晚偏涼，記得帶件外套")
+    return tips

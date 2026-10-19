@@ -214,7 +214,7 @@ def visitor():
                 JOIN countries co ON co.country_id = t.country_id
                 JOIN cities ci ON ci.city_id = t.city_id
                 LEFT JOIN categories c ON c.category_id = t.category_id
-                WHERE t.visibility = 'public' AND t.deleted_at IS NULL
+                WHERE t.visibility = 'public' AND t.moderation_status = 'visible' AND t.deleted_at IS NULL
                 ORDER BY t.trip_id DESC
             """)
             public_trips = cursor.fetchall()
@@ -234,7 +234,8 @@ def visitor():
                 JOIN countries co ON co.country_id = t.country_id
                 JOIN cities ci ON ci.city_id = t.city_id
                 LEFT JOIN trip_members tm ON tm.trip_id = t.trip_id AND tm.join_status = 'accepted'
-                WHERE (t.visibility = 'public' OR t.people_count > 1) AND t.deleted_at IS NULL
+                WHERE (t.visibility = 'public' OR t.people_count > 1)
+                  AND t.moderation_status = 'visible' AND t.deleted_at IS NULL
                 GROUP BY t.trip_id, t.trip_name, co.name, ci.name, t.people_count, t.total_budget, t.currency, t.introduction, u.full_name, u.nickname
                 ORDER BY t.trip_id DESC
                 LIMIT 6
@@ -1231,7 +1232,7 @@ def system_admin_home():  # 定義系統管理員儀表板函式
         cursor.execute("""
             SELECT COUNT(*) AS total
             FROM trips
-            WHERE visibility = 'public' AND deleted_at IS NULL
+            WHERE visibility = 'public' AND moderation_status = 'visible' AND deleted_at IS NULL
         """)  # 統計可見度為公開的行程數量
 
         public_trip_count = cursor.fetchone()["total"]  # 取出公開行程總數
@@ -1366,7 +1367,7 @@ def admin_user_detail(user_id):
 
         cursor.execute("""
             SELECT COUNT(*) AS trip_count,
-                   COALESCE(SUM(visibility = 'public'), 0) AS public_trip_count
+                   COALESCE(SUM(visibility = 'public' AND moderation_status = 'visible'), 0) AS public_trip_count
             FROM trips
             WHERE owner_id = %s AND deleted_at IS NULL
         """, (user_id,))
@@ -1525,6 +1526,9 @@ def admin_public_trips():  # 定義公開行程管理列表函式
 
     keyword = request.args.get("keyword", "").strip()  # 取得搜尋關鍵字參數
     trip_status = request.args.get("status", "").strip()  # 取得行程狀態篩選參數
+    moderation = request.args.get("moderation", "").strip()
+    if moderation not in {"visible", "hidden", "removed"}:
+        moderation = ""
     allowed_statuses = {"planning", "upcoming", "completed", "cancelled"}  # 定義允許的行程狀態集合
     if trip_status not in allowed_statuses:  # 如果傳入的狀態不在允許範圍內
         trip_status = ""  # 視為沒有篩選狀態
@@ -1535,12 +1539,13 @@ def admin_public_trips():  # 定義公開行程管理列表函式
         return render_template(  # 回傳空清單頁面
             "admin_public_trips.html",
             trips=[], keyword=keyword, trip_status=trip_status,
-            public_count=0
+            moderation=moderation, public_count=0, hidden_count=0, removed_count=0
         )
 
     cursor = connection.cursor(dictionary=True)  # 建立字典格式游標
     try:  # 開始查詢公開行程資料
-        conditions = ["t.visibility = 'public'", "t.deleted_at IS NULL"]  # 查詢條件清單，固定只找公開、未刪除的行程
+        conditions = ["(t.visibility = 'public' OR t.moderation_status != 'visible')",
+                      "(t.deleted_at IS NULL OR t.moderation_status = 'removed')"]
         params = []  # 對應條件的參數清單
 
         if keyword:  # 如果有輸入搜尋關鍵字
@@ -1554,11 +1559,14 @@ def admin_public_trips():  # 定義公開行程管理列表函式
         if trip_status:  # 如果有指定行程狀態
             conditions.append("t.status = %s")  # 加入狀態篩選條件
             params.append(trip_status)  # 加入對應參數
+        if moderation:
+            conditions.append("t.moderation_status = %s")
+            params.append(moderation)
 
         where_clause = " AND ".join(conditions)  # 把所有條件用 AND 串起來
         cursor.execute(f"""
             SELECT t.trip_id, t.trip_name, co.name AS country, ci.name AS city,
-                   t.start_date, t.end_date, t.status, t.created_at,
+                   t.start_date, t.end_date, t.status, t.created_at, t.moderation_status,
                    u.username AS owner_username, u.full_name AS owner_name,
                    COUNT(DISTINCT CASE WHEN tm.join_status = 'accepted'
                                       THEN tm.trip_member_id END) AS member_count,
@@ -1571,14 +1579,16 @@ def admin_public_trips():  # 定義公開行程管理列表函式
             LEFT JOIN itineraries i ON i.trip_id = t.trip_id
             WHERE {where_clause}
             GROUP BY t.trip_id, t.trip_name, co.name, ci.name,
-                     t.start_date, t.end_date, t.status, t.created_at,
+                     t.start_date, t.end_date, t.status, t.created_at, t.moderation_status,
                      u.username, u.full_name
             ORDER BY t.created_at DESC
         """, tuple(params))  # 查詢公開行程清單，附帶成員數、行程項目數
         trips = cursor.fetchall()  # 取出公開行程清單
 
-        cursor.execute("SELECT COUNT(*) AS total FROM trips WHERE visibility = 'public' AND deleted_at IS NULL")  # 查詢公開行程總數
+        cursor.execute("SELECT COUNT(*) AS total FROM trips WHERE visibility = 'public' AND moderation_status = 'visible' AND deleted_at IS NULL")
         public_count = cursor.fetchone()["total"]  # 取出公開行程總數
+        cursor.execute("SELECT moderation_status, COUNT(*) AS total FROM trips WHERE moderation_status != 'visible' GROUP BY moderation_status")
+        moderation_counts = {row["moderation_status"]: row["total"] for row in cursor.fetchall()}
 
     finally:  # 不論成功或失敗都要執行
         cursor.close()  # 關閉游標
@@ -1589,41 +1599,124 @@ def admin_public_trips():  # 定義公開行程管理列表函式
         trips=trips,  # 公開行程清單
         keyword=keyword,  # 搜尋關鍵字
         trip_status=trip_status,  # 狀態篩選值
+        moderation=moderation,
         public_count=public_count,  # 公開行程總數
+        hidden_count=moderation_counts.get("hidden", 0),
+        removed_count=moderation_counts.get("removed", 0),
     )
 
 
-@app.route("/system-admin/public-trips/<int:trip_id>/unpublish", methods=["POST"])  # 設定取消公開行程的路由，網址帶入行程 ID
-def unpublish_public_trip(trip_id):  # 定義取消公開行程函式
-    if "user_id" not in session or session.get("role") != "system_admin":  # 如果尚未登入或角色不是系統管理員
-        return redirect(url_for("login"))  # 導向登入頁
-
-    connection = get_db_connection()  # 建立資料庫連線
-    if connection is None:  # 如果連線失敗
-        flash("資料庫連線失敗", "error")  # 顯示錯誤提示
-        return redirect(url_for("admin_public_trips"))  # 導回公開行程管理頁
-
-    cursor = connection.cursor()  # 建立一般游標(不需要字典格式)
-    try:  # 開始執行更新
+@app.route("/system-admin/public-trips/<int:trip_id>")
+def admin_public_trip_detail(trip_id):
+    denied = system_admin_required()
+    if denied:
+        return denied
+    connection = get_db_connection()
+    if connection is None:
+        flash("資料庫連線失敗", "error")
+        return redirect(url_for("admin_public_trips"))
+    cursor = connection.cursor(dictionary=True)
+    try:
         cursor.execute("""
-            UPDATE trips
-            SET visibility = 'private'
-            WHERE trip_id = %s AND visibility = 'public'
-        """, (trip_id,))  # 把指定的公開行程改為私人，避免誤改已經是私人的行程
-        connection.commit()  # 提交交易
-        if cursor.rowcount:  # 如果有實際更新到資料列
-            flash("行程已取消公開，原有行程資料不受影響。", "success")  # 顯示成功訊息
-        else:  # 如果沒有更新到任何資料列(可能行程已被改動)
-            flash("找不到該公開行程，可能已被更新。", "error")  # 顯示找不到資料的提示
-    except Exception as error:  # 如果執行過程發生例外
-        connection.rollback()  # 回復交易
-        print("取消公開行程失敗：", error)  # 在伺服器端印出錯誤內容
-        flash("取消公開行程失敗", "error")  # 顯示錯誤提示
-    finally:  # 不論成功或失敗都要執行
-        cursor.close()  # 關閉游標
-        connection.close()  # 關閉資料庫連線
+            SELECT t.*, co.name AS country, ci.name AS city,
+                   u.username AS owner_username, u.full_name AS owner_name
+            FROM trips t JOIN users u ON u.user_id = t.owner_id
+            JOIN countries co ON co.country_id = t.country_id
+            JOIN cities ci ON ci.city_id = t.city_id
+            WHERE t.trip_id = %s
+              AND (t.visibility = 'public' OR t.moderation_status != 'visible')
+              AND (t.deleted_at IS NULL OR t.moderation_status = 'removed')
+        """, (trip_id,))
+        trip = cursor.fetchone()
+        if not trip:
+            flash("找不到指定的公開行程", "error")
+            return redirect(url_for("admin_public_trips"))
+        cursor.execute("""
+            SELECT itinerary_date, item_type, title, start_time, end_time,
+                   address, notes, estimated_cost
+            FROM itineraries WHERE trip_id = %s
+            ORDER BY itinerary_date, sort_order, start_time
+        """, (trip_id,))
+        itinerary = cursor.fetchall()
+        cursor.execute("""
+            SELECT h.action, h.reason, h.created_at, u.username AS admin_username
+            FROM trip_moderation_history h JOIN users u ON u.user_id = h.admin_id
+            WHERE h.trip_id = %s ORDER BY h.created_at DESC, h.moderation_id DESC
+        """, (trip_id,))
+        history = cursor.fetchall()
+    finally:
+        cursor.close()
+        connection.close()
+    return render_template("admin_public_trip_detail.html", trip=trip,
+                           itinerary=itinerary, history=history, active_page="trips")
 
-    return redirect(url_for("admin_public_trips"))  # 導回公開行程管理頁
+
+@app.route("/system-admin/public-trips/<int:trip_id>/moderate", methods=["POST"])
+def moderate_public_trip(trip_id):
+    denied = system_admin_required()
+    if denied:
+        return denied
+    action = request.form.get("action", "").strip()
+    reason = request.form.get("reason", "").strip()
+    if action not in {"hide", "restore", "remove"} or not 1 <= len(reason) <= 1000:
+        flash("請選擇處理方式並填寫 1 至 1000 字的原因", "error")
+        return redirect(url_for("admin_public_trip_detail", trip_id=trip_id))
+    connection = get_db_connection()
+    if connection is None:
+        flash("資料庫連線失敗", "error")
+        return redirect(url_for("admin_public_trip_detail", trip_id=trip_id))
+    cursor = connection.cursor(dictionary=True)
+    try:
+        cursor.execute("""
+            SELECT trip_id, trip_name, owner_id, visibility, moderation_status, deleted_at
+            FROM trips WHERE trip_id = %s FOR UPDATE
+        """, (trip_id,))
+        trip = cursor.fetchone()
+        allowed = bool(trip) and (
+            (action == "hide" and trip["visibility"] == "public"
+             and trip["moderation_status"] == "visible" and trip["deleted_at"] is None)
+            or (action == "restore" and trip["moderation_status"] == "hidden")
+            or (action == "remove" and trip["moderation_status"] == "hidden" and trip["deleted_at"] is None)
+            or (action == "remove" and trip["moderation_status"] == "visible"
+                and trip["visibility"] == "public" and trip["deleted_at"] is None)
+        )
+        if not allowed:
+            flash("目前行程狀態不允許這項操作", "error")
+            return redirect(url_for("admin_public_trip_detail", trip_id=trip_id))
+        if action == "hide":
+            cursor.execute("UPDATE trips SET moderation_status = 'hidden' WHERE trip_id = %s", (trip_id,))
+        elif action == "restore":
+            cursor.execute("UPDATE trips SET moderation_status = 'visible' WHERE trip_id = %s", (trip_id,))
+        else:
+            cursor.execute("""
+                UPDATE trips SET moderation_status = 'removed', deleted_at = NOW(), deleted_by = %s
+                WHERE trip_id = %s
+            """, (session["user_id"], trip_id))
+        cursor.execute("""
+            INSERT INTO trip_moderation_history (trip_id, admin_id, action, reason)
+            VALUES (%s, %s, %s, %s)
+        """, (trip_id, session["user_id"], action, reason))
+        action_label = {"hide": "已隱藏", "restore": "已恢復", "remove": "已移除"}[action]
+        cursor.execute("""
+            INSERT INTO notifications
+                (user_id, trip_id, notification_type, title, message, target_url)
+            VALUES (%s, %s, 'system', %s, %s, %s)
+        """, (trip["owner_id"], trip_id, "公開行程管理通知",
+              f"你的行程「{trip['trip_name']}」{action_label}。處理原因：{reason}",
+              url_for("member.dashboard") + "#trips" if action == "remove"
+              else url_for("member.trip_detail", trip_id=trip_id)))
+        log_action(cursor, f"{action}_trip", "trip", trip_id,
+                   f"公開行程 {trip['trip_name']}；原因：{reason}")
+        connection.commit()
+        flash({"hide": "行程已隱藏", "restore": "行程已恢復", "remove": "行程已移除"}[action], "success")
+    except Exception:
+        connection.rollback()
+        app.logger.exception("管理公開行程失敗")
+        flash("處理失敗，請確認已執行公開行程管理資料庫更新", "error")
+    finally:
+        cursor.close()
+        connection.close()
+    return redirect(url_for("admin_public_trip_detail", trip_id=trip_id))
 
 USER_STATUS_TRANSITIONS = {
     "active": {"under_review", "disabled", "deleted"},
@@ -1812,7 +1905,7 @@ def handle_admin_issue(issue_id):
     try:
         cursor.execute("""
             SELECT r.report_id, r.reporter_id, r.status, r.target_id AS trip_id,
-                   t.owner_id, t.trip_name, t.visibility
+                   t.owner_id, t.trip_name, t.visibility, t.moderation_status
             FROM reports r
             JOIN trips t ON t.trip_id = r.target_id
             WHERE r.report_id = %s AND r.target_type = 'trip' AND r.reason LIKE %s
@@ -1821,18 +1914,18 @@ def handle_admin_issue(issue_id):
         if not issue:
             flash("找不到這筆問題回報。", "error")
             return redirect(url_for("admin_issues"))
-        was_unpublished = False
-        if status == "resolved" and issue["visibility"] == "public":
+        was_hidden = False
+        if status == "resolved" and issue["visibility"] == "public" and issue["moderation_status"] == "visible":
             cursor.execute("""
-                UPDATE trips SET visibility = 'private'
-                WHERE trip_id = %s AND visibility = 'public'
+                UPDATE trips SET moderation_status = 'hidden'
+                WHERE trip_id = %s AND visibility = 'public' AND moderation_status = 'visible'
             """, (issue["trip_id"],))
-            was_unpublished = cursor.rowcount > 0
-        elif status == "rejected" and issue["visibility"] != "public":
-            cursor.execute("""
-                UPDATE trips SET visibility = 'public'
-                WHERE trip_id = %s AND visibility != 'public'
-            """, (issue["trip_id"],))
+            was_hidden = cursor.rowcount > 0
+            if was_hidden:
+                cursor.execute("""
+                    INSERT INTO trip_moderation_history (trip_id, admin_id, action, reason)
+                    VALUES (%s, %s, 'hide', %s)
+                """, (issue["trip_id"], session["user_id"], result))
         cursor.execute("""
             UPDATE reports SET status = %s, handling_result = %s, handled_by = %s,
                 handled_at = CASE WHEN %s IN ('resolved', 'rejected') THEN NOW() ELSE NULL END
@@ -1856,15 +1949,15 @@ def handle_admin_issue(issue_id):
                     f"你的公開行程「{issue['trip_name']}」問題回報已結案。"
                     f"處理結果：{result}"
                 )
-                if was_unpublished or issue["visibility"] != "public":
-                    message += " 此行程目前已取消公開。"
+                if was_hidden or issue["moderation_status"] == "hidden":
+                    message += " 此行程目前已被管理員隱藏。"
                 target_url = url_for("member.trip_detail", trip_id=issue["trip_id"])
             else:
                 notification_user_id = issue["reporter_id"]
                 title = "你的問題回報已駁回"
                 message = (
                     f"你對公開行程「{issue['trip_name']}」提出的問題回報已駁回。"
-                    f"處理結果：{result} 此行程目前為公開狀態。"
+                    f"處理結果：{result}"
                 )
                 target_url = url_for("member.dashboard") + "#trips"
             cursor.execute("""
@@ -1876,10 +1969,10 @@ def handle_admin_issue(issue_id):
             ))
         log_action(cursor, "handle_issue", "report", issue_id, f"問題回報狀態更新為 {status}")
         connection.commit()
-        if was_unpublished:
-            flash("問題回報已結案，該行程已自動取消公開。", "success")
+        if was_hidden:
+            flash("問題回報已結案，該行程已由管理員隱藏。", "success")
         elif status == "rejected":
-            flash("問題回報已駁回，該行程已恢復公開並通知回報會員。", "success")
+            flash("問題回報已駁回，已通知回報會員；行程公開狀態不會自動改變。", "success")
         else:
             flash("問題回報已更新。", "success")
     except Exception as error:
@@ -1998,7 +2091,7 @@ def admin_statistics():
                   (SELECT COUNT(*) FROM users WHERE role='member' AND status!='deleted') AS members,
                   (SELECT COUNT(*) FROM users WHERE role='member' AND status='active') AS active_members,
                   (SELECT COUNT(*) FROM trips WHERE deleted_at IS NULL) AS trips,
-                  (SELECT COUNT(*) FROM trips WHERE visibility='public' AND deleted_at IS NULL) AS public_trips,
+                  (SELECT COUNT(*) FROM trips WHERE visibility='public' AND moderation_status='visible' AND deleted_at IS NULL) AS public_trips,
                   (SELECT COUNT(*) FROM announcements) AS announcements
             """)
             totals.update(cursor.fetchone())

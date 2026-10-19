@@ -151,6 +151,7 @@ CREATE TABLE trips (
  currency CHAR(3) NOT NULL DEFAULT 'TWD',
  introduction TEXT,
  visibility ENUM('private','public','link_only') NOT NULL DEFAULT 'private',
+ moderation_status ENUM('visible','hidden','removed') NOT NULL DEFAULT 'visible',
  status ENUM('planning','upcoming','completed','cancelled') NOT NULL DEFAULT 'planning',
  share_token VARCHAR(100) UNIQUE,
  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -160,6 +161,18 @@ CREATE TABLE trips (
  FOREIGN KEY(country_id) REFERENCES countries(country_id),
  FOREIGN KEY(city_id) REFERENCES cities(city_id),
  CHECK(end_date>=start_date), CHECK(people_count>=1), CHECK(total_budget>=0)
+) ENGINE=InnoDB;
+
+CREATE TABLE trip_moderation_history (
+ moderation_id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+ trip_id BIGINT UNSIGNED NOT NULL,
+ admin_id BIGINT UNSIGNED NOT NULL,
+ action ENUM('hide','restore','remove') NOT NULL,
+ reason VARCHAR(1000) NOT NULL,
+ created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+ INDEX idx_trip_moderation_history_trip (trip_id,created_at),
+ FOREIGN KEY(trip_id) REFERENCES trips(trip_id) ON DELETE CASCADE,
+ FOREIGN KEY(admin_id) REFERENCES users(user_id)
 ) ENGINE=InnoDB;
 
 CREATE TABLE trip_members (

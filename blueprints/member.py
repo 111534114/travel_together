@@ -316,7 +316,7 @@ def dashboard():
         cursor.execute("SELECT line_sub IS NOT NULL AS linked, line_friend FROM users WHERE user_id=%s", (user_id,))
         line_status = cursor.fetchone()
         try:
-            cursor.execute("DELETE FROM trips WHERE owner_id=%s AND deleted_at < NOW() - INTERVAL %s DAY", (user_id, TRIP_TRASH_DAYS))
+            cursor.execute("DELETE FROM trips WHERE owner_id=%s AND moderation_status='visible' AND deleted_at < NOW() - INTERVAL %s DAY", (user_id, TRIP_TRASH_DAYS))
             connection.commit()
         except Exception as error:
             connection.rollback(); print("清除過期的已刪除行程失敗：", error)
@@ -327,7 +327,7 @@ def dashboard():
             FROM trips t
             JOIN countries co ON co.country_id = t.country_id
             JOIN cities ci ON ci.city_id = t.city_id
-            WHERE t.owner_id=%s AND t.deleted_at IS NOT NULL
+            WHERE t.owner_id=%s AND t.moderation_status='visible' AND t.deleted_at IS NOT NULL
             ORDER BY t.deleted_at DESC
         """, (TRIP_TRASH_DAYS, user_id))
         deleted_trips = cursor.fetchall()
@@ -393,7 +393,7 @@ def dashboard():
             JOIN countries co ON co.country_id = t.country_id
             JOIN cities ci ON ci.city_id = t.city_id
             LEFT JOIN categories c ON c.category_id = t.category_id
-            WHERE t.visibility = 'public' AND t.deleted_at IS NULL
+            WHERE t.visibility = 'public' AND t.moderation_status = 'visible' AND t.deleted_at IS NULL
             ORDER BY t.trip_id DESC
         """)
         public_trips = cursor.fetchall()
@@ -411,7 +411,8 @@ def dashboard():
             JOIN countries co ON co.country_id = t.country_id
             JOIN cities ci ON ci.city_id = t.city_id
             LEFT JOIN trip_members tm ON tm.trip_id = t.trip_id AND tm.join_status = 'accepted'
-            WHERE (t.visibility = 'public' OR t.people_count > 1) AND t.deleted_at IS NULL
+            WHERE (t.visibility = 'public' OR t.people_count > 1)
+              AND t.moderation_status = 'visible' AND t.deleted_at IS NULL
             GROUP BY t.trip_id, t.trip_name, co.name, ci.name, t.people_count,
                      t.total_budget, t.currency, t.introduction, u.full_name, u.nickname
             ORDER BY t.trip_id DESC
@@ -456,7 +457,8 @@ def dashboard():
             JOIN users u ON u.user_id = t.owner_id
             JOIN countries co ON co.country_id = t.country_id
             JOIN cities ci ON ci.city_id = t.city_id
-            WHERE f.user_id=%s AND f.target_type='trip' AND t.deleted_at IS NULL
+            WHERE f.user_id=%s AND f.target_type='trip' AND t.visibility='public'
+              AND t.moderation_status='visible' AND t.deleted_at IS NULL
             ORDER BY f.created_at DESC
         """, (user_id,))
         favorited_trips = cursor.fetchall()
@@ -527,7 +529,7 @@ def submit_trip_issue(trip_id):
     try:
         cursor.execute("""
             SELECT trip_id, owner_id FROM trips
-            WHERE trip_id = %s AND visibility = 'public' AND deleted_at IS NULL
+            WHERE trip_id = %s AND visibility = 'public' AND moderation_status = 'visible' AND deleted_at IS NULL
         """, (trip_id,))
         trip = cursor.fetchone()
         if not trip:
@@ -568,7 +570,7 @@ def toggle_trip_favorite(trip_id):
         return redirect(url_for("member.dashboard") + "#trips")
     cursor = connection.cursor(dictionary=True)
     try:
-        cursor.execute("SELECT trip_id FROM trips WHERE trip_id=%s AND visibility='public' AND deleted_at IS NULL", (trip_id,))
+        cursor.execute("SELECT trip_id FROM trips WHERE trip_id=%s AND visibility='public' AND moderation_status='visible' AND deleted_at IS NULL", (trip_id,))
         if not cursor.fetchone():
             flash("只能收藏公開行程。", "error")
         else:
@@ -1189,7 +1191,7 @@ def delete_trip(trip_id):
     cursor = connection.cursor(dictionary=True)
     try:
         cursor.execute(
-            "SELECT trip_name FROM trips WHERE trip_id=%s AND owner_id=%s AND deleted_at IS NULL",
+            "SELECT trip_name FROM trips WHERE trip_id=%s AND owner_id=%s AND moderation_status='visible' AND deleted_at IS NULL",
             (trip_id, session["user_id"]),
         )
         trip = cursor.fetchone()
@@ -1217,7 +1219,7 @@ def delete_trip(trip_id):
 
 def _owned_deleted_trip(cursor, trip_id):
     cursor.execute(
-        "SELECT trip_id, trip_name FROM trips WHERE trip_id=%s AND owner_id=%s AND deleted_at IS NOT NULL",
+        "SELECT trip_id, trip_name FROM trips WHERE trip_id=%s AND owner_id=%s AND moderation_status='visible' AND deleted_at IS NOT NULL",
         (trip_id, session["user_id"]),
     )
     return cursor.fetchone()
@@ -1285,7 +1287,7 @@ def duplicate_trip(trip_id):
     try:
         cursor.execute("SELECT * FROM trips WHERE trip_id=%s AND deleted_at IS NULL", (trip_id,))
         trip = cursor.fetchone()
-        if not trip:
+        if not trip or trip["moderation_status"] != "visible":
             flash("找不到這個行程。", "error")
             return redirect(url_for("member.dashboard"))
         if trip["owner_id"] != session["user_id"] and trip["visibility"] != "public":

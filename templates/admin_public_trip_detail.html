@@ -1,0 +1,61 @@
+{% extends "system_admin_base.html" %}
+{% block title %}公開行程詳情{% endblock %}
+{% block page_title %}公開行程詳情{% endblock %}
+{% block page_description %}{{ trip.trip_name }}{% endblock %}
+{% block content %}
+<div class="trip-review-layout">
+  <div class="trip-review-main">
+    <p><a href="{{ url_for('admin_public_trips') }}">← 返回公開行程管理</a></p>
+    <section class="admin-section">
+      <h2>{{ trip.trip_name }}</h2>
+      <p>{{ trip.country }} · {{ trip.city }}　{{ trip.start_date }} 至 {{ trip.end_date }}</p>
+      <p>建立者：{{ trip.owner_name }}（@{{ trip.owner_username }}）</p>
+      <p>公開設定：{{ {'public':'公開','private':'私人','link_only':'連結限定'}[trip.visibility] }}　管理狀態：{{ {'visible':'正常','hidden':'已隱藏','removed':'已移除'}[trip.moderation_status] }}</p>
+      {% if trip.cover_image_path %}<img class="trip-review-cover" src="{{ url_for('static', filename=trip.cover_image_path) }}" alt="{{ trip.trip_name }}封面">{% endif %}
+      <h3>行程介紹</h3>
+      <p class="trip-review-copy">{{ trip.introduction or '沒有填寫介紹。' }}</p>
+    </section>
+
+    <section class="admin-section">
+      <h2>每日行程</h2>
+      {% for item in itinerary %}
+      <div class="trip-review-item">
+        <b>{{ item.itinerary_date }}　{{ item.title }}</b>
+        <p>{{ item.start_time|hm if item.start_time else '' }}{% if item.end_time %}–{{ item.end_time|hm }}{% endif %}{% if item.address %} · {{ item.address }}{% endif %}</p>
+        {% if item.notes %}<p class="trip-review-copy">{{ item.notes }}</p>{% endif %}
+      </div>
+      {% else %}<p>尚無每日行程項目。</p>{% endfor %}
+    </section>
+  </div>
+
+  <aside class="trip-review-side">
+    {% if trip.moderation_status != 'removed' %}
+    <section class="admin-section">
+      <h2>處理行程</h2>
+      <form method="post" action="{{ url_for('moderate_public_trip', trip_id=trip.trip_id) }}" class="trip-review-form">
+        <label for="moderation-reason">處理原因</label>
+        <textarea id="moderation-reason" name="reason" rows="4" maxlength="1000" required></textarea>
+        <div class="trip-review-actions">
+          {% if trip.moderation_status == 'visible' %}
+          <button type="submit" name="action" value="hide">隱藏行程</button>
+          {% else %}
+          <button type="submit" name="action" value="restore">恢復行程</button>
+          {% endif %}
+          <button type="submit" name="action" value="remove" class="trip-review-danger" onclick="return confirm('確定移除這個行程嗎？會員無法自行復原。')">移除違規行程</button>
+        </div>
+      </form>
+    </section>
+    {% endif %}
+    <section class="admin-section">
+      <h2>處理紀錄</h2>
+      {% for entry in history %}
+      <div class="trip-review-item">
+        <b>{{ {'hide':'隱藏','restore':'恢復','remove':'移除'}[entry.action] }}</b>
+        <small>{{ entry.created_at }} · {{ entry.admin_username }}</small>
+        <p class="trip-review-copy">{{ entry.reason }}</p>
+      </div>
+      {% else %}<p>尚無管理處置紀錄。</p>{% endfor %}
+    </section>
+  </aside>
+</div>
+{% endblock %}

@@ -35,7 +35,7 @@
         <div class="admin-topbar">
             <div>
                 <h1>公開行程管理</h1>
-                <p>檢視公開行程內容與公開狀態</p>
+                <p>檢視行程內容、處理違規與追蹤管理狀態</p>
             </div>
         </div>
 
@@ -49,6 +49,8 @@
             <div class="dashboard-card">
                 <div><p>目前公開</p><h2>{{ public_count }}</h2></div>
             </div>
+            <div class="dashboard-card"><div><p>管理員隱藏</p><h2>{{ hidden_count }}</h2></div></div>
+            <div class="dashboard-card"><div><p>已移除</p><h2>{{ removed_count }}</h2></div></div>
         </div>
 
         <section class="admin-section">
@@ -64,8 +66,14 @@
                     <option value="completed" {{ 'selected' if trip_status == 'completed' }}>已完成</option>
                     <option value="cancelled" {{ 'selected' if trip_status == 'cancelled' }}>已取消</option>
                 </select>
+                <select name="moderation" aria-label="管理狀態">
+                    <option value="">所有管理狀態</option>
+                    <option value="visible" {{ 'selected' if moderation == 'visible' }}>目前公開</option>
+                    <option value="hidden" {{ 'selected' if moderation == 'hidden' }}>已隱藏</option>
+                    <option value="removed" {{ 'selected' if moderation == 'removed' }}>已移除</option>
+                </select>
                 <button type="submit">搜尋</button>
-                {% if keyword or trip_status %}
+                {% if keyword or trip_status or moderation %}
                     <a href="{{ url_for('admin_public_trips') }}">清除篩選</a>
                 {% endif %}
             </form>
@@ -73,7 +81,7 @@
 
         <section class="admin-section">
             <div class="section-title">
-                <h2>公開行程列表</h2>
+                <h2>公開行程與處置紀錄</h2>
                 <span>符合條件 {{ trips|length }} 筆</span>
             </div>
             <div class="table-container">
@@ -85,6 +93,7 @@
                         <th>日期</th>
                         <th>狀態</th>
                         <th>內容</th>
+                        <th>管理狀態</th>
                         <th>操作</th>
                     </tr>
                     </thead>
@@ -101,13 +110,9 @@
                             {{ {'planning':'規劃中','upcoming':'即將出發','completed':'已完成','cancelled':'已取消'}[trip.status] }}
                         </span></td>
                         <td>{{ trip.member_count }} 位旅伴<small>{{ trip.itinerary_count }} 個項目</small></td>
+                        <td>{{ {'visible':'公開','hidden':'已隱藏','removed':'已移除'}[trip.moderation_status] }}</td>
                         <td>
-                            <form method="post"
-                                  action="{{ url_for('unpublish_public_trip', trip_id=trip.trip_id) }}"
-                                  class="inline-form"
-                                  onsubmit="return confirm('確定取消公開這個行程嗎？行程將改為私人。');">
-                                <button type="submit" class="disable-button">取消公開</button>
-                            </form>
+                            <a href="{{ url_for('admin_public_trip_detail', trip_id=trip.trip_id) }}">查看詳情</a>
                         </td>
                     </tr>
                     {% else %}

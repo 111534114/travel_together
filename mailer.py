@@ -1,6 +1,7 @@
 import smtplib
 from email.header import Header
 from email.mime.text import MIMEText
+from email.utils import formataddr, formatdate, make_msgid
 
 from config import SMTP_FROM_EMAIL, SMTP_HOST, SMTP_PASSWORD, SMTP_PORT, SMTP_USERNAME
 
@@ -20,8 +21,10 @@ def send_password_reset_email(to_email, reset_url):
     )
     message = MIMEText(body, "plain", "utf-8")
     message["Subject"] = Header(subject, "utf-8")
-    message["From"] = SMTP_FROM_EMAIL
+    message["From"] = formataddr((str(Header("走吧揪團", "utf-8")), SMTP_FROM_EMAIL))
     message["To"] = to_email
+    message["Date"] = formatdate(localtime=True)
+    message["Message-ID"] = make_msgid(domain=SMTP_FROM_EMAIL.split("@")[-1])
 
     try:
         with smtplib.SMTP(SMTP_HOST, SMTP_PORT, timeout=10) as server:

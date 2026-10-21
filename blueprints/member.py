@@ -2,6 +2,7 @@ from datetime import date, datetime
 from decimal import ROUND_DOWN, Decimal, InvalidOperation
 import json
 import os
+import re
 import secrets
 
 from flask import Blueprint, current_app, flash, jsonify, redirect, render_template, request, session, url_for
@@ -2660,10 +2661,14 @@ def profile():
             }.get(user["status"], user["status"])
         if request.method == "POST":
             nickname=request.form.get("nickname","").strip(); email=request.form.get("email","").strip()
+            username=request.form.get("username","").strip()
             if not email: flash("電子郵件不可空白。", "error")
+            elif not re.fullmatch(r"[A-Za-z0-9]{1,9}", username): flash("帳號請輸入9碼以內的英文或數字。", "error")
             else:
                 cursor.execute("SELECT user_id FROM users WHERE email=%s AND user_id<>%s",(email,session["user_id"])); existing=cursor.fetchone()
+                cursor.execute("SELECT user_id FROM users WHERE username=%s AND user_id<>%s",(username,session["user_id"])); username_taken=cursor.fetchone()
                 if existing: flash("此電子郵件已被使用。", "error")
+                elif username_taken: flash("這個帳號已經有人使用了。", "error")
                 else:
                     # 頭像：有選新圖片就換新圖；有勾「移除頭像」就清空，改回顯示暱稱第一個字
                     old_avatar = user["avatar_path"]; avatar_path = old_avatar
@@ -2673,9 +2678,9 @@ def profile():
                         flash(str(exc), "error"); return redirect(url_for("member.profile"))
                     if uploaded_path: avatar_path = uploaded_path
                     elif request.form.get("remove_avatar") == "1": avatar_path = None
-                    cursor.execute("UPDATE users SET nickname=%s,email=%s,avatar_path=%s WHERE user_id=%s",(nickname or None,email,avatar_path,session["user_id"])); connection.commit()
+                    cursor.execute("UPDATE users SET username=%s,nickname=%s,email=%s,avatar_path=%s WHERE user_id=%s",(username,nickname or None,email,avatar_path,session["user_id"])); connection.commit()
                     if old_avatar != avatar_path and old_avatar and not old_avatar.startswith("http"): delete_uploaded_image(old_avatar)
-                    session["nickname"]=nickname; flash("個人資料已更新。", "success"); return redirect(url_for("member.profile"))
+                    session["username"]=username; session["nickname"]=nickname; flash("個人資料已更新。", "success"); return redirect(url_for("member.profile"))
     finally: cursor.close(); connection.close()
     return render_template("member/profile.html", user=user)
 

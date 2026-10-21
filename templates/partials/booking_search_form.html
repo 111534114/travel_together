@@ -1,0 +1,41 @@
+{% if booking_kind %}
+<div class="booking-search-card">
+  <form method="get" class="booking-search-form">
+    {% if booking_kind == 'hotel' %}
+    <div class="field"><label for="searchDestination">目的地</label><input id="searchDestination" name="destination" type="text" value="{{ destination or '' }}" placeholder="城市、飯店名稱"></div>
+    <div class="field"><label for="searchCheckin">入住</label><input id="searchCheckin" name="checkin" type="date" value="{{ checkin or '' }}"></div>
+    <div class="field"><label for="searchCheckout">退房</label><input id="searchCheckout" name="checkout" type="date" value="{{ checkout or '' }}"></div>
+    <div class="field"><label for="searchGuests">人數</label><input id="searchGuests" name="guests" type="number" min="1" max="99" value="{{ guests or 2 }}"></div>
+    {% elif booking_kind == 'flight' %}
+    <input type="hidden" name="trip_mode" id="tripModeInput" value="{{ 'roundtrip' if return_date else 'oneway' }}">
+    <div class="field"><label for="searchFrom">出發地</label><input id="searchFrom" name="from" type="text" value="{{ origin or '' }}" placeholder="台北"></div>
+    <div class="field-sep">→</div>
+    <div class="field"><label for="searchTo">目的地</label><input id="searchTo" name="to" type="text" value="{{ destination or '' }}" placeholder="東京"></div>
+    <div class="field"><label for="searchDepart">去程日期</label><input id="searchDepart" name="depart" type="date" value="{{ depart_date or '' }}"></div>
+    <div class="field"><label for="searchReturn">回程日期（選填）</label><input id="searchReturn" name="return" type="date" value="{{ return_date or '' }}"></div>
+    <div class="field"><label for="searchPax">人數</label><input id="searchPax" name="pax" type="number" min="1" max="99" value="{{ pax or 1 }}"></div>
+    {% elif booking_kind == 'train' %}
+    <div class="field"><label for="searchFrom">出發站</label><input id="searchFrom" name="from" type="text" value="{{ origin or '' }}" placeholder="台北"></div>
+    <div class="field-sep">→</div>
+    <div class="field"><label for="searchTo">到達站</label><input id="searchTo" name="to" type="text" value="{{ destination or '' }}" placeholder="高雄"></div>
+    <div class="field"><label for="searchDate">日期</label><input id="searchDate" name="date" type="date" value="{{ travel_date or '' }}"></div>
+    <div class="field"><label for="searchPax">人數</label><input id="searchPax" name="pax" type="number" min="1" max="99" value="{{ pax or 1 }}"></div>
+    {% endif %}
+    <button class="booking-search-submit" type="submit"{% if booking_kind == 'flight' %} onclick="var r=document.getElementById('searchReturn'); document.getElementById('tripModeInput').value = (r &amp;&amp; r.value) ? 'roundtrip' : 'oneway';"{% endif %}>搜尋</button>
+  </form>
+</div>
+<script>
+  (function () {
+    var todayStr = new Date().toISOString().slice(0, 10);
+    document.querySelectorAll('.booking-search-form input[type="date"]').forEach(function (input) { input.min = todayStr; });
+    var startInput = document.getElementById('searchCheckin') || document.getElementById('searchDepart');
+    var endInput = document.getElementById('searchCheckout') || document.getElementById('searchReturn');
+    if (startInput && endInput) {
+      startInput.addEventListener('change', function () {
+        endInput.min = startInput.value || todayStr;
+        if (endInput.value && endInput.value < endInput.min) { endInput.value = endInput.min; }
+      });
+    }
+  })();
+</script>
+{% endif %}

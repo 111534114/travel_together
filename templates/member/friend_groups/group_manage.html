@@ -1,0 +1,34 @@
+{% extends 'member/base.html' %}{% block title %}管理揪團｜走吧揪團{% endblock %}{% block content %}
+<div class="trip-form-page">
+    <div class="page-heading trip-form-heading">
+        <a href="{{ url_for('friend_groups.index') }}">← 返回交友揪團</a>
+    </div>
+    <div class="panel">
+        <div class="panel-title"><div><p class="eyebrow">MANAGE</p><h1>{{ group.title }}</h1></div></div>
+        <p class="form-hint">{{ group.event_date }}{% if group.location %} · {{ group.location }}{% endif %} · {{ {'open':'開放中','closed':'已關閉','cancelled':'已取消'}[group.status] }}</p>
+
+        {% if group.status != 'cancelled' %}
+        <form method="post" action="{{ url_for('friend_groups.cancel_group', group_id=group.group_id) }}" onsubmit="return confirm('確定要取消這個揪團嗎？')" style="margin-top: 12px;">
+            <button class="member-btn danger small" type="submit">取消這個揪團</button>
+        </form>
+        {% endif %}
+    </div>
+
+    <div class="panel">
+        <h2>成員申請</h2>
+        {% for member in members %}
+        <div class="invite-row">
+            <div><b>{{ member.nickname or member.full_name }}</b><p>{{ {'pending':'待審核','approved':'已加入','rejected':'已婉拒','left':'已退出'}[member.status] }}</p></div>
+            {% if member.status == 'pending' %}
+            <div class="trip-member-actions">
+                <form method="post" action="{{ url_for('friend_groups.approve_group_member', group_id=group.group_id, member_user_id=member.user_id) }}"><button class="member-btn primary small" type="submit">通過</button></form>
+                <form method="post" action="{{ url_for('friend_groups.reject_group_member', group_id=group.group_id, member_user_id=member.user_id) }}"><button class="member-btn ghost small" type="submit">婉拒</button></form>
+            </div>
+            {% endif %}
+        </div>
+        {% else %}
+        <p class="muted">目前還沒有人申請加入。</p>
+        {% endfor %}
+    </div>
+</div>
+{% endblock %}

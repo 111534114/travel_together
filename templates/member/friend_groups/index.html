@@ -1,0 +1,129 @@
+{% extends 'member/base.html' %}{% block title %}交友揪團｜走吧揪團{% endblock %}{% block content %}
+<div class="trip-form-page">
+    <div class="page-heading trip-form-heading">
+        <h1>交友揪團</h1>
+        <p>透過官方活動認識其他旅人，累積信任後就能加入或發起交友揪團。</p>
+    </div>
+
+    {% if not application %}
+    <div class="panel">
+        <h2>申請使用交友揪團</h2>
+        <p class="form-hint">這個功能需要先申請，審核通過並出席過一場官方活動後，才能加入或發起會員揪團。</p>
+        <form method="post" action="{{ url_for('friend_groups.apply') }}" class="form-grid-member">
+            <label>生日 *<input required type="date" name="birthdate"></label>
+            <label class="span-2">申請動機（選填）<textarea name="note" rows="2" maxlength="500" placeholder="想認識什麼樣的旅伴呢？"></textarea></label>
+            <button class="member-btn primary" type="submit">送出申請</button>
+        </form>
+    </div>
+
+    {% elif application.status == 'pending' %}
+    <div class="panel">
+        <h2>申請審核中</h2>
+        <p class="form-hint">你的申請已經送出，等待管理員審核，通過後會收到通知。</p>
+    </div>
+
+    {% elif application.status == 'rejected' %}
+    <div class="panel">
+        <h2>申請未通過</h2>
+        <p class="form-hint">退回原因：{{ application.review_note or '未提供原因' }}</p>
+        <form method="post" action="{{ url_for('friend_groups.apply') }}" class="form-grid-member">
+            <label>生日 *<input required type="date" name="birthdate"></label>
+            <label class="span-2">申請動機（選填）<textarea name="note" rows="2" maxlength="500"></textarea></label>
+            <button class="member-btn primary" type="submit">重新申請</button>
+        </form>
+    </div>
+
+    {% else %}
+    <div class="panel">
+        <div class="panel-title">
+            <div><p class="eyebrow">PROFILE</p><h2>我的旅遊人格</h2></div>
+            <a class="member-btn light" href="{{ url_for('friend_groups.questionnaire') }}">{{ '編輯問卷' if profile else '填寫問卷' }}</a>
+        </div>
+        {% if profile %}
+        <p class="attraction-detail-breadcrumb">你的旅遊人格是</p>
+        <h1>{{ profile.traveler_type }}</h1>
+        <div class="attraction-detail-stats">
+            <div><span>步調</span><strong>{{ pace_labels[profile.pace] }}</strong></div>
+            <div><span>社交傾向</span><strong>{{ social_labels[profile.social_style] }}</strong></div>
+        </div>
+        {% else %}
+        <p class="muted">還沒填寫旅遊人格問卷，填寫後我們可以更準確推薦行程跟旅伴給你。</p>
+        {% endif %}
+    </div>
+
+    <div class="panel">
+        <div class="panel-title"><div><p class="eyebrow">EVENTS</p><h2>官方活動</h2></div></div>
+        {% if not unlocked %}<p class="form-hint">⚠️ 你還沒出席過官方活動，先報名一場參加，出席後才能加入或發起會員揪團。</p>{% endif %}
+        {% if events %}
+        <div class="trip-grid">
+            {% for event in events %}
+            <article class="trip-card">
+                <div class="trip-content">
+                    <h3>{{ event.title }}</h3>
+                    <p class="location">{{ event.event_date }}{% if event.start_time %} {{ event.start_time }}{% endif %}{% if event.location %} · {{ event.location }}{% endif %}</p>
+                    {% if event.description %}<p>{{ event.description }}</p>{% endif %}
+                    <div class="trip-details"><span>{{ event.registered_count }}{% if event.capacity %} / {{ event.capacity }}{% endif %} 人報名</span></div>
+                    <div class="trip-footer">
+                        {% if event.my_status in ('registered','attended') %}
+                        <span class="status-tag">{{ '已報到' if event.my_status == 'attended' else '已報名' }}</span>
+                        {% if event.my_status == 'registered' %}<form method="post" action="{{ url_for('friend_groups.cancel_event', event_id=event.event_id) }}"><button class="view-button" type="submit">取消報名</button></form>{% endif %}
+                        {% else %}
+                        <form method="post" action="{{ url_for('friend_groups.register_event', event_id=event.event_id) }}"><button class="view-button" type="submit">報名參加</button></form>
+                        {% endif %}
+                    </div>
+                </div>
+            </article>
+            {% endfor %}
+        </div>
+        {% else %}
+        <p class="muted">目前還沒有開放報名的官方活動，請稍後再回來看看。</p>
+        {% endif %}
+    </div>
+
+    {% if unlocked %}
+    <div class="panel">
+        <div class="panel-title">
+            <div><p class="eyebrow">MY GROUPS</p><h2>我發起的揪團</h2></div>
+            <a class="member-btn primary" href="{{ url_for('friend_groups.new_group') }}">＋ 發起揪團</a>
+        </div>
+        {% if my_groups %}
+        <div class="trip-grid">
+            {% for group in my_groups %}
+            <article class="trip-card">
+                <div class="trip-content">
+                    <h3>{{ group.title }}</h3>
+                    <p class="location">{{ group.event_date }}{% if group.location %} · {{ group.location }}{% endif %}</p>
+                    <div class="trip-details"><span>{{ group.member_count }}{% if group.capacity %} / {{ group.capacity }}{% endif %} 人</span>{% if group.pending_count %}<span>{{ group.pending_count }} 筆待審核</span>{% endif %}<span class="status-tag">{{ {'open':'開放中','closed':'已關閉','cancelled':'已取消'}[group.status] }}</span></div>
+                    <div class="trip-footer"><a class="view-button" href="{{ url_for('friend_groups.manage_group', group_id=group.group_id) }}">管理揪團</a></div>
+                </div>
+            </article>
+            {% endfor %}
+        </div>
+        {% else %}
+        <p class="muted">你還沒有發起任何揪團。</p>
+        {% endif %}
+    </div>
+
+    <div class="panel">
+        <div class="panel-title"><div><p class="eyebrow">BROWSE</p><h2>其他會員的揪團</h2></div></div>
+        {% if groups %}
+        <div class="trip-grid">
+            {% for group in groups %}
+            <article class="trip-card">
+                <div class="trip-content">
+                    <h3>{{ group.title }}</h3>
+                    <p class="location">{{ group.event_date }}{% if group.location %} · {{ group.location }}{% endif %} · 團主 {{ group.nickname or group.full_name }}</p>
+                    <div class="trip-details"><span>{{ group.member_count }}{% if group.capacity %} / {{ group.capacity }}{% endif %} 人</span></div>
+                    <div class="trip-footer"><a class="view-button" href="{{ url_for('friend_groups.group_detail', group_id=group.group_id) }}">查看詳情</a></div>
+                </div>
+            </article>
+            {% endfor %}
+        </div>
+        {% else %}
+        <p class="muted">目前還沒有其他會員發起揪團。</p>
+        {% endif %}
+    </div>
+    {% endif %}
+    {% endif %}
+</div>
+{% endblock %}

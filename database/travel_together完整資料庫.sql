@@ -12,6 +12,7 @@ CREATE TABLE users (
  nickname VARCHAR(100),
  email VARCHAR(150) NOT NULL UNIQUE,
  phone VARCHAR(30),
+ birthdate DATE,
  avatar_path VARCHAR(255),
  role ENUM('member','content_admin','system_admin') NOT NULL DEFAULT 'member',
  status ENUM('active','under_review','disabled','deleted') NOT NULL DEFAULT 'active',
@@ -458,6 +459,100 @@ CREATE TABLE attachments (
  FOREIGN KEY(proposal_id) REFERENCES proposals(proposal_id) ON DELETE CASCADE
 ) ENGINE=InnoDB;
 
+CREATE TABLE app_settings (
+ setting_key VARCHAR(50) PRIMARY KEY,
+ setting_value VARCHAR(255) NOT NULL,
+ updated_by BIGINT UNSIGNED,
+ updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+ FOREIGN KEY(updated_by) REFERENCES users(user_id) ON DELETE SET NULL
+) ENGINE=InnoDB;
+
+CREATE TABLE traveler_profiles (
+ profile_id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+ user_id BIGINT UNSIGNED NOT NULL UNIQUE,
+ pace ENUM('relaxed','balanced','packed') NOT NULL,
+ social_style ENUM('group','small_group','solo') NOT NULL,
+ budget_style ENUM('frugal','moderate','generous') NOT NULL DEFAULT 'moderate',
+ like_activities VARCHAR(255),
+ dislike_activities VARCHAR(255),
+ diet ENUM('none','vegetarian','halal','no_beef','no_seafood','other') NOT NULL DEFAULT 'none',
+ transport_pref ENUM('any','public','drive','taxi','carpool') NOT NULL DEFAULT 'any',
+ walk_tolerance ENUM('low','medium','high') NOT NULL DEFAULT 'medium',
+ traveler_type VARCHAR(50) NOT NULL,
+ created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+ updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+ FOREIGN KEY(user_id) REFERENCES users(user_id) ON DELETE CASCADE
+) ENGINE=InnoDB;
+
+CREATE TABLE friend_group_applications (
+ application_id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+ user_id BIGINT UNSIGNED NOT NULL,
+ note VARCHAR(500),
+ status ENUM('pending','approved','rejected') NOT NULL DEFAULT 'pending',
+ reviewed_by BIGINT UNSIGNED,
+ reviewed_at DATETIME,
+ review_note VARCHAR(255),
+ created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+ FOREIGN KEY(user_id) REFERENCES users(user_id) ON DELETE CASCADE,
+ FOREIGN KEY(reviewed_by) REFERENCES users(user_id) ON DELETE SET NULL
+) ENGINE=InnoDB;
+
+CREATE TABLE friend_group_events (
+ event_id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+ title VARCHAR(150) NOT NULL,
+ description TEXT,
+ location VARCHAR(255),
+ event_date DATE NOT NULL,
+ start_time TIME,
+ end_time TIME,
+ capacity INT UNSIGNED,
+ status ENUM('open','closed','cancelled') NOT NULL DEFAULT 'open',
+ created_by BIGINT UNSIGNED NOT NULL,
+ created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+ FOREIGN KEY(created_by) REFERENCES users(user_id)
+) ENGINE=InnoDB;
+
+CREATE TABLE friend_group_event_participants (
+ participant_id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+ event_id BIGINT UNSIGNED NOT NULL,
+ user_id BIGINT UNSIGNED NOT NULL,
+ status ENUM('registered','attended','no_show','cancelled') NOT NULL DEFAULT 'registered',
+ registered_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+ checked_in_at DATETIME,
+ UNIQUE(event_id,user_id),
+ FOREIGN KEY(event_id) REFERENCES friend_group_events(event_id) ON DELETE CASCADE,
+ FOREIGN KEY(user_id) REFERENCES users(user_id) ON DELETE CASCADE
+) ENGINE=InnoDB;
+
+CREATE TABLE friend_groups (
+ group_id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+ host_user_id BIGINT UNSIGNED NOT NULL,
+ title VARCHAR(150) NOT NULL,
+ description TEXT,
+ location VARCHAR(255),
+ event_date DATE NOT NULL,
+ start_time TIME,
+ end_time TIME,
+ capacity INT UNSIGNED,
+ pace_filter ENUM('relaxed','balanced','packed'),
+ social_style_filter ENUM('group','small_group','solo'),
+ status ENUM('open','closed','cancelled') NOT NULL DEFAULT 'open',
+ created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+ FOREIGN KEY(host_user_id) REFERENCES users(user_id) ON DELETE CASCADE
+) ENGINE=InnoDB;
+
+CREATE TABLE friend_group_members (
+ member_id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+ group_id BIGINT UNSIGNED NOT NULL,
+ user_id BIGINT UNSIGNED NOT NULL,
+ status ENUM('pending','approved','rejected','left') NOT NULL DEFAULT 'pending',
+ applied_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+ responded_at DATETIME,
+ UNIQUE(group_id,user_id),
+ FOREIGN KEY(group_id) REFERENCES friend_groups(group_id) ON DELETE CASCADE,
+ FOREIGN KEY(user_id) REFERENCES users(user_id) ON DELETE CASCADE
+) ENGINE=InnoDB;
+
 SET FOREIGN_KEY_CHECKS=1;
 
 -- 測試帳號，密碼皆為 123456
@@ -465,6 +560,8 @@ INSERT INTO users(username,password_hash,full_name,nickname,email,role) VALUES
 ('member01','pbkdf2:sha256:600000$67d6646475fb2904$439c40d8eb4f1f1e9de61f14cc0abafae1f4b88c3766c55cdf8827b959c106e9','一般會員測試','旅遊小幫手','member01@example.com','member'),
 ('contentadmin','pbkdf2:sha256:600000$67d6646475fb2904$439c40d8eb4f1f1e9de61f14cc0abafae1f4b88c3766c55cdf8827b959c106e9','旅遊內容管理員','內容管理員','contentadmin@example.com','content_admin'),
 ('admin','pbkdf2:sha256:600000$67d6646475fb2904$439c40d8eb4f1f1e9de61f14cc0abafae1f4b88c3766c55cdf8827b959c106e9','系統管理員','系統管理員','admin@example.com','system_admin');
+
+INSERT INTO app_settings(setting_key,setting_value) VALUES ('friend_group_enabled','0');
 
 INSERT INTO categories(category_type,category_name,description,created_by) VALUES
 ('trip','自由行','一般自由行程',3),

@@ -1,0 +1,195 @@
+{% extends 'member/base.html' %}{% block title %}我的旅程｜走吧揪團{% endblock %}{% block content %}
+<div class="page-heading"><p class="eyebrow">MY TRIPS</p><h1>我的旅程</h1><p>管理你建立或參與的所有旅程，以及收藏的公開行程。</p></div>
+<section class="stats-grid">
+    <div><b>{{ member_stats.total or 0 }}</b><span>全部旅程</span></div>
+    <div><b>{{ member_stats.upcoming or 0 }}</b><span>即將開始</span></div>
+    <div><b>{{ member_stats.ongoing or 0 }}</b><span>進行中</span></div>
+    <div><b>{{ member_stats.completed or 0 }}</b><span>已完成</span></div>
+</section>
+{% if invitations %}
+<section class="panel">
+    <div class="panel-title"><h2>等待你的回覆</h2></div>
+    {% for invitation in invitations %}
+    <div class="invite-row">
+        <div><b>{{ invitation.trip_name }}</b><span>{{ invitation.inviter_name }} 邀請你同行 · {{ invitation.start_date }} 至 {{ invitation.end_date }}{% if invitation.expires_at %} · 邀請將於 {{ invitation.expires_at.strftime('%Y-%m-%d %H:%M') }} 截止{% endif %}</span></div>
+        <div>
+            <form method="post" action="{{ url_for('member.respond_invitation', invitation_id=invitation.invitation_id, action='accept') }}"><button class="member-btn primary small" type="submit">接受</button></form>
+            <form method="post" action="{{ url_for('member.respond_invitation', invitation_id=invitation.invitation_id, action='reject') }}"><button class="member-btn ghost small" type="submit">婉拒</button></form>
+        </div>
+    </div>
+    {% endfor %}
+</section>
+{% endif %}
+<section>
+    <div class="section-head">
+        <div><p class="eyebrow">TRIPS</p><h2>建立或參與的旅程</h2></div>
+        <div style="display:flex; align-items:center; gap:14px;">
+            <span class="search-result" id="memberSearchResult" aria-live="polite"></span>
+            <a class="member-btn primary" href="{{ url_for('member.create_trip') }}">＋ 建立新行程</a>
+        </div>
+    </div>
+    <div class="phase-tabs" role="tablist">
+        <button type="button" class="phase-tab active" data-phase="all" onclick="setPhaseFilter('all', this)">全部</button>
+        <button type="button" class="phase-tab" data-phase="upcoming" onclick="setPhaseFilter('upcoming', this)">即將開始</button>
+        <button type="button" class="phase-tab" data-phase="ongoing" onclick="setPhaseFilter('ongoing', this)">進行中</button>
+        <button type="button" class="phase-tab" data-phase="completed" onclick="setPhaseFilter('completed', this)">已完成</button>
+    </div>
+    <form class="search-bar" onsubmit="searchMemberTrips(event)"><label for="memberTripSearch"><input id="memberTripSearch" type="search" oninput="filterMemberTrips()" placeholder="搜尋我的旅程名稱或地點"></label><button type="submit">搜尋</button></form>
+    {% if trips %}
+    <div class="trip-grid" id="memberTripGrid">
+        {% for trip in trips %}
+        <div class="trip-card-member" data-member-search="{{ trip.trip_name }} {{ trip.country or '' }} {{ trip.city or '' }}" data-phase="{{ trip.phase }}">
+            <div class="card-art" {% if trip.cover_image_path %}style="background-image:url('{{ url_for('static', filename=trip.cover_image_path) }}'); background-size:cover; background-position:center;"{% endif %}>
+                {% if not trip.cover_image_path %}✦{% endif %}
+                <span>{{ '公開' if trip.visibility == 'public' else '私人旅程' }}</span>
+            </div>
+            <div class="card-content">
+                <p>{{ trip.country }} · {{ trip.city }}</p>
+                <h3>{{ trip.trip_name }}</h3>
+                <div>{{ trip.start_date }} — {{ trip.end_date }}</div>
+                <footer><span>{{ trip.member_count }} 位旅伴</span><span>{{ trip.itinerary_count }} 個項目</span><span>{{ {'upcoming':'即將開始','ongoing':'進行中','completed':'已完成'}.get(trip.phase, trip.phase) }}</span></footer>
+                <div class="card-actions">
+                    <form method="post" action="{{ url_for('member.duplicate_trip', trip_id=trip.trip_id) }}" style="margin:0;"><button type="submit" class="member-btn ghost small" title="複製這個行程">複製</button></form>
+                    <a class="member-btn primary small" href="{{ url_for('member.trip_detail', trip_id=trip.trip_id) }}">管理行程</a>
+                </div>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+    {% else %}
+    <div class="empty-member"><div>✦</div><h2>還沒有旅程</h2><p>把想去的地方和旅伴都放進來，開始規劃吧。</p><a class="member-btn primary" href="{{ url_for('member.create_trip') }}">建立第一趟旅程</a></div>
+    {% endif %}
+</section>
+{% if deleted_trips %}
+<section class="trip-trash">
+    <div class="trip-trash-head"><div><h3>🗑️ 最近刪除 <span>{{ deleted_trips|length }}</span></h3><p>刪除的行程會保留 {{ trip_trash_days }} 天，期間可以復原；超過期限會自動永久刪除。</p></div></div>
+    <div class="trip-trash-list">
+        {% for trip in deleted_trips %}
+        <div class="trip-trash-row">
+            <div class="trip-trash-art" {% if trip.cover_image_path %}style="background-image:url('{{ url_for('static', filename=trip.cover_image_path) }}')"{% endif %}>{% if not trip.cover_image_path %}✦{% endif %}</div>
+            <div class="trip-trash-info">
+                <b>{{ trip.trip_name }}</b>
+                <p>{{ trip.country }} · {{ trip.city }}　{{ trip.start_date }} ～ {{ trip.end_date }}</p>
+                <small>{{ trip.deleted_at.strftime('%Y-%m-%d %H:%M') }} 刪除 · <span class="{{ 'urgent' if trip.days_left <= 3 else '' }}">{% if trip.days_left > 0 %}剩 {{ trip.days_left }} 天可復原{% else %}今天之後就會永久刪除{% endif %}</span></small>
+            </div>
+            <div class="trip-trash-actions">
+                <form method="post" action="{{ url_for('member.restore_trip', trip_id=trip.trip_id) }}"><button class="member-btn primary small" type="submit">↩ 復原</button></form>
+                <form method="post" action="{{ url_for('member.purge_trip', trip_id=trip.trip_id) }}" data-trip-name="{{ trip.trip_name }}" onsubmit="return confirm('確定要永久刪除「' + this.dataset.tripName + '」嗎？行程、每日安排、投票、留言、聊天與分帳資料都會消失，無法復原。')"><button class="trip-trash-purge" type="submit">永久刪除</button></form>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+</section>
+{% endif %}
+<section style="margin-top: 10px;">
+    <div class="section-head"><div><p class="eyebrow">SAVED TRIPS</p><h2>收藏的公開行程</h2></div></div>
+    {% if favorited_trips %}
+    <div class="trip-grid">
+        {% for trip in favorited_trips %}
+        <div class="trip-card-member">
+            <div class="card-art" {% if trip.cover_image_path %}style="background-image:url('{{ url_for('static', filename=trip.cover_image_path) }}'); background-size:cover; background-position:center;"{% endif %}>
+                {% if not trip.cover_image_path %}✈{% endif %}
+                <span>公開</span>
+            </div>
+            <div class="card-content">
+                <p>{{ trip.country or '未設定國家' }}{% if trip.city %} · {{ trip.city }}{% endif %}</p>
+                <h3>{{ trip.trip_name }}</h3>
+                <footer><span>{{ trip.days_count }} 天</span><span>{{ trip.start_date }} ～ {{ trip.end_date }}</span>{% if trip.total_budget is not none %}<span>{{ trip.currency }} {{ "{:,.0f}".format(trip.total_budget) }}</span>{% endif %}</footer>
+                <div class="card-actions">
+                    <form method="post" action="{{ url_for('member.toggle_trip_favorite', trip_id=trip.trip_id) }}" style="margin:0;"><input type="hidden" name="next" value="{{ url_for('member.my_trips') }}"><button type="submit" class="member-btn ghost small">取消收藏</button></form>
+                    <button class="member-btn primary small" type="button" onclick="openTripModal('{{ trip.trip_id }}')">查看行程</button>
+                </div>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+    {% else %}
+    <div class="empty-member"><div>☆</div><h2>還沒有收藏的公開行程</h2><p>到「尋找旅伴」頁面點選行程旁的 ☆ 即可收藏到這裡。</p></div>
+    {% endif %}
+</section>
+
+<div class="trip-view-modal" id="tripModal" onclick="if (event.target === this) closeTripModal()">
+    <div class="trip-view-card">
+        <button class="trip-view-close" type="button" onclick="closeTripModal()" aria-label="關閉">×</button>
+        <div id="modalBody"></div>
+        <form id="duplicateTripForm" method="post" class="trip-view-issue-trigger"><button type="submit" class="member-btn ghost">複製此行程</button></form>
+        <button id="issueTrigger" class="member-btn ghost trip-view-issue-trigger" type="button" onclick="openIssueModal()">問題回報</button>
+    </div>
+</div>
+<div class="trip-view-modal" id="issueModal" onclick="if (event.target === this) closeIssueModal()">
+    <div class="trip-view-card">
+        <button class="trip-view-close" type="button" onclick="closeIssueModal()" aria-label="關閉">×</button>
+        <h2>問題回報</h2>
+        <p class="trip-view-meta" id="issueTripName"></p>
+        <form id="issueForm" method="post">
+            <fieldset style="border: 0; padding: 0; margin: 0">
+                <legend>這篇行程有什麼需要回報的地方？</legend>
+                <div class="issue-options">{% for reason in issue_reasons %}<label class="issue-option"><span>{{ reason }}</span><input type="radio" name="reason" value="{{ reason }}" required></label>{% endfor %}</div>
+            </fieldset>
+            <label class="issue-description-label">問題描述<textarea name="description" maxlength="1000" placeholder="補充問題細節，幫助管理員了解情況"></textarea></label>
+            <button class="issue-submit" type="submit">送出回報</button>
+        </form>
+    </div>
+</div>
+<script>
+    const tripsData = {{ trips_timeline_json | tojson }};
+    function escapeHtml(value) { const el = document.createElement('div'); el.textContent = value || ''; return el.innerHTML; }
+    let activeTripId = null;
+    function openTripModal(id) {
+        const trip = tripsData[String(id)];
+        if (!trip) return;
+        const timeline = trip.timeline.length
+            ? trip.timeline.map((item) => '<div class="timeline-item"><b>' + escapeHtml(item.day) + '</b><span>' + escapeHtml(item.desc) + '</span></div>').join('')
+            : '<p class="trip-view-meta">此行程目前沒有公開的每日明細。</p>';
+        document.getElementById('modalBody').innerHTML =
+            '<h2>' + escapeHtml(trip.title) + '</h2>' +
+            '<p class="trip-view-meta">發起者：' + escapeHtml(trip.author || '未提供') + '　·　' + escapeHtml(trip.days) + '　·　' + escapeHtml(trip.budget) + '</p>' +
+            '<h3>行程明細</h3><div class="timeline">' + timeline + '</div>';
+        document.getElementById('tripModal').classList.add('open');
+        activeTripId = id;
+        const issueTrigger = document.getElementById('issueTrigger');
+        if (issueTrigger) issueTrigger.hidden = !trip.can_issue;
+        const duplicateForm = document.getElementById('duplicateTripForm');
+        if (duplicateForm) {
+            duplicateForm.action = '/member/trips/' + encodeURIComponent(id) + '/duplicate';
+            duplicateForm.hidden = !trip.can_duplicate;
+        }
+    }
+    function closeTripModal() { document.getElementById('tripModal').classList.remove('open'); }
+    function openIssueModal() {
+        if (!activeTripId) return;
+        const trip = tripsData[String(activeTripId)];
+        if (!trip || !trip.can_issue) return;
+        const form = document.getElementById('issueForm');
+        form.action = '/member/public-trips/' + encodeURIComponent(activeTripId) + '/issues';
+        form.reset();
+        document.getElementById('issueTripName').textContent = trip.title;
+        closeTripModal();
+        document.getElementById('issueModal').classList.add('open');
+    }
+    function closeIssueModal() { document.getElementById('issueModal').classList.remove('open'); }
+
+    let memberPhaseFilter = 'all';
+    function filterMemberTrips() {
+        const searchInput = document.getElementById('memberTripSearch');
+        const keyword = searchInput ? searchInput.value.trim().toLowerCase() : '';
+        let count = 0;
+        document.querySelectorAll('#memberTripGrid [data-member-search]').forEach((card) => {
+            const matchesKeyword = !keyword || card.dataset.memberSearch.toLowerCase().includes(keyword);
+            const matchesPhase = memberPhaseFilter === 'all' || card.dataset.phase === memberPhaseFilter;
+            const visible = matchesKeyword && matchesPhase;
+            card.hidden = !visible;
+            if (visible) count += 1;
+        });
+        const result = document.getElementById('memberSearchResult');
+        if (result) result.textContent = (keyword || memberPhaseFilter !== 'all') ? '找到 ' + count + ' 個行程' : '';
+    }
+    function searchMemberTrips(event) { event.preventDefault(); filterMemberTrips(); }
+    function setPhaseFilter(phase, btn) {
+        memberPhaseFilter = phase;
+        document.querySelectorAll('.phase-tab').forEach((tab) => tab.classList.remove('active'));
+        if (btn) btn.classList.add('active');
+        filterMemberTrips();
+    }
+</script>
+{% endblock %}

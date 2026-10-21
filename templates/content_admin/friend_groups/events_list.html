@@ -1,0 +1,44 @@
+{% extends "content_admin/base.html" %}
+{% set active_menu = "friend_groups" %}
+{% block title %}官方活動管理｜Travel Together{% endblock %}
+{% block page_title %}官方活動管理{% endblock %}
+{% block page_subtitle %}會員要出席過一場官方活動，才能加入或發起會員揪團{% endblock %}
+{% block content %}
+<div class="type-tabs">
+  <a href="{{ url_for('friend_groups_admin.list_applications') }}">使用申請審核</a>
+  <a class="active" href="{{ url_for('friend_groups_admin.list_events') }}">官方活動管理</a>
+  <a href="{{ url_for('friend_groups_admin.stats') }}">旅遊人格統計</a>
+</div>
+<div class="admin-section">
+  <div class="section-title">
+    <h2>官方活動列表</h2>
+    {% if content_admin_can('friend_groups_admin', 'edit') %}<a class="small-button" href="{{ url_for('friend_groups_admin.new_event') }}">＋ 建立新活動</a>{% endif %}
+  </div>
+  <div class="table-container">
+    <table class="admin-table">
+      <thead><tr><th>活動名稱</th><th>日期</th><th>地點</th><th>報名人數</th><th>已報到</th><th>狀態</th><th>操作</th></tr></thead>
+      <tbody>
+      {% for event in events %}
+      <tr>
+        <td>{{ event.title }}</td>
+        <td>{{ event.event_date }}{% if event.start_time %} {{ event.start_time }}{% endif %}</td>
+        <td>{{ event.location or '—' }}</td>
+        <td>{{ event.registered_count }}{% if event.capacity %} / {{ event.capacity }}{% endif %}</td>
+        <td>{{ event.attended_count }}</td>
+        <td><span class="status-{{ 'active' if event.status == 'open' else event.status }}">{{ status_labels[event.status] }}</span></td>
+        <td>
+          <a class="small-button" href="{{ url_for('friend_groups_admin.event_participants', event_id=event.event_id) }}">報到名單</a>
+          {% if content_admin_can('friend_groups_admin', 'edit') %}
+          <a class="small-button" href="{{ url_for('friend_groups_admin.edit_event', event_id=event.event_id) }}">編輯</a>
+          {% if event.status != 'cancelled' %}<form method="post" action="{{ url_for('friend_groups_admin.cancel_event', event_id=event.event_id) }}" style="display:inline-block;" onsubmit="return confirm('確定要取消這場活動嗎？')"><button class="small-button danger">取消活動</button></form>{% endif %}
+          {% endif %}
+        </td>
+      </tr>
+      {% else %}
+      <tr><td colspan="7" class="empty-data">目前還沒有官方活動</td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

@@ -27,11 +27,13 @@ from blueprints.logs import logs_bp  # 匯入操作紀錄查詢的藍圖
 from blueprints.ai_chat import ai_chat_bp  # 匯入 AI 助理對話的藍圖
 from blueprints.content_admin_accounts import content_admin_accounts_bp
 from blueprints.attraction_posts_admin import attraction_posts_admin_bp
+from blueprints.friend_groups import friend_groups_bp  # 匯入交友揪團(會員端)的藍圖
+from blueprints.friend_groups_admin import friend_groups_admin_bp  # 匯入交友揪團(後台審核)的藍圖
 from content_admin_permissions import CONTENT_ADMIN_ACTIONS, content_admin_can
 from blueprints.member import ISSUE_PREFIX, member_bp  # 匯入會員功能的藍圖
 from blueprints.line_webhook import line_webhook_bp  # 匯入 LINE 官方帳號 webhook 的藍圖
 from activity_log import ACTION_LABELS, log_action
-from utils import google_maps_url, google_maps_embed_url, format_hm  # 匯入組 Google 地圖連結/嵌入縮圖地圖、格式化 TIME 欄位的共用函式，註冊成樣板全域函式讓所有頁面都能直接呼叫
+from utils import google_maps_url, google_maps_embed_url, format_hm, friend_group_feature_enabled  # 匯入組 Google 地圖連結/嵌入縮圖地圖、格式化 TIME 欄位、查交友揪團總開關的共用函式，註冊成樣板全域函式讓所有頁面都能直接呼叫
 import weather  # 匯入中央氣象署天氣預報模組(訪客頁面「目的地天氣」功能用)
 import line_messaging  # 匯入 LINE 官方帳號共用工具(加好友連結、QR Code)
 import trip_reminders
@@ -61,6 +63,7 @@ app.jinja_env.globals["line_add_friend_url"] = line_messaging.add_friend_url()  
 app.jinja_env.globals["line_qr_code_url"] = line_messaging.qr_code_url()  # LINE 官方帳號加好友 QR Code 圖片網址
 app.jinja_env.filters["hm"] = format_hm  # 註冊成樣板過濾器，任何頁面都能直接用 {{ 值 | hm }} 把 TIME 欄位格式化成 HH:MM
 app.jinja_env.globals["content_admin_can"] = content_admin_can
+app.jinja_env.globals["friend_group_feature_enabled"] = friend_group_feature_enabled  # 任何頁面都能直接用 friend_group_feature_enabled() 判斷交友揪團總開關是否開啟
 
 oauth = OAuth(app)  # 建立 Authlib 的 OAuth 註冊器
 google_oauth = oauth.register(
@@ -97,6 +100,8 @@ app.register_blueprint(logs_bp)  # 註冊操作紀錄路由
 app.register_blueprint(ai_chat_bp)  # 註冊 AI 助理對話路由
 app.register_blueprint(content_admin_accounts_bp)
 app.register_blueprint(attraction_posts_admin_bp)
+app.register_blueprint(friend_groups_bp)  # 註冊交友揪團(會員端)路由
+app.register_blueprint(friend_groups_admin_bp)  # 註冊交友揪團(後台審核)路由
 app.register_blueprint(member_bp)  # 註冊會員功能路由
 app.register_blueprint(line_webhook_bp)  # 註冊 LINE 官方帳號 webhook 路由
 

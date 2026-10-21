@@ -1,0 +1,30 @@
+{% extends "content_admin/base.html" %}
+{% set active_menu = "friend_groups" %}
+{% block title %}{{ event.title }}報到名單｜Travel Together{% endblock %}
+{% block page_title %}{{ event.title }}{% endblock %}
+{% block page_subtitle %}{{ event.event_date }}｜活動結束後請幫出席的會員標記報到，報到紀錄是解鎖揪團資格的依據{% endblock %}
+{% block content %}
+<div class="admin-section">
+  <div class="section-title"><h2>報名名單</h2><span>共 {{ participants|length }} 人</span></div>
+  <div class="table-container">
+    <table class="admin-table">
+      <thead><tr><th>會員</th><th>狀態</th><th>報名時間</th><th>報到時間</th>{% if content_admin_can('friend_groups_admin', 'edit') %}<th>操作</th>{% endif %}</tr></thead>
+      <tbody>
+      {% for p in participants %}
+      <tr>
+        <td>{{ p.nickname or p.full_name }}</td>
+        <td><span class="status-{{ 'active' if p.status == 'attended' else p.status }}">{{ {'registered':'已報名','attended':'已報到','no_show':'未出席','cancelled':'已取消'}[p.status] }}</span></td>
+        <td>{{ p.registered_at.strftime('%Y/%m/%d %H:%M') }}</td>
+        <td>{{ p.checked_in_at.strftime('%Y/%m/%d %H:%M') if p.checked_in_at else '—' }}</td>
+        {% if content_admin_can('friend_groups_admin', 'edit') %}
+        <td>{% if p.status != 'attended' %}<form method="post" action="{{ url_for('friend_groups_admin.check_in_participant', event_id=event.event_id, user_id=p.user_id) }}"><button class="small-button">標記報到</button></form>{% else %}—{% endif %}</td>
+        {% endif %}
+      </tr>
+      {% else %}
+      <tr><td colspan="5" class="empty-data">目前還沒有人報名</td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

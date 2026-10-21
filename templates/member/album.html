@@ -1,0 +1,19 @@
+{% extends 'member/base.html' %}{% block title %}旅遊相簿｜走吧揪團{% endblock %}{% block content %}
+<div class="page-heading"><p class="eyebrow">TRAVEL ALBUM</p><h1>旅遊相簿</h1><p>旅伴分享的景點實拍照片與心得。</p></div>
+{% if album_posts %}
+<div class="album-grid">
+    {% for post in album_posts %}
+    <a class="album-card" href="{{ url_for('member.attraction_detail', attraction_id=post.attraction_id) }}#album">
+        <img src="{{ url_for('static', filename=post.image_path) }}" alt="{{ post.attraction_name }}" loading="lazy">
+        <div class="album-card-body">
+            <b>{{ post.attraction_name }}</b>
+            {% if post.caption %}<p>{{ post.caption }}</p>{% endif %}
+            <span>{{ post.nickname or post.full_name }}</span>
+        </div>
+    </a>
+    {% endfor %}
+</div>
+{% else %}
+<div class="empty-member"><div>📷</div><h2>還沒有人分享景點照片</h2><p>去「探索景點」看看，拍下旅程中的美好回憶並分享吧。</p><a class="member-btn primary" href="{{ url_for('member.browse_attractions') }}">探索景點</a></div>
+{% endif %}
+{% endblock %}

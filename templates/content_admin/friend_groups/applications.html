@@ -1,0 +1,62 @@
+{% extends "content_admin/base.html" %}
+{% set active_menu = "friend_groups" %}
+{% block title %}交友揪團管理｜Travel Together{% endblock %}
+{% block page_title %}交友揪團管理{% endblock %}
+{% block page_subtitle %}審核使用申請、管理官方活動，通過審核且出席過官方活動的會員才能加入/發起會員揪團{% endblock %}
+{% block content %}
+<div class="admin-section">
+  <div class="section-title">
+    <h2>功能總開關</h2>
+    <span>{{ '目前開啟中，會員看得到交友揪團入口' if feature_enabled else '目前關閉中，會員看不到交友揪團入口' }}</span>
+  </div>
+  {% if content_admin_can('friend_groups_admin', 'edit') %}
+  <form method="post" action="{{ url_for('friend_groups_admin.toggle_setting') }}">
+    <button class="small-button {{ 'danger' if feature_enabled else '' }}">{{ '關閉功能' if feature_enabled else '開啟功能' }}</button>
+  </form>
+  {% endif %}
+</div>
+
+<div class="type-tabs">
+  <a href="{{ url_for('friend_groups_admin.list_events') }}">官方活動管理</a>
+  <a href="{{ url_for('friend_groups_admin.stats') }}">旅遊人格統計</a>
+</div>
+
+<div class="type-tabs">
+  {% for value, label in status_labels.items() %}<a class="{{ 'active' if status == value else '' }}" href="{{ url_for('friend_groups_admin.list_applications', status=value) }}">{{ label }}</a>{% endfor %}
+  <a class="{{ 'active' if status == 'all' else '' }}" href="{{ url_for('friend_groups_admin.list_applications', status='all') }}">全部</a>
+</div>
+
+<div class="admin-section">
+  <div class="section-title"><h2>使用申請列表</h2><span>共 {{ total }} 筆</span></div>
+  <div class="table-container">
+    <table class="admin-table">
+      <thead><tr><th>申請人</th><th>生日</th><th>申請動機</th><th>狀態</th><th>申請時間</th>{% if content_admin_can('friend_groups_admin', 'edit') %}<th>操作</th>{% endif %}</tr></thead>
+      <tbody>
+      {% for application in applications %}
+      <tr>
+        <td>{{ application.nickname or application.full_name }}</td>
+        <td>{{ application.birthdate or '未填寫' }}</td>
+        <td>{{ application.note or '—' }}</td>
+        <td>
+          <span class="status-{{ 'active' if application.status == 'approved' else application.status }}">{{ status_labels[application.status] }}</span>
+          {% if application.status == 'rejected' and application.review_note %}<span class="post-review-note">原因：{{ application.review_note }}</span>{% endif %}
+        </td>
+        <td>{{ application.created_at.strftime('%Y/%m/%d %H:%M') }}</td>
+        {% if content_admin_can('friend_groups_admin', 'edit') %}
+        <td>
+          {% if application.status == 'pending' %}
+          <form method="post" action="{{ url_for('friend_groups_admin.approve_application', application_id=application.application_id) }}" style="display:inline-block;"><input type="hidden" name="status" value="{{ status }}"><button class="small-button">核准</button></form>
+          <details class="post-review-reject" style="display:inline-block;"><summary class="small-button danger">退回</summary><form method="post" action="{{ url_for('friend_groups_admin.reject_application', application_id=application.application_id) }}"><input type="hidden" name="status" value="{{ status }}"><input name="review_note" maxlength="255" required placeholder="請填寫退回原因"><button class="small-button danger">確定退回</button></form></details>
+          {% else %}—{% endif %}
+        </td>
+        {% endif %}
+      </tr>
+      {% else %}
+      <tr><td colspan="6" class="empty-data">目前沒有符合條件的申請</td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% if total_pages > 1 %}<div class="pagination">{% for p in range(1, total_pages + 1) %}{% if p == page %}<span class="current">{{ p }}</span>{% else %}<a href="{{ url_for('friend_groups_admin.list_applications', status=status, page=p) }}">{{ p }}</a>{% endif %}{% endfor %}</div>{% endif %}
+</div>
+{% endblock %}

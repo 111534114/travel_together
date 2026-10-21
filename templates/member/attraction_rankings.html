@@ -1,0 +1,80 @@
+{% extends 'member/base.html' %}
+{% block title %}景點排行榜｜走吧揪團{% endblock %}
+{% block content %}
+<div class="page-heading ranking-page-heading">
+    <a href="{{ url_for('member.browse_attractions') }}">← 返回探索景點</a>
+    <p class="eyebrow">ATTRACTION RANKING</p>
+    <h1>景點排行榜</h1>
+    <p>依加入行程次數排序；同次數時依收藏數排序。點選景點可查看照片、地址及詳細資訊。</p>
+</div>
+
+<form class="member-form compact attraction-filter ranking-filter" method="get">
+    <div class="form-grid-member">
+        <label>關鍵字<input name="keyword" value="{{ keyword }}" placeholder="景點名稱或地址，例如九份"></label>
+        <label>國家
+            <select id="countrySelect" name="country_id">
+                <option value="">全部國家</option>
+                {% for country in countries %}
+                <option value="{{ country.country_id }}" {{ 'selected' if country_id == country.country_id|string else '' }}>{{ country.name }}</option>
+                {% endfor %}
+            </select>
+        </label>
+        <label>城市
+            <select id="citySelect" name="city_id">
+                <option value="">全部城市</option>
+                {% for city in cities %}
+                <option value="{{ city.city_id }}" data-country="{{ city.country_id }}" {{ 'selected' if city_id == city.city_id|string else '' }}>{{ city.name }}</option>
+                {% endfor %}
+            </select>
+        </label>
+    </div>
+    <div class="form-actions-member">
+        <button class="member-btn primary" type="submit">查看排名</button>
+        <a class="member-btn ghost" href="{{ url_for('member.attraction_rankings') }}">清除篩選</a>
+    </div>
+</form>
+
+<section class="ranking-results" aria-labelledby="rankingResultsTitle">
+    <div class="ranking-section-heading">
+        <div><p class="eyebrow">RESULTS</p><h2 id="rankingResultsTitle">{{ '篩選後排名' if keyword or country_id or city_id else '全部景點排名' }}</h2><p>共 {{ total }} 個景點；只顯示上架中的景點。</p></div>
+        {% if total %}<span class="ranking-page-count">第 {{ page }}／{{ page_count }} 頁</span>{% endif %}
+    </div>
+    {% if rankings %}
+    <ol class="ranking-detail-list" start="{{ rank_offset + 1 }}">
+        {% for a in rankings %}
+        <li>
+            <span class="ranking-number">{{ rank_offset + loop.index }}</span>
+            <a class="ranking-detail-main" href="{{ url_for('member.attraction_detail', attraction_id=a.attraction_id) }}">
+                <span class="ranking-detail-art">{% if a.image_path %}<img src="{{ url_for('static', filename=a.image_path) }}" alt="" loading="lazy">{% else %}{{ a.name[:1] }}{% endif %}</span>
+                <span class="ranking-detail-copy"><strong>{{ a.name }}</strong><small>{{ a.country }} · {{ a.city }}</small><small>{{ a.address or '地址未提供' }}</small></span>
+            </a>
+            <div class="ranking-detail-counts"><strong>加入行程 {{ a.itinerary_count }} 次</strong><span>♡ 收藏 {{ a.favorite_count }} 次</span></div>
+            <a class="ranking-city-link" href="{{ url_for('member.attraction_rankings', country_id=a.country_id, city_id=a.city_id) }}" aria-label="查看{{ a.city }}景點排名">看{{ a.city }}排名 →</a>
+        </li>
+        {% endfor %}
+    </ol>
+    {% if page_count > 1 %}
+    <nav class="ranking-pagination" aria-label="排行榜分頁">
+        {% if page > 1 %}<a class="member-btn outline" href="{{ url_for('member.attraction_rankings', keyword=keyword, country_id=country_id, city_id=city_id, page=page-1) }}">← 上一頁</a>{% endif %}
+        <span>第 {{ page }} 頁，共 {{ page_count }} 頁</span>
+        {% if page < page_count %}<a class="member-btn outline" href="{{ url_for('member.attraction_rankings', keyword=keyword, country_id=country_id, city_id=city_id, page=page+1) }}">下一頁 →</a>{% endif %}
+    </nav>
+    {% endif %}
+    {% else %}
+    <div class="ranking-empty"><p>目前沒有符合條件的上架景點。</p><a class="member-btn outline" href="{{ url_for('member.attraction_rankings') }}">查看全部排名</a></div>
+    {% endif %}
+</section>
+
+<p class="ranking-method-note">統計為景點被加入未刪除行程的次數，不代表獨立旅客人數；不會公開任何人的行程內容。</p>
+<script>
+    function filterCitiesByCountry() {
+        var countryId = document.getElementById('countrySelect').value;
+        var options = document.getElementById('citySelect').querySelectorAll('option[data-country]');
+        options.forEach(function (option) {
+            option.hidden = Boolean(countryId) && option.dataset.country !== countryId;
+        });
+    }
+    document.getElementById('countrySelect').addEventListener('change', filterCitiesByCountry);
+    window.addEventListener('DOMContentLoaded', filterCitiesByCountry);
+</script>
+{% endblock %}

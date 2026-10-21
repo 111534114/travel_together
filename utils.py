@@ -9,7 +9,8 @@ import csv  # 匯入 csv，用來寫出 CSV 格式的內容
 from urllib.parse import parse_qs, quote_plus, urljoin, urlparse  # 匯入網址解析工具，用來拆解 Google 圖片檢視頁網址、組出地圖搜尋網址
 
 import requests  # 匯入 requests，用來下載網路上的圖片
-from flask import Response, current_app  # 匯入 Response(組成檔案下載回應)、current_app(取得目前執行中的 Flask 應用程式)
+from flask import Response, current_app, g  # 匯入 Response(組成檔案下載回應)、current_app(取得目前執行中的 Flask 應用程式)、g(每個請求的暫存空間，用來快取查詢結果)
+from mysql.connector import errorcode, errors
 from werkzeug.utils import secure_filename  # 匯入 secure_filename，把檔名轉成安全、不含危險字元的格式
 
 ALLOWED_IMAGE_EXTENSIONS = {"png", "jpg", "jpeg", "gif", "webp"}  # 定義允許上傳的圖片副檔名集合
@@ -439,6 +440,37 @@ def format_hm(value):  # 把資料庫 TIME 欄位的值格式化成 HH:MM
     if isinstance(value, time_type):
         return value.strftime("%H:%M")
     return str(value)[:5]  # 已經是字串(例如 "09:00" 或 "09:00:00")時，取前 5 碼就是 HH:MM
+
+
+def get_app_setting(cursor, key, default=None):  # 定義共用函式：查一個全站設定值(例如功能總開關)，查不到就回傳預設值
+    cursor.execute("SELECT setting_value FROM app_settings WHERE setting_key=%s", (key,))
+    row = cursor.fetchone()
+    if not row:
+        return default
+    return row["setting_value"] if isinstance(row, dict) else row[0]
+
+
+def friend_group_feature_enabled():  # 樣板全域函式：查「交友揪團」功能總開關是否開啟，每個請求只查一次(存在 g 裡快取)
+    if hasattr(g, "friend_group_enabled"):
+        return g.friend_group_enabled
+    from db import get_db_connection  # 延後匯入，避免跟 db.py 互相匯入造成循環匯入
+    connection = get_db_connection()
+    if connection is None:
+        return False
+    cursor = connection.cursor()
+    try:
+        try:
+            enabled = get_app_setting(cursor, "friend_group_enabled") == "1"
+        except errors.ProgrammingError as error:
+            if error.errno != errorcode.ER_NO_SUCH_TABLE:
+                raise
+            # 舊資料庫尚未套用交友揪團 migration 時，不讓所有會員頁面一起變成 500。
+            enabled = False
+    finally:
+        cursor.close()
+        connection.close()
+    g.friend_group_enabled = enabled
+    return enabled
 
 
 def csv_response(filename, header, rows):  # 定義共用函式：把表頭與資料列組成可下載的 CSV 回應(給匯出統計、匯入範本共用)

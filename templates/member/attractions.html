@@ -1,7 +1,117 @@
-{% extends 'member/base.html' %}{% block title %}探索景點｜走吧揪團{% endblock %}{% block content %}
-<div class="page-heading"><p class="eyebrow">EXPLORE</p><h1>探索景點</h1><p>瀏覽景點並收藏喜歡的地方，之後排行程時更快找到。</p></div>
-<form class="member-form compact attraction-filter" method="get"><div class="form-grid-member"><label>關鍵字<input name="keyword" value="{{ keyword }}" placeholder="景點名稱或地址"></label><label>國家<select id="countrySelect" name="country_id"><option value="">全部國家</option>{% for country in countries %}<option value="{{ country.country_id }}" {{ 'selected' if country_id == country.country_id|string else '' }}>{{ country.name }}</option>{% endfor %}</select></label><label>城市<select id="citySelect" name="city_id"><option value="">全部城市</option>{% for city in cities %}<option value="{{ city.city_id }}" data-country="{{ city.country_id }}" {{ 'selected' if city_id == city.city_id|string else '' }}>{{ city.name }}</option>{% endfor %}</select></label></div><div class="form-actions-member"><label class="favorites-toggle"><input type="checkbox" name="favorites_only" value="1" {{ 'checked' if favorites_only else '' }}><span>♡ 只看我的收藏</span></label><button class="member-btn primary" type="submit">篩選</button><a class="member-btn ghost" href="{{ url_for('member.browse_attractions') }}">清除篩選</a></div></form>
-{% if attractions %}<div class="trip-grid attraction-grid">{% for a in attractions %}<div class="attraction-card-member">{% if a.is_popular %}<span class="popular-badge">熱門</span>{% endif %}<a href="{{ url_for('member.attraction_detail', attraction_id=a.attraction_id) }}" class="attraction-card-link"><div class="card-art attraction-art">{% if a.image_path %}<img src="{{ url_for('static', filename=a.image_path) }}" alt="{{ a.name }}">{% else %}<span class="art-fallback">{{ a.name[:1] }}</span>{% endif %}</div><div class="card-content"><p>{{ a.country }} · {{ a.city }}{% if a.category_name %} · {{ a.category_name }}{% endif %}</p><h3>{{ a.name }}</h3><footer><span>{{ a.address or '地址未提供' }}</span><strong>{{ 'NT$ {:,.0f}'.format(a.ticket_price) if a.ticket_price else '免費' }}</strong></footer></div></a><form method="post" action="{{ url_for('member.toggle_favorite', attraction_id=a.attraction_id) }}" class="favorite-form"><input type="hidden" name="next" value="{{ request.full_path }}"><button type="submit" class="favorite-btn {{ 'is-favorited' if a.is_favorited else '' }}" title="{{ '取消收藏' if a.is_favorited else '收藏景點' }}">{{ '♥' if a.is_favorited else '♡' }}</button></form><div class="attraction-card-actions"><button type="button" class="member-btn outline small" data-add-to-trip data-action="{{ url_for('member.add_attraction_to_trip', attraction_id=a.attraction_id) }}" data-name="{{ a.name }}" data-city-id="{{ a.city_id }}">＋ 加入行程</button></div></div>{% endfor %}</div>{% else %}<div class="empty-member"><div>✦</div><h2>{{ '還沒有收藏的景點' if favorites_only else '找不到符合條件的景點' }}</h2><p>{{ '去逛逛景點，把喜歡的加進收藏吧。' if favorites_only else '試試看調整關鍵字或國家、城市篩選。' }}</p></div>{% endif %}
+{% extends 'member/base.html' %}
+{% block title %}探索景點｜走吧揪團{% endblock %}
+{% block content %}
+<div class="page-heading">
+    <p class="eyebrow">EXPLORE</p>
+    <h1>探索景點</h1>
+    <p>瀏覽景點並收藏喜歡的地方，之後排行程時更快找到。</p>
+</div>
+
+<form class="member-form compact attraction-filter" method="get">
+    <div class="form-grid-member">
+        <label>關鍵字<input name="keyword" value="{{ keyword }}" placeholder="景點名稱或地址"></label>
+        <label>國家
+            <select id="countrySelect" name="country_id">
+                <option value="">全部國家</option>
+                {% for country in countries %}
+                <option value="{{ country.country_id }}" {{ 'selected' if country_id == country.country_id|string else '' }}>{{ country.name }}</option>
+                {% endfor %}
+            </select>
+        </label>
+        <label>城市
+            <select id="citySelect" name="city_id">
+                <option value="">全部城市</option>
+                {% for city in cities %}
+                <option value="{{ city.city_id }}" data-country="{{ city.country_id }}" {{ 'selected' if city_id == city.city_id|string else '' }}>{{ city.name }}</option>
+                {% endfor %}
+            </select>
+        </label>
+    </div>
+    <div class="form-actions-member">
+        <label class="favorites-toggle"><input type="checkbox" name="favorites_only" value="1" {{ 'checked' if favorites_only else '' }}><span>♡ 只看我的收藏</span></label>
+        <button class="member-btn primary" type="submit">篩選</button>
+        <a class="member-btn ghost" href="{{ url_for('member.browse_attractions') }}">清除篩選</a>
+    </div>
+</form>
+
+<section class="attraction-ranking-preview" aria-labelledby="rankingPreviewTitle">
+    <div class="ranking-section-heading">
+        <div><p class="eyebrow">RANKING</p><h2 id="rankingPreviewTitle">景點排行榜</h2></div>
+        <button class="member-btn outline ranking-open-button" type="button" data-ranking-open aria-haspopup="dialog" aria-controls="attractionRankingDialog">查看排行 →</button>
+    </div>
+    {% if ranking_preview %}
+    <ol class="ranking-preview-list">
+        {% for a in ranking_preview %}
+        <li>
+            <a href="{{ url_for('member.attraction_detail', attraction_id=a.attraction_id) }}">
+                <span class="ranking-number">{{ loop.index }}</span>
+                <span class="ranking-preview-name"><strong>{{ a.name }}</strong><small>{{ a.city }}</small></span>
+                <span class="ranking-preview-count">加入行程 {{ a.itinerary_count }} 次</span>
+            </a>
+        </li>
+        {% endfor %}
+    </ol>
+    {% else %}
+    <p class="ranking-empty">目前沒有符合條件的上架景點。</p>
+    {% endif %}
+</section>
+
+<dialog id="attractionRankingDialog" class="attraction-ranking-dialog"
+        data-ranking-endpoint="{{ url_for('member.attraction_rankings_data') }}"
+        data-keyword="{{ keyword }}" data-country-id="{{ country_id }}" data-city-id="{{ city_id }}"
+        aria-labelledby="rankingDialogTitle">
+    <div class="ranking-dialog-heading">
+        <div><p class="eyebrow">RANKING</p><h2 id="rankingDialogTitle">景點排行榜</h2><p>依加入行程次數排序；相同時參考收藏數。</p></div>
+        <button type="button" class="ranking-dialog-close" data-ranking-close aria-label="關閉排行榜">×</button>
+    </div>
+    <p class="ranking-dialog-status" data-ranking-status role="status" aria-live="polite"></p>
+    <div class="ranking-dialog-body">
+        <ol class="ranking-dialog-list" data-ranking-list></ol>
+        <section class="ranking-chart" aria-labelledby="rankingChartTitle" data-ranking-chart hidden>
+            <h3 id="rankingChartTitle">本頁前五名</h3>
+            <div class="attraction-chart-legend"><span><i class="attraction-chart-trip"></i>加入行程</span><span><i class="attraction-chart-favorite"></i>收藏</span></div>
+            <div class="attraction-chart" data-ranking-chart-list></div>
+            <p class="attraction-report-note">與系統管理員圖表使用相同的排序及統計方式。</p>
+        </section>
+    </div>
+    <div class="ranking-dialog-pagination" data-ranking-pagination hidden>
+        <button type="button" class="member-btn outline small" data-ranking-prev>上一頁</button>
+        <span data-ranking-page-label></span>
+        <button type="button" class="member-btn outline small" data-ranking-next>下一頁</button>
+    </div>
+</dialog>
+
+{% if attractions %}
+<div class="trip-grid attraction-grid">
+    {% for a in attractions %}
+    <div class="attraction-card-member">
+        {% if a.is_popular %}<span class="popular-badge" title="由內容管理員精選，非排行榜名次">精選</span>{% endif %}
+        <a href="{{ url_for('member.attraction_detail', attraction_id=a.attraction_id) }}" class="attraction-card-link">
+            <div class="card-art attraction-art">
+                {% if a.image_path %}<img src="{{ url_for('static', filename=a.image_path) }}" alt="{{ a.name }}">{% else %}<span class="art-fallback">{{ a.name[:1] }}</span>{% endif %}
+            </div>
+            <div class="card-content">
+                <p>{{ a.country }} · {{ a.city }}{% if a.category_name %} · {{ a.category_name }}{% endif %}</p>
+                <h3>{{ a.name }}</h3>
+                <footer><span>{{ a.address or '地址未提供' }}</span><strong>{{ 'NT$ {:,.0f}'.format(a.ticket_price) if a.ticket_price else '免費' }}</strong></footer>
+            </div>
+        </a>
+        <form method="post" action="{{ url_for('member.toggle_favorite', attraction_id=a.attraction_id) }}" class="favorite-form">
+            <input type="hidden" name="next" value="{{ request.full_path }}">
+            <button type="submit" class="favorite-btn {{ 'is-favorited' if a.is_favorited else '' }}" title="{{ '取消收藏' if a.is_favorited else '收藏景點' }}">{{ '♥' if a.is_favorited else '♡' }}</button>
+        </form>
+        <div class="attraction-card-actions"><button type="button" class="member-btn outline small" data-add-to-trip data-action="{{ url_for('member.add_attraction_to_trip', attraction_id=a.attraction_id) }}" data-name="{{ a.name }}" data-city-id="{{ a.city_id }}">＋ 加入行程</button></div>
+    </div>
+    {% endfor %}
+</div>
+{% else %}
+<div class="empty-member">
+    <div>✦</div>
+    <h2>{{ '還沒有收藏的景點' if favorites_only else '找不到符合條件的景點' }}</h2>
+    <p>{{ '去逛逛景點，把喜歡的加進收藏吧。' if favorites_only else '試試看調整關鍵字或國家、城市篩選。' }}</p>
+</div>
+{% endif %}
+
 {% include 'member/_add_to_trip_modal.html' %}
 <script>
     function filterCitiesByCountry() {
@@ -13,5 +123,131 @@
     }
     document.getElementById('countrySelect').addEventListener('change', filterCitiesByCountry);
     window.addEventListener('DOMContentLoaded', filterCitiesByCountry);
+
+    const rankingDialog = document.getElementById('attractionRankingDialog');
+    const rankingList = rankingDialog.querySelector('[data-ranking-list]');
+    const rankingChart = rankingDialog.querySelector('[data-ranking-chart]');
+    const rankingChartList = rankingDialog.querySelector('[data-ranking-chart-list]');
+    const rankingStatus = rankingDialog.querySelector('[data-ranking-status]');
+    const rankingPagination = rankingDialog.querySelector('[data-ranking-pagination]');
+    const rankingPageLabel = rankingDialog.querySelector('[data-ranking-page-label]');
+    const rankingPrevious = rankingDialog.querySelector('[data-ranking-prev]');
+    const rankingNext = rankingDialog.querySelector('[data-ranking-next]');
+    let rankingPage = 1;
+    let rankingPageCount = 1;
+    let rankingLoading = false;
+    let rankingRetryPage = 1;
+
+    async function loadRankingPage(page) {
+        if (rankingLoading) return;
+        rankingRetryPage = page;
+        rankingLoading = true;
+        rankingPrevious.disabled = true;
+        rankingNext.disabled = true;
+        rankingStatus.textContent = '排行榜載入中…';
+        rankingList.replaceChildren();
+        rankingChartList.replaceChildren();
+        rankingChart.hidden = true;
+        rankingPagination.hidden = true;
+        const params = new URLSearchParams({ page: String(page) });
+        if (rankingDialog.dataset.keyword) params.set('keyword', rankingDialog.dataset.keyword);
+        if (rankingDialog.dataset.countryId) params.set('country_id', rankingDialog.dataset.countryId);
+        if (rankingDialog.dataset.cityId) params.set('city_id', rankingDialog.dataset.cityId);
+        try {
+            const response = await fetch(`${rankingDialog.dataset.rankingEndpoint}?${params}`, { credentials: 'same-origin' });
+            if (!response.ok) throw new Error('ranking request failed');
+            const data = await response.json();
+            rankingPage = data.page;
+            rankingPageCount = data.page_count;
+            rankingStatus.textContent = data.total ? `共 ${data.total} 個景點` : '目前範圍內沒有符合條件的上架景點。';
+            data.rankings.forEach(function (item) {
+                const row = document.createElement('li');
+                const link = document.createElement('a');
+                const number = document.createElement('span');
+                const copy = document.createElement('span');
+                const name = document.createElement('strong');
+                const place = document.createElement('small');
+                const counts = document.createElement('span');
+                link.href = item.detail_url;
+                number.className = 'ranking-number';
+                number.textContent = item.rank;
+                copy.className = 'ranking-dialog-copy';
+                name.textContent = item.name;
+                place.textContent = `${item.country} · ${item.city}`;
+                counts.className = 'ranking-dialog-counts';
+                counts.textContent = `加入行程 ${item.itinerary_count} 次 · 收藏 ${item.favorite_count} 次`;
+                copy.append(name, place);
+                link.append(number, copy, counts);
+                row.append(link);
+                rankingList.append(row);
+            });
+            const chartItems = data.rankings.slice(0, 5);
+            if (chartItems.length) {
+                const scale = Math.max(1, ...chartItems.flatMap(function (item) {
+                    return [Number(item.itinerary_count) || 0, Number(item.favorite_count) || 0];
+                }));
+                chartItems.forEach(function (item) {
+                    const row = document.createElement('div');
+                    const label = document.createElement('div');
+                    const name = document.createElement('strong');
+                    const city = document.createElement('span');
+                    const bars = document.createElement('div');
+                    row.className = 'attraction-chart-row';
+                    label.className = 'attraction-chart-name';
+                    name.textContent = item.name;
+                    city.textContent = item.city;
+                    label.append(name, city);
+                    bars.className = 'attraction-chart-bars';
+                    [['attraction-chart-trip', item.itinerary_count], ['attraction-chart-favorite', item.favorite_count]].forEach(function ([kind, rawCount]) {
+                        const count = Math.max(0, Number(rawCount) || 0);
+                        const measure = document.createElement('div');
+                        const track = document.createElement('span');
+                        const fill = document.createElement('span');
+                        const value = document.createElement('strong');
+                        measure.className = 'attraction-chart-measure';
+                        track.className = 'attraction-chart-track';
+                        fill.className = `attraction-chart-fill ${kind}`;
+                        fill.style.width = `${Math.min(100, count / scale * 100)}%`;
+                        value.textContent = count;
+                        track.append(fill);
+                        measure.append(track, value);
+                        bars.append(measure);
+                    });
+                    row.append(label, bars);
+                    rankingChartList.append(row);
+                });
+                rankingChart.hidden = false;
+            }
+            rankingPageLabel.textContent = `第 ${rankingPage}／${rankingPageCount} 頁`;
+            rankingPrevious.disabled = rankingPage <= 1;
+            rankingNext.disabled = rankingPage >= rankingPageCount;
+            rankingNext.textContent = '下一頁';
+            rankingPagination.hidden = !data.total;
+        } catch (error) {
+            rankingStatus.textContent = '排行榜載入失敗，請稍後再試。';
+            rankingPagination.hidden = false;
+            rankingPageLabel.textContent = '';
+            rankingPrevious.disabled = true;
+            rankingNext.disabled = false;
+            rankingNext.textContent = '重試';
+        } finally {
+            rankingLoading = false;
+        }
+    }
+
+    document.querySelector('[data-ranking-open]').addEventListener('click', function () {
+        rankingDialog.showModal();
+        loadRankingPage(1);
+    });
+    rankingDialog.querySelector('[data-ranking-close]').addEventListener('click', function () {
+        rankingDialog.close();
+    });
+    rankingDialog.addEventListener('click', function (event) {
+        if (event.target === rankingDialog) rankingDialog.close();
+    });
+    rankingPrevious.addEventListener('click', function () { loadRankingPage(rankingPage - 1); });
+    rankingNext.addEventListener('click', function () {
+        loadRankingPage(rankingNext.textContent === '重試' ? rankingRetryPage : rankingPage + 1);
+    });
 </script>
 {% endblock %}

@@ -1,0 +1,38 @@
+{% extends 'member/base.html' %}{% block title %}{{ group.title }}｜走吧揪團{% endblock %}{% block content %}
+<div class="trip-form-page">
+    <div class="page-heading trip-form-heading">
+        <a href="{{ url_for('friend_groups.index') }}">← 返回交友揪團</a>
+    </div>
+    <div class="panel">
+        <p class="attraction-detail-breadcrumb">團主 {{ group.nickname or group.full_name }} · {{ {'open':'開放中','closed':'已關閉','cancelled':'已取消'}[group.status] }}</p>
+        <h1>{{ group.title }}</h1>
+        <div class="attraction-detail-stats">
+            <div><span>日期</span><strong>{{ group.event_date }}{% if group.start_time %} {{ group.start_time }}{% endif %}</strong></div>
+            <div><span>地點</span><strong>{{ group.location or '未提供' }}</strong></div>
+            <div><span>人數</span><strong>{{ members|length }}{% if group.capacity %} / {{ group.capacity }}{% endif %}</strong></div>
+        </div>
+        {% if group.description %}<div class="attraction-detail-intro"><h2>說明</h2><p>{{ group.description }}</p></div>{% endif %}
+
+        <div class="attraction-detail-actions">
+            {% if is_host %}
+            <a class="member-btn primary" href="{{ url_for('friend_groups.manage_group', group_id=group.group_id) }}">管理揪團</a>
+            {% elif my_membership %}
+            <span class="status-tag">{{ {'pending':'審核中','approved':'已加入','rejected':'已被婉拒','left':'已退出'}[my_membership.status] }}</span>
+            {% elif group.status == 'open' %}
+            <form method="post" action="{{ url_for('friend_groups.apply_group', group_id=group.group_id) }}"><button class="member-btn primary" type="submit">申請加入</button></form>
+            {% endif %}
+        </div>
+    </div>
+
+    <div class="panel">
+        <h2>目前成員 <span class="count-badge">{{ members|length }}</span></h2>
+        <ul class="trip-member-list">
+            {% for member in members %}
+            <li class="trip-member"><div class="trip-member-main"><i class="trip-member-avatar">{{ (member.nickname or member.full_name)[0] }}</i><div class="trip-member-info"><b>{{ member.nickname or member.full_name }}</b></div></div></li>
+            {% else %}
+            <li class="muted">還沒有成員加入。</li>
+            {% endfor %}
+        </ul>
+    </div>
+</div>
+{% endblock %}

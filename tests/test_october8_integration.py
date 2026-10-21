@@ -104,7 +104,7 @@ class October8IntegrationTests(unittest.TestCase):
                     transport_summary=[dict(method='火車', minutes=30)])
                 for section in ('itinerary', 'proposals', 'chat', 'budget'):
                     self.assertEqual(html.count('id="'+section+'"'), 1)
-                for text in ('09:00', '景點詳細介紹', '時間不合', '發票明細', 'split_user_ids', 'Viewer', 'trip-chat.js', 'expense-invoice.js'):
+                for text in ('09:00', '景點詳細介紹', '時間不合', '發票明細', 'split_user_ids', 'Viewer', 'trip-chat.js', 'expense-invoice.js', 'id="itineraryMap"', 'item-comment-thread'):
                     self.assertIn(text, html)
                 if can_edit:
                     self.assertIn('data-attraction-preview="attraction-preview-3"', html)

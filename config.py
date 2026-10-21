@@ -43,8 +43,25 @@ LINE_BOT_ACCESS_TOKEN = os.environ.get("LINE_BOT_ACCESS_TOKEN", "")
 # 官方帳號的 Basic ID（例如 @861vahjn，不是機密），用來產生網站上的加好友連結與 QR Code
 LINE_BOT_BASIC_ID = os.environ.get("LINE_BOT_BASIC_ID", "")
 
+# 寄送「忘記密碼」重設信用的 SMTP 設定
+# 例如用 Gmail：SMTP_HOST=smtp.gmail.com、SMTP_PORT=587，SMTP_USERNAME 是你的 Gmail，
+# SMTP_PASSWORD 要用 Google 帳戶設定的「應用程式密碼」，不是你平常登入 Gmail 的密碼。
+# 請在 .env 檔案裡新增：SMTP_HOST / SMTP_PORT / SMTP_USERNAME / SMTP_PASSWORD / SMTP_FROM_EMAIL
+SMTP_HOST = os.environ.get("SMTP_HOST", "")
+try:
+    SMTP_PORT = int(os.environ.get("SMTP_PORT", "587"))
+except ValueError:
+    SMTP_PORT = 587
+SMTP_USERNAME = os.environ.get("SMTP_USERNAME", "")
+SMTP_PASSWORD = os.environ.get("SMTP_PASSWORD", "")
+SMTP_FROM_EMAIL = os.environ.get("SMTP_FROM_EMAIL", SMTP_USERNAME)
+
 try:
     TRIP_REMINDER_HOUR = max(0, min(23, int(os.environ.get("TRIP_REMINDER_HOUR", "9"))))
 except ValueError:
     TRIP_REMINDER_HOUR = 9
 PUBLIC_BASE_URL = os.environ.get("PUBLIC_BASE_URL", "").rstrip("/")
+
+# LIFF（在 LINE 裡打開網頁自動登入）：LINE Developers → LINE Login channel → LIFF 分頁建立後取得的 LIFF ID
+# Endpoint URL 請填：https://你的公開網址/liff
+LIFF_ID = os.environ.get("LIFF_ID", "")

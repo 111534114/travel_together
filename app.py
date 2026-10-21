@@ -1,19 +1,21 @@
 import os  # 匯入作業系統功能，用來判斷 Flask 開發伺服器是哪一個行程
 import re  # 匯入正規表示式模組，用來驗證註冊欄位格式
+import secrets  # 匯入 secrets 模組，用來產生忘記密碼用的隨機 token
 from booking_search import (
     TRAIN_TYPE_LABELS, apply_facets, apply_time_band, booking_bp, facet_options,
     filter_prices, price_buckets, price_range, time_band_options,
 )
 import requests  # 匯入 requests，用來呼叫 LINE 的個人資料 API
-from datetime import datetime, timedelta  # 匯入日期工具，用來解析日期與建立月份統計區間
+from datetime import datetime
 from authlib.integrations.flask_client import OAuth  # 匯入 Authlib 的 Flask 整合，處理 Google 登入 OAuth 流程
+from attraction_rankings import fetch_attraction_rankings
 from flask import Flask, render_template, request, redirect, url_for, session, flash  # 匯入 Flask 核心功能：建立 App、渲染樣板、取得請求、導向、產生網址、session、顯示訊息
 from mysql.connector import Error  # 匯入 MySQL 連線錯誤類別，用來捕捉資料庫例外
 from werkzeug.security import check_password_hash, generate_password_hash  # 匯入密碼工具：驗證密碼、產生密碼雜湊值
 from werkzeug.middleware.proxy_fix import ProxyFix
 
 from config import GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, LINE_CHANNEL_ID, LINE_CHANNEL_SECRET  # 匯入第三方登入設定
-from config import PUBLIC_BASE_URL
+from config import LIFF_ID, PUBLIC_BASE_URL  # 匯入 LIFF ID 與網站公開網址(分享給別人的連結要用這個網址)
 from db import get_db_connection  # 匯入自訂的資料庫連線函式
 from blueprints.attractions import attractions_bp  # 匯入景點管理的藍圖(Blueprint)
 from blueprints.restaurants import restaurants_bp  # 匯入餐廳管理的藍圖
@@ -27,11 +29,14 @@ from blueprints.logs import logs_bp  # 匯入操作紀錄查詢的藍圖
 from blueprints.ai_chat import ai_chat_bp  # 匯入 AI 助理對話的藍圖
 from blueprints.content_admin_accounts import content_admin_accounts_bp
 from blueprints.attraction_posts_admin import attraction_posts_admin_bp
+from blueprints.friend_groups import friend_groups_bp  # 匯入交友揪團(會員端)的藍圖
+from blueprints.friend_groups_admin import friend_groups_admin_bp  # 匯入交友揪團(後台審核)的藍圖
 from content_admin_permissions import CONTENT_ADMIN_ACTIONS, content_admin_can
-from blueprints.member import ISSUE_PREFIX, member_bp  # 匯入會員功能的藍圖
+from blueprints.member import COMMENT_REPORT_PREFIX, ISSUE_PREFIX, member_bp  # 匯入會員功能的藍圖
 from blueprints.line_webhook import line_webhook_bp  # 匯入 LINE 官方帳號 webhook 的藍圖
 from activity_log import ACTION_LABELS, log_action
-from utils import google_maps_url, google_maps_embed_url, format_hm  # 匯入組 Google 地圖連結/嵌入縮圖地圖、格式化 TIME 欄位的共用函式，註冊成樣板全域函式讓所有頁面都能直接呼叫
+from mailer import send_password_reset_email  # 匯入忘記密碼重設信的寄送函式
+from utils import google_maps_url, google_maps_embed_url, format_hm, friend_group_feature_enabled  # 匯入組 Google 地圖連結/嵌入縮圖地圖、格式化 TIME 欄位、查交友揪團總開關的共用函式，註冊成樣板全域函式讓所有頁面都能直接呼叫
 import weather  # 匯入中央氣象署天氣預報模組(訪客頁面「目的地天氣」功能用)
 import line_messaging  # 匯入 LINE 官方帳號共用工具(加好友連結、QR Code)
 import trip_reminders
@@ -61,6 +66,7 @@ app.jinja_env.globals["line_add_friend_url"] = line_messaging.add_friend_url()  
 app.jinja_env.globals["line_qr_code_url"] = line_messaging.qr_code_url()  # LINE 官方帳號加好友 QR Code 圖片網址
 app.jinja_env.filters["hm"] = format_hm  # 註冊成樣板過濾器，任何頁面都能直接用 {{ 值 | hm }} 把 TIME 欄位格式化成 HH:MM
 app.jinja_env.globals["content_admin_can"] = content_admin_can
+app.jinja_env.globals["friend_group_feature_enabled"] = friend_group_feature_enabled  # 任何頁面都能直接用 friend_group_feature_enabled() 判斷交友揪團總開關是否開啟
 
 oauth = OAuth(app)  # 建立 Authlib 的 OAuth 註冊器
 google_oauth = oauth.register(
@@ -97,6 +103,8 @@ app.register_blueprint(logs_bp)  # 註冊操作紀錄路由
 app.register_blueprint(ai_chat_bp)  # 註冊 AI 助理對話路由
 app.register_blueprint(content_admin_accounts_bp)
 app.register_blueprint(attraction_posts_admin_bp)
+app.register_blueprint(friend_groups_bp)  # 註冊交友揪團(會員端)路由
+app.register_blueprint(friend_groups_admin_bp)  # 註冊交友揪團(後台審核)路由
 app.register_blueprint(member_bp)  # 註冊會員功能路由
 app.register_blueprint(line_webhook_bp)  # 註冊 LINE 官方帳號 webhook 路由
 
@@ -214,7 +222,7 @@ def visitor():
                 JOIN countries co ON co.country_id = t.country_id
                 JOIN cities ci ON ci.city_id = t.city_id
                 LEFT JOIN categories c ON c.category_id = t.category_id
-                WHERE t.visibility = 'public' AND t.deleted_at IS NULL
+                WHERE t.visibility = 'public' AND t.moderation_status = 'visible' AND t.deleted_at IS NULL
                 ORDER BY t.trip_id DESC
             """)
             public_trips = cursor.fetchall()
@@ -234,7 +242,8 @@ def visitor():
                 JOIN countries co ON co.country_id = t.country_id
                 JOIN cities ci ON ci.city_id = t.city_id
                 LEFT JOIN trip_members tm ON tm.trip_id = t.trip_id AND tm.join_status = 'accepted'
-                WHERE (t.visibility = 'public' OR t.people_count > 1) AND t.deleted_at IS NULL
+                WHERE (t.visibility = 'public' OR t.people_count > 1)
+                  AND t.moderation_status = 'visible' AND t.deleted_at IS NULL
                 GROUP BY t.trip_id, t.trip_name, co.name, ci.name, t.people_count, t.total_budget, t.currency, t.introduction, u.full_name, u.nickname
                 ORDER BY t.trip_id DESC
                 LIMIT 6
@@ -617,6 +626,101 @@ def login():  # 定義登入功能函式
     return render_template("login.html")  # GET 請求，直接顯示登入表單頁
 
 
+PASSWORD_RESET_TTL_MINUTES = 30  # 重設密碼連結的有效時間(分鐘)
+
+
+@app.route("/forgot-password", methods=["GET", "POST"])
+def forgot_password():
+    if request.method == "POST":
+        username = request.form.get("username", "").strip()
+        email = request.form.get("email", "").strip()
+
+        if not username or not email:
+            flash("請輸入帳號和電子郵件。", "error")
+            return render_template("forgot_password.html")
+
+        connection = get_db_connection()
+        if connection is None:
+            flash("資料庫連線失敗，請稍後再試。", "error")
+            return render_template("forgot_password.html")
+
+        cursor = connection.cursor(dictionary=True)
+        try:
+            cursor.execute(
+                "SELECT user_id, email, status FROM users WHERE username = %s AND email = %s LIMIT 1",
+                (username, email),
+            )
+            user = cursor.fetchone()
+            if user and user["status"] == "active":
+                token = secrets.token_urlsafe(32)
+                expires_at = datetime.now() + timedelta(minutes=PASSWORD_RESET_TTL_MINUTES)
+                cursor.execute(
+                    "INSERT INTO password_resets (user_id, token, expires_at) VALUES (%s, %s, %s)",
+                    (user["user_id"], token, expires_at),
+                )
+                connection.commit()
+                reset_url = public_url("reset_password", token=token)
+                send_password_reset_email(user["email"], reset_url)
+        finally:
+            cursor.close()
+            connection.close()
+
+        # 不論帳號／Email 是否存在或對得上，都顯示同一句訊息，避免讓人用這個表單去試探帳號是否存在
+        flash("如果帳號與電子郵件相符，我們已經寄出重設密碼信，請到信箱收信（記得看一下垃圾郵件）。", "success")
+        return redirect(url_for("login"))
+
+    return render_template("forgot_password.html")
+
+
+@app.route("/reset-password/<token>", methods=["GET", "POST"])
+def reset_password(token):
+    connection = get_db_connection()
+    if connection is None:
+        flash("資料庫連線失敗，請稍後再試。", "error")
+        return redirect(url_for("login"))
+
+    cursor = connection.cursor(dictionary=True)
+    try:
+        cursor.execute(
+            "SELECT reset_id, user_id, expires_at, used_at FROM password_resets WHERE token = %s LIMIT 1",
+            (token,),
+        )
+        reset_row = cursor.fetchone()
+
+        if not reset_row or reset_row["used_at"] is not None or reset_row["expires_at"] < datetime.now():
+            flash("這個重設密碼連結已失效，請重新申請。", "error")
+            return redirect(url_for("forgot_password"))
+
+        if request.method == "POST":
+            password = request.form.get("password", "")
+            confirm_password = request.form.get("confirm_password", "")
+
+            if not re.fullmatch(r"(?=.*[A-Za-z])(?=.*\d)\S{9,}", password):
+                flash("密碼至少需要9碼，並同時包含英文與數字。", "error")
+                return render_template("reset_password.html", token=token)
+
+            if password != confirm_password:
+                flash("兩次輸入的密碼不一致。", "error")
+                return render_template("reset_password.html", token=token)
+
+            cursor.execute(
+                "UPDATE users SET password_hash = %s WHERE user_id = %s",
+                (generate_password_hash(password), reset_row["user_id"]),
+            )
+            cursor.execute(
+                "UPDATE password_resets SET used_at = NOW() WHERE reset_id = %s",
+                (reset_row["reset_id"],),
+            )
+            connection.commit()
+            flash("密碼已重設，請用新密碼登入。", "success")
+            return redirect(url_for("login"))
+    finally:
+        cursor.close()
+        connection.close()
+
+    return render_template("reset_password.html", token=token)
+
+
 @app.route("/auth/google/login")
 def google_login():
     if not GOOGLE_CLIENT_ID or not GOOGLE_CLIENT_SECRET:
@@ -832,7 +936,10 @@ def line_callback():
 
     if binding:
         return bind_line_to_current_user(line_sub, friend_flag)
+    return finish_line_login(line_sub, profile.get("displayName"), friend_flag)
 
+
+def finish_line_login(line_sub, display_name, friend_flag, next_url=None):  # LINE 登入與 LIFF 共用：找到綁定的帳號就登入，找不到就進入補填資料註冊
     connection = get_db_connection()
     if connection is None:
         flash("資料庫連線失敗，請稍後再試。", "error")
@@ -864,7 +971,7 @@ def line_callback():
 
     if user is None:
         session["pending_line_sub"] = line_sub
-        session["pending_line_name"] = profile.get("displayName") or "LINE 使用者"
+        session["pending_line_name"] = display_name or "LINE 使用者"
         session["pending_line_friend"] = 1 if friend_flag else 0
         return redirect(url_for("line_complete_profile"))
 
@@ -880,7 +987,65 @@ def line_callback():
     )
     if pending_invite_token:
         session["pending_invite_token"] = pending_invite_token
+    if next_url and not pending_invite_token:
+        return redirect(next_url)
     return redirect_by_role(user["role"])
+
+
+def safe_next_url(value):  # 只允許站內路徑，避免被當成跳轉到外部網站的跳板
+    value = (value or "").strip()
+    if value.startswith("/") and not value.startswith("//") and "\\" not in value:
+        return value
+    return None
+
+
+@app.route("/liff")
+@app.route("/liff/<path:subpath>")
+def liff_entry(subpath=""):  # LIFF 入口：在 LINE 裡打開時自動用 LINE 身分登入網站，再轉到目標頁面
+    if not LIFF_ID:
+        flash("LIFF 尚未設定，請先使用一般方式登入。", "error")
+        return redirect(url_for("login"))
+    return render_template("liff.html", liff_id=LIFF_ID)
+
+
+@app.route("/auth/liff", methods=["POST"])
+def liff_login():  # LIFF 頁面拿到 LINE 的 ID token 後送來這裡驗證並登入
+    next_url = safe_next_url(request.form.get("next")) or url_for("member.dashboard")
+    try:
+        response = requests.post(  # 請 LINE 驗證 ID token，確認是發給我們 LINE Login channel 的
+            "https://api.line.me/oauth2/v2.1/verify",
+            data={"id_token": request.form.get("id_token", ""), "client_id": LINE_CHANNEL_ID},
+            timeout=10,
+        )
+        response.raise_for_status()
+        claims = response.json()
+    except (requests.RequestException, ValueError) as error:
+        print("LIFF 登入驗證失敗：", error)
+        flash("LINE 自動登入失敗，請改用一般方式登入。", "error")
+        return redirect(url_for("login"))
+
+    line_sub = claims.get("sub")
+    if not line_sub:
+        flash("無法取得 LINE 帳號資訊，請改用一般方式登入。", "error")
+        return redirect(url_for("login"))
+    friend_flag = {"1": True, "0": False}.get(request.form.get("friend"))  # 前端查不到好友狀態時是空值
+
+    if session.get("role") == "member":  # 已經登入的會員：就是這個 LINE 的帳號，或帳號還沒綁 LINE，都直接沿用目前登入狀態
+        connection = get_db_connection()
+        if connection is not None:
+            cursor = connection.cursor()
+            try:
+                cursor.execute("SELECT line_sub FROM users WHERE user_id = %s", (session["user_id"],))
+                row = cursor.fetchone()
+            finally:
+                cursor.close()
+                connection.close()
+            if row and row[0] == line_sub:
+                return redirect(next_url)
+            if row and not row[0]:
+                flash("你的 LINE 還沒綁定這個帳號，可以到個人資料頁按「綁定 LINE」。", "success")
+                return redirect(next_url)
+    return finish_line_login(line_sub, claims.get("name"), friend_flag, next_url)
 
 
 @app.route("/auth/line/complete-profile", methods=["GET", "POST"])
@@ -1231,7 +1396,7 @@ def system_admin_home():  # 定義系統管理員儀表板函式
         cursor.execute("""
             SELECT COUNT(*) AS total
             FROM trips
-            WHERE visibility = 'public' AND deleted_at IS NULL
+            WHERE visibility = 'public' AND moderation_status = 'visible' AND deleted_at IS NULL
         """)  # 統計可見度為公開的行程數量
 
         public_trip_count = cursor.fetchone()["total"]  # 取出公開行程總數
@@ -1366,7 +1531,7 @@ def admin_user_detail(user_id):
 
         cursor.execute("""
             SELECT COUNT(*) AS trip_count,
-                   COALESCE(SUM(visibility = 'public'), 0) AS public_trip_count
+                   COALESCE(SUM(visibility = 'public' AND moderation_status = 'visible'), 0) AS public_trip_count
             FROM trips
             WHERE owner_id = %s AND deleted_at IS NULL
         """, (user_id,))
@@ -1525,6 +1690,9 @@ def admin_public_trips():  # 定義公開行程管理列表函式
 
     keyword = request.args.get("keyword", "").strip()  # 取得搜尋關鍵字參數
     trip_status = request.args.get("status", "").strip()  # 取得行程狀態篩選參數
+    moderation = request.args.get("moderation", "").strip()
+    if moderation not in {"visible", "hidden", "removed"}:
+        moderation = ""
     allowed_statuses = {"planning", "upcoming", "completed", "cancelled"}  # 定義允許的行程狀態集合
     if trip_status not in allowed_statuses:  # 如果傳入的狀態不在允許範圍內
         trip_status = ""  # 視為沒有篩選狀態
@@ -1535,12 +1703,13 @@ def admin_public_trips():  # 定義公開行程管理列表函式
         return render_template(  # 回傳空清單頁面
             "admin_public_trips.html",
             trips=[], keyword=keyword, trip_status=trip_status,
-            public_count=0
+            moderation=moderation, public_count=0, hidden_count=0, removed_count=0
         )
 
     cursor = connection.cursor(dictionary=True)  # 建立字典格式游標
     try:  # 開始查詢公開行程資料
-        conditions = ["t.visibility = 'public'", "t.deleted_at IS NULL"]  # 查詢條件清單，固定只找公開、未刪除的行程
+        conditions = ["(t.visibility = 'public' OR t.moderation_status != 'visible')",
+                      "(t.deleted_at IS NULL OR t.moderation_status = 'removed')"]
         params = []  # 對應條件的參數清單
 
         if keyword:  # 如果有輸入搜尋關鍵字
@@ -1554,11 +1723,14 @@ def admin_public_trips():  # 定義公開行程管理列表函式
         if trip_status:  # 如果有指定行程狀態
             conditions.append("t.status = %s")  # 加入狀態篩選條件
             params.append(trip_status)  # 加入對應參數
+        if moderation:
+            conditions.append("t.moderation_status = %s")
+            params.append(moderation)
 
         where_clause = " AND ".join(conditions)  # 把所有條件用 AND 串起來
         cursor.execute(f"""
             SELECT t.trip_id, t.trip_name, co.name AS country, ci.name AS city,
-                   t.start_date, t.end_date, t.status, t.created_at,
+                   t.start_date, t.end_date, t.status, t.created_at, t.moderation_status,
                    u.username AS owner_username, u.full_name AS owner_name,
                    COUNT(DISTINCT CASE WHEN tm.join_status = 'accepted'
                                       THEN tm.trip_member_id END) AS member_count,
@@ -1571,14 +1743,16 @@ def admin_public_trips():  # 定義公開行程管理列表函式
             LEFT JOIN itineraries i ON i.trip_id = t.trip_id
             WHERE {where_clause}
             GROUP BY t.trip_id, t.trip_name, co.name, ci.name,
-                     t.start_date, t.end_date, t.status, t.created_at,
+                     t.start_date, t.end_date, t.status, t.created_at, t.moderation_status,
                      u.username, u.full_name
             ORDER BY t.created_at DESC
         """, tuple(params))  # 查詢公開行程清單，附帶成員數、行程項目數
         trips = cursor.fetchall()  # 取出公開行程清單
 
-        cursor.execute("SELECT COUNT(*) AS total FROM trips WHERE visibility = 'public' AND deleted_at IS NULL")  # 查詢公開行程總數
+        cursor.execute("SELECT COUNT(*) AS total FROM trips WHERE visibility = 'public' AND moderation_status = 'visible' AND deleted_at IS NULL")
         public_count = cursor.fetchone()["total"]  # 取出公開行程總數
+        cursor.execute("SELECT moderation_status, COUNT(*) AS total FROM trips WHERE moderation_status != 'visible' GROUP BY moderation_status")
+        moderation_counts = {row["moderation_status"]: row["total"] for row in cursor.fetchall()}
 
     finally:  # 不論成功或失敗都要執行
         cursor.close()  # 關閉游標
@@ -1589,41 +1763,124 @@ def admin_public_trips():  # 定義公開行程管理列表函式
         trips=trips,  # 公開行程清單
         keyword=keyword,  # 搜尋關鍵字
         trip_status=trip_status,  # 狀態篩選值
+        moderation=moderation,
         public_count=public_count,  # 公開行程總數
+        hidden_count=moderation_counts.get("hidden", 0),
+        removed_count=moderation_counts.get("removed", 0),
     )
 
 
-@app.route("/system-admin/public-trips/<int:trip_id>/unpublish", methods=["POST"])  # 設定取消公開行程的路由，網址帶入行程 ID
-def unpublish_public_trip(trip_id):  # 定義取消公開行程函式
-    if "user_id" not in session or session.get("role") != "system_admin":  # 如果尚未登入或角色不是系統管理員
-        return redirect(url_for("login"))  # 導向登入頁
-
-    connection = get_db_connection()  # 建立資料庫連線
-    if connection is None:  # 如果連線失敗
-        flash("資料庫連線失敗", "error")  # 顯示錯誤提示
-        return redirect(url_for("admin_public_trips"))  # 導回公開行程管理頁
-
-    cursor = connection.cursor()  # 建立一般游標(不需要字典格式)
-    try:  # 開始執行更新
+@app.route("/system-admin/public-trips/<int:trip_id>")
+def admin_public_trip_detail(trip_id):
+    denied = system_admin_required()
+    if denied:
+        return denied
+    connection = get_db_connection()
+    if connection is None:
+        flash("資料庫連線失敗", "error")
+        return redirect(url_for("admin_public_trips"))
+    cursor = connection.cursor(dictionary=True)
+    try:
         cursor.execute("""
-            UPDATE trips
-            SET visibility = 'private'
-            WHERE trip_id = %s AND visibility = 'public'
-        """, (trip_id,))  # 把指定的公開行程改為私人，避免誤改已經是私人的行程
-        connection.commit()  # 提交交易
-        if cursor.rowcount:  # 如果有實際更新到資料列
-            flash("行程已取消公開，原有行程資料不受影響。", "success")  # 顯示成功訊息
-        else:  # 如果沒有更新到任何資料列(可能行程已被改動)
-            flash("找不到該公開行程，可能已被更新。", "error")  # 顯示找不到資料的提示
-    except Exception as error:  # 如果執行過程發生例外
-        connection.rollback()  # 回復交易
-        print("取消公開行程失敗：", error)  # 在伺服器端印出錯誤內容
-        flash("取消公開行程失敗", "error")  # 顯示錯誤提示
-    finally:  # 不論成功或失敗都要執行
-        cursor.close()  # 關閉游標
-        connection.close()  # 關閉資料庫連線
+            SELECT t.*, co.name AS country, ci.name AS city,
+                   u.username AS owner_username, u.full_name AS owner_name
+            FROM trips t JOIN users u ON u.user_id = t.owner_id
+            JOIN countries co ON co.country_id = t.country_id
+            JOIN cities ci ON ci.city_id = t.city_id
+            WHERE t.trip_id = %s
+              AND (t.visibility = 'public' OR t.moderation_status != 'visible')
+              AND (t.deleted_at IS NULL OR t.moderation_status = 'removed')
+        """, (trip_id,))
+        trip = cursor.fetchone()
+        if not trip:
+            flash("找不到指定的公開行程", "error")
+            return redirect(url_for("admin_public_trips"))
+        cursor.execute("""
+            SELECT itinerary_date, item_type, title, start_time, end_time,
+                   address, notes, estimated_cost
+            FROM itineraries WHERE trip_id = %s
+            ORDER BY itinerary_date, sort_order, start_time
+        """, (trip_id,))
+        itinerary = cursor.fetchall()
+        cursor.execute("""
+            SELECT h.action, h.reason, h.created_at, u.username AS admin_username
+            FROM trip_moderation_history h JOIN users u ON u.user_id = h.admin_id
+            WHERE h.trip_id = %s ORDER BY h.created_at DESC, h.moderation_id DESC
+        """, (trip_id,))
+        history = cursor.fetchall()
+    finally:
+        cursor.close()
+        connection.close()
+    return render_template("admin_public_trip_detail.html", trip=trip,
+                           itinerary=itinerary, history=history, active_page="trips")
 
-    return redirect(url_for("admin_public_trips"))  # 導回公開行程管理頁
+
+@app.route("/system-admin/public-trips/<int:trip_id>/moderate", methods=["POST"])
+def moderate_public_trip(trip_id):
+    denied = system_admin_required()
+    if denied:
+        return denied
+    action = request.form.get("action", "").strip()
+    reason = request.form.get("reason", "").strip()
+    if action not in {"hide", "restore", "remove"} or not 1 <= len(reason) <= 1000:
+        flash("請選擇處理方式並填寫 1 至 1000 字的原因", "error")
+        return redirect(url_for("admin_public_trip_detail", trip_id=trip_id))
+    connection = get_db_connection()
+    if connection is None:
+        flash("資料庫連線失敗", "error")
+        return redirect(url_for("admin_public_trip_detail", trip_id=trip_id))
+    cursor = connection.cursor(dictionary=True)
+    try:
+        cursor.execute("""
+            SELECT trip_id, trip_name, owner_id, visibility, moderation_status, deleted_at
+            FROM trips WHERE trip_id = %s FOR UPDATE
+        """, (trip_id,))
+        trip = cursor.fetchone()
+        allowed = bool(trip) and (
+            (action == "hide" and trip["visibility"] == "public"
+             and trip["moderation_status"] == "visible" and trip["deleted_at"] is None)
+            or (action == "restore" and trip["moderation_status"] == "hidden")
+            or (action == "remove" and trip["moderation_status"] == "hidden" and trip["deleted_at"] is None)
+            or (action == "remove" and trip["moderation_status"] == "visible"
+                and trip["visibility"] == "public" and trip["deleted_at"] is None)
+        )
+        if not allowed:
+            flash("目前行程狀態不允許這項操作", "error")
+            return redirect(url_for("admin_public_trip_detail", trip_id=trip_id))
+        if action == "hide":
+            cursor.execute("UPDATE trips SET moderation_status = 'hidden' WHERE trip_id = %s", (trip_id,))
+        elif action == "restore":
+            cursor.execute("UPDATE trips SET moderation_status = 'visible' WHERE trip_id = %s", (trip_id,))
+        else:
+            cursor.execute("""
+                UPDATE trips SET moderation_status = 'removed', deleted_at = NOW(), deleted_by = %s
+                WHERE trip_id = %s
+            """, (session["user_id"], trip_id))
+        cursor.execute("""
+            INSERT INTO trip_moderation_history (trip_id, admin_id, action, reason)
+            VALUES (%s, %s, %s, %s)
+        """, (trip_id, session["user_id"], action, reason))
+        action_label = {"hide": "已隱藏", "restore": "已恢復", "remove": "已移除"}[action]
+        cursor.execute("""
+            INSERT INTO notifications
+                (user_id, trip_id, notification_type, title, message, target_url)
+            VALUES (%s, %s, 'system', %s, %s, %s)
+        """, (trip["owner_id"], trip_id, "公開行程管理通知",
+              f"你的行程「{trip['trip_name']}」{action_label}。處理原因：{reason}",
+              url_for("member.dashboard") + "#trips" if action == "remove"
+              else url_for("member.trip_detail", trip_id=trip_id)))
+        log_action(cursor, f"{action}_trip", "trip", trip_id,
+                   f"公開行程 {trip['trip_name']}；原因：{reason}")
+        connection.commit()
+        flash({"hide": "行程已隱藏", "restore": "行程已恢復", "remove": "行程已移除"}[action], "success")
+    except Exception:
+        connection.rollback()
+        app.logger.exception("管理公開行程失敗")
+        flash("處理失敗，請確認已執行公開行程管理資料庫更新", "error")
+    finally:
+        cursor.close()
+        connection.close()
+    return redirect(url_for("admin_public_trip_detail", trip_id=trip_id))
 
 USER_STATUS_TRANSITIONS = {
     "active": {"under_review", "disabled", "deleted"},
@@ -1812,7 +2069,7 @@ def handle_admin_issue(issue_id):
     try:
         cursor.execute("""
             SELECT r.report_id, r.reporter_id, r.status, r.target_id AS trip_id,
-                   t.owner_id, t.trip_name, t.visibility
+                   t.owner_id, t.trip_name, t.visibility, t.moderation_status
             FROM reports r
             JOIN trips t ON t.trip_id = r.target_id
             WHERE r.report_id = %s AND r.target_type = 'trip' AND r.reason LIKE %s
@@ -1821,18 +2078,18 @@ def handle_admin_issue(issue_id):
         if not issue:
             flash("找不到這筆問題回報。", "error")
             return redirect(url_for("admin_issues"))
-        was_unpublished = False
-        if status == "resolved" and issue["visibility"] == "public":
+        was_hidden = False
+        if status == "resolved" and issue["visibility"] == "public" and issue["moderation_status"] == "visible":
             cursor.execute("""
-                UPDATE trips SET visibility = 'private'
-                WHERE trip_id = %s AND visibility = 'public'
+                UPDATE trips SET moderation_status = 'hidden'
+                WHERE trip_id = %s AND visibility = 'public' AND moderation_status = 'visible'
             """, (issue["trip_id"],))
-            was_unpublished = cursor.rowcount > 0
-        elif status == "rejected" and issue["visibility"] != "public":
-            cursor.execute("""
-                UPDATE trips SET visibility = 'public'
-                WHERE trip_id = %s AND visibility != 'public'
-            """, (issue["trip_id"],))
+            was_hidden = cursor.rowcount > 0
+            if was_hidden:
+                cursor.execute("""
+                    INSERT INTO trip_moderation_history (trip_id, admin_id, action, reason)
+                    VALUES (%s, %s, 'hide', %s)
+                """, (issue["trip_id"], session["user_id"], result))
         cursor.execute("""
             UPDATE reports SET status = %s, handling_result = %s, handled_by = %s,
                 handled_at = CASE WHEN %s IN ('resolved', 'rejected') THEN NOW() ELSE NULL END
@@ -1856,15 +2113,15 @@ def handle_admin_issue(issue_id):
                     f"你的公開行程「{issue['trip_name']}」問題回報已結案。"
                     f"處理結果：{result}"
                 )
-                if was_unpublished or issue["visibility"] != "public":
-                    message += " 此行程目前已取消公開。"
+                if was_hidden or issue["moderation_status"] == "hidden":
+                    message += " 此行程目前已被管理員隱藏。"
                 target_url = url_for("member.trip_detail", trip_id=issue["trip_id"])
             else:
                 notification_user_id = issue["reporter_id"]
                 title = "你的問題回報已駁回"
                 message = (
                     f"你對公開行程「{issue['trip_name']}」提出的問題回報已駁回。"
-                    f"處理結果：{result} 此行程目前為公開狀態。"
+                    f"處理結果：{result}"
                 )
                 target_url = url_for("member.dashboard") + "#trips"
             cursor.execute("""
@@ -1876,10 +2133,10 @@ def handle_admin_issue(issue_id):
             ))
         log_action(cursor, "handle_issue", "report", issue_id, f"問題回報狀態更新為 {status}")
         connection.commit()
-        if was_unpublished:
-            flash("問題回報已結案，該行程已自動取消公開。", "success")
+        if was_hidden:
+            flash("問題回報已結案，該行程已由管理員隱藏。", "success")
         elif status == "rejected":
-            flash("問題回報已駁回，該行程已恢復公開並通知回報會員。", "success")
+            flash("問題回報已駁回，已通知回報會員；行程公開狀態不會自動改變。", "success")
         else:
             flash("問題回報已更新。", "success")
     except Exception as error:
@@ -1890,6 +2147,102 @@ def handle_admin_issue(issue_id):
         cursor.close()
         connection.close()
     return redirect(url_for("admin_issues"))
+
+
+@app.route("/system-admin/comment-reports")
+def admin_comment_reports():
+    denied = system_admin_required()
+    if denied:
+        return denied
+    status = request.args.get("status", "").strip()
+    if status not in {"pending", "processing", "resolved", "rejected"}:
+        status = ""
+    reports_rows = []
+    counts = {"pending": 0, "processing": 0, "resolved": 0, "rejected": 0}
+    connection = get_db_connection()
+    if connection is None:
+        flash("資料庫連線失敗", "error")
+    else:
+        cursor = connection.cursor(dictionary=True)
+        try:
+            cursor.execute("""
+                SELECT status, COUNT(*) AS total FROM reports
+                WHERE target_type = 'comment' AND reason LIKE %s
+                GROUP BY status
+            """, (COMMENT_REPORT_PREFIX + "%",))
+            for row in cursor.fetchall():
+                counts[row["status"]] = row["total"]
+            cursor.execute("""
+                SELECT r.report_id, r.target_id AS comment_id, r.reason, r.description,
+                       r.status, r.created_at, r.handling_result, r.handled_at,
+                       c.content AS comment_content, c.status AS comment_status, c.trip_id,
+                       t.trip_name, au.username AS comment_author_username, au.full_name AS comment_author_name,
+                       u.username AS reporter_username, u.full_name AS reporter_name
+                FROM reports r
+                LEFT JOIN comments c ON c.comment_id = r.target_id
+                LEFT JOIN trips t ON t.trip_id = c.trip_id
+                LEFT JOIN users au ON au.user_id = c.user_id
+                JOIN users u ON u.user_id = r.reporter_id
+                WHERE r.target_type = 'comment' AND r.reason LIKE %s
+                  AND (%s = '' OR r.status = %s)
+                ORDER BY FIELD(r.status, 'pending', 'processing', 'resolved', 'rejected'),
+                         r.created_at DESC
+                LIMIT 200
+            """, (COMMENT_REPORT_PREFIX + "%", status, status))
+            reports_rows = cursor.fetchall()
+            for row in reports_rows:
+                row["reason"] = row["reason"][len(COMMENT_REPORT_PREFIX):]
+        finally:
+            cursor.close()
+            connection.close()
+    return render_template("admin_comment_reports.html", reports=reports_rows, counts=counts, report_status=status)
+
+
+@app.route("/system-admin/comment-reports/<int:report_id>/handle", methods=["POST"])
+def handle_admin_comment_report(report_id):
+    denied = system_admin_required()
+    if denied:
+        return denied
+    status = request.form.get("status", "").strip()
+    result = request.form.get("handling_result", "").strip()
+    if status not in {"processing", "resolved", "rejected"}:
+        flash("處理狀態不正確。", "error")
+        return redirect(url_for("admin_comment_reports"))
+    if len(result) > 1000 or (status in {"resolved", "rejected"} and not result):
+        flash("結案或駁回時請填寫不超過 1000 字的處理結果。", "error")
+        return redirect(url_for("admin_comment_reports"))
+    connection = get_db_connection()
+    if connection is None:
+        flash("資料庫連線失敗", "error")
+        return redirect(url_for("admin_comment_reports"))
+    cursor = connection.cursor(dictionary=True)
+    try:
+        cursor.execute("""
+            SELECT report_id, target_id AS comment_id FROM reports
+            WHERE report_id = %s AND target_type = 'comment' AND reason LIKE %s
+        """, (report_id, COMMENT_REPORT_PREFIX + "%"))
+        report = cursor.fetchone()
+        if not report:
+            flash("找不到這筆檢舉。", "error")
+            return redirect(url_for("admin_comment_reports"))
+        if status == "resolved":
+            cursor.execute("UPDATE comments SET status='hidden' WHERE comment_id=%s AND status='visible'", (report["comment_id"],))
+        cursor.execute("""
+            UPDATE reports SET status = %s, handling_result = %s, handled_by = %s,
+                handled_at = CASE WHEN %s IN ('resolved', 'rejected') THEN NOW() ELSE NULL END
+            WHERE report_id = %s AND target_type = 'comment' AND reason LIKE %s
+        """, (status, result or None, session["user_id"], status, report_id, COMMENT_REPORT_PREFIX + "%"))
+        log_action(cursor, "handle_comment_report", "comment", report["comment_id"], f"留言檢舉狀態更新為 {status}")
+        connection.commit()
+        flash("檢舉已結案，該留言已隱藏。" if status == "resolved" else "檢舉已更新。", "success")
+    except Exception as error:
+        connection.rollback()
+        print("更新留言檢舉失敗：", error)
+        flash("更新失敗。", "error")
+    finally:
+        cursor.close()
+        connection.close()
+    return redirect(url_for("admin_comment_reports"))
 
 
 @app.route("/system-admin/announcements", methods=["GET", "POST"])
@@ -1983,10 +2336,11 @@ def admin_statistics():
         return denied
     totals = {"members": 0, "active_members": 0, "trips": 0, "public_trips": 0,
               "announcements": 0}
-    monthly = []
     trip_statuses = []
     issue_statuses = []
     top_destinations = []
+    attraction_totals = {"active": 0, "favorites": 0, "itineraries": 0}
+    top_attractions = []
     connection = get_db_connection()
     if connection is None:
         flash("資料庫連線失敗", "error")
@@ -1998,37 +2352,10 @@ def admin_statistics():
                   (SELECT COUNT(*) FROM users WHERE role='member' AND status!='deleted') AS members,
                   (SELECT COUNT(*) FROM users WHERE role='member' AND status='active') AS active_members,
                   (SELECT COUNT(*) FROM trips WHERE deleted_at IS NULL) AS trips,
-                  (SELECT COUNT(*) FROM trips WHERE visibility='public' AND deleted_at IS NULL) AS public_trips,
+                  (SELECT COUNT(*) FROM trips WHERE visibility='public' AND moderation_status='visible' AND deleted_at IS NULL) AS public_trips,
                   (SELECT COUNT(*) FROM announcements) AS announcements
             """)
             totals.update(cursor.fetchone())
-            month_starts = []
-            month_start = datetime.now().replace(day=1, hour=0, minute=0, second=0, microsecond=0)
-            for _ in range(6):
-                month_starts.append(month_start)
-                month_start = (month_start - timedelta(days=1)).replace(day=1)
-            month_starts.reverse()
-            monthly = [{"month": value.strftime("%Y-%m"), "members": 0, "trips": 0}
-                       for value in month_starts]
-            monthly_by_key = {row["month"]: row for row in monthly}
-            cursor.execute("""
-                SELECT DATE_FORMAT(created_at, '%%Y-%%m') AS month, COUNT(*) AS total
-                FROM users
-                WHERE role='member' AND created_at >= %s
-                GROUP BY DATE_FORMAT(created_at, '%%Y-%%m')
-            """, (month_starts[0],))
-            for row in cursor.fetchall():
-                if row["month"] in monthly_by_key:
-                    monthly_by_key[row["month"]]["members"] = row["total"]
-            cursor.execute("""
-                SELECT DATE_FORMAT(created_at, '%%Y-%%m') AS month, COUNT(*) AS total
-                FROM trips
-                WHERE created_at >= %s AND deleted_at IS NULL
-                GROUP BY DATE_FORMAT(created_at, '%%Y-%%m')
-            """, (month_starts[0],))
-            for row in cursor.fetchall():
-                if row["month"] in monthly_by_key:
-                    monthly_by_key[row["month"]]["trips"] = row["total"]
             cursor.execute("SELECT status, COUNT(*) AS total FROM trips WHERE deleted_at IS NULL GROUP BY status ORDER BY total DESC")
             trip_statuses = cursor.fetchall()
             cursor.execute("""
@@ -2053,12 +2380,28 @@ def admin_statistics():
                 LIMIT 5
             """)
             top_destinations = cursor.fetchall()
+            cursor.execute("""
+                SELECT
+                  (SELECT COUNT(*) FROM attractions WHERE status='active' AND deleted_at IS NULL) AS active,
+                  (SELECT COUNT(*) FROM favorites f JOIN attractions a ON a.attraction_id=f.attraction_id
+                   WHERE f.target_type='attraction' AND a.status='active' AND a.deleted_at IS NULL) AS favorites,
+                  (SELECT COUNT(*) FROM itineraries i
+                   JOIN attractions a ON a.attraction_id=i.attraction_id
+                   JOIN trips t ON t.trip_id=i.trip_id
+                   WHERE a.status='active' AND a.deleted_at IS NULL AND t.deleted_at IS NULL) AS itineraries
+            """)
+            attraction_totals.update(cursor.fetchone())
+            top_attractions = fetch_attraction_rankings(cursor, limit=5)
         finally:
             cursor.close()
             connection.close()
-    return render_template("admin_statistics.html", totals=totals, monthly=monthly,
+    attraction_chart_max = max((max(row["itinerary_count"], row["favorite_count"])
+                                for row in top_attractions), default=1)
+    return render_template("admin_statistics.html", totals=totals,
                            trip_statuses=trip_statuses, issue_statuses=issue_statuses,
-                           top_destinations=top_destinations)
+                           top_destinations=top_destinations,
+                           attraction_totals=attraction_totals, top_attractions=top_attractions,
+                           attraction_chart_max=max(attraction_chart_max, 1))
 
 
 @app.route("/system-admin/logs")

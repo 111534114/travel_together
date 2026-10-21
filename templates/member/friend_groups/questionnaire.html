@@ -1,0 +1,35 @@
+{% extends 'member/base.html' %}{% block title %}旅遊人格問卷｜走吧揪團{% endblock %}{% block content %}
+<div class="trip-form-page">
+    <div class="page-heading trip-form-heading">
+        <a href="{{ url_for('friend_groups.index') }}">← 返回交友揪團</a>
+    </div>
+    <div class="panel">
+        <h1>旅遊人格問卷</h1>
+        <p class="form-hint">填寫完成後，我們會依照你的步調跟社交傾向算出一個旅遊人格稱號，用來推薦行程、也用來幫你在交友揪團裡配對適合的旅伴。</p>
+        <form method="post" action="{{ url_for('friend_groups.questionnaire') }}">
+            <p style="margin: 18px 0 8px; font-weight: 600;">你比較喜歡哪種步調？</p>
+            <div class="pref-tags">{% for value, label in pace_labels.items() %}<label class="pref-tag"><input type="radio" name="pace" value="{{ value }}" {{ 'checked' if profile and profile.pace == value }} required>{{ label }}</label>{% endfor %}</div>
+
+            <p style="margin: 18px 0 8px; font-weight: 600;">你比較喜歡哪種社交方式？</p>
+            <div class="pref-tags">{% for value, label in social_labels.items() %}<label class="pref-tag"><input type="radio" name="social_style" value="{{ value }}" {{ 'checked' if profile and profile.social_style == value }} required>{{ label }}</label>{% endfor %}</div>
+
+            <p style="margin: 18px 0 8px; font-weight: 600;">預算傾向</p>
+            <div class="pref-tags">{% for value, label in budget_labels.items() %}<label class="pref-tag"><input type="radio" name="budget_style" value="{{ value }}" {{ 'checked' if (profile and profile.budget_style == value) or (not profile and value == 'moderate') }}>{{ label }}</label>{% endfor %}</div>
+
+            <p style="margin: 18px 0 8px; font-weight: 600;">喜歡的活動</p>
+            <div class="pref-tags">{% set liked = (profile.like_activities.split(',') if profile and profile.like_activities else []) %}{% for tag in activity_tags %}<label class="pref-tag"><input type="checkbox" name="like_activities" value="{{ tag }}" {{ 'checked' if tag in liked }}>{{ tag }}</label>{% endfor %}</div>
+
+            <p style="margin: 18px 0 8px; font-weight: 600;">不喜歡的活動</p>
+            <div class="pref-tags">{% set disliked = (profile.dislike_activities.split(',') if profile and profile.dislike_activities else []) %}{% for tag in activity_tags %}<label class="pref-tag"><input type="checkbox" name="dislike_activities" value="{{ tag }}" {{ 'checked' if tag in disliked }}>{{ tag }}</label>{% endfor %}</div>
+
+            <div class="form-grid-member" style="margin-top: 18px;">
+                <label>飲食偏好<select name="diet">{% for value, label in diet_labels.items() %}<option value="{{ value }}" {{ 'selected' if profile and profile.diet == value }}>{{ label }}</option>{% endfor %}</select></label>
+                <label>交通偏好<select name="transport_pref">{% for value, label in transport_labels.items() %}<option value="{{ value }}" {{ 'selected' if profile and profile.transport_pref == value }}>{{ label }}</option>{% endfor %}</select></label>
+                <label>步行接受程度<select name="walk_tolerance">{% for value, label in walk_labels.items() %}<option value="{{ value }}" {{ 'selected' if profile and profile.walk_tolerance == value }}>{{ label }}</option>{% endfor %}</select></label>
+            </div>
+
+            <div class="form-actions-member"><button class="member-btn primary" type="submit">{{ '更新問卷' if profile else '送出問卷' }}</button></div>
+        </form>
+    </div>
+</div>
+{% endblock %}

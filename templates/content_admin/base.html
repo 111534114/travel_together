@@ -68,6 +68,8 @@
 
             {% if content_admin_can('attraction_posts_admin') %}<a class="{{ 'active' if active_menu == 'attraction_posts' else '' }}" href="{{ url_for('attraction_posts_admin.list_posts') }}">景點相簿審核</a>{% endif %}
 
+            {% if content_admin_can('friend_groups_admin') %}<a class="{{ 'active' if active_menu == 'friend_groups' else '' }}" href="{{ url_for('friend_groups_admin.list_applications') }}">交友揪團管理</a>{% endif %}
+
             {% if content_admin_can('ai_data') %}<a class="{{ 'active' if active_menu == 'ai_data' else '' }}"
                href="{{ url_for('ai_data.list_ai_data') }}">
                 AI資料維護

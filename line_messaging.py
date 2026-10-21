@@ -61,11 +61,24 @@ def _text_messages(text):  # 把文字包成 LINE 訊息物件（單則上限 50
 
 
 def reply_text(reply_token, text, quick_replies=None):  # 回覆使用者的訊息（不計費，replyToken 只能用一次且有時效）
-    messages = _text_messages(text)
-    if quick_replies:
-        messages[0]["quickReply"] = {"items": [
-            {"type": "action", "action": {"type": "message", "label": label[:20], "text": label}}
-            for label in quick_replies[:13]
+    return reply_message(reply_token, text, quick_replies)
+
+
+def _to_message(message):  # 文字（str）轉成文字訊息，卡片等訊息物件（dict）直接沿用
+    return _text_messages(message)[0] if isinstance(message, str) else dict(message)
+
+
+def _quick_reply_action(item):  # 快速回覆按鈕：文字（點了送出該文字）或自訂動作（例如傳送位置）
+    if isinstance(item, str):
+        return {"type": "message", "label": item[:20], "text": item}
+    return item
+
+
+def reply_message(reply_token, message, quick_replies=None):  # 回覆一則或多則（list，最多 5 則）文字／卡片
+    messages = [_to_message(item) for item in (message if isinstance(message, list) else [message])][:5]
+    if quick_replies:  # LINE 只顯示最後一則訊息的快速回覆（上限 13 個）
+        messages[-1]["quickReply"] = {"items": [
+            {"type": "action", "action": _quick_reply_action(item)} for item in quick_replies[:13]
         ]}
     return _post("/message/reply", {"replyToken": reply_token, "messages": messages})
 
@@ -96,23 +109,24 @@ def _line_targets(user_ids):  # 依網站 user_id 查出已加好友的 LINE use
         connection.close()
 
 
-def push_to_users(user_ids, text):  # 推播文字給多位網站會員，回傳實際送出的人數
+def push_to_users(user_ids, message):  # 推播文字（str）或卡片（dict）給多位網站會員，回傳實際送出的人數
     """沒有綁定 LINE 或沒加官方帳號好友的會員會自動略過。會計入每月訊息額度。"""
+    messages = [_to_message(message)]
     targets = _line_targets(list(dict.fromkeys(user_ids)))
     sent = 0
     for start in range(0, len(targets), MULTICAST_LIMIT):
         chunk = targets[start:start + MULTICAST_LIMIT]
         if len(chunk) == 1:
-            ok = _post("/message/push", {"to": chunk[0], "messages": _text_messages(text)})
+            ok = _post("/message/push", {"to": chunk[0], "messages": messages})
         else:
-            ok = _post("/message/multicast", {"to": chunk, "messages": _text_messages(text)})
+            ok = _post("/message/multicast", {"to": chunk, "messages": messages})
         if ok:
             sent += len(chunk)
     return sent
 
 
-def push_to_user(user_id, text):  # 推播文字給單一網站會員，成功回傳 True
-    return push_to_users([user_id], text) == 1
+def push_to_user(user_id, message):  # 推播文字或卡片給單一網站會員，成功回傳 True
+    return push_to_users([user_id], message) == 1
 
 
 def set_friend_status(line_sub, is_friend):  # 更新會員是否為官方帳號好友，回傳是否有對應的會員

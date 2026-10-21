@@ -6,34 +6,19 @@ from datetime import date, datetime, timedelta
 
 from mysql.connector import Error
 
+import line_commands
 import line_messaging
-from config import PUBLIC_BASE_URL, TRIP_REMINDER_HOUR
+from config import TRIP_REMINDER_HOUR
 from db import get_db_connection
-from utils import format_hm
 
 
 NOTIFY_TYPE = "trip_day_before"
 CHECK_INTERVAL_SECONDS = 600
-FIRST_DAY_ITEMS = 5
 
 
-def build_message(trip, first_day_items):
-    period = trip["start_date"].strftime("%Y/%m/%d")
-    if trip["end_date"] != trip["start_date"]:
-        period += " – " + trip["end_date"].strftime("%m/%d")
-    lines = ["🧳 明天就要出發囉！", "", f"行程：{trip['trip_name']}",
-             f"日期：{period}", f"地點：{trip['country']} {trip['city']}"]
-    if first_day_items:
-        lines += ["", "第一天安排："]
-        for item in first_day_items[:FIRST_DAY_ITEMS]:
-            time_text = format_hm(item["start_time"]) if item["start_time"] and not item["is_all_day"] else "全天"
-            lines.append(f"・{time_text} {item['title']}")
-        if len(first_day_items) > FIRST_DAY_ITEMS:
-            lines.append(f"…還有 {len(first_day_items) - FIRST_DAY_ITEMS} 項")
-    lines += ["", "記得檢查證件、行李和天氣，祝旅途愉快！"]
-    if PUBLIC_BASE_URL:
-        lines.append(f"查看行程：{PUBLIC_BASE_URL}/member/trips/{trip['trip_id']}")
-    return "\n".join(lines)
+def build_card(cursor, trip):  # 出發前一天提醒卡片：和「下一趟旅程」同一種卡片，含天氣、第一天安排與「查看行程」按鈕（LIFF）
+    return line_commands.trip_card(cursor, trip, "明天就要出發囉！", trip["start_date"], "第一天安排",
+                                   note="記得檢查證件、行李和天氣，祝旅途愉快！")
 
 
 def send_trip_reminders(today=None):
@@ -47,7 +32,7 @@ def send_trip_reminders(today=None):
     try:
         cursor.execute(
             """
-            SELECT t.trip_id,t.trip_name,t.start_date,t.end_date,
+            SELECT t.trip_id,t.trip_name,t.start_date,t.end_date,t.cover_image_path,
                    co.name AS country,ci.name AS city,tm.user_id
             FROM trips t JOIN countries co ON co.country_id=t.country_id
             JOIN cities ci ON ci.city_id=t.city_id
@@ -67,12 +52,7 @@ def send_trip_reminders(today=None):
             trip = trips.setdefault(row["trip_id"], {**row, "user_ids": []})
             trip["user_ids"].append(row["user_id"])
         for trip in trips.values():
-            cursor.execute(
-                "SELECT title,start_time,is_all_day FROM itineraries WHERE trip_id=%s AND itinerary_date=%s "
-                "ORDER BY is_all_day DESC,start_time IS NULL,start_time,sort_order",
-                (trip["trip_id"], trip["start_date"]),
-            )
-            if not line_messaging.push_to_users(trip["user_ids"], build_message(trip, cursor.fetchall())):
+            if not line_messaging.push_to_users(trip["user_ids"], build_card(cursor, trip)):
                 continue
             cursor.executemany(
                 "INSERT IGNORE INTO line_notification_logs (trip_id,user_id,notify_type,notify_date) VALUES (%s,%s,%s,%s)",

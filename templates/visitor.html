@@ -25,14 +25,36 @@
     .nav-links a:hover { color: var(--purple); background: var(--purple-soft); }
     .nav-links .nav-register { color: #fff; background: var(--purple); }
     .nav-links .nav-register:hover { color: #fff; background: #37676D; }
+    .member-shell { position: relative; display: flex; align-items: flex-start; min-height: 100vh; gap: 36px; }
+    .member-shell::before { content: ""; position: absolute; top: 0; left: 0; right: 0; height: 48px; background: #fff; z-index: 1; }
+    .member-sidenav { position: sticky; top: 0; z-index: 20; display: flex; flex-direction: column; gap: 2px; width: 220px; flex-shrink: 0; height: 100vh; overflow-y: auto; padding: 18px 12px; background: #fff; border-right: 1px solid #E2EDEF; box-shadow: 2px 0 10px rgba(45, 37, 68, .05); }
+    .member-sidenav .brand { margin: 4px 0 18px 10px; }
+    .member-sidenav nav { display: flex; flex: 1; flex-direction: column; gap: 2px; }
+    .member-content { flex: 1; min-width: 0; }
+    .side-link { display: block; width: 100%; padding: 11px 14px; color: #426064; text-decoration: none; border-radius: 6px; font-weight: 600; white-space: nowrap; }
+    .side-link:hover { color: var(--purple); background: var(--purple-soft); }
+    .side-footer { margin-top: auto; display: flex; flex-direction: column; gap: 2px; padding-top: 10px; border-top: 1px solid #E2EDEF; }
+    .side-footer .language-select { width: 100%; margin: 2px 0; padding: 9px 11px; color: #426064; background: #fff; border: 1px solid #D2E4E6; border-radius: 6px; font: inherit; cursor: pointer; }
     .language-select { min-width: 112px; padding: 9px 30px 9px 11px; color: #426064; background: #fff; border: 1px solid #D2E4E6; border-radius: 6px; font: inherit; cursor: pointer; }
     .language-select:focus { outline: 2px solid #CDEBEF; outline-offset: 1px; }
-    main { width: min(1180px, calc(100% - 48px)); margin: 0 auto; padding: 42px 0 70px; }
+    main { position: relative; z-index: 2; width: min(1180px, 100%); margin: 0 auto; padding: 0 36px 76px 0; }
+    .top-marquee { height: 48px; margin-bottom: 48px; display: flex; align-items: center; overflow: hidden; }
+    .top-marquee-track { display: flex; flex-shrink: 0; gap: 64px; padding-right: 64px; white-space: nowrap; animation: top-marquee-scroll 26s linear infinite; }
+    .top-marquee-track span { color: var(--purple); font-weight: 600; font-size: 14px; }
+    @keyframes top-marquee-scroll { from { transform: translateX(0); } to { transform: translateX(-50%); } }
     .eyebrow { margin: 0; color: #D2EBEE; font-size: 12px; font-weight: 700; letter-spacing: .4px; }
     .button-light { display: inline-flex; flex: 0 0 auto; align-items: center; justify-content: center; min-height: 44px; padding: 10px 18px; color: #37676D; background: #fff; border: 1px solid transparent; border-radius: 6px; font-weight: 700; }
     .button-light:hover { background: #f4f0fa; }
-    .search-panel { margin: 0 0 32px; padding: 20px 24px 24px; background: #fff; border: 1px solid var(--line); border-radius: 14px; box-shadow: 0 12px 30px rgba(45, 37, 68, .08); }
-    .hero-intro { position: relative; overflow: hidden; margin: 0 0 36px; padding: 40px 44px 52px; color: #fff; background: linear-gradient(135deg, var(--purple) 0%, #FFC53D 100%); border-radius: 14px; }
+    .search-panel { margin: 0 0 44px; padding: 26px 28px 30px; background: #fff; border: 1px solid var(--line); border-radius: 14px; box-shadow: 0 12px 30px rgba(45, 37, 68, .08); }
+    .quick-link-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 16px; }
+    .quick-link-card { display: flex; flex-direction: column; gap: 6px; padding: 22px 24px; background: #fff; border: 1px solid var(--line); border-radius: 10px; box-shadow: 0 6px 18px rgba(45, 37, 68, .05); text-decoration: none; color: inherit; transition: transform 160ms ease, box-shadow 160ms ease; }
+    .quick-link-card:hover { transform: translateY(-3px); box-shadow: 0 12px 28px rgba(45, 37, 68, .12); }
+    .quick-link-icon { font-size: 26px; }
+    .quick-link-card h3 { margin: 2px 0 0; font-size: 18px; }
+    .quick-link-card p { margin: 0; color: var(--muted); font-size: 13px; line-height: 1.5; }
+    .quick-link-card.disabled { opacity: .55; cursor: not-allowed; pointer-events: none; }
+    .quick-link-badge { align-self: flex-start; padding: 3px 9px; margin-top: 2px; color: #9c6b1f; background: #fdf1dd; border-radius: 999px; font-size: 11px; font-weight: 700; }
+    .hero-intro { position: relative; overflow: hidden; margin: 0 0 44px; padding: 40px 44px 52px; color: #fff; background: linear-gradient(135deg, var(--purple) 0%, #FFC53D 100%); border-radius: 14px; }
     .hero-intro > * { position: relative; z-index: 1; }
     .hero-intro .eyebrow { color: #D9F3F6; }
     .hero-intro h1 { margin: 9px 0 12px; font-size: 32px; line-height: 1.35; color: #fff; }
@@ -48,25 +70,6 @@
     @keyframes float-y { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-9px); } }
     @keyframes twinkle-spin { 0%, 100% { opacity: .45; transform: scale(.85) rotate(0deg); } 50% { opacity: 1; transform: scale(1.15) rotate(12deg); } }
     @keyframes drift-x { 0%, 100% { transform: translateX(0); } 50% { transform: translateX(16px); } }
-    .search-tabs { display: flex; align-items: center; gap: 2px; margin-bottom: 16px; border-bottom: 1px solid var(--line); }
-    .search-tab { position: relative; display: flex; align-items: center; justify-content: center; gap: 6px; min-width: 132px; padding: 10px 16px; color: var(--muted); background: transparent; border: 0; cursor: pointer; font-size: 15px; font-weight: 600; }
-    .search-tab::after { content: ""; position: absolute; left: 0; right: 0; bottom: -1px; height: 2px; background: transparent; }
-    .search-tab:hover { color: var(--purple); }
-    .search-tab.active { color: var(--purple); }
-    .search-tab.active::after { background: var(--purple); }
-    .tab-badge { padding: 3px 9px; margin-left: auto; color: #9c6b1f; background: #fdf1dd; border-radius: 999px; font-size: 11px; font-weight: 700; white-space: nowrap; }
-    .search-fields-row { display: flex; flex-wrap: wrap; align-items: end; gap: 12px; }
-    .search-fields-row[hidden] { display: none; }
-    .field { display: flex; flex: 1 1 150px; min-width: 130px; flex-direction: column; gap: 5px; }
-    .field label { color: var(--muted); font-size: 12px; font-weight: 600; }
-    .field input { min-height: 44px; padding: 9px 12px; color: var(--ink); background: #fff; border: 1px solid #C5D5D7; border-radius: 6px; outline: none; }
-    .field input:focus { border-color: var(--purple); box-shadow: 0 0 0 3px #DEF1F4; }
-    .field-sep { display: flex; flex: 0 0 auto; align-items: center; justify-content: center; padding-bottom: 11px; color: var(--muted); font-size: 16px; }
-    .search-submit { flex: 0 0 auto; min-height: 44px; padding: 10px 26px; color: #fff; background: var(--purple); border: 0; border-radius: 6px; cursor: pointer; font-size: 15px; font-weight: 700; }
-    .search-submit:hover { background: #37676D; }
-    .search-note { margin: 14px 0 0; color: var(--muted); font-size: 12px; }
-    .toast { position: fixed; z-index: 50; bottom: 30px; left: 50%; padding: 12px 22px; color: #fff; background: #293C3F; border-radius: 8px; box-shadow: 0 10px 25px rgba(0, 0, 0, .25); font-size: 14px; opacity: 0; transform: translate(-50%, 10px); transition: opacity 200ms ease, transform 200ms ease; pointer-events: none; }
-    .toast.show { opacity: 1; transform: translate(-50%, 0); }
     .announcements { margin: 28px 0 32px; }
     .announcement-list { display: grid; gap: 12px; }
     .announcement-card { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: 14px; align-items: start; padding: 17px 18px; background: #fff; border: 1px solid var(--line); border-radius: 8px; box-shadow: 0 6px 18px rgba(45, 37, 68, .04); }
@@ -81,7 +84,7 @@
     .search-bar input:focus { border-color: var(--purple); box-shadow: 0 0 0 3px #DEF1F4; }
     .search-bar button { min-height: 44px; padding: 10px 20px; color: #fff; background: var(--purple); border: 0; border-radius: 6px; cursor: pointer; font-weight: 700; }
     .search-bar button:hover { background: #37676D; }
-    .section-header { display: flex; align-items: end; justify-content: space-between; gap: 18px; margin-bottom: 18px; }
+    .section-header { display: flex; align-items: end; justify-content: space-between; gap: 18px; margin-bottom: 24px; }
     .section-header h2 { margin: 0; font-size: 28px; }
     .section-header p { margin: 5px 0 0; color: var(--muted); font-size: 14px; }
     .search-result, .section-link { color: var(--purple); font-size: 14px; font-weight: 700; }
@@ -114,13 +117,22 @@
     .weather-forecast-table td { padding: 9px 6px; border-bottom: 1px solid var(--line); font-size: 14px; }
     .weather-forecast-table td:first-child { color: var(--muted); white-space: nowrap; }
     .weather-forecast-table td:last-child { text-align: right; font-weight: 600; }
-    .companions { margin-top: 54px; }
+    .companions { margin-top: 64px; }
     .companion-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 18px; }
     .companion-card { padding: 20px; background: #fff; border: 1px solid var(--line); border-radius: 8px; }
     .companion-card h3 { margin: 0 0 7px; font-size: 18px; }
     .companion-card p { margin: 0; color: var(--muted); font-size: 14px; }
     .companion-card .intro { min-height: 42px; margin: 14px 0; color: #3D5154; }
     .companion-card .view-button { margin-top: 14px; }
+    .album-section { margin-top: 64px; }
+    .album-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 18px; }
+    .album-card { display: block; overflow: hidden; color: inherit; text-decoration: none; background: #fff; border: 1px solid var(--line); border-radius: 10px; box-shadow: 0 8px 22px rgba(45, 37, 68, .06); transition: transform 160ms ease, box-shadow 160ms ease; }
+    .album-card:hover { transform: translateY(-3px); box-shadow: 0 12px 28px rgba(45, 37, 68, .12); }
+    .album-card > img { display: block; width: 100%; height: 180px; object-fit: cover; }
+    .album-card-body { padding: 14px; }
+    .album-card-body b { display: block; margin-bottom: 4px; font-size: 15px; }
+    .album-card-body p { margin: 0 0 8px; overflow: hidden; color: #3D5154; font-size: 13px; line-height: 1.5; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+    .album-card-body span { color: var(--muted); font-size: 13px; }
     .member-unlock { position: relative; overflow: hidden; display: flex; align-items: center; justify-content: space-between; gap: 22px; margin-top: 54px; padding: 26px 30px; color: #fff; background: linear-gradient(135deg, var(--purple) 0%, #FFC53D 100%); border-radius: 8px; }
     .member-unlock-mascots { position: absolute; left: 18px; bottom: -14px; z-index: 0; display: flex; align-items: flex-end; pointer-events: none; opacity: .9; }
     .member-unlock-mascots img { display: block; filter: drop-shadow(0 5px 5px rgba(11,59,74,.25)); }
@@ -133,53 +145,9 @@
     .member-unlock .button-light { min-height: 40px; }
     .member-unlock .button-outline { display: inline-flex; align-items: center; justify-content: center; min-height: 40px; padding: 9px 15px; color: #fff; border: 1px solid #C1E1E5; border-radius: 6px; font-size: 14px; font-weight: 700; }
     .member-unlock .button-outline:hover { background: rgba(255, 255, 255, .12); }
-    .member-workspace { margin-top: 58px; padding-top: 44px; border-top: 1px solid var(--line); }
     .flash-stack { display: flex; flex-direction: column; gap: 8px; margin: 0 0 20px; }
     .flash-message { padding: 12px 16px; color: #256b2d; background: #e8f7e8; border: 1px solid #cdeacd; border-radius: 8px; font-weight: 600; }
     .flash-message.error { color: #9f1f1f; background: #ffe6e6; border-color: #f5c6c6; }
-    .trip-trash { margin-top: 36px; padding: 20px 22px; background: #FBFCFC; border: 1px dashed #C9D8DA; border-radius: 12px; }
-    .trip-trash-head h3 { display: flex; align-items: center; gap: 8px; margin: 0 0 4px; font-size: 19px; }
-    .trip-trash-head h3 span { display: inline-grid; place-items: center; min-width: 24px; height: 24px; padding: 0 7px; color: var(--muted); background: #EDF2F3; border-radius: 999px; font-size: 13px; }
-    .trip-trash-head p { margin: 0 0 14px; color: var(--muted); font-size: 14px; }
-    .trip-trash-list { display: flex; flex-direction: column; gap: 10px; }
-    .trip-trash-row { display: flex; align-items: center; gap: 14px; padding: 12px; background: #fff; border: 1px solid var(--line); border-radius: 10px; }
-    .trip-trash-art { display: grid; flex: 0 0 64px; place-items: center; height: 64px; color: #fff; background: #B8C7C9 center / cover no-repeat; border-radius: 8px; filter: grayscale(.6); opacity: .85; font-size: 20px; }
-    .trip-trash-info { flex: 1; min-width: 0; }
-    .trip-trash-info b { display: block; overflow: hidden; color: var(--muted); text-decoration: line-through; text-decoration-color: rgba(112, 130, 132, .5); white-space: nowrap; text-overflow: ellipsis; }
-    .trip-trash-info p { margin: 3px 0; color: var(--muted); font-size: 13px; }
-    .trip-trash-info small { color: var(--muted); font-size: 12px; }
-    .trip-trash-info small .urgent { color: #C0392B; font-weight: 700; }
-    .trip-trash-actions { display: flex; flex: 0 0 auto; gap: 8px; }
-    .trip-trash-actions form { margin: 0; }
-    .trip-trash-purge { min-height: 40px; padding: 9px 14px; color: #B03A2E; background: #fff; border: 1px solid #F0C9C4; border-radius: 6px; font: inherit; font-size: 14px; font-weight: 700; cursor: pointer; }
-    .trip-trash-purge:hover { color: #fff; background: #C0392B; border-color: #C0392B; }
-    @media (max-width: 640px) { .trip-trash-row { flex-wrap: wrap; } .trip-trash-actions { width: 100%; } .trip-trash-actions form, .trip-trash-actions button { flex: 1; width: 100%; } }
-    .member-workspace-head { display: flex; align-items: end; justify-content: space-between; gap: 18px; margin-bottom: 20px; }
-    .member-workspace-head h2 { margin: 5px 0 0; font-size: 30px; }
-    .member-quick-grid { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 14px; margin: 20px 0 26px; }
-    .phase-tabs { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-bottom: 16px; }
-    .phase-tab { padding: 8px 16px; color: var(--muted); background: #fff; border: 1px solid var(--line); border-radius: 999px; cursor: pointer; font-size: 14px; font-weight: 600; }
-    .phase-tab:hover { color: var(--purple); }
-    .phase-tab.active { color: #fff; background: var(--purple); border-color: var(--purple); }
-    .member-quick-card { display: block; padding: 19px; background: #fff; border: 1px solid var(--line); border-radius: 8px; box-shadow: 0 6px 18px rgba(45, 37, 68, .05); }
-    .member-quick-card b { display: block; margin: 8px 0 3px; color: var(--purple); font-size: 25px; }
-    .member-quick-card span { color: var(--muted); font-size: 13px; }
-    .member-invitations { margin: 0 0 28px; padding: 22px; background: #fff8e8; border: 1px solid #f0dca8; border-radius: 8px; }
-    .member-invitations h3 { margin: 0 0 14px; }
-    .member-invite-row { display: flex; align-items: center; justify-content: space-between; gap: 18px; padding: 13px 0; border-top: 1px solid #efdfb8; }
-    .member-invite-row:first-of-type { border-top: 0; }
-    .member-invite-row p { margin: 3px 0 0; color: var(--muted); font-size: 13px; }
-    .member-invite-actions { display: flex; gap: 8px; }
-    .member-action { display: inline-flex; align-items: center; justify-content: center; min-height: 38px; padding: 8px 14px; color: #fff; background: var(--purple); border: 1px solid var(--purple); border-radius: 6px; cursor: pointer; font-weight: 700; }
-    .member-action.secondary { color: var(--purple); background: #fff; }
-    .member-trip-card { color: inherit; }
-    .member-trip-card .trip-art { background-color: #5A8A91; }
-    .member-notifications { display: grid; gap: 12px; margin: 0 0 34px; }
-    .member-notification { display: flex; align-items: center; justify-content: space-between; gap: 20px; padding: 18px 20px; background: #fff7f0; border: 1px solid #efcfb5; border-left: 4px solid #c76735; border-radius: 8px; }
-    .member-notification h3 { margin: 0 0 5px; color: #8b3c24; font-size: 17px; }
-    .member-notification p { margin: 0; color: #594e55; font-size: 14px; line-height: 1.6; }
-    .member-notification small { display: block; margin-top: 6px; color: var(--muted); }
-    .member-notification-actions { display: flex; flex: 0 0 auto; gap: 8px; }
     .line-friend-banner { display: flex; align-items: center; gap: 18px; margin: 0 0 34px; padding: 16px 20px; background: #f1fbf4; border: 1px solid #bfe5cb; border-left: 4px solid #06c755; border-radius: 8px; }
     .line-friend-banner > div { flex: 1 1 auto; }
     .line-friend-banner h3 { margin: 0 0 5px; color: #1d5b35; font-size: 17px; }
@@ -207,17 +175,34 @@
     .timeline-item b, .timeline-item span { display: block; }
     .timeline-item span { margin-top: 3px; color: #5e556c; font-size: 14px; }
     @media (max-width: 1100px) { .nav-links { gap: 2px; } .nav-links a { padding: 9px 9px; font-size: 14px; } .language-select { min-width: 100px; } }
-    @media (max-width: 850px) { .site-nav { align-items: flex-start; flex-direction: column; gap: 6px; padding: 8px 18px 12px; } .nav-links { width: 100%; margin-left: 0; overflow-x: auto; } main { width: min(100% - 28px, 680px); padding-top: 24px; } .search-panel { padding: 16px 18px 20px; } .search-tabs { flex-wrap: nowrap; overflow-x: auto; } .search-tab { flex: 0 0 auto; } .tab-badge { flex: 0 0 auto; margin-left: 10px; } .trip-grid, .companion-grid, .weather-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } .member-quick-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
-    @media (max-width: 560px) { .brand { width: 108px; height: 48px; } .nav-links { gap: 2px; } .nav-links a { padding: 8px; font-size: 14px; white-space: nowrap; } .hero-intro h1 { font-size: 26px; } .search-tab { padding: 8px 10px; font-size: 14px; } .search-submit { width: 100%; } .search-bar, .section-header, .member-unlock, .member-workspace-head, .member-invite-row, .member-notification { align-items: stretch; flex-direction: column; } .trip-grid, .companion-grid, .weather-grid, .member-quick-grid { grid-template-columns: 1fr; } .announcement-card { grid-template-columns: auto minmax(0, 1fr); } .announcement-meta { grid-column: 2; } .member-unlock { padding: 24px; } .member-unlock-actions, .member-notification-actions { flex-wrap: wrap; } .section-header h2 { font-size: 24px; } }
+    @media (max-width: 850px) { .site-nav { align-items: flex-start; flex-direction: column; gap: 6px; padding: 8px 18px 12px; } .nav-links { width: 100%; margin-left: 0; overflow-x: auto; } main { width: min(100% - 28px, 680px); padding-top: 24px; } .member-shell { flex-direction: column; } .member-shell::before { display: none; } .member-sidenav { position: static; width: 100%; height: auto; max-height: none; overflow-y: visible; flex-direction: row; flex-wrap: wrap; padding: 8px 12px; } .member-sidenav .brand { margin: 4px 10px 4px 2px; } .member-sidenav nav { flex-direction: row; flex-wrap: wrap; } .side-footer { margin-top: 0; flex-direction: row; flex-wrap: wrap; padding-top: 0; border-top: 0; } .search-panel { padding: 16px 18px 20px; } .trip-grid, .companion-grid, .weather-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+    @media (max-width: 560px) { .brand { width: 108px; height: 48px; } .nav-links { gap: 2px; } .nav-links a { padding: 8px; font-size: 14px; white-space: nowrap; } .hero-intro h1 { font-size: 26px; } .search-bar, .section-header, .member-unlock { align-items: stretch; flex-direction: column; } .trip-grid, .companion-grid, .weather-grid, .quick-link-grid { grid-template-columns: 1fr; } .announcement-card { grid-template-columns: auto minmax(0, 1fr); } .announcement-meta { grid-column: 2; } .member-unlock { padding: 24px; } .member-unlock-actions { flex-wrap: wrap; } .section-header h2 { font-size: 24px; } }
   </style>
 </head>
 <body>
+{% if is_member %}
+  <div class="member-shell">
+    <aside class="member-sidenav">
+      <a class="brand" href="{{ url_for('member.dashboard') }}"><img src="{{ url_for('static', filename='images/logo.png') }}" alt="走吧揪團"></a>
+      <nav>{% include 'partials/member_nav_links.html' %}</nav>
+    </aside>
+    <main class="member-content">
+      <div class="top-marquee" aria-label="最新公告跑馬燈">
+        <div class="top-marquee-track">
+          <span>🎉 歡迎使用「走吧揪團」，一起規劃下一趟旅程！</span>
+          <span>📸 新功能上線：景點相簿，分享你的旅遊回憶</span>
+          <span>🤝 交友揪團開放申請中，認識更多旅伴</span>
+          <span>✈️ 訂房／機票／高鐵查詢，規劃行程更方便</span>
+          <span>🎉 歡迎使用「走吧揪團」，一起規劃下一趟旅程！</span>
+          <span>📸 新功能上線：景點相簿，分享你的旅遊回憶</span>
+          <span>🤝 交友揪團開放申請中，認識更多旅伴</span>
+          <span>✈️ 訂房／機票／高鐵查詢，規劃行程更方便</span>
+        </div>
+      </div>
+{% else %}
   <header class="site-nav">
-    <a class="brand" href="{{ url_for('member.dashboard') if is_member else url_for('visitor') }}"><img src="{{ url_for('static', filename='images/logo.png') }}" alt="走吧揪團"></a>
+    <a class="brand" href="{{ url_for('visitor') }}"><img src="{{ url_for('static', filename='images/logo.png') }}" alt="走吧揪團"></a>
     <nav class="nav-links">
-      {% if is_member %}
-      {% include 'partials/member_nav_links.html' %}
-      {% else %}
       <a href="#announcements">公告事項</a>
       <a href="#weather">目的地天氣</a>
       <a href="#trips">探索行程</a>
@@ -225,10 +210,10 @@
       {% include 'partials/language_select.html' %}
       <a href="{{ url_for('login') }}">登入</a>
       <a class="nav-register" href="{{ url_for('register') }}">免費註冊</a>
-      {% endif %}
     </nav>
   </header>
   <main>
+{% endif %}
     {% with messages = get_flashed_messages(with_categories=true) %}{% if messages %}<div class="flash-stack" role="status">{% for category, message in messages %}<div class="flash-message {{ category }}">{{ message }}</div>{% endfor %}</div>{% endif %}{% endwith %}
 {% include 'partials/booking_tools.html' %}
     <section class="hero-intro">
@@ -246,60 +231,14 @@
       </div>
     </section>
     <section class="search-panel">
-      <div class="search-tabs" role="tablist">
-        <button class="search-tab active" type="button" data-tab="hotel" onclick="switchSearchTab('hotel', this)">住宿</button>
-        <button class="search-tab" type="button" data-tab="flight" onclick="switchSearchTab('flight', this)">機票</button>
-        <button class="search-tab" type="button" data-tab="train" onclick="switchSearchTab('train', this)">高鐵／火車票</button>
-        <button class="search-tab" type="button" data-tab="experience" onclick="switchSearchTab('experience', this)">當地體驗</button>
-        <span class="tab-badge" hidden>功能開發中</span>
+      <div class="section-header"><div><p class="eyebrow" style="color: var(--purple-light)">BOOKING</p><h2>搜尋訂房／機票／高鐵</h2><p>點選進入專屬的搜尋頁面。</p></div></div>
+      <div class="quick-link-grid">
+        <a class="quick-link-card" href="{{ url_for('visitor_hotel_search') }}"><span class="quick-link-icon">🏨</span><h3>住宿搜尋</h3><p>依目的地與日期搜尋飯店房型與價格。</p></a>
+        <a class="quick-link-card" href="{{ url_for('visitor_flight_search') }}"><span class="quick-link-icon">✈️</span><h3>機票搜尋</h3><p>搜尋出發地與目的地之間的航班。</p></a>
+        <a class="quick-link-card" href="{{ url_for('visitor_train_search') }}"><span class="quick-link-icon">🚄</span><h3>高鐵／火車票</h3><p>查詢高鐵與台鐵的班表與票價。</p></a>
+        <div class="quick-link-card disabled"><span class="quick-link-icon">🧭</span><h3>當地體驗</h3><p>搜尋當地行程與體驗活動。</p><span class="quick-link-badge">功能開發中</span></div>
       </div>
-      <form onsubmit="handleBookingSearch(event)">
-        <div class="search-fields-row" data-tab-fields="hotel">
-          <div class="field"><label for="hotelDest">目的地</label><input id="hotelDest" type="text" placeholder="城市、飯店名稱"></div>
-          <div class="field"><label for="hotelCheckin">入住</label><input id="hotelCheckin" type="date"></div>
-          <div class="field"><label for="hotelCheckout">退房</label><input id="hotelCheckout" type="date"></div>
-          <div class="field"><label for="hotelGuests">人數</label><input id="hotelGuests" type="number" min="1" value="2"></div>
-          <button class="search-submit" type="submit">搜尋</button>
-        </div>
-        <div class="search-fields-row" data-tab-fields="flight" hidden>
-          <div class="field"><label for="flightFrom">出發地</label><input id="flightFrom" type="text" placeholder="台北"></div>
-          <div class="field-sep">→</div>
-          <div class="field"><label for="flightTo">目的地</label><input id="flightTo" type="text" placeholder="東京"></div>
-          <div class="field"><label for="flightDepart">去程日期</label><input id="flightDepart" type="date"></div>
-          <div class="field"><label for="flightReturn">回程日期</label><input id="flightReturn" type="date"></div>
-          <div class="field"><label for="flightPax">人數</label><input id="flightPax" type="number" min="1" value="1"></div>
-          <button class="search-submit" type="submit">搜尋</button>
-        </div>
-        <div class="search-fields-row" data-tab-fields="train" hidden>
-          <div class="field"><label for="trainFrom">出發站</label><input id="trainFrom" type="text" placeholder="台北"></div>
-          <div class="field-sep">→</div>
-          <div class="field"><label for="trainTo">到達站</label><input id="trainTo" type="text" placeholder="高雄"></div>
-          <div class="field"><label for="trainDate">日期</label><input id="trainDate" type="date"></div>
-          <div class="field"><label for="trainPax">人數</label><input id="trainPax" type="number" min="1" value="1"></div>
-          <button class="search-submit" type="submit">搜尋</button>
-        </div>
-        <div class="search-fields-row" data-tab-fields="experience" hidden>
-          <div class="field"><label for="expDest">目的地</label><input id="expDest" type="text" placeholder="城市或景點"></div>
-          <div class="field"><label for="expDate">日期</label><input id="expDate" type="date"></div>
-          <div class="field"><label for="expPax">人數</label><input id="expPax" type="number" min="1" value="1"></div>
-          <button class="search-submit" type="submit">搜尋</button>
-        </div>
-      </form>
-      <p class="search-note" id="searchNote">＊住宿搜尋已串接真實資料，送出後將依您填寫的目的地與日期顯示搜尋結果。</p>
     </section>
-    {% if is_member and notifications %}
-    <section id="member-notifications" class="member-notifications" aria-label="會員通知">
-      {% for notification in notifications %}
-      <article class="member-notification">
-        <div><h3>🚨 {{ notification.title }}</h3><p>{{ notification.message }}</p><small>{{ notification.created_at.strftime('%Y-%m-%d %H:%M') if notification.created_at else '' }}</small></div>
-        <div class="member-notification-actions">
-          {% if notification.target_url %}<a class="member-action secondary" href="{{ notification.target_url }}">查看行程</a>{% endif %}
-          <form method="post" action="{{ url_for('member.mark_notification_read', notification_id=notification.notification_id) }}"><button class="member-action" type="submit">我知道了</button></form>
-        </div>
-      </article>
-      {% endfor %}
-    </section>
-    {% endif %}
     {% if is_member and line_status and not line_status.line_friend and line_add_friend_url %}
     <section class="line-friend-banner" aria-label="LINE 行程通知">
       {% if line_status.linked %}
@@ -313,81 +252,17 @@
     </section>
     {% endif %}
     {% if is_member %}
-    <section id="member-workspace" class="member-workspace">
-      <div class="member-workspace-head">
-        <div><p class="eyebrow" style="color: var(--purple-light)">MEMBER WORKSPACE</p><h2><svg class="section-sparkle" width="16" height="16" viewBox="0 0 24 24" fill="var(--purple-light)"><path d="M12 2 L14 10 L22 12 L14 14 L12 22 L10 14 L2 12 L10 10 Z"/></svg>我的會員功能</h2><p>原本的會員功能集中在這裡，方便你繼續管理自己的旅程。</p></div>
-        <a class="member-action" href="{{ url_for('member.create_trip') }}">＋ 建立新行程</a>
+    <section class="member-workspace">
+      <div class="section-header"><div><p class="eyebrow" style="color: var(--purple-light)">QUICK LINKS</p><h2>會員功能</h2><p>點選進入各項功能的獨立頁面。</p></div></div>
+      <div class="quick-link-grid">
+        <a class="quick-link-card" href="{{ url_for('member.my_trips') }}"><span class="quick-link-icon">🧳</span><h3>我的旅程</h3><p>管理你建立或參與的旅程，以及收藏的公開行程。</p></a>
+        <a class="quick-link-card" href="{{ url_for('member.companions_page') }}"><span class="quick-link-icon">🤝</span><h3>尋找旅伴揪團</h3><p>瀏覽公開或多人行程，找到志同道合的旅伴。</p></a>
+        <a class="quick-link-card" href="{{ url_for('member.announcements_page') }}"><span class="quick-link-icon">📢</span><h3>公告事項</h3><p>掌握 Travel Together 的最新消息與服務通知。</p></a>
+        <a class="quick-link-card" href="{{ url_for('member.album_page') }}"><span class="quick-link-icon">📷</span><h3>旅遊相簿</h3><p>旅伴分享的景點實拍照片與心得。</p></a>
       </div>
-      <div class="member-quick-grid">
-        <a class="member-quick-card" href="#my-trips" onclick="setPhaseFilterById('all')"><span>我的旅程</span><b>{{ member_stats.total or 0 }}</b><span>全部旅程</span></a>
-        <a class="member-quick-card" href="#my-trips" onclick="setPhaseFilterById('upcoming')"><span>行程提醒</span><b>{{ member_stats.upcoming or 0 }}</b><span>即將開始</span></a>
-        <a class="member-quick-card" href="#my-trips" onclick="setPhaseFilterById('ongoing')"><span>旅程動態</span><b>{{ member_stats.ongoing or 0 }}</b><span>進行中</span></a>
-        <a class="member-quick-card" href="#my-trips" onclick="setPhaseFilterById('completed')"><span>旅程回顧</span><b>{{ member_stats.completed or 0 }}</b><span>已完成</span></a>
-        <a class="member-quick-card" href="#member-invitations"><span>旅伴邀請</span><b>{{ member_stats.pending or 0 }}</b><span>待回覆</span></a>
-      </div>
-      {% if invitations %}
-      <div id="member-invitations" class="member-invitations"><h3>等待你的回覆</h3>
-        {% for invitation in invitations %}<div class="member-invite-row"><div><b>{{ invitation.trip_name }}</b><p>{{ invitation.inviter_name }} 邀請你同行 · {{ invitation.start_date }} 至 {{ invitation.end_date }}{% if invitation.expires_at %} · 邀請將於 {{ invitation.expires_at.strftime('%Y-%m-%d %H:%M') }} 截止{% endif %}</p></div><div class="member-invite-actions"><form method="post" action="{{ url_for('member.respond_invitation', invitation_id=invitation.invitation_id, action='accept') }}"><button class="member-action" type="submit">接受</button></form><form method="post" action="{{ url_for('member.respond_invitation', invitation_id=invitation.invitation_id, action='reject') }}"><button class="member-action secondary" type="submit">婉拒</button></form></div></div>{% endfor %}
-      </div>
-      {% endif %}
-      <section id="my-trips">
-        <div class="section-header"><div><p class="eyebrow" style="color: var(--purple-light)">MY TRIPS</p><h2><svg class="section-sparkle" width="16" height="16" viewBox="0 0 24 24" fill="var(--purple-light)"><path d="M12 2 L14 10 L22 12 L14 14 L12 22 L10 14 L2 12 L10 10 Z"/></svg>我的旅程</h2><p>查看你建立或參與的旅行計畫。</p></div><span class="search-result" id="memberSearchResult" aria-live="polite"></span></div>
-        <div class="phase-tabs" role="tablist">
-          <button type="button" class="phase-tab active" data-phase="all" onclick="setPhaseFilter('all', this)">全部</button>
-          <button type="button" class="phase-tab" data-phase="upcoming" onclick="setPhaseFilter('upcoming', this)">即將開始</button>
-          <button type="button" class="phase-tab" data-phase="ongoing" onclick="setPhaseFilter('ongoing', this)">進行中</button>
-          <button type="button" class="phase-tab" data-phase="completed" onclick="setPhaseFilter('completed', this)">已完成</button>
-        </div>
-        <form class="search-bar" onsubmit="searchMemberTrips(event)"><label for="memberTripSearch"><input id="memberTripSearch" type="search" oninput="filterMemberTrips()" placeholder="搜尋我的旅程名稱或地點"></label><button type="submit">搜尋我的行程</button></form>
-        <div class="trip-grid" id="memberTripGrid">
-          {% for trip in trips %}<div class="trip-card member-trip-card" data-member-search="{{ trip.trip_name }} {{ trip.country or '' }} {{ trip.city or '' }}" data-phase="{{ trip.phase }}"><div class="trip-art {% if trip.cover_image_path %}with-image{% endif %}" {% if trip.cover_image_path %}style="background-image: url('{{ url_for('static', filename=trip.cover_image_path) }}')"{% endif %}>{% if not trip.cover_image_path %}<span>✦</span>{% endif %}<span class="visibility">{{ '公開' if trip.visibility == 'public' else '私人旅程' }}</span></div><div class="trip-content"><h3>{{ trip.trip_name }}</h3><p class="location">{{ trip.country }} · {{ trip.city }}</p><div class="trip-details"><span>{{ trip.start_date }} ～ {{ trip.end_date }}</span><span>{{ trip.member_count }} 位旅伴</span><span>{{ trip.itinerary_count }} 個項目</span><span>{{ {'upcoming':'即將開始','ongoing':'進行中','completed':'已完成'}.get(trip.phase, trip.phase) }}</span></div><div class="trip-footer"><span>{{ {'owner':'建立者','editor':'共同編輯者','viewer':'查看者'}.get(trip.member_role, trip.member_role) }}</span><div style="display:flex; gap:6px;"><form method="post" action="{{ url_for('member.duplicate_trip', trip_id=trip.trip_id) }}" style="margin:0;"><button type="submit" class="view-button" title="複製這個行程">複製</button></form><a class="view-button" href="{{ url_for('member.trip_detail', trip_id=trip.trip_id) }}">管理行程</a></div></div></div></div>
-          {% else %}<div class="empty"><img class="empty-mascot" src="{{ url_for('static', filename='images/mascot_bear.png') }}" alt="">你目前還沒有旅程，從建立第一趟旅行開始吧。</div>{% endfor %}
-        </div>
-      </section>
-      {% if deleted_trips %}
-      <section id="trip-trash" class="trip-trash">
-        <div class="trip-trash-head"><div><h3>🗑️ 最近刪除 <span>{{ deleted_trips|length }}</span></h3><p>刪除的行程會保留 {{ trip_trash_days }} 天，期間可以復原；超過期限會自動永久刪除。</p></div></div>
-        <div class="trip-trash-list">
-          {% for trip in deleted_trips %}<div class="trip-trash-row"><div class="trip-trash-art {% if trip.cover_image_path %}with-image{% endif %}" {% if trip.cover_image_path %}style="background-image: url('{{ url_for('static', filename=trip.cover_image_path) }}')"{% endif %}>{% if not trip.cover_image_path %}✦{% endif %}</div><div class="trip-trash-info"><b>{{ trip.trip_name }}</b><p>{{ trip.country }} · {{ trip.city }}　{{ trip.start_date }} ～ {{ trip.end_date }}</p><small>{{ trip.deleted_at.strftime('%Y-%m-%d %H:%M') }} 刪除 · <span class="{{ 'urgent' if trip.days_left <= 3 else '' }}">{% if trip.days_left > 0 %}剩 {{ trip.days_left }} 天可復原{% else %}今天之後就會永久刪除{% endif %}</span></small></div><div class="trip-trash-actions"><form method="post" action="{{ url_for('member.restore_trip', trip_id=trip.trip_id) }}"><button class="member-action" type="submit">↩ 復原</button></form><form method="post" action="{{ url_for('member.purge_trip', trip_id=trip.trip_id) }}" data-trip-name="{{ trip.trip_name }}" onsubmit="return confirm('確定要永久刪除「' + this.dataset.tripName + '」嗎？行程、每日安排、投票、留言、聊天與分帳資料都會消失，無法復原。')"><button class="trip-trash-purge" type="submit">永久刪除</button></form></div></div>{% endfor %}
-        </div>
-      </section>
-      {% endif %}
-      <section id="member-favorites" style="margin-top: 44px;">
-        <div class="section-header"><div><p class="eyebrow" style="color: var(--purple-light)">SAVED TRIPS</p><h2><svg class="section-sparkle" width="16" height="16" viewBox="0 0 24 24" fill="var(--purple-light)"><path d="M12 2 L14 10 L22 12 L14 14 L12 22 L10 14 L2 12 L10 10 Z"/></svg>收藏的公開行程</h2><p>你收藏的公開行程，方便之後回來查看。</p></div></div>
-        <div class="trip-grid">
-          {% for trip in favorited_trips %}
-          <article class="trip-card">
-            <div class="trip-art {% if trip.cover_image_path %}with-image{% endif %}" {% if trip.cover_image_path %}style="background-image: url('{{ url_for('static', filename=trip.cover_image_path) }}')"{% endif %}>
-              {% if not trip.cover_image_path %}<span>✈</span>{% endif %}
-              <span class="visibility">公開</span>
-            </div>
-            <div class="trip-content">
-              <h3>{{ trip.trip_name }}</h3>
-              <p class="location">{{ trip.country or '未設定國家' }}{% if trip.city %} · {{ trip.city }}{% endif %}</p>
-              <div class="trip-details">
-                <span>{{ trip.days_count }} 天</span>
-                <span>{{ trip.start_date }} ～ {{ trip.end_date }}</span>
-                {% if trip.total_budget is not none %}<span>{{ trip.currency }} {{ "{:,.0f}".format(trip.total_budget) }}</span>{% endif %}
-              </div>
-              <div class="trip-footer">
-                <span>{{ trip.owner_nickname or trip.owner_name or '未提供' }}</span>
-                <div style="display:flex; gap:6px;">
-                  <form method="post" action="{{ url_for('member.toggle_trip_favorite', trip_id=trip.trip_id) }}" style="margin:0;">
-                    <input type="hidden" name="next" value="{{ url_for('member.dashboard') }}#member-favorites">
-                    <button type="submit" class="view-button">取消收藏</button>
-                  </form>
-                  <button class="view-button" type="button" onclick="openTripModal('{{ trip.trip_id }}')">查看行程</button>
-                </div>
-              </div>
-            </div>
-          </article>
-          {% else %}
-          <div class="empty"><img class="empty-mascot" src="{{ url_for('static', filename='images/mascot_chick.png') }}" alt="">你還沒有收藏任何公開行程，到下面「公開行程」區塊點選 ☆ 收藏吧。</div>
-          {% endfor %}
-        </div>
-      </section>
     </section>
     {% endif %}
+    {% if not is_member %}
     <section id="announcements" class="announcements">
       <div class="section-header">
         <div>
@@ -411,6 +286,8 @@
         {% endfor %}
       </div>
     </section>
+    {% endif %}
+    {% if not is_member %}
     <section id="weather" class="weather-section">
       <div class="section-header">
         <div>
@@ -465,12 +342,6 @@
               <div class="trip-footer">
                 <span>{{ trip.owner_nickname or trip.owner_name or '未提供' }}</span>
                 <div style="display:flex; gap:6px;">
-                  {% if is_member %}
-                  <form method="post" action="{{ url_for('member.toggle_trip_favorite', trip_id=trip.trip_id) }}" style="margin:0;">
-                    <input type="hidden" name="next" value="{{ url_for('member.dashboard') }}#trips">
-                    <button type="submit" class="view-button" title="收藏這個行程">{{ '★ 已收藏' if trip.trip_id in favorite_trip_ids else '☆ 收藏' }}</button>
-                  </form>
-                  {% endif %}
                   <button class="view-button" type="button" onclick="openTripModal('{{ trip.trip_id }}')">查看行程</button>
                 </div>
               </div>
@@ -481,6 +352,8 @@
         {% endfor %}
       </div>
     </section>
+    {% endif %}
+    {% if not is_member %}
     <section id="companions" class="companions">
       <div class="section-header">
         <div>
@@ -511,6 +384,7 @@
         {% else %}<div class="empty">還沒有人分享景點照片。</div>{% endfor %}
       </div>
     </section>
+    {% endif %}
     {% if not is_member %}
     <section class="member-unlock" aria-labelledby="member-unlock-title">
       <div class="member-unlock-mascots">
@@ -528,7 +402,12 @@
       </div>
     </section>
     {% endif %}
+{% if is_member %}
+    </main>
+  </div>
+{% else %}
   </main>
+{% endif %}
   <div class="modal" id="tripModal" onclick="if (event.target === this) closeTripModal()">
     <div class="modal-card">
       <button class="modal-close" type="button" onclick="closeTripModal()" aria-label="關閉">×</button>
@@ -571,106 +450,6 @@
     </div>
   </div>
   <script>
-    function switchSearchTab(tab, btn) {
-      document.querySelectorAll('.search-tab').forEach((t) => t.classList.remove('active'));
-      btn.classList.add('active');
-      document.querySelectorAll('[data-tab-fields]').forEach((row) => {
-        row.hidden = row.dataset.tabFields !== tab;
-      });
-      const badge = document.querySelector('.tab-badge');
-      if (badge) badge.hidden = tab === 'hotel' || tab === 'flight' || tab === 'train';
-      const note = document.getElementById('searchNote');
-      if (note) {
-        if (tab === 'hotel') {
-          note.textContent = '＊住宿搜尋已串接真實資料，送出後將依您填寫的目的地與日期顯示搜尋結果。';
-        } else if (tab === 'flight') {
-          note.textContent = '＊機票搜尋已串接範例航班資料，送出後將依您填寫的出發地、目的地與日期顯示搜尋結果。';
-        } else if (tab === 'train') {
-          note.textContent = '＊高鐵／台鐵搜尋已串接真實班表與票價資料，送出後將依您填寫的出發站與到達站顯示搜尋結果。';
-        } else {
-          note.textContent = '＊當地體驗搜尋為介面預覽，實際資料串接開發中；您可以先探索下方的公開行程與旅伴揪團。';
-        }
-      }
-    }
-    (function restrictPastDates() {
-      const todayStr = new Date().toISOString().slice(0, 10);
-      document.querySelectorAll('.search-panel input[type="date"]').forEach((input) => {
-        input.min = todayStr;
-      });
-      const linkMin = (startId, endId) => {
-        const startInput = document.getElementById(startId);
-        const endInput = document.getElementById(endId);
-        if (!startInput || !endInput) return;
-        startInput.addEventListener('change', () => {
-          endInput.min = startInput.value || todayStr;
-          if (endInput.value && endInput.value < endInput.min) {
-            endInput.value = endInput.min;
-          }
-        });
-      };
-      linkMin('hotelCheckin', 'hotelCheckout');
-      linkMin('flightDepart', 'flightReturn');
-    })();
-    let toastTimer;
-    function showToast(message) {
-      let toast = document.getElementById('siteToast');
-      if (!toast) {
-        toast = document.createElement('div');
-        toast.id = 'siteToast';
-        toast.className = 'toast';
-        document.body.appendChild(toast);
-      }
-      toast.textContent = message;
-      requestAnimationFrame(() => toast.classList.add('show'));
-      clearTimeout(toastTimer);
-      toastTimer = setTimeout(() => toast.classList.remove('show'), 3000);
-    }
-    function handleBookingSearch(event) {
-      event.preventDefault();
-      const activeTab = document.querySelector('.search-tab.active').dataset.tab;
-      if (activeTab === 'hotel') {
-        const params = new URLSearchParams();
-        const destination = document.getElementById('hotelDest').value.trim();
-        const checkin = document.getElementById('hotelCheckin').value;
-        const checkout = document.getElementById('hotelCheckout').value;
-        const guests = document.getElementById('hotelGuests').value;
-        if (destination) params.set('destination', destination);
-        if (checkin) params.set('checkin', checkin);
-        if (checkout) params.set('checkout', checkout);
-        if (guests) params.set('guests', guests);
-        window.location.href = '/visitor/hotels?' + params.toString();
-        return;
-      }
-      if (activeTab === 'flight') {
-        const params = new URLSearchParams();
-        const from = document.getElementById('flightFrom').value.trim();
-        const to = document.getElementById('flightTo').value.trim();
-        const depart = document.getElementById('flightDepart').value;
-        const ret = document.getElementById('flightReturn').value;
-        const pax = document.getElementById('flightPax').value;
-        if (from) params.set('from', from);
-        if (to) params.set('to', to);
-        if (depart) params.set('depart', depart);
-        if (ret) params.set('return', ret);
-        if (pax) params.set('pax', pax);
-        window.location.href = '/visitor/flights?' + params.toString();
-        return;
-      }
-      if (activeTab === 'train') {
-        const params = new URLSearchParams();
-        const from = document.getElementById('trainFrom').value.trim();
-        const to = document.getElementById('trainTo').value.trim();
-        const date = document.getElementById('trainDate').value;
-        const pax = document.getElementById('trainPax').value;
-        if (from) params.set('from', from);
-        if (to) params.set('to', to);
-        if (date) params.set('date', date);
-        if (pax) params.set('pax', pax);
-        window.location.href = '/visitor/trains?' + params.toString();
-        return;
-      }
-      showToast('此搜尋功能開發中，敬請期待！可以先看看下方的公開行程與旅伴揪團 🙂');
-    }
     const trips = {{ trips_timeline_json | tojson }};
     function escapeHtml(value) {
       const element = document.createElement('div');
@@ -687,35 +466,6 @@
         if (matched) count += 1;
       });
       document.getElementById('searchResult').textContent = keyword ? '找到 ' + count + ' 個行程' : '';
-    }
-    let memberPhaseFilter = 'all';
-    function filterMemberTrips() {
-      const searchInput = document.getElementById('memberTripSearch');
-      const keyword = searchInput ? searchInput.value.trim().toLowerCase() : '';
-      let count = 0;
-      document.querySelectorAll('#memberTripGrid [data-member-search]').forEach((card) => {
-        const matchesKeyword = !keyword || card.dataset.memberSearch.toLowerCase().includes(keyword);
-        const matchesPhase = memberPhaseFilter === 'all' || card.dataset.phase === memberPhaseFilter;
-        const visible = matchesKeyword && matchesPhase;
-        card.hidden = !visible;
-        if (visible) count += 1;
-      });
-      const result = document.getElementById('memberSearchResult');
-      if (result) result.textContent = (keyword || memberPhaseFilter !== 'all') ? '找到 ' + count + ' 個行程' : '';
-    }
-    function searchMemberTrips(event) {
-      event.preventDefault();
-      filterMemberTrips();
-    }
-    function setPhaseFilter(phase, btn) {
-      memberPhaseFilter = phase;
-      document.querySelectorAll('.phase-tab').forEach((tab) => tab.classList.remove('active'));
-      if (btn) btn.classList.add('active');
-      filterMemberTrips();
-    }
-    function setPhaseFilterById(phase) {
-      const tab = document.querySelector('.phase-tab[data-phase="' + phase + '"]');
-      setPhaseFilter(phase, tab);
     }
     let activeTripId = null;
     function openTripModal(id) {

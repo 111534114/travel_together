@@ -1,0 +1,44 @@
+{% extends "content_admin/base.html" %}
+{% set active_menu = "friend_groups" %}
+{% block title %}{{ '編輯官方活動' if event else '建立官方活動' }}｜Travel Together{% endblock %}
+{% block page_title %}{{ '編輯官方活動' if event else '建立官方活動' }}{% endblock %}
+{% block page_subtitle %}官方活動是會員認識彼此、累積信任的第一步{% endblock %}
+{% block content %}
+<div class="admin-section">
+  <form method="post" class="content-form">
+    <div class="form-grid">
+      <div class="form-group">
+        <label for="title">活動名稱 *</label>
+        <input type="text" id="title" name="title" value="{{ event.title or '' }}" required>
+      </div>
+      <div class="form-group">
+        <label for="event_date">活動日期 *</label>
+        <input type="date" id="event_date" name="event_date" value="{{ event.event_date or '' }}" required>
+      </div>
+      <div class="form-group">
+        <label for="start_time">開始時間</label>
+        <input type="time" id="start_time" name="start_time" value="{{ event.start_time or '' }}">
+      </div>
+      <div class="form-group">
+        <label for="end_time">結束時間</label>
+        <input type="time" id="end_time" name="end_time" value="{{ event.end_time or '' }}">
+      </div>
+      <div class="form-group">
+        <label for="location">地點</label>
+        <input type="text" id="location" name="location" value="{{ event.location or '' }}">
+      </div>
+      <div class="form-group">
+        <label for="capacity">人數上限（留空表示不限制）</label>
+        <input type="number" id="capacity" name="capacity" min="1" value="{{ event.capacity or '' }}">
+      </div>
+      <div class="form-group" style="grid-column: 1 / -1;">
+        <label for="description">活動說明</label>
+        <textarea id="description" name="description" rows="4">{{ event.description or '' }}</textarea>
+      </div>
+    </div>
+    <div class="form-actions">
+      <button type="submit" class="primary-button">{{ '儲存變更' if event else '建立活動' }}</button>
+    </div>
+  </form>
+</div>
+{% endblock %}

@@ -37,7 +37,7 @@
         </div>
       </div>
       <div class="profile-fields">
-        <label>會員帳號<input disabled value="{{ user.username }}"></label>
+        <label>會員帳號<input name="username" required maxlength="9" pattern="[A-Za-z0-9]{1,9}" title="9碼以內的英文或數字" value="{{ user.username }}"></label>
         <label>姓名<input disabled value="{{ user.full_name }}"></label>
         <label>暱稱<input name="nickname" value="{{ user.nickname or '' }}" placeholder="輸入顯示名稱"></label>
         <label>電子郵件<input name="email" type="email" required value="{{ user.email }}"></label>

@@ -1,0 +1,31 @@
+{% extends "content_admin/base.html" %}
+{% set active_menu = "friend_groups" %}
+{% block title %}旅遊人格統計｜Travel Together{% endblock %}
+{% block page_title %}旅遊人格統計{% endblock %}
+{% block page_subtitle %}已完成問卷的會員，依旅遊人格類型分布{% endblock %}
+{% block content %}
+<div class="type-tabs">
+  <a href="{{ url_for('friend_groups_admin.list_applications') }}">使用申請審核</a>
+  <a href="{{ url_for('friend_groups_admin.list_events') }}">官方活動管理</a>
+  <a class="active" href="{{ url_for('friend_groups_admin.stats') }}">旅遊人格統計</a>
+</div>
+<div class="admin-section">
+  <div class="section-title"><h2>旅遊人格類型分布</h2><span>共 {{ total }} 人已完成問卷</span></div>
+  {% if type_counts %}
+  <div class="chart-legend">{% for row in type_counts %}<span class="chart-legend-item"><span class="chart-legend-swatch vote-series-cat-{{ (loop.index0 % 8) + 1 }}"></span>{{ row.traveler_type }}</span>{% endfor %}</div>
+  <div class="chart-rows">
+    {% for row in type_counts %}
+    <div class="chart-row">
+      <div class="chart-label" title="{{ row.traveler_type }}">{{ row.traveler_type }}</div>
+      <div class="chart-bar-track">
+        <div class="vote-chart-segment vote-series-cat-{{ (loop.index0 % 8) + 1 }}" style="width: {{ (row.total / total * 100) if total else 0 }}%" tabindex="0" title="{{ row.traveler_type }}：{{ row.total }} 人（{{ ((row.total / total * 100) | round(1)) if total else 0 }}%）"></div>
+      </div>
+      <div class="chart-value">{{ row.total }}</div>
+    </div>
+    {% endfor %}
+  </div>
+  {% else %}
+  <p class="empty-data">目前還沒有人完成旅遊人格問卷</p>
+  {% endif %}
+</div>
+{% endblock %}

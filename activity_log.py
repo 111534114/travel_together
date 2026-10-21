@@ -50,6 +50,9 @@ ACTION_LABELS = {  # 定義每種操作代碼對應的中文顯示名稱，給�
     "update_content_admin_permissions": "設定內容管理員權限",
     "approve_attraction_post": "核准景點相簿貼文",
     "reject_attraction_post": "退回景點相簿貼文",
+    "hide_trip": "隱藏公開行程",
+    "restore_trip": "恢復公開行程",
+    "remove_trip": "移除違規行程",
 }
 
 

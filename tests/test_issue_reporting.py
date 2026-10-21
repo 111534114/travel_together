@@ -76,6 +76,7 @@ class IssueReportingTests(unittest.TestCase):
         connection = FakeConnection([{
             "report_id": 1, "reporter_id": 4, "status": "processing",
             "trip_id": 8, "owner_id": 2, "trip_name": "測試行程", "visibility": "public",
+            "moderation_status": "visible",
         }])
         with patch("app.get_db_connection", return_value=connection), patch("app.log_action"):
             response = self.client.post(

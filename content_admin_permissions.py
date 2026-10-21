@@ -11,6 +11,7 @@ CONTENT_ADMIN_MODULES = {
     "categories": "分類管理",
     "proposals": "提案審核",
     "attraction_posts_admin": "景點相簿審核",
+    "friend_groups_admin": "交友揪團管理",
     "ai_data": "AI 資料維護",
     "reports": "統計報表",
     "logs": "操作紀錄",
@@ -25,6 +26,7 @@ CONTENT_ADMIN_ACTIONS = {
     "categories": ("view", "create", "edit", "delete"),
     "proposals": ("view", "edit"),
     "attraction_posts_admin": ("view", "edit"),
+    "friend_groups_admin": ("view", "edit"),
     "ai_data": ("view", "edit"),
     "reports": ("view",),
     "logs": ("view",),
@@ -67,6 +69,10 @@ _ENDPOINT_ACTIONS = {
         "approve_proposal": "edit", "return_proposal": "edit", "update_proposal": "edit",
     },
     "attraction_posts_admin": {"approve_post": "edit", "reject_post": "edit"},
+    "friend_groups_admin": {
+        "approve_application": "edit", "reject_application": "edit", "toggle_setting": "edit",
+        "new_event": "edit", "edit_event": "edit", "cancel_event": "edit", "check_in_participant": "edit",
+    },
     "ai_data": {"verify_item": "edit"},
 }
 

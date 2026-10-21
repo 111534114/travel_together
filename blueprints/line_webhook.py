@@ -2,6 +2,8 @@ from flask import Blueprint, abort, request  # 匯入 Flask 藍圖、中止請�
 
 import line_messaging  # 匯入 LINE 官方帳號共用工具
 import line_commands
+import line_votes  # 匯入 LINE 投票（投票卡片按鈕的 postback 處理）
+import line_places  # 匯入傳位置找附近景點
 
 line_webhook_bp = Blueprint("line_webhook", __name__)  # 建立 LINE 官方帳號 webhook 藍圖
 
@@ -40,12 +42,21 @@ def handle_event(event):
             line_messaging.reply_text(event["replyToken"], UNLINKED_HINT)
     elif event_type == "unfollow":  # 封鎖官方帳號（此事件沒有 replyToken）
         line_messaging.set_friend_status(line_sub, False)
+    elif event_type == "postback" and event.get("replyToken"):
+        # 卡片上的按鈕：投票（vote:{vote_id}:{choice}）、景點加入行程（addplace:{attraction_id}:{trip_id}，日期在 params）
+        postback = event.get("postback", {})
+        reply = (line_votes.handle_postback(line_sub, postback.get("data"))
+                 or line_places.handle_postback(line_sub, postback.get("data"), postback.get("params")))
+        if reply:
+            line_messaging.reply_message(event["replyToken"], reply, quick_replies=line_commands.QUICK_REPLIES)
     elif event_type == "message" and event.get("replyToken"):
         # 圖文選單的「文字」按鈕和使用者打字都會走這裡；看不懂的文字、貼圖、圖片等回覆使用說明提示
         message = event.get("message", {})
         if message.get("type") == "text":
             reply = line_commands.reply_for(line_sub, message.get("text"))
+        elif message.get("type") == "location":  # 傳送位置資訊：找附近景點
+            reply = line_places.nearby_reply(line_sub, message.get("latitude"), message.get("longitude"))
         else:
             reply = line_commands.unknown_text()
-        line_messaging.reply_message(event["replyToken"], reply, quick_replies=line_commands.COMMANDS)
+        line_messaging.reply_message(event["replyToken"], reply, quick_replies=line_commands.QUICK_REPLIES)
 

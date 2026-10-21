@@ -8,6 +8,7 @@ from config import PUBLIC_BASE_URL
 from db import get_db_connection
 from utils import format_hm
 import line_flex as flex
+import line_votes
 import weather
 
 
@@ -16,13 +17,15 @@ TODO = "待辦事項"
 MY_TRIPS = "我的行程"
 HELP = "使用說明"
 COMMANDS = (NEXT_TRIP, TODO, MY_TRIPS, HELP)
-ALIASES = {"說明": HELP, "help": HELP, "選單": HELP, "行程": MY_TRIPS, "待辦": TODO, "下一趟": NEXT_TRIP}
+# 聊天室下方的快速回覆按鈕：關鍵字 + 傳送位置（找附近景點，只有手機版 LINE 支援）
+QUICK_REPLIES = COMMANDS + ({"type": "location", "label": "找附近景點"},)
+ALIASES = {"說明": HELP, "help": HELP, "選單": HELP, "行程": MY_TRIPS, "待辦": TODO, "投票": TODO, "下一趟": NEXT_TRIP}
 LIST_LIMIT = 5
 WEEKDAYS = "一二三四五六日"
 
 
-def _link(path):
-    return f"{PUBLIC_BASE_URL}{path}" if PUBLIC_BASE_URL else ""
+def _link(path):  # 給已綁定會員的連結，走 LIFF 自動登入（未綁定提示裡的連結維持一般網址）
+    return flex.app_link(path)
 
 
 def _with_link(lines, label, path):
@@ -48,6 +51,7 @@ def help_text():
         f"・{NEXT_TRIP}：最近一趟旅程的日期和安排",
         f"・{TODO}：還沒投的票、還沒付的分帳",
         f"・{MY_TRIPS}：所有即將出發的行程",
+        "・傳送「位置資訊」：找附近的景點，還能直接加入行程",
         "", "行程出發前一天，也會自動傳 LINE 提醒你。",
     ], "打開網站", "/member/")
 
@@ -99,13 +103,14 @@ def _countdown(trip, today):  # 回傳（倒數文字, 要顯示哪一天的安�
     return ("明天就要出發囉！" if days_left == 1 else f"還有 {days_left} 天出發"), trip["start_date"], "第一天安排"
 
 
-def next_trip_card(cursor, user_id):
-    trips = _upcoming_trips(cursor, user_id, 1)
-    if not trips:
-        return _notice_card("目前沒有即將出發的行程", "下一趟旅程", "還沒有行程", "要不要揪團規劃下一趟旅程？",
-                            [flex.uri_button("建立行程", "/member/trips/new")])
-    trip = trips[0]
-    countdown, show_date, show_label = _countdown(trip, date.today())
+def item_time_text(item):  # 行程項目的時間文字：有開始時間顯示時間，整天活動顯示「全天」，沒設定時間顯示「時間未定」
+    if item["start_time"] and not item["is_all_day"]:
+        return format_hm(item["start_time"])
+    return "全天" if item["is_all_day"] else "時間未定"
+
+
+def trip_card(cursor, trip, countdown, show_date, show_label, note=None):  # 行程卡片：「下一趟旅程」回覆與出發前一天提醒共用
+    """trip 需要 trip_id, trip_name, start_date, end_date, country, city，有 cover_image_path 會顯示封面。"""
     cursor.execute(
         "SELECT title,start_time,is_all_day FROM itineraries WHERE trip_id=%s AND itinerary_date=%s "
         "ORDER BY is_all_day DESC,start_time IS NULL,start_time,sort_order",
@@ -126,21 +131,32 @@ def next_trip_card(cursor, user_id):
     ]
     if items:
         for item in items[:LIST_LIMIT]:
-            time_text = format_hm(item["start_time"]) if item["start_time"] and not item["is_all_day"] else "全天"
             body.append(flex.box("baseline", [
-                flex.text(time_text, size="sm", color=flex.PRIMARY, weight="bold", flex=2),
+                flex.text(item_time_text(item), size="sm", color=flex.PRIMARY, weight="bold", flex=2),
                 flex.text(item["title"], size="sm", color=flex.INK, flex=6),
             ], spacing="sm"))
         if len(items) > LIST_LIMIT:
             body.append(flex.text(f"…還有 {len(items) - LIST_LIMIT} 項", size="xs", color=flex.MUTED))
     else:
         body.append(flex.text("還沒有安排行程項目", size="sm", color=flex.MUTED))
+    if note:
+        body.append(flex.text(note, size="xs", color=flex.MUTED, margin="lg"))
     card = flex.bubble(
         flex.header(f"🧳 {countdown}", trip["trip_name"]), body,
         [flex.uri_button("查看行程", f"/member/trips/{trip['trip_id']}"), flex.message_button("看待辦事項", TODO)],
         hero_url=flex.image_url(trip.get("cover_image_path")),
     )
     return flex.flex_message(f"{countdown}：{trip['trip_name']}（{_period(trip)}）", card)
+
+
+def next_trip_card(cursor, user_id):
+    trips = _upcoming_trips(cursor, user_id, 1)
+    if not trips:
+        return _notice_card("目前沒有即將出發的行程", "下一趟旅程", "還沒有行程", "要不要揪團規劃下一趟旅程？",
+                            [flex.uri_button("建立行程", "/member/trips/new")])
+    trip = trips[0]
+    countdown, show_date, show_label = _countdown(trip, date.today())
+    return trip_card(cursor, trip, countdown, show_date, show_label)
 
 
 def my_trips_card(cursor, user_id):
@@ -165,7 +181,7 @@ def my_trips_card(cursor, user_id):
 def todo_card(cursor, user_id):
     cursor.execute(
         """
-        SELECT v.title,v.deadline_at,t.trip_id,t.trip_name FROM votes v
+        SELECT v.vote_id,v.vote_type,v.title,v.deadline_at,t.trip_id,t.trip_name FROM votes v
         JOIN trips t ON t.trip_id=v.trip_id AND t.deleted_at IS NULL
         JOIN trip_members tm ON tm.trip_id=v.trip_id AND tm.user_id=%s AND tm.join_status='accepted'
         WHERE v.status='open' AND v.deadline_at>%s
@@ -220,15 +236,20 @@ def todo_card(cursor, user_id):
     parts = [f"{len(votes)} 個投票" if votes else "", f"{len(splits)} 筆分帳" if splits else ""]
     summary = "、".join(part for part in parts if part)
     card = flex.bubble(flex.header("📋 待辦事項", f"還有 {summary}待處理", color=flex.PRIMARY_DEEP), body,
-                       [flex.uri_button("到網站處理", "/member/")])
-    return flex.flex_message(f"待辦事項：{summary}待處理", card)
+                       [flex.uri_button("到網站處理", "/member/")], size="kilo")
+    if not votes:
+        return flex.flex_message(f"待辦事項：{summary}待處理", card)
+    # 有投票時：第一張是總覽，後面每個投票一張卡片，按鈕可以直接在 LINE 裡投票（往右滑）
+    vote_cards = [line_votes.vote_bubble(cursor, vote) for vote in votes[:LIST_LIMIT]]
+    return flex.flex_message(f"待辦事項：{summary}待處理（可直接在 LINE 投票）", flex.carousel([card] + vote_cards))
 
 
 def unknown_text():  # 看不懂的訊息（或貼圖、圖片）給的提示，搭配快速回覆按鈕使用
     return (
         "抱歉，我還看不懂這則訊息 🙇\n"
         "可以點下方按鈕，或輸入：\n"
-        f"・{NEXT_TRIP}\n・{TODO}\n・{MY_TRIPS}"
+        f"・{NEXT_TRIP}\n・{TODO}\n・{MY_TRIPS}\n"
+        "也可以傳送「位置資訊」找附近景點"
     )
 
 

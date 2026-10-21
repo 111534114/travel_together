@@ -3,7 +3,9 @@
 規格參考 LINE 官方文件 Flex Message；卡片上的按鈕連結需要公開的 https 網址（config.PUBLIC_BASE_URL），
 沒有設定時會自動省略連結按鈕，卡片仍可正常顯示。
 """
-from config import PUBLIC_BASE_URL  # 匯入網站公開網址
+from urllib.parse import quote  # 匯入網址編碼工具
+
+from config import LIFF_ID, PUBLIC_BASE_URL  # 匯入 LIFF ID 與網站公開網址
 
 PRIMARY = "#00A9C0"  # 網站主色（青藍）
 PRIMARY_DEEP = "#066275"
@@ -15,6 +17,12 @@ ALT_TEXT_LIMIT = 400  # LINE 規定 altText 最多 400 字
 
 def public_link(path):  # 網站路徑轉成公開網址；沒有設定公開網址時回傳空字串
     return f"{PUBLIC_BASE_URL}{path}" if PUBLIC_BASE_URL.startswith("https://") else ""
+
+
+def app_link(path):  # 官方帳號傳給「已綁定會員」的網站連結：有設定 LIFF 就走 LIFF，在 LINE 裡點開會自動登入
+    if LIFF_ID:
+        return f"https://liff.line.me/{LIFF_ID}{path}"
+    return public_link(path)
 
 
 def text(content, **style):
@@ -37,7 +45,7 @@ def info_row(label, value):  # 左邊灰色標籤、右邊內容的一列
 
 
 def uri_button(label, path, style="primary"):  # 打開網頁的按鈕；沒有公開網址時回傳 None
-    url = public_link(path)
+    url = app_link(path)
     if not url:
         return None
     button = {"type": "button", "style": style, "height": "sm", "action": {"type": "uri", "label": label, "uri": url}}
@@ -85,4 +93,4 @@ def image_url(path):  # 網站上傳的圖片（例如行程封面）轉成 LINE
         return ""
     if path.startswith("https://"):
         return path
-    return public_link(f"/static/{path}")
+    return public_link(f"/static/{quote(path)}")  # 檔名可能是中文（例如 images/故宮.jpg），要先做網址編碼

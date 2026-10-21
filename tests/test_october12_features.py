@@ -1,6 +1,7 @@
+import json
 import unittest
 from datetime import date, time
-from unittest.mock import patch
+from unittest.mock import Mock, patch
 
 from flask import session
 
@@ -36,12 +37,17 @@ class October12FeatureTests(unittest.TestCase):
     def test_line_commands_and_reminder_message(self):
         self.assertEqual(line_commands.HELP, line_commands.normalize("help"))
         self.assertIsNone(line_commands.normalize("真人客服問題"))
-        message = trip_reminders.build_message({
+        cursor = Mock()
+        cursor.fetchall.return_value = [{"title": "淺草寺", "start_time": time(9, 0), "is_all_day": False}]
+        card = trip_reminders.build_card(cursor, {
             "trip_id": 5, "trip_name": "東京", "start_date": date(2099, 1, 2),
             "end_date": date(2099, 1, 5), "country": "日本", "city": "東京",
-        }, [{"title": "淺草寺", "start_time": time(9, 0), "is_all_day": False}])
-        self.assertIn("明天就要出發", message)
-        self.assertIn("09:00 淺草寺", message)
+        })
+        self.assertEqual("flex", card["type"])
+        self.assertIn("明天就要出發", card["altText"])
+        card_text = json.dumps(card, ensure_ascii=False)
+        self.assertIn("09:00", card_text)
+        self.assertIn("淺草寺", card_text)
 
 
 if __name__ == "__main__":

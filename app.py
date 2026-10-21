@@ -5,7 +5,7 @@ from booking_search import (
     filter_prices, price_buckets, price_range, time_band_options,
 )
 import requests  # 匯入 requests，用來呼叫 LINE 的個人資料 API
-from datetime import datetime, timedelta  # 匯入日期工具，用來解析日期與建立月份統計區間
+from datetime import datetime
 from authlib.integrations.flask_client import OAuth  # 匯入 Authlib 的 Flask 整合，處理 Google 登入 OAuth 流程
 from flask import Flask, render_template, request, redirect, url_for, session, flash  # 匯入 Flask 核心功能：建立 App、渲染樣板、取得請求、導向、產生網址、session、顯示訊息
 from mysql.connector import Error  # 匯入 MySQL 連線錯誤類別，用來捕捉資料庫例外
@@ -2069,6 +2069,14 @@ def update_admin_announcement(announcement_id):
     return redirect(url_for("admin_announcements"))
 
 
+TAIWAN_COUNTIES = (
+    "台北市", "新北市", "桃園市", "台中市", "台南市", "高雄市",
+    "基隆市", "新竹市", "嘉義市", "新竹縣", "苗栗縣", "彰化縣",
+    "南投縣", "雲林縣", "嘉義縣", "屏東縣", "宜蘭縣", "花蓮縣",
+    "台東縣", "澎湖縣", "金門縣", "連江縣",
+)
+
+
 @app.route("/system-admin/statistics")
 def admin_statistics():
     denied = system_admin_required()
@@ -2076,10 +2084,15 @@ def admin_statistics():
         return denied
     totals = {"members": 0, "active_members": 0, "trips": 0, "public_trips": 0,
               "announcements": 0}
-    monthly = []
     trip_statuses = []
     issue_statuses = []
     top_destinations = []
+    attraction_totals = {"active": 0, "favorites": 0, "itineraries": 0}
+    top_attractions = []
+    attraction_cities = [
+        {"city": name, "attraction_count": 0, "itinerary_count": 0}
+        for name in TAIWAN_COUNTIES
+    ]
     connection = get_db_connection()
     if connection is None:
         flash("資料庫連線失敗", "error")
@@ -2095,33 +2108,6 @@ def admin_statistics():
                   (SELECT COUNT(*) FROM announcements) AS announcements
             """)
             totals.update(cursor.fetchone())
-            month_starts = []
-            month_start = datetime.now().replace(day=1, hour=0, minute=0, second=0, microsecond=0)
-            for _ in range(6):
-                month_starts.append(month_start)
-                month_start = (month_start - timedelta(days=1)).replace(day=1)
-            month_starts.reverse()
-            monthly = [{"month": value.strftime("%Y-%m"), "members": 0, "trips": 0}
-                       for value in month_starts]
-            monthly_by_key = {row["month"]: row for row in monthly}
-            cursor.execute("""
-                SELECT DATE_FORMAT(created_at, '%%Y-%%m') AS month, COUNT(*) AS total
-                FROM users
-                WHERE role='member' AND created_at >= %s
-                GROUP BY DATE_FORMAT(created_at, '%%Y-%%m')
-            """, (month_starts[0],))
-            for row in cursor.fetchall():
-                if row["month"] in monthly_by_key:
-                    monthly_by_key[row["month"]]["members"] = row["total"]
-            cursor.execute("""
-                SELECT DATE_FORMAT(created_at, '%%Y-%%m') AS month, COUNT(*) AS total
-                FROM trips
-                WHERE created_at >= %s AND deleted_at IS NULL
-                GROUP BY DATE_FORMAT(created_at, '%%Y-%%m')
-            """, (month_starts[0],))
-            for row in cursor.fetchall():
-                if row["month"] in monthly_by_key:
-                    monthly_by_key[row["month"]]["trips"] = row["total"]
             cursor.execute("SELECT status, COUNT(*) AS total FROM trips WHERE deleted_at IS NULL GROUP BY status ORDER BY total DESC")
             trip_statuses = cursor.fetchall()
             cursor.execute("""
@@ -2146,12 +2132,73 @@ def admin_statistics():
                 LIMIT 5
             """)
             top_destinations = cursor.fetchall()
+            cursor.execute("""
+                SELECT
+                  (SELECT COUNT(*) FROM attractions WHERE status='active' AND deleted_at IS NULL) AS active,
+                  (SELECT COUNT(*) FROM favorites f JOIN attractions a ON a.attraction_id=f.attraction_id
+                   WHERE f.target_type='attraction' AND a.status='active' AND a.deleted_at IS NULL) AS favorites,
+                  (SELECT COUNT(*) FROM itineraries i
+                   JOIN attractions a ON a.attraction_id=i.attraction_id
+                   JOIN trips t ON t.trip_id=i.trip_id
+                   WHERE a.status='active' AND a.deleted_at IS NULL AND t.deleted_at IS NULL) AS itineraries
+            """)
+            attraction_totals.update(cursor.fetchone())
+            cursor.execute("""
+                SELECT a.name, ci.name AS city, COALESCE(f.favorite_count, 0) AS favorite_count,
+                       COALESCE(i.itinerary_count, 0) AS itinerary_count
+                FROM attractions a
+                JOIN cities ci ON ci.city_id=a.city_id
+                LEFT JOIN (
+                    SELECT attraction_id, COUNT(*) AS favorite_count FROM favorites
+                    WHERE target_type='attraction' GROUP BY attraction_id
+                ) f ON f.attraction_id=a.attraction_id
+                LEFT JOIN (
+                    SELECT i.attraction_id, COUNT(*) AS itinerary_count FROM itineraries i
+                    JOIN trips t ON t.trip_id=i.trip_id
+                    WHERE t.deleted_at IS NULL AND i.attraction_id IS NOT NULL
+                    GROUP BY i.attraction_id
+                ) i ON i.attraction_id=a.attraction_id
+                WHERE a.status='active' AND a.deleted_at IS NULL
+                ORDER BY itinerary_count DESC, favorite_count DESC, a.name ASC
+                LIMIT 5
+            """)
+            top_attractions = cursor.fetchall()
+            cursor.execute("""
+                SELECT co.name AS country, ci.name AS city,
+                       COUNT(a.attraction_id) AS attraction_count,
+                       COALESCE(SUM(i.itinerary_count), 0) AS itinerary_count
+                FROM attractions a
+                JOIN cities ci ON ci.city_id=a.city_id
+                JOIN countries co ON co.country_id=a.country_id
+                LEFT JOIN (
+                    SELECT i.attraction_id, COUNT(*) AS itinerary_count FROM itineraries i
+                    JOIN trips t ON t.trip_id=i.trip_id
+                    WHERE t.deleted_at IS NULL AND i.attraction_id IS NOT NULL
+                    GROUP BY i.attraction_id
+                ) i ON i.attraction_id=a.attraction_id
+                WHERE a.status='active' AND a.deleted_at IS NULL
+                  AND co.name IN ('台灣', '臺灣', 'Taiwan')
+                GROUP BY a.country_id, a.city_id, co.name, ci.name
+            """)
+            city_by_name = {row["city"]: row for row in attraction_cities}
+            for row in cursor.fetchall():
+                city = city_by_name.get(row["city"].replace("臺", "台"))
+                if city:
+                    city["attraction_count"] += row["attraction_count"]
+                    city["itinerary_count"] += row["itinerary_count"]
         finally:
             cursor.close()
             connection.close()
-    return render_template("admin_statistics.html", totals=totals, monthly=monthly,
+    attraction_chart_max = max((max(row["itinerary_count"], row["favorite_count"])
+                                for row in top_attractions), default=1)
+    city_chart_max = max((row["itinerary_count"] for row in attraction_cities), default=1)
+    attraction_cities.sort(key=lambda row: row["itinerary_count"], reverse=True)
+    return render_template("admin_statistics.html", totals=totals,
                            trip_statuses=trip_statuses, issue_statuses=issue_statuses,
-                           top_destinations=top_destinations)
+                           top_destinations=top_destinations,
+                           attraction_totals=attraction_totals, top_attractions=top_attractions,
+                           attraction_chart_max=max(attraction_chart_max, 1),
+                           attraction_cities=attraction_cities, city_chart_max=max(city_chart_max, 1))
 
 
 @app.route("/system-admin/logs")

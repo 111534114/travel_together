@@ -1513,9 +1513,17 @@ def add_proposal(trip_id):
         elif not title: flash("請填寫提案名稱。", "error")
         elif proposal_type not in ("attraction", "restaurant", "accommodation", "activity", "transport", "date", "other"): flash("提案類型無效。", "error")
         else:
+            # 提議的是景點/餐廳/住宿，代表可能是資料庫裡還沒有的新地點，要先送內容管理員審核通過，
+            # 審核通過後才會正式收錄進對應的資料表；其餘類型(活動/交通/日期/其他)只是旅伴之間的討論，不需要審核
+            needs_review = proposal_type in ("attraction", "restaurant", "accommodation")
+            review_status = "pending" if needs_review else "not_required"
             cursor.execute("""INSERT INTO proposals (trip_id,proposer_id,proposal_type,title,location,description,estimated_cost,proposed_date,content_review_status)
-                              VALUES (%s,%s,%s,%s,%s,%s,%s,%s,'not_required')""", (trip_id, session["user_id"], proposal_type, title, request.form.get("location", "").strip() or None, request.form.get("description", "").strip() or None, request.form.get("estimated_cost") or 0, request.form.get("proposed_date") or None))
-            connection.commit(); flash("提案已送出，旅伴現在可以一起討論。", "success")
+                              VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s)""", (trip_id, session["user_id"], proposal_type, title, request.form.get("location", "").strip() or None, request.form.get("description", "").strip() or None, request.form.get("estimated_cost") or 0, request.form.get("proposed_date") or None, review_status))
+            connection.commit()
+            if needs_review:
+                flash("提案已送出，旅伴可以先討論；由於是新增景點/餐廳/住宿的建議，需等管理員審核通過後才會正式收錄。", "success")
+            else:
+                flash("提案已送出，旅伴現在可以一起討論。", "success")
     except Exception:
         connection.rollback(); flash("送出提案失敗。", "error")
     finally:

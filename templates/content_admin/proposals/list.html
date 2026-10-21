@@ -39,7 +39,7 @@
             {% for proposal in proposals %}
             <tr>
                 <td>{{ proposal.title }}</td>
-                <td>{{ proposal.proposal_type }}</td>
+                <td>{{ type_labels.get(proposal.proposal_type, proposal.proposal_type) }}</td>
                 <td>{{ proposal.trip_name }}</td>
                 <td>{{ proposal.proposer_name }}</td>
                 <td>{{ proposal.estimated_cost }}</td>

@@ -184,6 +184,55 @@ def list_restaurants():  # 定義餐廳列表頁函式
     )
 
 
+@restaurants_bp.route("/map")  # 設定餐廳地圖檢視頁路由
+@login_required("content_admin")  # 限制只有內容管理員登入後才能存取
+def map_view():  # 定義餐廳地圖檢視函式
+    connection = get_db_connection()  # 建立資料庫連線
+
+    if connection is None:  # 如果連線失敗
+        flash("資料庫連線失敗", "error")  # 顯示錯誤提示
+        return render_template("content_admin/restaurants/map.html", restaurants=[], missing_count=0)  # 回傳空地圖頁面
+
+    cursor = connection.cursor(dictionary=True)  # 建立字典格式游標
+
+    try:  # 開始查詢資料
+        cursor.execute(  # 查詢所有啟用中、且有經緯度的餐廳(沒有座標的無法標在地圖上)
+            """
+            SELECT r.restaurant_id, r.name, r.address, r.latitude, r.longitude,
+                   r.cuisine_type, r.price_level, cat.category_name,
+                   co.name AS country_name, ci.name AS city_name
+            FROM restaurants r
+            LEFT JOIN categories cat ON cat.category_id = r.category_id
+            JOIN countries co ON co.country_id = r.country_id
+            JOIN cities ci ON ci.city_id = r.city_id
+            WHERE r.status = 'active' AND r.deleted_at IS NULL
+              AND r.latitude IS NOT NULL AND r.longitude IS NOT NULL
+            ORDER BY r.restaurant_id DESC
+            """
+        )
+        restaurants = cursor.fetchall()  # 取出有座標的啟用餐廳清單
+
+        for restaurant in restaurants:  # 把經緯度轉成一般浮點數，才能安全序列化成 JSON 給地圖 JS 使用
+            restaurant["latitude"] = float(restaurant["latitude"])
+            restaurant["longitude"] = float(restaurant["longitude"])
+            restaurant["edit_url"] = url_for("restaurants.edit_restaurant", restaurant_id=restaurant["restaurant_id"])  # 預先組好編輯連結，地圖彈出視窗直接可用
+
+        cursor.execute(  # 查詢啟用中但沒有座標的餐廳數量(提示要補上經緯度才能顯示在地圖上)
+            "SELECT COUNT(*) AS total FROM restaurants WHERE status = 'active' AND deleted_at IS NULL AND (latitude IS NULL OR longitude IS NULL)"
+        )
+        missing_count = cursor.fetchone()["total"]  # 取出沒有座標的餐廳數量
+
+    finally:  # 不論成功或失敗都要執行
+        cursor.close()  # 關閉游標
+        connection.close()  # 關閉資料庫連線
+
+    return render_template(  # 渲染地圖檢視頁面
+        "content_admin/restaurants/map.html",
+        restaurants=restaurants,  # 有座標的餐廳清單(給地圖標記使用)
+        missing_count=missing_count,  # 沒有座標、無法顯示在地圖上的餐廳數量
+    )
+
+
 @restaurants_bp.route("/new", methods=["GET", "POST"])  # 設定新增餐廳頁路由
 @login_required("content_admin")  # 限制只有內容管理員登入後才能存取
 def create_restaurant():  # 定義新增餐廳函式
@@ -708,6 +757,8 @@ def import_from_google():  # 定義 Google 地圖批次匯入餐廳函式
                     continue  # 跳過這一筆，繼續處理下一個
 
                 address = fields["address"]  # 取得完整地址
+                latitude = fields["latitude"]  # 取得緯度
+                longitude = fields["longitude"]  # 取得經度
                 opening_hours_text = fields["opening_hours"]  # 取得整理好的開放時間文字
                 website_url = fields["website_url"]  # 取得官方網站(或 Google 地圖連結)
                 price_level = fields["price_level"] or "medium"  # 取得 Google 判斷的價位，沒有就用預設中價位
@@ -727,12 +778,12 @@ def import_from_google():  # 定義 Google 地圖批次匯入餐廳函式
                 cursor.execute(  # 執行新增餐廳的 SQL
                     """
                     INSERT INTO restaurants
-                    (category_id, name, country_id, city_id, address, cuisine_type,
+                    (category_id, name, country_id, city_id, address, latitude, longitude, cuisine_type,
                      price_level, opening_hours, description, website_url, status, created_by)
-                    VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
+                    VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
                     """,
                     (
-                        category_id, name, country_id, city_id, address, cuisine_type,  # 分類、名稱、國家、城市、地址、料理類型
+                        category_id, name, country_id, city_id, address, latitude, longitude, cuisine_type,  # 分類、名稱、國家、城市、地址、經緯度、料理類型
                         price_level, opening_hours_text, description, website_url,  # 價位、開放時間、描述、網站
                         status, session["user_id"]  # 狀態、建立者
                     )

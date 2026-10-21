@@ -200,6 +200,56 @@ def list_accommodations():  # 定義住宿列表頁函式
     )
 
 
+@accommodations_bp.route("/map")  # 設定住宿地圖檢視頁路由
+@login_required("content_admin")  # 限制只有內容管理員登入後才能存取
+def map_view():  # 定義住宿地圖檢視函式
+    connection = get_db_connection()  # 建立資料庫連線
+
+    if connection is None:  # 如果連線失敗
+        flash("資料庫連線失敗", "error")  # 顯示錯誤提示
+        return render_template("content_admin/accommodations/map.html", accommodations=[], missing_count=0)  # 回傳空地圖頁面
+
+    cursor = connection.cursor(dictionary=True)  # 建立字典格式游標
+
+    try:  # 開始查詢資料
+        cursor.execute(  # 查詢所有啟用中、且有經緯度的住宿(沒有座標的無法標在地圖上)
+            """
+            SELECT ac.accommodation_id, ac.name, ac.address, ac.latitude, ac.longitude,
+                   ac.accommodation_type, ac.price_per_night, cat.category_name,
+                   co.name AS country_name, ci.name AS city_name
+            FROM accommodations ac
+            LEFT JOIN categories cat ON cat.category_id = ac.category_id
+            JOIN countries co ON co.country_id = ac.country_id
+            JOIN cities ci ON ci.city_id = ac.city_id
+            WHERE ac.status = 'active' AND ac.deleted_at IS NULL
+              AND ac.latitude IS NOT NULL AND ac.longitude IS NOT NULL
+            ORDER BY ac.accommodation_id DESC
+            """
+        )
+        accommodations = cursor.fetchall()  # 取出有座標的啟用住宿清單
+
+        for accommodation in accommodations:  # 把經緯度與房價轉成一般數字，才能安全序列化成 JSON 給地圖 JS 使用
+            accommodation["latitude"] = float(accommodation["latitude"])
+            accommodation["longitude"] = float(accommodation["longitude"])
+            accommodation["price_per_night"] = float(accommodation["price_per_night"] or 0)
+            accommodation["edit_url"] = url_for("accommodations.edit_accommodation", accommodation_id=accommodation["accommodation_id"])  # 預先組好編輯連結，地圖彈出視窗直接可用
+
+        cursor.execute(  # 查詢啟用中但沒有座標的住宿數量(提示要補上經緯度才能顯示在地圖上)
+            "SELECT COUNT(*) AS total FROM accommodations WHERE status = 'active' AND deleted_at IS NULL AND (latitude IS NULL OR longitude IS NULL)"
+        )
+        missing_count = cursor.fetchone()["total"]  # 取出沒有座標的住宿數量
+
+    finally:  # 不論成功或失敗都要執行
+        cursor.close()  # 關閉游標
+        connection.close()  # 關閉資料庫連線
+
+    return render_template(  # 渲染地圖檢視頁面
+        "content_admin/accommodations/map.html",
+        accommodations=accommodations,  # 有座標的住宿清單(給地圖標記使用)
+        missing_count=missing_count,  # 沒有座標、無法顯示在地圖上的住宿數量
+    )
+
+
 @accommodations_bp.route("/new", methods=["GET", "POST"])  # 設定新增住宿頁路由
 @login_required("content_admin")  # 限制只有內容管理員登入後才能存取
 def create_accommodation():  # 定義新增住宿函式
@@ -730,6 +780,8 @@ def import_from_google():  # 定義 Google 地圖批次匯入住宿函式
                     continue  # 跳過這一筆，繼續處理下一個
 
                 address = fields["address"]  # 取得完整地址
+                latitude = fields["latitude"]  # 取得緯度
+                longitude = fields["longitude"]  # 取得經度
                 website_url = fields["website_url"]  # 取得官方網站(或 Google 地圖連結)
                 accommodation_type = fields["category_name"]  # 住宿類型直接沿用 Google 判斷的地點類型文字(例如「飯店」「民宿」)
 
@@ -747,12 +799,12 @@ def import_from_google():  # 定義 Google 地圖批次匯入住宿函式
                 cursor.execute(  # 執行新增住宿的 SQL(價格、入住/退房時間 Google 不提供，維持預設值，需要人工補上)
                     """
                     INSERT INTO accommodations
-                    (category_id, name, country_id, city_id, address, accommodation_type,
+                    (category_id, name, country_id, city_id, address, latitude, longitude, accommodation_type,
                      description, website_url, status, created_by)
-                    VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
+                    VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
                     """,
                     (
-                        category_id, name, country_id, city_id, address, accommodation_type,  # 分類、名稱、國家、城市、地址、住宿類型
+                        category_id, name, country_id, city_id, address, latitude, longitude, accommodation_type,  # 分類、名稱、國家、城市、地址、經緯度、住宿類型
                         description, website_url, status, session["user_id"]  # 描述、網站、狀態、建立者
                     )
                 )

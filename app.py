@@ -39,6 +39,7 @@ from mailer import send_password_reset_email  # 匯入忘記密碼重設信的�
 from utils import google_maps_url, google_maps_embed_url, format_hm, friend_group_feature_enabled  # 匯入組 Google 地圖連結/嵌入縮圖地圖、格式化 TIME 欄位、查交友揪團總開關的共用函式，註冊成樣板全域函式讓所有頁面都能直接呼叫
 import weather  # 匯入中央氣象署天氣預報模組(訪客頁面「目的地天氣」功能用)
 import line_messaging  # 匯入 LINE 官方帳號共用工具(加好友連結、QR Code)
+import line_announcements  # 匯入公告推播到 LINE
 import trip_reminders
 
 app = Flask(__name__)  # 建立 Flask 應用程式實例
@@ -2278,6 +2279,9 @@ def admin_announcements():
                            f"新增公告：{title}")
                 connection.commit()
                 flash("公告已建立", "success")
+                if status == "published" and request.form.get("push_line"):  # 勾選「同時推播到 LINE」
+                    ok, message = line_announcements.push_announcement(announcement_id)
+                    flash(message, "success" if ok else "error")
                 return redirect(url_for("admin_announcements"))
         cursor.execute("""
             SELECT a.*, u.full_name AS creator_name
@@ -2289,7 +2293,28 @@ def admin_announcements():
     finally:
         cursor.close()
         connection.close()
-    return render_template("admin_announcements.html", announcements=announcements)
+    return render_template("admin_announcements.html", announcements=announcements,
+                           line_status=line_announcements.push_status())
+
+
+@app.route("/system-admin/announcements/<int:announcement_id>/line-push", methods=["POST"])
+def push_announcement_to_line(announcement_id):  # 把已發布的公告推播給所有 LINE 好友（會用掉每月推播額度）
+    denied = system_admin_required()
+    if denied:
+        return denied
+    ok, message = line_announcements.push_announcement(announcement_id)
+    if ok:
+        connection = get_db_connection()
+        if connection is not None:
+            cursor = connection.cursor()
+            try:
+                log_action(cursor, "update_announcement", "announcement", announcement_id, "公告推播到 LINE")
+                connection.commit()
+            finally:
+                cursor.close()
+                connection.close()
+    flash(message, "success" if ok else "error")
+    return redirect(url_for("admin_announcements"))
 
 
 @app.route("/system-admin/announcements/<int:announcement_id>/update", methods=["POST"])

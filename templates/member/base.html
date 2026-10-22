@@ -5,17 +5,21 @@
   <title>{% block title %}走吧揪團{% endblock %}</title>
   <link rel="icon" type="image/png" href="{{ url_for('static', filename='images/logo.png') }}">
   <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/member-nav.css') }}">
   <script src="{{ url_for('static', filename='js/google-translate.js') }}"></script>
 </head>
 <body class="member-body">
   <div class="member-shell">
     <aside class="member-sidenav">
       <a class="brand" href="{{ url_for('member.dashboard') }}"><img src="{{ url_for('static', filename='images/logo.png') }}" alt="走吧揪團"></a>
-      <nav>{% include 'partials/member_nav_links.html' %}</nav>
+      {% include 'partials/member_nav_toggle.html' %}
+      <nav id="memberNav">{% include 'partials/member_nav_links.html' %}</nav>
     </aside>
+    <div class="nav-backdrop" aria-hidden="true"></div>
     <main class="member-main">
       {% with messages = get_flashed_messages(with_categories=true) %}{% for category, message in messages %}<div class="message {{ category }}">{{ message }}</div>{% endfor %}{% endwith %}
       {% block content %}{% endblock %}
     </main>
   </div>
+  <script src="{{ url_for('static', filename='js/member-nav.js') }}"></script>
 </body></html>

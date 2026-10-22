@@ -1,4 +1,5 @@
 import time  # 用來記錄快取抓取時間，判斷是否需要重新呼叫 API
+from datetime import datetime  # 用來解析警特報的生效時間
 
 import truststore  # 改用作業系統原生憑證庫驗證 SSL，修正 Python 3.13 誤判台灣政府網站(TWCA憑證)憑證無效的已知問題
 truststore.inject_into_ssl()
@@ -255,3 +256,106 @@ def travel_tips(forecast):  # 依天氣給出門建議(帶傘、防曬、外套)
     if forecast["min"] is not None and forecast["min"] <= COOL_CELSIUS:
         tips.append("🧥 早晚偏涼，記得帶件外套")
     return tips
+
+
+# W-C0033-001：中央氣象署「天氣特報-各別縣市地區目前之天氣警特報情形」(颱風警報、豪雨特報、陸上強風特報等)
+WARNINGS_URL = "https://opendata.cwa.gov.tw/api/v1/rest/datastore/W-C0033-001"
+WARNINGS_CACHE_TTL_SECONDS = 15 * 60  # 警特報變化比預報快，快取 15 分鐘就好
+_warnings_cache = {"fetched_at": 0, "data": {}}  # {正規化後的縣市名: [警特報, ...]}
+
+
+def _parse_time(text):  # 警特報的時間格式為「2026-10-22 23:00:00」，解析失敗回傳 None
+    try:
+        return datetime.strptime(text or "", "%Y-%m-%d %H:%M:%S")
+    except ValueError:
+        return None
+
+
+def _get_all_warnings():  # 取得(必要時重新抓取)全部縣市目前的警特報，失敗時沿用舊快取
+    now = time.time()
+    if now - _warnings_cache["fetched_at"] <= WARNINGS_CACHE_TTL_SECONDS and _warnings_cache["fetched_at"]:
+        return _warnings_cache["data"]
+    try:
+        response = requests.get(WARNINGS_URL, params={"Authorization": CWA_API_KEY, "format": "JSON"}, timeout=10)
+        if not response.ok:
+            raise WeatherApiError(response.text)
+        result = {}
+        for location in response.json()["records"]["location"]:
+            hazards = []
+            for hazard in location.get("hazardConditions", {}).get("hazards", []):
+                info, valid = hazard.get("info", {}), hazard.get("validTime", {})
+                hazards.append({
+                    "phenomena": info.get("phenomena", ""),  # 例如「颱風」「豪雨」「陸上強風」
+                    "significance": info.get("significance", ""),  # 「警報」或「特報」
+                    "start": _parse_time(valid.get("startTime")),
+                    "end": _parse_time(valid.get("endTime")),
+                })
+            result[normalize_city_name(location.get("locationName"))] = hazards
+        _warnings_cache["data"], _warnings_cache["fetched_at"] = result, now
+    except Exception as error:  # 呼叫失敗或資料格式異動：不讓例外影響 LINE 卡片，下次再試
+        print("取得中央氣象署警特報失敗：", error)
+    return _warnings_cache["data"]
+
+
+def get_city_warnings(city_name, target_date):  # 定義函式：某個台灣縣市在指定日期仍有效的警特報(LINE 行程卡片用)
+    """回傳 [{'phenomena', 'significance', 'start', 'end'}, ...]；國外城市、沒有警特報或沒設定授權碼時回傳空清單。"""
+    if not is_configured() or not city_name:
+        return []
+    day_start = datetime.combine(target_date, datetime.min.time())
+    return [hazard for hazard in _get_all_warnings().get(normalize_city_name(city_name), [])
+            if hazard["end"] is None or hazard["end"] >= day_start]  # 結束時間還沒過那一天才顯示
+
+
+def describe_warning(hazard):  # 例如「⚠️ 陸上強風特報（至 10/22 23:00）」
+    text = f"⚠️ {hazard['phenomena']}{hazard['significance']}"
+    if hazard["end"]:
+        text += f"（至 {hazard['end'].month}/{hazard['end'].day} {hazard['end'].strftime('%H:%M')}）"
+    return text
+
+
+def has_typhoon(hazards):  # 是否有颱風警報(會額外提醒留意交通與行程)
+    return any("颱風" in hazard["phenomena"] for hazard in hazards)
+
+
+# W-C0034-001：中央氣象署「颱風警報」(CAP 格式)。海上颱風警報不會出現在各縣市警特報(W-C0033-001)裡，
+# 所以另外查這份：只要有颱風警報(海上或海上陸上)，台灣的行程卡片就提醒留意颱風動態。
+TYPHOON_URL = "https://opendata.cwa.gov.tw/api/v1/rest/datastore/W-C0034-001"
+TYPHOON_STALE_HOURS = 6  # 警報每 3 小時左右更新一次，超過 6 小時沒更新就當作已解除
+_typhoon_cache = {"fetched_at": 0, "data": None}
+
+
+def _parse_iso(text):  # 例如「2026-10-22T12:30:00+08:00」，只取到秒(台灣時間)
+    try:
+        return datetime.strptime((text or "")[:19], "%Y-%m-%dT%H:%M:%S")
+    except ValueError:
+        return None
+
+
+def get_typhoon_notice():  # 目前有效的颱風警報，回傳 {'headline': '海上颱風警報', 'name': '強烈颱風 薔琵'}；沒有就回傳 None
+    if not is_configured():
+        return None
+    now = time.time()
+    if not _typhoon_cache["fetched_at"] or now - _typhoon_cache["fetched_at"] > WARNINGS_CACHE_TTL_SECONDS:
+        try:
+            response = requests.get(TYPHOON_URL, params={"Authorization": CWA_API_KEY, "format": "JSON"}, timeout=10)
+            if not response.ok:
+                raise WeatherApiError(response.text)
+            notice = None
+            for info in response.json().get("records", {}).get("info", []):
+                if info.get("language", "zh-TW") != "zh-TW" or "颱風" not in (info.get("headline") or ""):
+                    continue
+                expires = _parse_iso(info.get("expires"))
+                if expires and (datetime.now() - expires).total_seconds() > TYPHOON_STALE_HOURS * 3600:
+                    continue
+                sections = {s.get("title"): s.get("value", "") for s in info.get("description", {}).get("section", [])}
+                name = sections.get("命名與位置", "").split("（")[0].strip()  # 例如「強烈颱風 薔琵」
+                notice = {"headline": info["headline"], "name": name}
+                break
+            _typhoon_cache["data"], _typhoon_cache["fetched_at"] = notice, now
+        except Exception as error:  # 呼叫失敗：沿用舊快取，不影響 LINE 卡片
+            print("取得中央氣象署颱風警報失敗：", error)
+    return _typhoon_cache["data"]
+
+
+def is_taiwan_city(city_name):  # 是否為台灣縣市(以氣象署警特報資料的縣市清單判斷)
+    return normalize_city_name(city_name) in _get_all_warnings()

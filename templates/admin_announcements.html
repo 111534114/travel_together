@@ -11,9 +11,20 @@
         <label>初始狀態<select name="status"><option value="draft">草稿</option><option value="published">立即發布</option></select></label>
         <label class="form-wide">公告內容<textarea name="content" rows="5" required></textarea></label>
         <label class="checkbox-label"><input type="checkbox" name="is_pinned"> 置頂公告</label>
+        {% if line_status and line_status.configured %}
+        <label class="checkbox-label"><input type="checkbox" name="push_line"> 立即發布時同時推播到 LINE（約 {{ line_status.recipients }} 則額度）</label>
+        {% endif %}
         <div><button class="small-button" type="submit">建立公告</button></div>
     </form>
 </section>
+{% if line_status and line_status.configured %}
+<section class="admin-section line-push-status">
+    <div class="section-title"><h2>LINE 推播</h2></div>
+    <p>推播對象：已綁定網站帳號並加入官方帳號好友的會員 <b>{{ line_status.recipients }}</b> 人，每推播一則公告會用掉 {{ line_status.recipients }} 則額度。</p>
+    <p>本月額度：{% if not line_status.quota_known %}暫時查不到{% elif line_status.limit is none %}已用 {{ line_status.used }} 則（無上限）{% else %}已用 <b>{{ line_status.used }}</b> / {{ line_status.limit }} 則，剩餘 <b>{{ line_status.limit - line_status.used }}</b> 則{% endif %}</p>
+    <p class="form-hint">會員也可以在 LINE 輸入「最新消息」免費查看公告，不會用到額度。</p>
+</section>
+{% endif %}
 <section class="admin-section">
     <div class="section-title"><h2>公告列表</h2><span>共 {{ announcements|length }} 筆</span></div>
     <div class="announcement-list">
@@ -22,7 +33,13 @@
             <div class="announcement-content">
                 <h3>{{ item.title }}</h3>
                 <p>{{ item.content }}</p>
-                <small>建立者：{{ item.creator_name }} ｜ 建立：{{ item.created_at }}{% if item.publish_at %} ｜ 發布：{{ item.publish_at }}{% endif %}</small>
+                <small>建立者：{{ item.creator_name }} ｜ 建立：{{ item.created_at }}{% if item.publish_at %} ｜ 發布：{{ item.publish_at }}{% endif %}{% if item.line_pushed_at %} ｜ 已推播 LINE：{{ item.line_pushed_at }}{% endif %}</small>
+                {% if line_status and line_status.configured and item.status == 'published' %}
+                <form method="post" action="{{ url_for('push_announcement_to_line', announcement_id=item.announcement_id) }}" class="line-push-form"
+                      onsubmit="return confirm('{{ '這則公告已經推播過了，確定要再推播一次嗎？' if item.line_pushed_at else '確定要推播到 LINE 嗎？' }}會用掉約 {{ line_status.recipients }} 則推播額度。');">
+                    <button class="small-button" type="submit">{{ '再次推播到 LINE' if item.line_pushed_at else '推播到 LINE' }}</button>
+                </form>
+                {% endif %}
             </div>
             <form method="post" action="{{ url_for('update_admin_announcement', announcement_id=item.announcement_id) }}" class="announcement-actions">
                 <select name="status">

@@ -3389,8 +3389,9 @@ body {
     }
 
     .member-main {
-        width: min(100% - 28px, 680px);
-        padding-top: 24px;
+        width: 100%;
+        max-width: 680px;
+        padding: 20px 16px 56px; /* 手機版左右對稱留白（電腦版右側 36px 內距不適用） */
     }
 
     .member-hero {
@@ -3430,7 +3431,6 @@ body {
         font-size: 14px;
     }
 
-    .stats-grid,
     .form-grid-member {
         grid-template-columns: 1fr;
     }
@@ -4402,3 +4402,8 @@ html { scroll-behavior: smooth; }
     .ranking-detail-counts { margin-left: 56px; text-align: left; }
     .ranking-city-link { margin-left: auto; }
 }
+
+/* 系統管理：公告推播到 LINE */
+.line-push-form { margin-top: 10px; }
+.line-push-form .small-button { background: #06c755; border-color: #06c755; color: #fff; }
+.line-push-status p { margin: 6px 0; }

@@ -42,6 +42,8 @@
     .top-marquee-track { display: flex; flex-shrink: 0; gap: 64px; padding-right: 64px; white-space: nowrap; animation: top-marquee-scroll 26s linear infinite; }
     .top-marquee-track span { color: var(--purple); font-weight: 600; font-size: 14px; }
     @keyframes top-marquee-scroll { from { transform: translateX(0); } to { transform: translateX(-50%); } }
+    /* 手機版跑馬燈：細長膠囊，左右淡出（電腦版維持上面的 48px 高度，對齊頂部白色橫條） */
+    @media (max-width: 850px) { .top-marquee { height: 34px; margin: 0 0 16px; padding: 0 4px; background: #fff; border: 1px solid #DCEDEF; border-radius: 999px; -webkit-mask-image: linear-gradient(90deg, transparent, #000 16px, #000 calc(100% - 16px), transparent); mask-image: linear-gradient(90deg, transparent, #000 16px, #000 calc(100% - 16px), transparent); } .top-marquee-track { gap: 40px; padding-right: 40px; } .top-marquee-track span { font-size: 13px; } }
     .eyebrow { margin: 0; color: #D2EBEE; font-size: 12px; font-weight: 700; letter-spacing: .4px; }
     .button-light { display: inline-flex; flex: 0 0 auto; align-items: center; justify-content: center; min-height: 44px; padding: 10px 18px; color: #37676D; background: #fff; border: 1px solid transparent; border-radius: 6px; font-weight: 700; }
     .button-light:hover { background: #f4f0fa; }
@@ -175,17 +177,20 @@
     .timeline-item b, .timeline-item span { display: block; }
     .timeline-item span { margin-top: 3px; color: #5e556c; font-size: 14px; }
     @media (max-width: 1100px) { .nav-links { gap: 2px; } .nav-links a { padding: 9px 9px; font-size: 14px; } .language-select { min-width: 100px; } }
-    @media (max-width: 850px) { .site-nav { align-items: flex-start; flex-direction: column; gap: 6px; padding: 8px 18px 12px; } .nav-links { width: 100%; margin-left: 0; overflow-x: auto; } main { width: min(100% - 28px, 680px); padding-top: 24px; } .member-shell { flex-direction: column; } .member-shell::before { display: none; } .member-sidenav { position: static; width: 100%; height: auto; max-height: none; overflow-y: visible; flex-direction: row; flex-wrap: wrap; padding: 8px 12px; } .member-sidenav .brand { margin: 4px 10px 4px 2px; } .member-sidenav nav { flex-direction: row; flex-wrap: wrap; } .side-footer { margin-top: 0; flex-direction: row; flex-wrap: wrap; padding-top: 0; border-top: 0; } .search-panel { padding: 16px 18px 20px; } .trip-grid, .companion-grid, .weather-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+    @media (max-width: 850px) { .site-nav { align-items: flex-start; flex-direction: column; gap: 6px; padding: 8px 18px 12px; } .nav-links { width: 100%; margin-left: 0; overflow-x: auto; } main { width: 100%; max-width: 680px; padding: 24px 16px 56px; } .member-shell { flex-direction: column; } .member-shell::before { display: none; } .member-sidenav { position: static; width: 100%; height: auto; max-height: none; overflow-y: visible; flex-direction: row; flex-wrap: wrap; padding: 8px 12px; } .member-sidenav .brand { margin: 4px 10px 4px 2px; } .member-sidenav nav { flex-direction: row; flex-wrap: wrap; } .side-footer { margin-top: 0; flex-direction: row; flex-wrap: wrap; padding-top: 0; border-top: 0; } .search-panel { padding: 16px 18px 20px; } .trip-grid, .companion-grid, .weather-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
     @media (max-width: 560px) { .brand { width: 108px; height: 48px; } .nav-links { gap: 2px; } .nav-links a { padding: 8px; font-size: 14px; white-space: nowrap; } .hero-intro h1 { font-size: 26px; } .search-bar, .section-header, .member-unlock { align-items: stretch; flex-direction: column; } .trip-grid, .companion-grid, .weather-grid, .quick-link-grid { grid-template-columns: 1fr; } .announcement-card { grid-template-columns: auto minmax(0, 1fr); } .announcement-meta { grid-column: 2; } .member-unlock { padding: 24px; } .member-unlock-actions { flex-wrap: wrap; } .section-header h2 { font-size: 24px; } }
   </style>
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/member-nav.css') }}">
 </head>
 <body>
 {% if is_member %}
   <div class="member-shell">
     <aside class="member-sidenav">
       <a class="brand" href="{{ url_for('member.dashboard') }}"><img src="{{ url_for('static', filename='images/logo.png') }}" alt="走吧揪團"></a>
-      <nav>{% include 'partials/member_nav_links.html' %}</nav>
+      {% include 'partials/member_nav_toggle.html' %}
+      <nav id="memberNav">{% include 'partials/member_nav_links.html' %}</nav>
     </aside>
+    <div class="nav-backdrop" aria-hidden="true"></div>
     <main class="member-content">
       <div class="top-marquee" aria-label="最新公告跑馬燈">
         <div class="top-marquee-track">
@@ -528,5 +533,6 @@
       document.getElementById('weatherModal').classList.remove('open');
     }
   </script>
+{% if is_member %}<script src="{{ url_for('static', filename='js/member-nav.js') }}"></script>{% endif %}
 </body>
 </html>

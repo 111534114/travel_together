@@ -8,8 +8,8 @@ from booking_search import (
 import requests  # 匯入 requests，用來呼叫 LINE 的個人資料 API
 from datetime import datetime
 from authlib.integrations.flask_client import OAuth  # 匯入 Authlib 的 Flask 整合，處理 Google 登入 OAuth 流程
-from attraction_rankings import fetch_attraction_rankings
-from flask import Flask, render_template, request, redirect, url_for, session, flash  # 匯入 Flask 核心功能：建立 App、渲染樣板、取得請求、導向、產生網址、session、顯示訊息
+from attraction_rankings import TAIWAN_COUNTIES, fetch_attraction_rankings
+from flask import Flask, render_template, request, redirect, url_for, session, flash, jsonify  # 匯入 Flask 核心功能：建立 App、渲染樣板、取得請求、導向、產生網址、session、顯示訊息
 from mysql.connector import Error  # 匯入 MySQL 連線錯誤類別，用來捕捉資料庫例外
 from werkzeug.security import check_password_hash, generate_password_hash  # 匯入密碼工具：驗證密碼、產生密碼雜湊值
 from werkzeug.middleware.proxy_fix import ProxyFix
@@ -2068,7 +2068,7 @@ def handle_admin_issue(issue_id):
     cursor = connection.cursor(dictionary=True)
     try:
         cursor.execute("""
-            SELECT r.report_id, r.reporter_id, r.status, r.target_id AS trip_id,
+            SELECT r.report_id, r.reporter_id, r.status, r.handling_result, r.target_id AS trip_id,
                    t.owner_id, t.trip_name, t.visibility, t.moderation_status
             FROM reports r
             JOIN trips t ON t.trip_id = r.target_id
@@ -2095,12 +2095,8 @@ def handle_admin_issue(issue_id):
                 handled_at = CASE WHEN %s IN ('resolved', 'rejected') THEN NOW() ELSE NULL END
             WHERE report_id = %s AND target_type = 'trip' AND reason LIKE %s
         """, (status, result or None, session["user_id"], status, issue_id, ISSUE_PREFIX + "%"))
-        if issue["status"] != status:
-            status_text = {
-                "processing": "處理中",
-                "resolved": "已結案",
-                "rejected": "已駁回",
-            }[status]
+        if issue["status"] != status or result != (issue.get("handling_result") or ""):
+            status_text = {"processing": "處理中", "resolved": "已結案", "rejected": "已駁回"}[status]
             if status == "processing":
                 notification_user_id = issue["owner_id"]
                 title = "問題回報處理中"
@@ -2131,6 +2127,19 @@ def handle_admin_issue(issue_id):
             """, (
                 notification_user_id, issue["trip_id"], title, message, target_url,
             ))
+            if status in {"processing", "resolved"}:
+                reporter_message = (
+                    f"你對公開行程「{issue['trip_name']}」提出的問題回報{status_text}。"
+                    + (f"處理結果：{result}" if result else "")
+                )
+                cursor.execute("""
+                    INSERT INTO notifications
+                        (user_id, trip_id, notification_type, title, message, target_url)
+                    VALUES (%s, %s, 'system', %s, %s, %s)
+                """, (
+                    issue["reporter_id"], issue["trip_id"], f"你的問題回報{status_text}",
+                    reporter_message, url_for("member.dashboard"),
+                ))
         log_action(cursor, "handle_issue", "report", issue_id, f"問題回報狀態更新為 {status}")
         connection.commit()
         if was_hidden:
@@ -2338,9 +2347,9 @@ def admin_statistics():
               "announcements": 0}
     trip_statuses = []
     issue_statuses = []
-    top_destinations = []
     attraction_totals = {"active": 0, "favorites": 0, "itineraries": 0}
     top_attractions = []
+    countries = []
     connection = get_db_connection()
     if connection is None:
         flash("資料庫連線失敗", "error")
@@ -2371,16 +2380,6 @@ def admin_statistics():
                                       ("resolved", "已結案"), ("rejected", "已駁回"))
             ]
             cursor.execute("""
-                SELECT ci.name AS city, COUNT(*) AS total
-                FROM trips t
-                JOIN cities ci ON ci.city_id = t.city_id
-                WHERE t.deleted_at IS NULL
-                GROUP BY ci.city_id, ci.name
-                ORDER BY total DESC, ci.name ASC
-                LIMIT 5
-            """)
-            top_destinations = cursor.fetchall()
-            cursor.execute("""
                 SELECT
                   (SELECT COUNT(*) FROM attractions WHERE status='active' AND deleted_at IS NULL) AS active,
                   (SELECT COUNT(*) FROM favorites f JOIN attractions a ON a.attraction_id=f.attraction_id
@@ -2391,17 +2390,54 @@ def admin_statistics():
                    WHERE a.status='active' AND a.deleted_at IS NULL AND t.deleted_at IS NULL) AS itineraries
             """)
             attraction_totals.update(cursor.fetchone())
-            top_attractions = fetch_attraction_rankings(cursor, limit=5)
+            cursor.execute("SELECT country_id, name FROM countries ORDER BY name")
+            countries = cursor.fetchall()
+            top_attractions = fetch_attraction_rankings(
+                cursor, limit=5, sort_by="favorites", favorites_only=True)
         finally:
             cursor.close()
             connection.close()
-    attraction_chart_max = max((max(row["itinerary_count"], row["favorite_count"])
-                                for row in top_attractions), default=1)
+    attraction_chart_max = max((row["favorite_count"] for row in top_attractions), default=1)
     return render_template("admin_statistics.html", totals=totals,
                            trip_statuses=trip_statuses, issue_statuses=issue_statuses,
-                           top_destinations=top_destinations,
+                           countries=countries, taiwan_counties=TAIWAN_COUNTIES,
                            attraction_totals=attraction_totals, top_attractions=top_attractions,
                            attraction_chart_max=max(attraction_chart_max, 1))
+
+
+@app.route("/system-admin/statistics/attractions")
+def admin_statistics_attractions():
+    denied = system_admin_required()
+    if denied:
+        return denied
+    country_id = request.args.get("country_id", "").strip()
+    county = request.args.get("county", "").strip().replace("臺", "台")
+    metric = request.args.get("metric", "favorites").strip()
+    if country_id and (not country_id.isdigit() or int(country_id) < 1):
+        return jsonify(error="無效的國家"), 400
+    if county and county not in TAIWAN_COUNTIES:
+        return jsonify(error="無效的縣市"), 400
+    if metric not in ("favorites", "itineraries"):
+        return jsonify(error="無效的排名方式"), 400
+    connection = get_db_connection()
+    if connection is None:
+        return jsonify(error="資料庫連線失敗"), 503
+    cursor = connection.cursor(dictionary=True)
+    try:
+        if county:
+            country_id = None
+        rows = fetch_attraction_rankings(
+            cursor, country_id=country_id or None, county_name=county or None,
+            favorites_only=metric == "favorites",
+            positive_only=metric == "itineraries", sort_by=metric, limit=5)
+        return jsonify(attractions=[{
+            "name": row["name"], "city": row["city"], "country": row["country"],
+            "favorite_count": row["favorite_count"],
+            "itinerary_count": row["itinerary_count"],
+        } for row in rows])
+    finally:
+        cursor.close()
+        connection.close()
 
 
 @app.route("/system-admin/logs")

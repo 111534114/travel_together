@@ -17,6 +17,9 @@ class FakeCursor:
     def fetchone(self):
         return next(self.results)
 
+    def fetchall(self):
+        return []
+
     def close(self):
         pass
 
@@ -87,6 +90,62 @@ class IssueReportingTests(unittest.TestCase):
         self.assertTrue(connection.committed)
         select_params = connection.fake_cursor.queries[0][1]
         self.assertEqual(select_params, (1, ISSUE_PREFIX + "%"))
+
+    def test_processing_update_notifies_reporter_and_owner(self):
+        self.login(3, "system_admin")
+        connection = FakeConnection([{
+            "report_id": 1, "reporter_id": 4, "status": "pending", "handling_result": None,
+            "trip_id": 8, "owner_id": 2, "trip_name": "測試行程", "visibility": "public",
+            "moderation_status": "visible",
+        }])
+        with patch("app.get_db_connection", return_value=connection), patch("app.log_action"):
+            response = self.client.post(
+                "/system-admin/issues/1/handle",
+                data={"status": "processing", "handling_result": "正在確認"},
+            )
+        self.assertEqual(response.status_code, 302)
+        notification_params = [params for query, params in connection.fake_cursor.queries
+                               if "INSERT INTO notifications" in query]
+        self.assertEqual([params[0] for params in notification_params], [2, 4])
+
+    def test_unread_notifications_are_scoped_to_member(self):
+        self.login(4, "member")
+        from datetime import datetime
+        connection = FakeConnection([
+            {"total": 1},
+        ])
+        connection.fake_cursor.fetchall = lambda: [{
+            "notification_id": 9, "title": "處理中", "message": "正在確認",
+            "target_url": "/member", "created_at": datetime(2026, 10, 22, 9, 0),
+        }]
+        with patch("blueprints.member.get_db_connection", return_value=connection):
+            response = self.client.get("/member/notifications/unread")
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json["total"], 1)
+        self.assertTrue(response.json["login_id"])
+        self.assertEqual(response.json["notifications"][0]["created_at"], "2026/10/22 09:00")
+        self.assertTrue(all(params == (4,) for _, params in connection.fake_cursor.queries))
+
+    def test_notification_dismissal_id_changes_after_new_login(self):
+        self.login(4, "member")
+        with patch("blueprints.member.get_db_connection", return_value=FakeConnection([{"total": 0}])):
+            first = self.client.get("/member/notifications/unread").json["login_id"]
+        with self.client.session_transaction() as session:
+            session.clear()
+            session["user_id"] = 4
+            session["role"] = "member"
+        with patch("blueprints.member.get_db_connection", return_value=FakeConnection([{"total": 0}])):
+            second = self.client.get("/member/notifications/unread").json["login_id"]
+        self.assertNotEqual(first, second)
+
+    def test_mark_all_notifications_read_is_scoped_to_member(self):
+        self.login(4, "member")
+        connection = FakeConnection([])
+        with patch("blueprints.member.get_db_connection", return_value=connection):
+            response = self.client.post("/member/notifications/read-all")
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(connection.committed)
+        self.assertEqual(connection.fake_cursor.queries[0][1], (4,))
 
 
 if __name__ == "__main__":

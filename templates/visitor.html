@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>走吧揪團｜{{ '會員首頁' if is_member else '探索公開行程' }}</title>
   <link rel="icon" type="image/png" href="{{ url_for('static', filename='images/logo.png') }}">
+  {% if is_member %}<link rel="stylesheet" href="{{ url_for('static', filename='css/member_notifications.css') }}">{% endif %}
   <script src="{{ url_for('static', filename='js/google-translate.js') }}"></script>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -528,5 +529,6 @@
       document.getElementById('weatherModal').classList.remove('open');
     }
   </script>
+{% if is_member %}{% include 'member/_notification_drawer.html' %}<script src="{{ url_for('static', filename='js/member_notifications.js') }}" defer></script>{% endif %}
 </body>
 </html>

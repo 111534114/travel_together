@@ -1,0 +1,15 @@
+<div class="member-notification-launcher" id="memberNotificationLauncher" hidden>
+  <button type="button" class="member-notification-bell" id="memberNotificationBell" aria-label="查看通知" aria-haspopup="dialog" aria-expanded="false" title="查看通知">
+    <span aria-hidden="true">🔔</span><span class="member-notification-badge" id="memberNotificationCount" hidden></span>
+  </button>
+  <button type="button" class="member-notification-hide" id="memberNotificationHide" aria-label="這次登入隱藏通知按鈕" title="這次登入隱藏通知按鈕">×</button>
+</div>
+<div class="member-notification-backdrop" id="memberNotificationBackdrop" hidden></div>
+<aside class="member-notification-drawer" id="memberNotificationDrawer" role="dialog" aria-modal="true" aria-labelledby="memberNotificationTitle" hidden>
+  <header class="member-notification-header">
+    <div><h2 id="memberNotificationTitle">通知</h2><p id="memberNotificationSummary">未讀通知</p></div>
+    <button type="button" class="member-notification-close" id="memberNotificationClose" aria-label="關閉通知" title="關閉">×</button>
+  </header>
+  <div class="member-notification-list" id="memberNotificationList" aria-live="polite"></div>
+  <footer class="member-notification-footer"><button type="button" id="memberNotificationReadAll">全部標為已讀</button></footer>
+</aside>

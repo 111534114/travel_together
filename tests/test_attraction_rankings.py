@@ -44,9 +44,66 @@ class AttractionRankingTests(unittest.TestCase):
             response = client.get("/system-admin/statistics")
         self.assertEqual(response.status_code, 200)
         html = response.get_data(as_text=True)
-        self.assertIn("熱門景點前五名", html)
+        self.assertIn("收藏景點前五名", html)
+        self.assertIn("景點排行篩選", html)
+        self.assertNotIn("熱門旅遊目的地前五名", html)
+        self.assertNotIn('id="destinationBars"', html)
+        self.assertEqual(html.count('data-metric="itineraries"'), 1)
+        self.assertEqual(html.count('data-metric="favorites"'), 1)
+        self.assertIn("臺灣縣市", html)
+        self.assertIn('data-metric="itineraries"', html)
+        self.assertIn('data-metric="favorites"', html)
         self.assertNotIn("縣市景點統計報表", html)
         self.assertEqual(cursor.execute.call_count, 5)
+
+    def test_admin_favorite_ranking_filters_taiwan_county(self):
+        cursor = RankingCursor(rows=[dict(name="九份老街", city="新北市", country="台灣",
+                                         favorite_count=3, itinerary_count=1)])
+        connection = Mock()
+        connection.cursor.return_value = cursor
+        client = app.test_client()
+        with client.session_transaction() as session:
+            session.update(user_id=1, role="system_admin")
+        with patch("app.get_db_connection", return_value=connection):
+            response = client.get("/system-admin/statistics/attractions?county=新北市")
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.get_json()["attractions"][0]["favorite_count"], 3)
+        sql, params = cursor.statements[-1]
+        self.assertIn("REPLACE(ci.name, '臺', '台') = %s", sql)
+        self.assertIn("COALESCE(f.favorite_count, 0) > 0", sql)
+        self.assertIn("ORDER BY favorite_count DESC, itinerary_count DESC", sql)
+        self.assertEqual(params, ("新北市", 5, 0))
+
+    def test_admin_favorite_ranking_rejects_invalid_county(self):
+        client = app.test_client()
+        with client.session_transaction() as session:
+            session.update(user_id=1, role="system_admin")
+        response = client.get("/system-admin/statistics/attractions?county=不存在")
+        self.assertEqual(response.status_code, 400)
+
+    def test_admin_itinerary_ranking_uses_selected_metric(self):
+        cursor = RankingCursor(rows=[dict(name="台北101", city="台北市", country="台灣",
+                                         favorite_count=0, itinerary_count=4)])
+        connection = Mock()
+        connection.cursor.return_value = cursor
+        client = app.test_client()
+        with client.session_transaction() as session:
+            session.update(user_id=1, role="system_admin")
+        with patch("app.get_db_connection", return_value=connection):
+            response = client.get("/system-admin/statistics/attractions?metric=itineraries&country_id=1")
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.get_json()["attractions"][0]["itinerary_count"], 4)
+        sql, params = cursor.statements[-1]
+        self.assertIn("COALESCE(i.itinerary_count, 0) > 0", sql)
+        self.assertIn("ORDER BY itinerary_count DESC, favorite_count DESC", sql)
+        self.assertEqual(params, ("1", 5, 0))
+
+    def test_admin_ranking_rejects_invalid_metric(self):
+        client = app.test_client()
+        with client.session_transaction() as session:
+            session.update(user_id=1, role="system_admin")
+        response = client.get("/system-admin/statistics/attractions?metric=views")
+        self.assertEqual(response.status_code, 400)
 
     def test_missing_optional_friend_group_table_does_not_break_member_pages(self):
         cursor = Mock()
@@ -129,9 +186,12 @@ class AttractionRankingTests(unittest.TestCase):
         self.assertIn('data-ranking-open aria-haspopup="dialog"', html)
         self.assertIn('id="attractionRankingDialog"', html)
         self.assertIn('data-ranking-endpoint="/member/attractions/rankings/data"', html)
-        self.assertIn('id="rankingChartTitle">本頁前五名', html)
+        self.assertIn('id="rankingChartTitle" data-ranking-title>加入行程景點前五名', html)
         self.assertIn('data-ranking-chart-list', html)
-        self.assertIn('attraction-chart-legend', html)
+        self.assertIn('data-ranking-country=""', html)
+        self.assertIn('data-ranking-metric="favorites"', html)
+        self.assertIn('data-ranking-metric="itineraries"', html)
+        self.assertNotIn('data-ranking-list', html)
         self.assertNotIn('href="/member/attractions/rankings?', html)
 
     def test_dialog_ranking_data_paginates_without_page_navigation(self):
@@ -153,6 +213,33 @@ class AttractionRankingTests(unittest.TestCase):
         self.assertEqual(data["rankings"][0]["detail_url"], "/member/attractions/9")
         self.assertEqual(cursor.statements[-1][1], ("2", 10, 10))
         self.assertNotIn("COALESCE(i.itinerary_count, 0) > 0", cursor.statements[-1][0])
+
+    def test_dialog_top_ranking_filters_county_and_favorites(self):
+        row = dict(attraction_id=9, name="九份老街", country="台灣", city="新北市",
+                   itinerary_count=1, favorite_count=4)
+        cursor = RankingCursor(rows=[row])
+        connection = Mock()
+        connection.cursor.return_value = cursor
+        client = app.test_client()
+        with client.session_transaction() as session:
+            session.update(user_id=1, role="member")
+        with patch("blueprints.member.get_db_connection", return_value=connection):
+            response = client.get("/member/attractions/rankings/data?view=top&metric=favorites&county=新北市")
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.get_json()["rankings"][0]["detail_url"], "/member/attractions/9")
+        self.assertEqual(response.get_json()["rankings"][0]["favorite_count"], 4)
+        sql, params = cursor.statements[-1]
+        self.assertIn("REPLACE(ci.name, '臺', '台') = %s", sql)
+        self.assertIn("COALESCE(f.favorite_count, 0) > 0", sql)
+        self.assertIn("ORDER BY favorite_count DESC, itinerary_count DESC", sql)
+        self.assertEqual(params, ("新北市", 5, 0))
+
+    def test_dialog_top_ranking_rejects_invalid_filter(self):
+        client = app.test_client()
+        with client.session_transaction() as session:
+            session.update(user_id=1, role="member")
+        response = client.get("/member/attractions/rankings/data?view=top&county=不存在")
+        self.assertEqual(response.status_code, 400)
 
 
 if __name__ == "__main__":

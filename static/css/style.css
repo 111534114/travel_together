@@ -1224,17 +1224,6 @@ body {
     gap: 36px;
 }
 
-.member-shell::before {
-    content: "";
-    position: absolute;
-    top: 0;
-    left: 0;
-    right: 0;
-    height: 48px;
-    background: #fff;
-    z-index: 1;
-}
-
 .member-sidenav {
     position: sticky;
     top: 0;
@@ -1323,7 +1312,7 @@ body {
     min-width: 0;
     width: min(1180px, 100%);
     margin: 0 auto;
-    padding: 48px 36px 76px 0;
+    padding: 24px 36px 76px 0;
 }
 
 .member-hero {
@@ -3337,10 +3326,6 @@ body {
 @media (max-width: 850px) {
     .member-shell {
         flex-direction: column;
-    }
-
-    .member-shell::before {
-        display: none;
     }
 
     .member-sidenav {

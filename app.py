@@ -400,6 +400,54 @@ def visitor_hotel_search():
     )
 
 
+def _search_flights(from_keyword, to_keyword, pax):
+    """依出發地/目的地關鍵字查詢班機，機票搜尋(單程/來回)跟多座城市搜尋共用這個函式。"""
+    results = []  # 預設搜尋結果為空清單
+    connection = get_db_connection()
+    if connection:
+        cursor = connection.cursor(dictionary=True)
+        try:
+            conditions = ["f.status = 'active'", "f.seats_available >= %s"]  # 只搜尋已啟用且座位足夠的班機
+            params = [pax]
+
+            if from_keyword:  # 如果有輸入出發地關鍵字，依城市/國家名稱模糊搜尋
+                conditions.append("(oc.name LIKE %s OR ocn.name LIKE %s)")
+                like = f"%{from_keyword}%"
+                params.extend([like, like])
+
+            if to_keyword:  # 如果有輸入目的地關鍵字，依城市/國家名稱模糊搜尋
+                conditions.append("(dc.name LIKE %s OR dcn.name LIKE %s)")
+                like = f"%{to_keyword}%"
+                params.extend([like, like])
+
+            where_clause = "WHERE " + " AND ".join(conditions)
+
+            cursor.execute(
+                f"""
+                SELECT f.flight_id, f.airline_name, f.flight_number,
+                       f.departure_time, f.arrival_time, f.duration_minutes,
+                       f.price, f.cabin_class, f.stops, f.seats_available,
+                       ocn.name AS origin_country, oc.name AS origin_city,
+                       dcn.name AS destination_country, dc.name AS destination_city
+                FROM flights f
+                JOIN countries ocn ON ocn.country_id = f.origin_country_id
+                JOIN cities oc ON oc.city_id = f.origin_city_id
+                JOIN countries dcn ON dcn.country_id = f.destination_country_id
+                JOIN cities dc ON dc.city_id = f.destination_city_id
+                {where_clause}
+                ORDER BY f.departure_time
+                """,
+                params
+            )
+            results = cursor.fetchall()
+        except Exception as error:  # 如果查詢過程發生錯誤
+            print("機票搜尋查詢失敗：", error)
+        finally:
+            cursor.close()
+            connection.close()
+    return results
+
+
 @app.route("/visitor/flights")  # 設定訪客機票搜尋結果頁路由(從訪客頁面的機票搜尋表單導入，帶入出發地/目的地/日期/人數)
 def visitor_flight_search():
     origin = request.args.get("from", "").strip()  # 取得出發地關鍵字
@@ -410,54 +458,8 @@ def visitor_flight_search():
     pax_raw = request.args.get("pax", "1").strip()  # 取得人數參數(字串)
     pax = int(pax_raw) if pax_raw.isdigit() and int(pax_raw) > 0 else 1  # 驗證人數為正整數，否則預設 1 人
 
-    def search_flights(from_keyword, to_keyword):
-        results = []  # 預設搜尋結果為空清單
-        connection = get_db_connection()
-        if connection:
-            cursor = connection.cursor(dictionary=True)
-            try:
-                conditions = ["f.status = 'active'", "f.seats_available >= %s"]  # 只搜尋已啟用且座位足夠的班機
-                params = [pax]
-
-                if from_keyword:  # 如果有輸入出發地關鍵字，依城市/國家名稱模糊搜尋
-                    conditions.append("(oc.name LIKE %s OR ocn.name LIKE %s)")
-                    like = f"%{from_keyword}%"
-                    params.extend([like, like])
-
-                if to_keyword:  # 如果有輸入目的地關鍵字，依城市/國家名稱模糊搜尋
-                    conditions.append("(dc.name LIKE %s OR dcn.name LIKE %s)")
-                    like = f"%{to_keyword}%"
-                    params.extend([like, like])
-
-                where_clause = "WHERE " + " AND ".join(conditions)
-
-                cursor.execute(
-                    f"""
-                    SELECT f.flight_id, f.airline_name, f.flight_number,
-                           f.departure_time, f.arrival_time, f.duration_minutes,
-                           f.price, f.cabin_class, f.stops, f.seats_available,
-                           ocn.name AS origin_country, oc.name AS origin_city,
-                           dcn.name AS destination_country, dc.name AS destination_city
-                    FROM flights f
-                    JOIN countries ocn ON ocn.country_id = f.origin_country_id
-                    JOIN cities oc ON oc.city_id = f.origin_city_id
-                    JOIN countries dcn ON dcn.country_id = f.destination_country_id
-                    JOIN cities dc ON dc.city_id = f.destination_city_id
-                    {where_clause}
-                    ORDER BY f.departure_time
-                    """,
-                    params
-                )
-                results = cursor.fetchall()
-            except Exception as error:  # 如果查詢過程發生錯誤
-                print("機票搜尋查詢失敗：", error)
-            finally:
-                cursor.close()
-                connection.close()
-        return results
-
-    outbound_flights = search_flights(origin, destination)  # 去程：出發地 -> 目的地
-    return_flights = search_flights(destination, origin) if return_date and request.args.get('trip_mode', 'roundtrip') == 'roundtrip' else []
+    outbound_flights = _search_flights(origin, destination, pax)  # 去程：出發地 -> 目的地
+    return_flights = _search_flights(destination, origin, pax) if return_date and request.args.get('trip_mode', 'roundtrip') == 'roundtrip' else []
 
     all_flights = outbound_flights + return_flights
     flight_price_buckets = price_buckets(all_flights, "price")
@@ -481,6 +483,34 @@ def visitor_flight_search():
         airline_facets=airline_facets,
         depart_band_options=depart_band_options,
     )
+
+
+@app.route("/visitor/flights/multi-city")  # 多座城市機票搜尋：一次查多段航班，每段都是獨立的單程搜尋
+def visitor_multi_city_flight_search():
+    pax_raw = request.args.get("pax", "1").strip()
+    pax = int(pax_raw) if pax_raw.isdigit() and int(pax_raw) > 0 else 1
+
+    try:
+        leg_count = int(request.args.get("legs", "2"))
+    except ValueError:
+        leg_count = 2
+    leg_count = max(2, min(6, leg_count))  # 至少 2 段、最多 6 段，避免被亂帶參數灌爆查詢量
+
+    legs = []
+    for i in range(1, leg_count + 1):
+        leg_origin = request.args.get(f"from{i}", "").strip()
+        leg_destination = request.args.get(f"to{i}", "").strip()
+        leg_date = request.args.get(f"date{i}", "").strip()
+        flights = _search_flights(leg_origin, leg_destination, pax) if (leg_origin or leg_destination) else []
+        legs.append({
+            "index": i,
+            "origin": leg_origin,
+            "destination": leg_destination,
+            "date": leg_date,
+            "flights": filter_prices(flights, "price", "duration_minutes", "stops"),
+        })
+
+    return render_template("multi_city_flight_search.html", legs=legs, pax=pax)
 
 
 @app.route("/visitor/trains")  # 設定訪客高鐵／台鐵搜尋結果頁路由(從訪客頁面的高鐵/火車票搜尋表單導入，帶入出發站/到達站/日期/人數)

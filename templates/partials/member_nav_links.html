@@ -1,7 +1,6 @@
 {# 會員登入後的導覽列連結：每個都是直接跳轉的連結，不分類、不展開子選單；首頁(visitor.html)跟其他會員頁面(member/base.html)共用同一份 #}
 <a class="side-link" href="{{ url_for('member.my_trips') }}">我的旅程</a>
 <a class="side-link" href="{{ url_for('member.browse_attractions') }}">探索景點</a>
-<a class="side-link" href="{{ url_for('member.companions_page') }}">尋找旅伴</a>
 <a class="side-link" href="{{ url_for('member.album_page') }}">旅遊相簿</a>
 <a class="side-link" href="{{ url_for('member.announcements_page') }}">公告事項</a>
 {% if friend_group_feature_enabled() %}<a class="side-link" href="{{ url_for('friend_groups.index') }}">交友揪團</a>{% endif %}

@@ -1,0 +1,11 @@
+{# 訪客（未登入）版本的側邊欄導覽連結，跟會員版 member_nav_links.html 用同一套樣式，
+   但連結都是跳到這個頁面本身的區塊錨點（訪客只有這一頁可以逛），頁尾換成登入／註冊 #}
+<a class="side-link" href="#announcements">公告事項</a>
+<a class="side-link" href="#weather">目的地天氣</a>
+<a class="side-link" href="#trips">探索行程</a>
+<a class="side-link" href="#album">旅遊相簿</a>
+<div class="side-footer">
+    {% include 'partials/language_select.html' %}
+    <a class="side-link" href="{{ url_for('login') }}">登入</a>
+    <a class="side-link" href="{{ url_for('register') }}">免費註冊</a>
+</div>

@@ -1,0 +1,67 @@
+{% extends 'member/base.html' %}{% block title %}雙向評價｜走吧揪團{% endblock %}{% block content %}
+<div class="trip-form-page">
+    <div class="page-heading trip-form-heading">
+        <a href="{{ url_for('friend_groups.group_detail', group_id=group.group_id) }}">← 返回揪團詳情</a>
+    </div>
+    <div class="panel">
+        <h1>雙向評價：{{ group.title }}</h1>
+        <p class="muted">{% if is_host %}請為每一位參加的旅伴評分。{% else %}請為團長評分。{% endif %}雙方都完成評價後，才會看到對方寫的內容，避免互相觀望。</p>
+    </div>
+
+    {% for target in targets %}
+    {% set existing = my_reviews.get(target.user_id) %}
+    <div class="panel">
+        <h2>{{ target.nickname or target.full_name }}{% if existing %}<span class="status-tag">已評價</span>{% endif %}</h2>
+        <form method="post" action="{{ url_for('friend_groups.group_reviews', group_id=group.group_id) }}" class="form-grid-member">
+            <input type="hidden" name="reviewee_id" value="{{ target.user_id }}">
+            <label>評分 *
+                <select name="rating" required>
+                    <option value="">請選擇</option>
+                    {% for n in range(5, 0, -1) %}
+                    <option value="{{ n }}" {{ 'selected' if existing and existing.rating == n }}>{{ n }} 顆星{% if n == 5 %}（非常推薦）{% elif n == 1 %}（不推薦）{% endif %}</option>
+                    {% endfor %}
+                </select>
+            </label>
+            <div class="span-2">
+                <span class="form-label-text">標籤（選填，可複選）</span>
+                <div class="issue-options">
+                    {% set existing_tags = (existing.tags.split(',') if existing and existing.tags else []) %}
+                    {% for tag in review_tags %}
+                    <label class="issue-option"><span>{{ tag }}</span><input type="checkbox" name="tags" value="{{ tag }}" {{ 'checked' if tag in existing_tags }}></label>
+                    {% endfor %}
+                </div>
+            </div>
+            <label class="span-2">留言（選填）<textarea name="comment" rows="3" maxlength="500" placeholder="這趟旅程的感想、對這位旅伴/團長的回饋">{{ existing.comment or '' }}</textarea></label>
+            <button class="member-btn primary" type="submit">{{ '更新評價' if existing else '送出評價' }}</button>
+        </form>
+    </div>
+    {% else %}
+    <div class="panel"><p class="muted">目前沒有可以評價的對象。</p></div>
+    {% endfor %}
+
+    <div class="panel">
+        <h2>你收到的評價</h2>
+        {% if received_visible %}
+        <ul class="trip-member-list">
+            {% for reviewer_id, r in received_visible.items() %}
+            <li class="trip-member">
+                <div class="trip-member-main">
+                    <i class="trip-member-avatar">{{ (r.nickname or r.full_name)[0] }}</i>
+                    <div class="trip-member-info">
+                        <b>{{ r.nickname or r.full_name }} · {{ r.rating }} 顆星</b>
+                        {% if r.tags %}<p>{{ r.tags.replace(',', '、') }}</p>{% endif %}
+                        {% if r.comment %}<p>{{ r.comment }}</p>{% endif %}
+                    </div>
+                </div>
+            </li>
+            {% endfor %}
+        </ul>
+        {% else %}
+        <p class="muted">目前還沒有看得到的評價。</p>
+        {% endif %}
+        {% if received_pending_count %}
+        <p class="muted">另外還有 {{ received_pending_count }} 則評價，等你也完成評價後就能看到內容。</p>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

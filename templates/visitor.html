@@ -16,15 +16,8 @@
     body { margin: 0; background: var(--page); color: var(--ink); font-family: "Noto Sans TC", "Segoe UI", sans-serif; }
     a { color: inherit; text-decoration: none; }
     button, input { font: inherit; }
-    .site-nav { position: sticky; top: 0; z-index: 10; display: flex; align-items: center; min-height: 72px; padding: 8px max(24px, calc((100vw - 1180px) / 2)); background: #fff; border-bottom: 1px solid #E2EDEF; box-shadow: 0 2px 10px rgba(45, 37, 68, .05); }
     .brand { display: flex; align-items: center; width: 126px; height: 56px; }
     .brand img { display: block; width: 100%; height: 100%; object-fit: contain; }
-    .nav-links { display: flex; align-items: center; gap: 8px; margin-left: auto; }
-    .nav-links > * { flex-shrink: 0; }
-    .nav-links a { padding: 10px 13px; border-radius: 6px; color: #426064; font-size: 15px; white-space: nowrap; }
-    .nav-links a:hover { color: var(--purple); background: var(--purple-soft); }
-    .nav-links .nav-register { color: #fff; background: var(--purple); }
-    .nav-links .nav-register:hover { color: #fff; background: #37676D; }
     .member-shell { position: relative; display: flex; align-items: flex-start; min-height: 100vh; gap: 36px; }
     .member-shell::before { content: ""; position: absolute; top: 0; left: 0; right: 0; height: 48px; background: #fff; z-index: 1; }
     .member-sidenav { position: sticky; top: 0; z-index: 20; display: flex; flex-direction: column; gap: 2px; width: 220px; flex-shrink: 0; height: 100vh; overflow-y: auto; padding: 18px 12px; background: #fff; border-right: 1px solid #E2EDEF; box-shadow: 2px 0 10px rgba(45, 37, 68, .05); }
@@ -117,11 +110,6 @@
     .weather-forecast-table td { padding: 9px 6px; border-bottom: 1px solid var(--line); font-size: 14px; }
     .weather-forecast-table td:first-child { color: var(--muted); white-space: nowrap; }
     .weather-forecast-table td:last-child { text-align: right; font-weight: 600; }
-    .companions { margin-top: 64px; }
-    .companion-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 18px; }
-    .companion-card { padding: 20px; background: #fff; border: 1px solid var(--line); border-radius: 8px; }
-    .companion-card h3 { margin: 0 0 7px; font-size: 18px; }
-    .companion-card p { margin: 0; color: var(--muted); font-size: 14px; }
     .companion-card .intro { min-height: 42px; margin: 14px 0; color: #3D5154; }
     .companion-card .view-button { margin-top: 14px; }
     .album-section { margin-top: 64px; }
@@ -174,17 +162,16 @@
     .timeline-item { padding: 13px 15px; background: var(--purple-soft); border-left: 3px solid var(--purple); border-radius: 0 6px 6px 0; }
     .timeline-item b, .timeline-item span { display: block; }
     .timeline-item span { margin-top: 3px; color: #5e556c; font-size: 14px; }
-    @media (max-width: 1100px) { .nav-links { gap: 2px; } .nav-links a { padding: 9px 9px; font-size: 14px; } .language-select { min-width: 100px; } }
-    @media (max-width: 850px) { .site-nav { align-items: flex-start; flex-direction: column; gap: 6px; padding: 8px 18px 12px; } .nav-links { width: 100%; margin-left: 0; overflow-x: auto; } main { width: min(100% - 28px, 680px); padding-top: 24px; } .member-shell { flex-direction: column; } .member-shell::before { display: none; } .member-sidenav { position: static; width: 100%; height: auto; max-height: none; overflow-y: visible; flex-direction: row; flex-wrap: wrap; padding: 8px 12px; } .member-sidenav .brand { margin: 4px 10px 4px 2px; } .member-sidenav nav { flex-direction: row; flex-wrap: wrap; } .side-footer { margin-top: 0; flex-direction: row; flex-wrap: wrap; padding-top: 0; border-top: 0; } .search-panel { padding: 16px 18px 20px; } .trip-grid, .companion-grid, .weather-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
-    @media (max-width: 560px) { .brand { width: 108px; height: 48px; } .nav-links { gap: 2px; } .nav-links a { padding: 8px; font-size: 14px; white-space: nowrap; } .hero-intro h1 { font-size: 26px; } .search-bar, .section-header, .member-unlock { align-items: stretch; flex-direction: column; } .trip-grid, .companion-grid, .weather-grid, .quick-link-grid { grid-template-columns: 1fr; } .announcement-card { grid-template-columns: auto minmax(0, 1fr); } .announcement-meta { grid-column: 2; } .member-unlock { padding: 24px; } .member-unlock-actions { flex-wrap: wrap; } .section-header h2 { font-size: 24px; } }
+    @media (max-width: 1100px) { .language-select { min-width: 100px; } }
+    @media (max-width: 850px) { .member-shell { flex-direction: column; } .member-shell::before { display: none; } .member-sidenav { position: static; width: 100%; height: auto; max-height: none; overflow-y: visible; flex-direction: row; flex-wrap: wrap; padding: 8px 12px; } .member-sidenav .brand { margin: 4px 10px 4px 2px; } .member-sidenav nav { flex-direction: row; flex-wrap: wrap; } .side-footer { margin-top: 0; flex-direction: row; flex-wrap: wrap; padding-top: 0; border-top: 0; } .search-panel { padding: 16px 18px 20px; } .trip-grid, .companion-grid, .weather-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+    @media (max-width: 560px) { .brand { width: 108px; height: 48px; } .hero-intro h1 { font-size: 26px; } .search-bar, .section-header, .member-unlock { align-items: stretch; flex-direction: column; } .trip-grid, .companion-grid, .weather-grid, .quick-link-grid { grid-template-columns: 1fr; } .announcement-card { grid-template-columns: auto minmax(0, 1fr); } .announcement-meta { grid-column: 2; } .member-unlock { padding: 24px; } .member-unlock-actions { flex-wrap: wrap; } .section-header h2 { font-size: 24px; } }
   </style>
 </head>
 <body>
-{% if is_member %}
   <div class="member-shell">
     <aside class="member-sidenav">
-      <a class="brand" href="{{ url_for('member.dashboard') }}"><img src="{{ url_for('static', filename='images/logo.png') }}" alt="走吧揪團"></a>
-      <nav>{% include 'partials/member_nav_links.html' %}</nav>
+      <a class="brand" href="{{ url_for('member.dashboard') if is_member else url_for('visitor') }}"><img src="{{ url_for('static', filename='images/logo.png') }}" alt="走吧揪團"></a>
+      <nav>{% include 'partials/member_nav_links.html' if is_member else 'partials/visitor_nav_links.html' %}</nav>
     </aside>
     <main class="member-content">
       <div class="top-marquee" aria-label="最新公告跑馬燈">
@@ -199,21 +186,6 @@
           <span>✈️ 訂房／機票／高鐵查詢，規劃行程更方便</span>
         </div>
       </div>
-{% else %}
-  <header class="site-nav">
-    <a class="brand" href="{{ url_for('visitor') }}"><img src="{{ url_for('static', filename='images/logo.png') }}" alt="走吧揪團"></a>
-    <nav class="nav-links">
-      <a href="#announcements">公告事項</a>
-      <a href="#weather">目的地天氣</a>
-      <a href="#trips">探索行程</a>
-      <a href="#companions">尋找旅伴</a>
-      {% include 'partials/language_select.html' %}
-      <a href="{{ url_for('login') }}">登入</a>
-      <a class="nav-register" href="{{ url_for('register') }}">免費註冊</a>
-    </nav>
-  </header>
-  <main>
-{% endif %}
     {% with messages = get_flashed_messages(with_categories=true) %}{% if messages %}<div class="flash-stack" role="status">{% for category, message in messages %}<div class="flash-message {{ category }}">{{ message }}</div>{% endfor %}</div>{% endif %}{% endwith %}
 {% include 'partials/booking_tools.html' %}
     <section class="hero-intro">
@@ -256,7 +228,6 @@
       <div class="section-header"><div><p class="eyebrow" style="color: var(--purple-light)">QUICK LINKS</p><h2>會員功能</h2><p>點選進入各項功能的獨立頁面。</p></div></div>
       <div class="quick-link-grid">
         <a class="quick-link-card" href="{{ url_for('member.my_trips') }}"><span class="quick-link-icon">🧳</span><h3>我的旅程</h3><p>管理你建立或參與的旅程，以及收藏的公開行程。</p></a>
-        <a class="quick-link-card" href="{{ url_for('member.companions_page') }}"><span class="quick-link-icon">🤝</span><h3>尋找旅伴揪團</h3><p>瀏覽公開或多人行程，找到志同道合的旅伴。</p></a>
         <a class="quick-link-card" href="{{ url_for('member.announcements_page') }}"><span class="quick-link-icon">📢</span><h3>公告事項</h3><p>掌握 Travel Together 的最新消息與服務通知。</p></a>
         <a class="quick-link-card" href="{{ url_for('member.album_page') }}"><span class="quick-link-icon">📷</span><h3>旅遊相簿</h3><p>旅伴分享的景點實拍照片與心得。</p></a>
       </div>
@@ -354,29 +325,6 @@
     </section>
     {% endif %}
     {% if not is_member %}
-    <section id="companions" class="companions">
-      <div class="section-header">
-        <div>
-          <p class="eyebrow" style="color: var(--purple-light)">TRAVEL COMPANIONS</p>
-          <h2><svg class="section-sparkle" width="16" height="16" viewBox="0 0 24 24" fill="var(--purple-light)"><path d="M12 2 L14 10 L22 12 L14 14 L12 22 L10 14 L2 12 L10 10 Z"/></svg>最新旅伴揪團</h2>
-          <p>根據目前公開行程的資訊整理。</p>
-        </div>
-        <a class="section-link" href="{{ url_for('member.create_trip') if is_member else url_for('register') }}">發起揪團 →</a>
-      </div>
-      <div class="companion-grid">
-        {% for comp in companions %}
-          <article class="companion-card">
-            <h3>{{ comp.trip_name }}</h3>
-            <p>{{ comp.country or '未設定國家' }}{% if comp.city %} · {{ comp.city }}{% endif %} · {{ comp.owner_nickname or comp.owner_name or '未提供' }}</p>
-            {% if comp.introduction %}<p class="intro">{{ comp.introduction }}</p>{% endif %}
-            <p>預計 {{ comp.people_count }} 人{% if comp.joined_count is not none %} · 已加入 {{ comp.joined_count }} 人{% endif %}</p>
-            {% if trips_timeline_json.get(comp.trip_id|string) %}<button class="view-button" type="button" onclick="openTripModal('{{ comp.trip_id }}')">查看行程</button>{% endif %}
-          </article>
-        {% else %}
-          <div class="empty"><img class="empty-mascot" src="{{ url_for('static', filename='images/mascot_frog.png') }}" alt="">目前沒有公開的旅伴揪團資訊。</div>
-        {% endfor %}
-      </div>
-    </section>
     <section id="album" class="album-section">
       <div class="section-header"><div><p class="eyebrow" style="color: var(--purple-light)">TRAVEL ALBUM</p><h2>旅遊相簿</h2><p>旅伴分享的景點實拍照片與心得。</p></div></div>
       <div class="album-grid">
@@ -402,12 +350,8 @@
       </div>
     </section>
     {% endif %}
-{% if is_member %}
     </main>
   </div>
-{% else %}
-  </main>
-{% endif %}
   <div class="modal" id="tripModal" onclick="if (event.target === this) closeTripModal()">
     <div class="modal-card">
       <button class="modal-close" type="button" onclick="closeTripModal()" aria-label="關閉">×</button>

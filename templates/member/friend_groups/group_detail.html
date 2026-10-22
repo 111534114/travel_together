@@ -4,10 +4,10 @@
         <a href="{{ url_for('friend_groups.index') }}">← 返回交友揪團</a>
     </div>
     <div class="panel">
-        <p class="attraction-detail-breadcrumb">團主 {{ group.nickname or group.full_name }} · {{ {'open':'開放中','closed':'已關閉','cancelled':'已取消'}[group.status] }}</p>
+        <p class="attraction-detail-breadcrumb">團主 {{ group.nickname or group.full_name }}（Lv.{{ host_tier.level }} {{ host_tier.label }}{% if host_tier.avg_rating is not none %} · ⭐{{ "%.1f"|format(host_tier.avg_rating) }}{% endif %}） · {{ {'open':'開放中','closed':'已關閉','cancelled':'已取消'}[group.status] }}</p>
         <h1>{{ group.title }}</h1>
         <div class="attraction-detail-stats">
-            <div><span>日期</span><strong>{{ group.event_date }}{% if group.start_time %} {{ group.start_time }}{% endif %}</strong></div>
+            <div><span>日期</span><strong>{{ group.event_date }}{% if group.end_date and group.end_date != group.event_date %} ～ {{ group.end_date }}{% endif %}{% if group.start_time %} {{ group.start_time }}{% endif %}</strong></div>
             <div><span>地點</span><strong>{{ group.location or '未提供' }}</strong></div>
             <div><span>人數</span><strong>{{ members|length }}{% if group.capacity %} / {{ group.capacity }}{% endif %}</strong></div>
         </div>
@@ -20,6 +20,9 @@
             <span class="status-tag">{{ {'pending':'審核中','approved':'已加入','rejected':'已被婉拒','left':'已退出'}[my_membership.status] }}</span>
             {% elif group.status == 'open' %}
             <form method="post" action="{{ url_for('friend_groups.apply_group', group_id=group.group_id) }}"><button class="member-btn primary" type="submit">申請加入</button></form>
+            {% endif %}
+            {% if can_review %}
+            <a class="member-btn outline" href="{{ url_for('friend_groups.group_reviews', group_id=group.group_id) }}">⭐ 雙向評價</a>
             {% endif %}
         </div>
     </div>

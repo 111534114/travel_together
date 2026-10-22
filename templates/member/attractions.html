@@ -28,7 +28,7 @@
         </label>
     </div>
     <div class="form-actions-member">
-        <label class="favorites-toggle"><input type="checkbox" name="favorites_only" value="1" {{ 'checked' if favorites_only else '' }}><span>♡ 只看我的收藏</span></label>
+        <label class="favorites-toggle"><input type="checkbox" name="favorites_only" value="1" {{ 'checked' if favorites_only else '' }} onchange="this.form.requestSubmit()"><span>♡ 只看我的收藏</span></label>
         <button class="member-btn primary" type="submit">篩選</button>
         <a class="member-btn ghost" href="{{ url_for('member.browse_attractions') }}">清除篩選</a>
     </div>

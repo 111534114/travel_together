@@ -60,8 +60,18 @@
             <article class="trip-card">
                 <div class="trip-content">
                     <h3>{{ event.title }}</h3>
-                    <p class="location">{{ event.event_date }}{% if event.start_time %} {{ event.start_time }}{% endif %}{% if event.location %} · {{ event.location }}{% endif %}</p>
+                    <p class="location">{{ event.event_date }}{% if event.start_time %} {{ event.start_time|hm }}{% endif %}{% if event.location %} · {{ event.location }}{% endif %}</p>
                     {% if event.description %}<p>{{ event.description }}</p>{% endif %}
+                    {% if event.schedule %}
+                    <div class="timeline">
+                        {% for item in event.schedule %}
+                        <div class="timeline-item">
+                            <b>{{ item.start_time|hm }}{% if item.end_time %} - {{ item.end_time|hm }}{% endif %}{% if item.location %} · {{ item.location }}{% endif %}</b>
+                            <span>{{ item.title }}</span>
+                        </div>
+                        {% endfor %}
+                    </div>
+                    {% endif %}
                     <div class="trip-details"><span>{{ event.registered_count }}{% if event.capacity %} / {{ event.capacity }}{% endif %} 人報名</span></div>
                     <div class="trip-footer">
                         {% if event.my_status in ('registered','attended') %}
@@ -86,6 +96,15 @@
             <div><p class="eyebrow">MY GROUPS</p><h2>我發起的揪團</h2></div>
             <a class="member-btn primary" href="{{ url_for('friend_groups.new_group') }}">＋ 發起揪團</a>
         </div>
+        <p class="muted" style="margin-top:-6px;">
+            團長等級：<strong>Lv.{{ tier.level }} {{ tier.label }}</strong>
+            {% if tier.avg_rating is not none %}（平均評價 {{ "%.1f"|format(tier.avg_rating) }} 顆星，{{ tier.review_count }} 則）{% endif %}
+            {% if tier.level == 1 %}· 累積開滿 {{ tier.hosted_required }} 次、平均 {{ tier.rating_required }} 顆星以上可升級資深團長{% endif %}
+            {% if onboarding_done %}<span class="status-tag">🏅 新手開團者</span>{% endif %}
+        </p>
+        {% if not onboarding_done %}
+        <p class="form-hint">⚠️ 第一次發起揪團前，請先完成<a href="{{ url_for('friend_groups.onboarding') }}">新手開團引導</a>（約 3 分鐘），了解揪團規範、免責聲明與安全守則。</p>
+        {% endif %}
         {% if my_groups %}
         <div class="trip-grid">
             {% for group in my_groups %}
@@ -112,7 +131,7 @@
             <article class="trip-card">
                 <div class="trip-content">
                     <h3>{{ group.title }}</h3>
-                    <p class="location">{{ group.event_date }}{% if group.location %} · {{ group.location }}{% endif %} · 團主 {{ group.nickname or group.full_name }}</p>
+                    <p class="location">{{ group.event_date }}{% if group.end_date and group.end_date != group.event_date %} ～ {{ group.end_date }}{% endif %}{% if group.location %} · {{ group.location }}{% endif %} · 團主 {{ group.nickname or group.full_name }}（Lv.{{ group.host_tier.level }} {{ group.host_tier.label }}）</p>
                     <div class="trip-details"><span>{{ group.member_count }}{% if group.capacity %} / {{ group.capacity }}{% endif %} 人</span></div>
                     <div class="trip-footer"><a class="view-button" href="{{ url_for('friend_groups.group_detail', group_id=group.group_id) }}">查看詳情</a></div>
                 </div>

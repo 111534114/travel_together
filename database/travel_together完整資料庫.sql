@@ -510,6 +510,12 @@ CREATE TABLE friend_group_applications (
  FOREIGN KEY(reviewed_by) REFERENCES users(user_id) ON DELETE SET NULL
 ) ENGINE=InnoDB;
 
+CREATE TABLE friend_group_onboarding (
+ user_id BIGINT UNSIGNED PRIMARY KEY,
+ completed_at DATETIME NOT NULL,
+ FOREIGN KEY(user_id) REFERENCES users(user_id) ON DELETE CASCADE
+) ENGINE=InnoDB;
+
 CREATE TABLE friend_group_events (
  event_id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
  title VARCHAR(150) NOT NULL,
@@ -523,6 +529,17 @@ CREATE TABLE friend_group_events (
  created_by BIGINT UNSIGNED NOT NULL,
  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
  FOREIGN KEY(created_by) REFERENCES users(user_id)
+) ENGINE=InnoDB;
+
+CREATE TABLE friend_group_event_items (
+ item_id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+ event_id BIGINT UNSIGNED NOT NULL,
+ start_time TIME NOT NULL,
+ end_time TIME NULL,
+ title VARCHAR(150) NOT NULL,
+ location VARCHAR(255),
+ sort_order INT UNSIGNED NOT NULL DEFAULT 0,
+ FOREIGN KEY(event_id) REFERENCES friend_group_events(event_id) ON DELETE CASCADE
 ) ENGINE=InnoDB;
 
 CREATE TABLE friend_group_event_participants (
@@ -544,6 +561,7 @@ CREATE TABLE friend_groups (
  description TEXT,
  location VARCHAR(255),
  event_date DATE NOT NULL,
+ end_date DATE,
  start_time TIME,
  end_time TIME,
  capacity INT UNSIGNED,
@@ -564,6 +582,23 @@ CREATE TABLE friend_group_members (
  UNIQUE(group_id,user_id),
  FOREIGN KEY(group_id) REFERENCES friend_groups(group_id) ON DELETE CASCADE,
  FOREIGN KEY(user_id) REFERENCES users(user_id) ON DELETE CASCADE
+) ENGINE=InnoDB;
+
+CREATE TABLE friend_group_reviews (
+ review_id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+ group_id BIGINT UNSIGNED NOT NULL,
+ reviewer_id BIGINT UNSIGNED NOT NULL,
+ reviewee_id BIGINT UNSIGNED NOT NULL,
+ rating TINYINT UNSIGNED NOT NULL,
+ tags VARCHAR(255),
+ comment VARCHAR(500),
+ created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+ updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+ UNIQUE(group_id,reviewer_id,reviewee_id),
+ FOREIGN KEY(group_id) REFERENCES friend_groups(group_id) ON DELETE CASCADE,
+ FOREIGN KEY(reviewer_id) REFERENCES users(user_id) ON DELETE CASCADE,
+ FOREIGN KEY(reviewee_id) REFERENCES users(user_id) ON DELETE CASCADE,
+ CHECK(rating BETWEEN 1 AND 5)
 ) ENGINE=InnoDB;
 
 SET FOREIGN_KEY_CHECKS=1;

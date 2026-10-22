@@ -36,9 +36,68 @@
         <textarea id="description" name="description" rows="4">{{ event.description or '' }}</textarea>
       </div>
     </div>
+
+    <div class="form-group" style="margin-top: 24px;">
+      <label>活動行程時間軸（選填，讓會員知道這天幾點做什麼）</label>
+      <div id="itemsContainer"></div>
+      <button type="button" id="addItemBtn" class="small-button" style="margin-top: 8px;">＋ 新增行程項目</button>
+    </div>
+
     <div class="form-actions">
       <button type="submit" class="primary-button">{{ '儲存變更' if event else '建立活動' }}</button>
     </div>
   </form>
 </div>
+
+<template id="itemRowTemplate">
+  <div class="form-grid event-item-row" style="margin-bottom: 10px; padding: 12px; background: #F7FBFB; border: 1px solid #E6F0F1; border-radius: 8px;">
+    <div class="form-group">
+      <label>開始時間 *</label>
+      <input type="time" name="item_start_time[]">
+    </div>
+    <div class="form-group">
+      <label>結束時間</label>
+      <input type="time" name="item_end_time[]">
+    </div>
+    <div class="form-group">
+      <label>內容 *</label>
+      <input type="text" name="item_title[]" maxlength="150" placeholder="例如：集合、校園導覽、午餐">
+    </div>
+    <div class="form-group">
+      <label>地點</label>
+      <input type="text" name="item_location[]" maxlength="255">
+    </div>
+    <div class="form-group" style="align-self: end;">
+      <button type="button" class="remove-item-btn disable-button">移除</button>
+    </div>
+  </div>
+</template>
+
+<script>
+(function () {
+    const container = document.getElementById('itemsContainer');
+    const template = document.getElementById('itemRowTemplate');
+
+    function addRow(data) {
+        const row = template.content.firstElementChild.cloneNode(true);
+        if (data) {
+            row.querySelector('[name="item_start_time[]"]').value = data.start_time || '';
+            row.querySelector('[name="item_end_time[]"]').value = data.end_time || '';
+            row.querySelector('[name="item_title[]"]').value = data.title || '';
+            row.querySelector('[name="item_location[]"]').value = data.location || '';
+        }
+        row.querySelector('.remove-item-btn').addEventListener('click', function () { row.remove(); });
+        container.appendChild(row);
+    }
+
+    document.getElementById('addItemBtn').addEventListener('click', function () { addRow(null); });
+
+    const seedItems = {{ event_items|tojson }};
+    if (seedItems.length) {
+        seedItems.forEach(addRow);
+    } else {
+        addRow(null);
+    }
+})();
+</script>
 {% endblock %}

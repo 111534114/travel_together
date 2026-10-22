@@ -5,13 +5,21 @@
     </div>
     <div class="panel">
         <h1>發起交友揪團</h1>
+        <p class="muted" style="margin:-8px 0 20px;">
+            你目前是 <strong>Lv.{{ tier.level }} {{ tier.label }}</strong>
+            {% if tier.avg_rating is not none %}（已開團 {{ tier.hosted_count }} 次 · 平均評價 {{ "%.1f"|format(tier.avg_rating) }} 顆星，{{ tier.review_count }} 則評價）{% else %}（已開團 {{ tier.hosted_count }} 次，還沒有收到評價）{% endif %}。
+            {% if tier.level == 1 %}這個等級限開「單日」揪團，人數上限 {{ tier.max_capacity }} 人；累積開滿 {{ tier.hosted_required }} 次、平均評價達 {{ tier.rating_required }} 顆星以上即可升級成 Lv.2 資深團長，開放多天行程、人數不限。{% else %}已經是資深團長了，可以開多天行程、人數也不設限。{% endif %}
+        </p>
         <form method="post" action="{{ url_for('friend_groups.new_group') }}" class="form-grid-member">
             <label>揪團名稱 *<input required name="title" maxlength="150"></label>
-            <label>日期 *<input required type="date" name="event_date"></label>
+            <label>開始日期 *<input required type="date" name="event_date"></label>
+            {% if tier.allow_multi_day %}
+            <label>結束日期（選填，不填代表單日）<input type="date" name="end_date"></label>
+            {% endif %}
             <label>開始時間<input type="time" name="start_time"></label>
             <label>結束時間<input type="time" name="end_time"></label>
             <label>地點<input name="location" maxlength="255"></label>
-            <label>人數上限（留空不限制）<input type="number" min="1" name="capacity"></label>
+            <label>人數上限{% if tier.level == 1 %}（最多 {{ tier.max_capacity }} 人）<input type="number" min="1" max="{{ tier.max_capacity }}" name="capacity" placeholder="最多 {{ tier.max_capacity }} 人"></label>{% else %}（留空不限制）<input type="number" min="1" name="capacity"></label>{% endif %}
             <label>希望旅伴的步調（選填）<select name="pace_filter"><option value="">不限</option>{% for value, label in pace_labels.items() %}<option value="{{ value }}">{{ label }}</option>{% endfor %}</select></label>
             <label>希望旅伴的社交傾向（選填）<select name="social_style_filter"><option value="">不限</option>{% for value, label in social_labels.items() %}<option value="{{ value }}">{{ label }}</option>{% endfor %}</select></label>
             <label class="span-2">說明<textarea name="description" rows="3" placeholder="想做什麼、想找什麼樣的旅伴"></textarea></label>

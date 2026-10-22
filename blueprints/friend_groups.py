@@ -9,6 +9,16 @@ friend_groups_bp = Blueprint("friend_groups", __name__, url_prefix="/member/frie
 
 MIN_AGE = 18  # 申請這個功能的最低年齡限制
 
+# 分級團長制度：Lv.1 新手團長剛解鎖時限制單日、限人數；累積開團次數達標且平均評價夠高才會升到 Lv.2 資深團長，
+# 可以開多天行程、人數上限也解除。等級不另外存欄位，每次都用「開團次數」+「收到的平均評價」即時算出。
+TIER1_MAX_CAPACITY = 6
+TIER2_HOSTED_REQUIRED = 3
+TIER2_RATING_REQUIRED = 4.5
+TIER_LABELS = {1: "新手團長", 2: "資深團長"}
+
+# 雙向評價可選的標籤，團長、團員互評時都可以勾選
+REVIEW_TAGS = ["準時好夥伴", "超會拍照", "氣氛帶動王", "熱心助人", "好相處", "溝通順暢", "守時可靠", "旅伴首選"]
+
 PACE_LABELS = {"relaxed": "悠閒", "balanced": "適中", "packed": "緊湊"}
 SOCIAL_LABELS = {"group": "熱鬧團體", "small_group": "小圈子深聊", "solo": "獨立探索"}
 BUDGET_LABELS = {"frugal": "精打細算", "moderate": "適度花費", "generous": "願意享受"}
@@ -45,6 +55,26 @@ def _feature_enabled(cursor):
     return bool(row) and row["setting_value"] == "1"
 
 
+@friend_groups_bp.before_request
+def _block_when_feature_disabled():
+    # 總開關關閉時，整個藍圖下的路由一律擋下，不只首頁；避免像「發起揪團」這種動作型路由
+    # 漏掉檢查，導致資料寫進去了、重導回首頁才被擋下，前後兩則訊息同時出現造成誤解。
+    if session.get("role") != "member":
+        return None
+    connection = get_db_connection()
+    if connection is None:
+        return None
+    cursor = connection.cursor(dictionary=True)
+    try:
+        if not _feature_enabled(cursor):
+            flash("交友揪團功能目前尚未開放。", "error")
+            return redirect(url_for("member.dashboard"))
+    finally:
+        cursor.close()
+        connection.close()
+    return None
+
+
 def _latest_application(cursor, user_id):
     cursor.execute(
         "SELECT * FROM friend_group_applications WHERE user_id=%s ORDER BY created_at DESC LIMIT 1",
@@ -54,8 +84,12 @@ def _latest_application(cursor, user_id):
 
 
 def _has_attended_event(cursor, user_id):
+    # 報到（status='attended'）只代表活動當天有到場簽到，活動本身是否已經結束是另一回事；
+    # 要等活動日期真的過了，才算真正「參加完」一場官方活動，避免有人一簽到就馬上去開自己的揪團。
     cursor.execute(
-        "SELECT 1 FROM friend_group_event_participants WHERE user_id=%s AND status='attended' LIMIT 1",
+        """SELECT 1 FROM friend_group_event_participants p
+           JOIN friend_group_events e ON e.event_id = p.event_id
+           WHERE p.user_id=%s AND p.status='attended' AND e.event_date < CURDATE() LIMIT 1""",
         (user_id,)
     )
     return cursor.fetchone() is not None
@@ -68,9 +102,62 @@ def _can_use_groups(cursor, user_id):
     return _has_attended_event(cursor, user_id)
 
 
+def _has_completed_onboarding(cursor, user_id):
+    cursor.execute("SELECT 1 FROM friend_group_onboarding WHERE user_id=%s", (user_id,))
+    return cursor.fetchone() is not None
+
+
 def _traveler_profile(cursor, user_id):
     cursor.execute("SELECT * FROM traveler_profiles WHERE user_id=%s", (user_id,))
     return cursor.fetchone()
+
+
+def _host_tier(cursor, user_id):
+    """算出這個人目前的團長等級：Lv.2 資深團長要「累積開團次數」跟「當團長收到的平均評價」都達標，
+    不然都是 Lv.1 新手團長；順便回傳人數上限、能不能排多天，給開團表單跟驗證共用。"""
+    cursor.execute(
+        "SELECT COUNT(*) AS c FROM friend_groups WHERE host_user_id=%s AND status != 'cancelled' AND event_date < CURDATE()",
+        (user_id,)
+    )
+    hosted_count = cursor.fetchone()["c"]
+
+    cursor.execute(
+        """SELECT AVG(r.rating) AS avg_rating, COUNT(*) AS review_count
+           FROM friend_group_reviews r JOIN friend_groups g ON g.group_id = r.group_id
+           WHERE r.reviewee_id=%s AND g.host_user_id=%s""",
+        (user_id, user_id)
+    )
+    row = cursor.fetchone()
+    avg_rating = float(row["avg_rating"]) if row["avg_rating"] is not None else None
+    review_count = row["review_count"] or 0
+
+    level = 2 if (hosted_count >= TIER2_HOSTED_REQUIRED and avg_rating is not None and avg_rating >= TIER2_RATING_REQUIRED) else 1
+    return {
+        "level": level,
+        "label": TIER_LABELS[level],
+        "hosted_count": hosted_count,
+        "avg_rating": avg_rating,
+        "review_count": review_count,
+        "max_capacity": None if level == 2 else TIER1_MAX_CAPACITY,
+        "allow_multi_day": level == 2,
+        "hosted_required": TIER2_HOSTED_REQUIRED,
+        "rating_required": TIER2_RATING_REQUIRED,
+    }
+
+
+def _review_targets(cursor, group, user_id):
+    """回傳這個人在這個揪團裡可以評價的對象：團長評每一位已通過的團員；團員只評團長一個人。"""
+    if group["host_user_id"] == user_id:
+        cursor.execute(
+            """SELECT u.user_id, u.nickname, u.full_name FROM friend_group_members m
+               JOIN users u ON u.user_id = m.user_id
+               WHERE m.group_id=%s AND m.status='approved' ORDER BY m.responded_at""",
+            (group["group_id"],)
+        )
+        return cursor.fetchall()
+    cursor.execute("SELECT user_id, nickname, full_name FROM users WHERE user_id=%s", (group["host_user_id"],))
+    row = cursor.fetchone()
+    return [row] if row else []
 
 
 @friend_groups_bp.route("/")
@@ -80,10 +167,6 @@ def index():
     if connection is None: return redirect(url_for("member.dashboard"))
     cursor = connection.cursor(dictionary=True)
     try:
-        if not _feature_enabled(cursor):
-            flash("交友揪團功能目前尚未開放。", "error")
-            return redirect(url_for("member.dashboard"))
-
         user_id = session["user_id"]
         application = _latest_application(cursor, user_id)
         unlocked = False
@@ -91,6 +174,8 @@ def index():
         events = []
         groups = []
         my_groups = []
+        tier = None
+        onboarding_done = False
 
         if application and application["status"] == "approved":
             unlocked = _has_attended_event(cursor, user_id)
@@ -106,6 +191,20 @@ def index():
             """, (user_id,))
             events = cursor.fetchall()
 
+            if events:
+                event_ids = [e["event_id"] for e in events]
+                format_strings = ",".join(["%s"] * len(event_ids))
+                cursor.execute(f"""
+                    SELECT * FROM friend_group_event_items
+                    WHERE event_id IN ({format_strings})
+                    ORDER BY event_id, sort_order
+                """, tuple(event_ids))
+                items_by_event = {}
+                for item in cursor.fetchall():
+                    items_by_event.setdefault(item["event_id"], []).append(item)
+                for e in events:
+                    e["schedule"] = items_by_event.get(e["event_id"], [])
+
             if unlocked:
                 cursor.execute("""
                     SELECT g.*, u.nickname, u.full_name,
@@ -116,6 +215,8 @@ def index():
                     ORDER BY g.event_date ASC
                 """, (user_id, user_id))
                 groups = cursor.fetchall()
+                for g in groups:  # 附上每個揪團團主目前的等級，瀏覽時可以參考
+                    g["host_tier"] = _host_tier(cursor, g["host_user_id"])
 
                 cursor.execute("""
                     SELECT g.*,
@@ -126,13 +227,15 @@ def index():
                     ORDER BY g.created_at DESC
                 """, (user_id,))
                 my_groups = cursor.fetchall()
+                tier = _host_tier(cursor, user_id)
+                onboarding_done = _has_completed_onboarding(cursor, user_id)
     finally:
         cursor.close(); connection.close()
 
     return render_template(
         "member/friend_groups/index.html",
-        application=application, unlocked=unlocked, profile=profile,
-        events=events, groups=groups, my_groups=my_groups,
+        application=application, unlocked=unlocked, profile=profile, tier=tier,
+        events=events, groups=groups, my_groups=my_groups, onboarding_done=onboarding_done,
         pace_labels=PACE_LABELS, social_labels=SOCIAL_LABELS,
     )
 
@@ -144,10 +247,6 @@ def apply():
     if connection is None: return redirect(url_for("friend_groups.index"))
     cursor = connection.cursor(dictionary=True)
     try:
-        if not _feature_enabled(cursor):
-            flash("交友揪團功能目前尚未開放。", "error")
-            return redirect(url_for("member.dashboard"))
-
         user_id = session["user_id"]
         application = _latest_application(cursor, user_id)
         if application and application["status"] in ("pending", "approved"):
@@ -307,6 +406,46 @@ def cancel_event(event_id):
     return redirect(url_for("friend_groups.index"))
 
 
+@friend_groups_bp.route("/onboarding", methods=["GET", "POST"])
+@login_required("member")
+def onboarding():
+    connection = _connection_or_home()
+    if connection is None: return redirect(url_for("friend_groups.index"))
+    cursor = connection.cursor(dictionary=True)
+    try:
+        user_id = session["user_id"]
+        if not _can_use_groups(cursor, user_id):
+            flash("要先出席過一場官方活動才能使用這個功能。", "error")
+            return redirect(url_for("friend_groups.index"))
+
+        if _has_completed_onboarding(cursor, user_id):
+            flash("你已經完成過新手開團引導了。", "success")
+            return redirect(url_for("friend_groups.new_group"))
+
+        if request.method == "POST":
+            acknowledged = all(request.form.get(key) == "on" for key in ("ack_rules", "ack_disclaimer", "ack_safety"))
+            if not acknowledged:
+                flash("請詳閱並勾選全部三個項目才能完成引導。", "error")
+                return redirect(url_for("friend_groups.onboarding"))
+
+            cursor.execute(
+                "INSERT INTO friend_group_onboarding (user_id, completed_at) VALUES (%s, NOW()) "
+                "ON DUPLICATE KEY UPDATE completed_at=NOW()",
+                (user_id,)
+            )
+            cursor.execute(
+                "INSERT INTO notifications (user_id, notification_type, title, message, target_url) "
+                "VALUES (%s,'system','🏅 解鎖「新手開團者」徽章','你已完成新手開團引導，現在可以發起你的第一個交友揪團了！',%s)",
+                (user_id, url_for("friend_groups.new_group"))
+            )
+            connection.commit()
+            flash("新手開團引導已完成，獲得「新手開團者」徽章！", "success")
+            return redirect(url_for("friend_groups.new_group"))
+    finally:
+        cursor.close(); connection.close()
+    return render_template("member/friend_groups/onboarding.html")
+
+
 @friend_groups_bp.route("/groups/new", methods=["GET", "POST"])
 @login_required("member")
 def new_group():
@@ -318,14 +457,20 @@ def new_group():
         if not _can_use_groups(cursor, user_id):
             flash("要先出席過一場官方活動才能發起揪團。", "error")
             return redirect(url_for("friend_groups.index"))
+        if not _has_completed_onboarding(cursor, user_id):
+            flash("發起揪團前，請先完成新手開團引導。", "error")
+            return redirect(url_for("friend_groups.onboarding"))
+
+        tier = _host_tier(cursor, user_id)
 
         if request.method == "POST":
             title = request.form.get("title", "").strip()
             location = request.form.get("location", "").strip()
             event_date = request.form.get("event_date", "").strip()
+            end_date = request.form.get("end_date", "").strip() or None
             start_time = request.form.get("start_time") or None
             end_time = request.form.get("end_time") or None
-            capacity = request.form.get("capacity") or None
+            capacity_raw = request.form.get("capacity", "").strip()
             description = request.form.get("description", "").strip() or None
             pace_filter = request.form.get("pace_filter") or None
             social_style_filter = request.form.get("social_style_filter") or None
@@ -334,12 +479,35 @@ def new_group():
                 flash("請填寫揪團名稱與日期。", "error")
                 return redirect(url_for("friend_groups.new_group"))
 
+            # Lv.1 新手團長限制單日、人數上限；Lv.2 資深團長才能排多天行程、人數不設限
+            if not tier["allow_multi_day"]:
+                if end_date and end_date != event_date:
+                    flash(f"你目前是 Lv.1 新手團長，只能開單日的揪團；累積辦滿 {tier['hosted_required']} 次、平均評價達 {tier['rating_required']} 顆星以上即可升級成 Lv.2 資深團長，開放多天行程。", "error")
+                    return redirect(url_for("friend_groups.new_group"))
+                end_date = None
+                if not capacity_raw:
+                    capacity = tier["max_capacity"]
+                else:
+                    try:
+                        capacity = int(capacity_raw)
+                    except ValueError:
+                        flash("人數上限請輸入數字。", "error")
+                        return redirect(url_for("friend_groups.new_group"))
+                    if capacity <= 0 or capacity > tier["max_capacity"]:
+                        flash(f"你目前是 Lv.1 新手團長，人數上限最多 {tier['max_capacity']} 人。", "error")
+                        return redirect(url_for("friend_groups.new_group"))
+            else:
+                if end_date and end_date < event_date:
+                    flash("結束日期不能早於開始日期。", "error")
+                    return redirect(url_for("friend_groups.new_group"))
+                capacity = int(capacity_raw) if capacity_raw.isdigit() and int(capacity_raw) > 0 else None
+
             cursor.execute("""
                 INSERT INTO friend_groups
-                    (host_user_id, title, description, location, event_date, start_time, end_time,
+                    (host_user_id, title, description, location, event_date, end_date, start_time, end_time,
                      capacity, pace_filter, social_style_filter)
-                VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
-            """, (user_id, title, description, location or None, event_date, start_time, end_time,
+                VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
+            """, (user_id, title, description, location or None, event_date, end_date, start_time, end_time,
                   capacity, pace_filter, social_style_filter))
             connection.commit()
             flash("揪團已發起。", "success")
@@ -347,7 +515,7 @@ def new_group():
     finally:
         cursor.close(); connection.close()
 
-    return render_template("member/friend_groups/group_new.html", pace_labels=PACE_LABELS, social_labels=SOCIAL_LABELS)
+    return render_template("member/friend_groups/group_new.html", pace_labels=PACE_LABELS, social_labels=SOCIAL_LABELS, tier=tier)
 
 
 @friend_groups_bp.route("/groups/<int:group_id>")
@@ -386,12 +554,100 @@ def group_detail(group_id):
             ORDER BY m.responded_at
         """, (group_id,))
         members = cursor.fetchall()
+
+        host_tier = _host_tier(cursor, group["host_user_id"])
+        is_approved_member = bool(my_membership and my_membership["status"] == "approved")
+        event_finished = group["event_date"] < date.today()
+        can_review = event_finished and (is_host or is_approved_member)
     finally:
         cursor.close(); connection.close()
 
     return render_template(
         "member/friend_groups/group_detail.html",
         group=group, is_host=is_host, my_membership=my_membership, members=members,
+        host_tier=host_tier, can_review=can_review, event_finished=event_finished,
+    )
+
+
+@friend_groups_bp.route("/groups/<int:group_id>/reviews", methods=["GET", "POST"])
+@login_required("member")
+def group_reviews(group_id):
+    """雙向評價（盲評）：團長評每位團員、團員評團長；雙方都評完了才會看到對方寫的內容，
+    避免有人為了報復亂給負評。活動日期要過了才能互評。"""
+    connection = _connection_or_home()
+    if connection is None: return redirect(url_for("friend_groups.index"))
+    cursor = connection.cursor(dictionary=True)
+    try:
+        user_id = session["user_id"]
+        cursor.execute("SELECT * FROM friend_groups WHERE group_id=%s", (group_id,))
+        group = cursor.fetchone()
+        if not group:
+            flash("找不到這個揪團。", "error")
+            return redirect(url_for("friend_groups.index"))
+
+        is_host = group["host_user_id"] == user_id
+        cursor.execute(
+            "SELECT status FROM friend_group_members WHERE group_id=%s AND user_id=%s",
+            (group_id, user_id)
+        )
+        membership = cursor.fetchone()
+        is_approved_member = bool(membership and membership["status"] == "approved")
+
+        if not is_host and not is_approved_member:
+            flash("只有團長跟已通過審核的團員才能互評。", "error")
+            return redirect(url_for("friend_groups.group_detail", group_id=group_id))
+        if group["event_date"] >= date.today():
+            flash("活動結束後才能互評。", "error")
+            return redirect(url_for("friend_groups.group_detail", group_id=group_id))
+
+        targets = _review_targets(cursor, group, user_id)
+
+        if request.method == "POST":
+            reviewee_id = request.form.get("reviewee_id", "").strip()
+            rating = request.form.get("rating", "").strip()
+            tags = ",".join(request.form.getlist("tags"))
+            comment = request.form.get("comment", "").strip() or None
+
+            valid_target_ids = {t["user_id"] for t in targets}
+            if not reviewee_id.isdigit() or int(reviewee_id) not in valid_target_ids:
+                flash("評價對象不正確。", "error")
+            elif rating not in ("1", "2", "3", "4", "5"):
+                flash("請選擇 1～5 顆星的評分。", "error")
+            else:
+                cursor.execute(
+                    """INSERT INTO friend_group_reviews (group_id, reviewer_id, reviewee_id, rating, tags, comment)
+                       VALUES (%s,%s,%s,%s,%s,%s)
+                       ON DUPLICATE KEY UPDATE rating=VALUES(rating), tags=VALUES(tags), comment=VALUES(comment)""",
+                    (group_id, user_id, int(reviewee_id), int(rating), tags or None, comment)
+                )
+                connection.commit()
+                flash("評價已送出，等對方也評價你之後就能互相看到內容。", "success")
+            return redirect(url_for("friend_groups.group_reviews", group_id=group_id))
+
+        cursor.execute(
+            "SELECT reviewee_id, rating, tags, comment FROM friend_group_reviews WHERE group_id=%s AND reviewer_id=%s",
+            (group_id, user_id)
+        )
+        my_reviews = {r["reviewee_id"]: r for r in cursor.fetchall()}
+
+        cursor.execute(
+            """SELECT r.reviewer_id, r.rating, r.tags, r.comment, u.nickname, u.full_name
+               FROM friend_group_reviews r JOIN users u ON u.user_id=r.reviewer_id
+               WHERE r.group_id=%s AND r.reviewee_id=%s""",
+            (group_id, user_id)
+        )
+        received_raw = {r["reviewer_id"]: r for r in cursor.fetchall()}
+        # 盲評：只有「我評過這個人」而且「這個人也評過我」才看得到對方寫的內容，避免互相觀望、抄來抄去
+        received_visible = {rid: r for rid, r in received_raw.items() if rid in my_reviews}
+        received_pending_count = len(received_raw) - len(received_visible)
+    finally:
+        cursor.close(); connection.close()
+
+    return render_template(
+        "member/friend_groups/group_reviews.html",
+        group=group, is_host=is_host, targets=targets, my_reviews=my_reviews,
+        received_visible=received_visible, received_pending_count=received_pending_count,
+        review_tags=REVIEW_TAGS,
     )
 
 

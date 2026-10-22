@@ -478,55 +478,6 @@ def my_trips():
     )
 
 
-@member_bp.route("/companions")
-@login_required("member")
-def companions_page():
-    connection = _connection_or_home()
-    if connection is None:
-        return redirect(url_for("member.dashboard"))
-    cursor = connection.cursor(dictionary=True)
-    try:
-        user_id = session["user_id"]
-        cursor.execute("""
-            SELECT t.trip_id, t.owner_id, t.trip_name, t.visibility, co.name AS country, ci.name AS city,
-                   t.people_count, t.total_budget, t.currency, t.introduction, t.allow_copy,
-                   u.full_name AS owner_name, u.nickname AS owner_nickname,
-                   DATEDIFF(t.end_date, t.start_date) + 1 AS days_count,
-                   COUNT(tm.user_id) AS joined_count
-            FROM trips t
-            JOIN users u ON u.user_id = t.owner_id
-            JOIN countries co ON co.country_id = t.country_id
-            JOIN cities ci ON ci.city_id = t.city_id
-            LEFT JOIN trip_members tm ON tm.trip_id = t.trip_id AND tm.join_status = 'accepted'
-            WHERE (t.visibility = 'public' OR t.people_count > 1)
-              AND t.moderation_status = 'visible' AND t.deleted_at IS NULL
-            GROUP BY t.trip_id, t.owner_id, t.trip_name, t.visibility, co.name, ci.name, t.people_count,
-                     t.total_budget, t.currency, t.introduction, t.allow_copy, u.full_name, u.nickname
-            ORDER BY t.trip_id DESC
-        """)
-        companions = cursor.fetchall()
-
-        cursor.execute("""
-            SELECT target_id FROM reports
-            WHERE reporter_id = %s AND target_type = 'trip' AND reason LIKE %s
-              AND status IN ('pending', 'processing')
-        """, (user_id, ISSUE_PREFIX + "%"))
-        reported_trip_ids = {row["target_id"] for row in cursor.fetchall()}
-
-        cursor.execute("SELECT trip_id FROM favorites WHERE user_id=%s AND target_type='trip'", (user_id,))
-        favorite_trip_ids = {row["trip_id"] for row in cursor.fetchall()}
-
-        # 只有公開行程才能在這裡查看明細／複製／回報，非公開的多人行程只做為揪團資訊展示
-        public_companions = [c for c in companions if c["visibility"] == "public"]
-        trips_timeline_json = _build_trips_timeline(cursor, public_companions, user_id, favorite_trip_ids, reported_trip_ids)
-    finally:
-        cursor.close(); connection.close()
-    return render_template(
-        "member/companions.html", companions=companions,
-        trips_timeline_json=trips_timeline_json, issue_reasons=ISSUE_REASONS,
-    )
-
-
 @member_bp.route("/announcements")
 @login_required("member")
 def announcements_page():

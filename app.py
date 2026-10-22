@@ -176,7 +176,6 @@ def visitor():
         'total_expenses': '0'
     }
     public_trips = []
-    companions = []
     announcements = []
     trips_timeline_json = {}
     city_weather = {}
@@ -230,25 +229,6 @@ def visitor():
             # 3-1. 依公開行程的目的地城市，查詢中央氣象署天氣預報(僅支援台灣縣市，查不到的城市會被忽略)
             trip_cities = [t['city'] for t in public_trips if t.get('city')]
             city_weather = weather.get_weather_by_cities(trip_cities)
-
-            # 4. 查詢最新揪團旅伴資訊
-            cursor.execute("""
-                SELECT t.trip_id, t.trip_name, co.name AS country, ci.name AS city,
-                       t.people_count, t.total_budget, t.currency, t.introduction,
-                       u.full_name AS owner_name, u.nickname AS owner_nickname,
-                       COUNT(tm.user_id) AS joined_count
-                FROM trips t
-                JOIN users u ON u.user_id = t.owner_id
-                JOIN countries co ON co.country_id = t.country_id
-                JOIN cities ci ON ci.city_id = t.city_id
-                LEFT JOIN trip_members tm ON tm.trip_id = t.trip_id AND tm.join_status = 'accepted'
-                WHERE (t.visibility = 'public' OR t.people_count > 1)
-                  AND t.moderation_status = 'visible' AND t.deleted_at IS NULL
-                GROUP BY t.trip_id, t.trip_name, co.name, ci.name, t.people_count, t.total_budget, t.currency, t.introduction, u.full_name, u.nickname
-                ORDER BY t.trip_id DESC
-                LIMIT 6
-            """)
-            companions = cursor.fetchall()
 
             cursor.execute("""
                 SELECT p.post_id, pi.image_path, p.caption,
@@ -319,7 +299,6 @@ def visitor():
         stats=stats,
         announcements=announcements,
         public_trips=public_trips,
-        companions=companions,
         trips_timeline_json=trips_timeline_json,
         city_weather=city_weather,
         recent_album_posts=recent_album_posts,

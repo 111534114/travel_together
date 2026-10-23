@@ -64,6 +64,10 @@ class PublicTripModerationTests(unittest.TestCase):
             self.assertEqual(response.status_code, 302)
             database.assert_not_called()
 
+    def test_unpublish_route_is_removed(self):
+        response = self.client.post("/system-admin/public-trips/8/unpublish")
+        self.assertEqual(response.status_code, 404)
+
 
 if __name__ == "__main__":
     unittest.main()

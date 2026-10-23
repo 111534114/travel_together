@@ -5,10 +5,15 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>走吧揪團｜{{ '會員首頁' if is_member else '探索公開行程' }}</title>
   <link rel="icon" type="image/png" href="{{ url_for('static', filename='images/logo.png') }}">
+  {% if is_member %}<link rel="stylesheet" href="{{ url_for('static', filename='css/member_notifications.css') }}">{% endif %}
+  {% if is_member %}<link rel="stylesheet" href="{{ url_for('static', filename='css/member-nav.css') }}">{% endif %}
   <script src="{{ url_for('static', filename='js/google-translate.js') }}"></script>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/flatpickr/4.6.13/flatpickr.min.css">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/flatpickr/4.6.13/flatpickr.min.js" defer></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/flatpickr/4.6.13/l10n/zh-tw.js" defer></script>
   <style>
     :root { --purple: #4B838B; --purple-light: #57A2AC; --purple-soft: #EDF6F7; --ink: #23373A; --muted: #708284; --line: #E1EBEC; --page: #EAF8F9; }
     * { box-sizing: border-box; }
@@ -54,6 +59,69 @@
     .quick-link-card p { margin: 0; color: var(--muted); font-size: 13px; line-height: 1.5; }
     .quick-link-card.disabled { opacity: .55; cursor: not-allowed; pointer-events: none; }
     .quick-link-badge { align-self: flex-start; padding: 3px 9px; margin-top: 2px; color: #9c6b1f; background: #fdf1dd; border-radius: 999px; font-size: 11px; font-weight: 700; }
+    .search-tabs { display: flex; align-items: center; gap: 2px; margin-bottom: 18px; border-bottom: 1px solid var(--line); }
+    .search-tab { display: flex; align-items: center; gap: 6px; padding: 10px 16px; color: var(--muted); background: transparent; border: 0; border-bottom: 2px solid transparent; cursor: pointer; font-size: 15px; font-weight: 600; }
+    .search-tab .tab-icon { font-size: 17px; }
+    .search-tab:hover { color: var(--purple); }
+    .search-tab.active { color: var(--purple); border-bottom-color: var(--purple); }
+    .search-tab:disabled { color: #B9C6C8; cursor: not-allowed; }
+    .tab-badge { padding: 3px 9px; margin-left: auto; color: #9c6b1f; background: #fdf1dd; border-radius: 999px; font-size: 11px; font-weight: 700; white-space: nowrap; }
+    .search-fields-row { display: flex; flex-wrap: wrap; align-items: end; gap: 12px; }
+    .search-fields-row[hidden] { display: none; }
+    .search-fields-group[hidden] { display: none; }
+    .search-options-row { display: flex; align-items: center; gap: 24px; margin-bottom: 14px; }
+    .option-radio, .option-check { display: flex; align-items: center; gap: 6px; color: var(--ink); font-size: 14px; font-weight: 600; cursor: pointer; }
+    .option-radio input, .option-check input { accent-color: var(--purple); width: 16px; height: 16px; cursor: pointer; }
+    .field-swap { flex: 0 0 auto; align-self: flex-end; width: 36px; height: 36px; margin-bottom: 4px; color: var(--purple); background: #fff; border: 1px solid var(--line); border-radius: 50%; cursor: pointer; font-size: 15px; line-height: 1; transition: transform 160ms ease; }
+    .field-swap:hover { background: var(--purple-soft); transform: rotate(180deg); }
+    .multi-city-legs { display: flex; flex-direction: column; gap: 10px; margin-bottom: 12px; }
+    .multi-city-leg { display: flex; flex-wrap: wrap; align-items: end; gap: 12px; padding: 12px; background: var(--page); border-radius: 8px; }
+    .multi-city-leg-badge { display: inline-flex; flex: 0 0 auto; align-self: flex-end; align-items: center; justify-content: center; width: 36px; height: 44px; color: var(--purple); font-weight: 700; font-size: 14px; }
+    .mc-remove { flex: 0 0 auto; align-self: flex-end; width: 36px; height: 36px; margin-bottom: 4px; color: var(--muted); background: #fff; border: 1px solid var(--line); border-radius: 50%; cursor: pointer; font-size: 13px; }
+    .mc-remove:hover { color: #B23B3B; border-color: #B23B3B; }
+    .mc-add-leg { padding: 8px 16px; margin-bottom: 14px; color: var(--purple); background: #fff; border: 1px dashed #C5D5D7; border-radius: 6px; cursor: pointer; font-weight: 700; font-size: 14px; }
+    .mc-add-leg:hover { background: var(--purple-soft); }
+    .mc-add-leg:disabled { color: #CBD6D8; cursor: not-allowed; background: #fff; }
+    .field { display: flex; flex: 1 1 150px; min-width: 130px; flex-direction: column; gap: 5px; }
+    .field label { color: var(--muted); font-size: 12px; font-weight: 600; }
+    .field input, .field select { min-height: 44px; padding: 9px 12px; color: var(--ink); background: #fff; border: 1px solid #C5D5D7; border-radius: 6px; outline: none; font: inherit; }
+    .field input:focus, .field select:focus { border-color: var(--purple); box-shadow: 0 0 0 3px #DEF1F4; }
+    .field-sep { display: flex; flex: 0 0 auto; align-items: center; justify-content: center; padding-bottom: 11px; color: var(--muted); font-size: 16px; }
+    .search-submit { flex: 0 0 auto; min-height: 44px; padding: 10px 26px; color: #fff; background: var(--purple); border: 0; border-radius: 6px; cursor: pointer; font-size: 15px; font-weight: 700; }
+    .search-submit:hover { background: #37676D; }
+    .search-note { margin: 14px 0 0; color: var(--muted); font-size: 12px; }
+    .date-range-field { flex: 1 1 260px; }
+    .date-range-box { display: flex; align-items: center; gap: 8px; min-height: 44px; padding: 0 12px; background: #fff; border: 1px solid #C5D5D7; border-radius: 6px; }
+    .date-range-box.active { border-color: var(--purple); box-shadow: 0 0 0 3px #DEF1F4; }
+    .date-range-box input.date-range-input { flex: 1; min-width: 0; padding: 9px 0; color: var(--ink); background: transparent !important; border: none !important; outline: none !important; box-shadow: none !important; cursor: pointer; font: inherit; }
+    .date-range-badge { flex: 0 0 auto; padding: 3px 10px; color: var(--purple); background: var(--purple-soft); border-radius: 999px; font-size: 12px; font-weight: 700; white-space: nowrap; }
+    .flatpickr-calendar { width: auto !important; padding: 18px 20px; background: #fff; border: 1px solid var(--line); border-radius: 14px; box-shadow: 0 16px 40px rgba(35, 55, 58, .18); font-family: "Noto Sans TC", "Segoe UI", sans-serif; }
+    .flatpickr-calendar.arrowTop:before, .flatpickr-calendar.arrowTop:after { display: none; }
+    .flatpickr-innerContainer, .flatpickr-rContainer { width: auto; }
+    .flatpickr-months { position: relative; align-items: center; margin-bottom: 10px; }
+    .flatpickr-month { height: auto; }
+    .flatpickr-current-month { display: flex; align-items: center; justify-content: center; gap: 4px; padding: 0; font-size: 17px; font-weight: 700; color: var(--ink); }
+    .flatpickr-current-month .cur-month { font-weight: 700; padding: 0; }
+    .flatpickr-current-month input.cur-year { font-weight: 700; }
+    .flatpickr-prev-month, .flatpickr-next-month { padding: 8px !important; border-radius: 8px; }
+    .flatpickr-prev-month:hover, .flatpickr-next-month:hover { background: var(--purple-soft); }
+    .flatpickr-prev-month svg, .flatpickr-next-month svg { fill: var(--ink); }
+    span.flatpickr-weekday { color: var(--muted); font-weight: 700; font-size: 13px; }
+    .flatpickr-days { border: 0; }
+    .dayContainer { min-width: 266px; }
+    .flatpickr-day { height: 40px; line-height: 40px; max-width: 40px; margin: 1px 0; border-radius: 10px; font-size: 14px; }
+    .flatpickr-day.today { border-color: var(--purple); }
+    .flatpickr-day:hover { background: var(--purple-soft); border-color: var(--purple-soft); }
+    .flatpickr-day.selected, .flatpickr-day.startRange, .flatpickr-day.endRange { background: var(--purple); border-color: var(--purple); color: #fff; }
+    .flatpickr-day.selected.startRange, .flatpickr-day.startRange.startRange { border-radius: 10px 0 0 10px; }
+    .flatpickr-day.endRange { border-radius: 0 10px 10px 0; }
+    .flatpickr-day.startRange.endRange { border-radius: 10px; }
+    .flatpickr-day.inRange { background: var(--purple-soft); border-color: var(--purple-soft); box-shadow: -5px 0 0 var(--purple-soft), 5px 0 0 var(--purple-soft); border-radius: 0; }
+    .flatpickr-day.flatpickr-disabled, .flatpickr-day.flatpickr-disabled:hover { color: #CBD6D8; cursor: not-allowed; }
+    .flatpickr-day.prevMonthDay, .flatpickr-day.nextMonthDay { color: #CBD6D8; }
+    .date-range-footer { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--line); }
+    .date-range-holiday { color: var(--muted); font-size: 12px; }
+    .date-range-summary { flex: 0 0 auto; color: var(--ink); font-size: 14px; font-weight: 700; text-align: right; }
     .hero-intro { position: relative; overflow: hidden; margin: 0 0 44px; padding: 40px 44px 52px; color: #fff; background: linear-gradient(135deg, var(--purple) 0%, #FFC53D 100%); border-radius: 14px; }
     .hero-intro > * { position: relative; z-index: 1; }
     .hero-intro .eyebrow { color: #D9F3F6; }
@@ -175,8 +243,9 @@
     .timeline-item b, .timeline-item span { display: block; }
     .timeline-item span { margin-top: 3px; color: #5e556c; font-size: 14px; }
     @media (max-width: 1100px) { .nav-links { gap: 2px; } .nav-links a { padding: 9px 9px; font-size: 14px; } .language-select { min-width: 100px; } }
-    @media (max-width: 850px) { .site-nav { align-items: flex-start; flex-direction: column; gap: 6px; padding: 8px 18px 12px; } .nav-links { width: 100%; margin-left: 0; overflow-x: auto; } main { width: min(100% - 28px, 680px); padding-top: 24px; } .member-shell { flex-direction: column; } .member-shell::before { display: none; } .member-sidenav { position: static; width: 100%; height: auto; max-height: none; overflow-y: visible; flex-direction: row; flex-wrap: wrap; padding: 8px 12px; } .member-sidenav .brand { margin: 4px 10px 4px 2px; } .member-sidenav nav { flex-direction: row; flex-wrap: wrap; } .side-footer { margin-top: 0; flex-direction: row; flex-wrap: wrap; padding-top: 0; border-top: 0; } .search-panel { padding: 16px 18px 20px; } .trip-grid, .companion-grid, .weather-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
-    @media (max-width: 560px) { .brand { width: 108px; height: 48px; } .nav-links { gap: 2px; } .nav-links a { padding: 8px; font-size: 14px; white-space: nowrap; } .hero-intro h1 { font-size: 26px; } .search-bar, .section-header, .member-unlock { align-items: stretch; flex-direction: column; } .trip-grid, .companion-grid, .weather-grid, .quick-link-grid { grid-template-columns: 1fr; } .announcement-card { grid-template-columns: auto minmax(0, 1fr); } .announcement-meta { grid-column: 2; } .member-unlock { padding: 24px; } .member-unlock-actions { flex-wrap: wrap; } .section-header h2 { font-size: 24px; } }
+    @media (max-width: 850px) { .site-nav { align-items: flex-start; flex-direction: column; gap: 6px; padding: 8px 18px 12px; } .nav-links { width: 100%; margin-left: 0; overflow-x: auto; } main { width: 100%; max-width: 680px; padding: 24px 16px 56px; } .top-marquee { height: 34px; margin: 0 0 16px; padding: 0 4px; background: #fff; border: 1px solid #DCEDEF; border-radius: 999px; -webkit-mask-image: linear-gradient(90deg, transparent, #000 16px, #000 calc(100% - 16px), transparent); mask-image: linear-gradient(90deg, transparent, #000 16px, #000 calc(100% - 16px), transparent); } .top-marquee-track { gap: 40px; padding-right: 40px; } .top-marquee-track span { font-size: 13px; } .member-shell { flex-direction: column; } .member-shell::before { display: none; } .member-sidenav { position: static; width: 100%; height: auto; max-height: none; overflow-y: visible; flex-direction: row; flex-wrap: wrap; padding: 8px 12px; } .member-sidenav .brand { margin: 4px 10px 4px 2px; } .member-sidenav nav { flex-direction: row; flex-wrap: wrap; } .side-footer { margin-top: 0; flex-direction: row; flex-wrap: wrap; padding-top: 0; border-top: 0; } .search-panel { padding: 16px 18px 20px; } .trip-grid, .companion-grid, .weather-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+    @media (max-width: 850px) { .search-tabs { flex-wrap: nowrap; overflow-x: auto; } .search-tab, .tab-badge { flex: 0 0 auto; } .tab-badge { margin-left: 10px; } }
+    @media (max-width: 560px) { .brand { width: 108px; height: 48px; } .nav-links { gap: 2px; } .nav-links a { padding: 8px; font-size: 14px; white-space: nowrap; } .hero-intro h1 { font-size: 26px; } .search-bar, .section-header, .member-unlock { align-items: stretch; flex-direction: column; } .search-tabs { overflow-x: auto; } .search-tab { flex: 0 0 auto; } .search-submit { width: 100%; } .trip-grid, .companion-grid, .weather-grid, .quick-link-grid { grid-template-columns: 1fr; } .announcement-card { grid-template-columns: auto minmax(0, 1fr); } .announcement-meta { grid-column: 2; } .member-unlock { padding: 24px; } .member-unlock-actions { flex-wrap: wrap; } .section-header h2 { font-size: 24px; } }
   </style>
 </head>
 <body>
@@ -184,8 +253,10 @@
   <div class="member-shell">
     <aside class="member-sidenav">
       <a class="brand" href="{{ url_for('member.dashboard') }}"><img src="{{ url_for('static', filename='images/logo.png') }}" alt="走吧揪團"></a>
-      <nav>{% include 'partials/member_nav_links.html' %}</nav>
+      {% include 'partials/member_nav_toggle.html' %}
+      <nav id="memberNav">{% include 'partials/member_nav_links.html' %}</nav>
     </aside>
+    <div class="nav-backdrop" aria-hidden="true"></div>
     <main class="member-content">
       <div class="top-marquee" aria-label="最新公告跑馬燈">
         <div class="top-marquee-track">
@@ -203,6 +274,7 @@
   <header class="site-nav">
     <a class="brand" href="{{ url_for('visitor') }}"><img src="{{ url_for('static', filename='images/logo.png') }}" alt="走吧揪團"></a>
     <nav class="nav-links">
+      <a href="{{ url_for('visitor') }}">首頁</a>
       <a href="#announcements">公告事項</a>
       <a href="#weather">目的地天氣</a>
       <a href="#trips">探索行程</a>
@@ -231,13 +303,98 @@
       </div>
     </section>
     <section class="search-panel">
-      <div class="section-header"><div><p class="eyebrow" style="color: var(--purple-light)">BOOKING</p><h2>搜尋訂房／機票／高鐵</h2><p>點選進入專屬的搜尋頁面。</p></div></div>
-      <div class="quick-link-grid">
-        <a class="quick-link-card" href="{{ url_for('visitor_hotel_search') }}"><span class="quick-link-icon">🏨</span><h3>住宿搜尋</h3><p>依目的地與日期搜尋飯店房型與價格。</p></a>
-        <a class="quick-link-card" href="{{ url_for('visitor_flight_search') }}"><span class="quick-link-icon">✈️</span><h3>機票搜尋</h3><p>搜尋出發地與目的地之間的航班。</p></a>
-        <a class="quick-link-card" href="{{ url_for('visitor_train_search') }}"><span class="quick-link-icon">🚄</span><h3>高鐵／火車票</h3><p>查詢高鐵與台鐵的班表與票價。</p></a>
-        <div class="quick-link-card disabled"><span class="quick-link-icon">🧭</span><h3>當地體驗</h3><p>搜尋當地行程與體驗活動。</p><span class="quick-link-badge">功能開發中</span></div>
+      <div class="search-tabs" role="tablist">
+        <button class="search-tab active" type="button" data-tab="hotel">住宿</button>
+        <button class="search-tab" type="button" data-tab="flight">機票</button>
+        <button class="search-tab" type="button" data-tab="train">高鐵／火車票</button>
+        <button class="search-tab" type="button" disabled>當地體驗<span class="tab-badge">功能開發中</span></button>
       </div>
+      <form>
+        <div class="search-fields-row" data-tab-fields="hotel">
+          <div class="field"><label for="hotelDest">目的地</label><input id="hotelDest" type="text" placeholder="城市、飯店名稱"></div>
+          <div class="field date-range-field">
+            <label for="hotelDateRange">入住・退房</label>
+            <div class="date-range-box">
+              <input id="hotelDateRange" type="text">
+              <span class="date-range-badge" id="hotelDateBadge" hidden></span>
+            </div>
+            <input type="hidden" id="hotelCheckin">
+            <input type="hidden" id="hotelCheckout">
+          </div>
+          <div class="field"><label for="hotelGuests">人數</label><input id="hotelGuests" type="number" min="1" value="2"></div>
+          <button class="search-submit" type="submit">搜尋</button>
+        </div>
+        <div class="search-fields-group" data-tab-fields="flight" hidden>
+          <div class="search-options-row">
+            <label class="option-radio"><input type="radio" name="flightMode" value="roundtrip" checked>來回</label>
+            <label class="option-radio"><input type="radio" name="flightMode" value="oneway">單程</label>
+            <label class="option-radio"><input type="radio" name="flightMode" value="multicity">多座城市</label>
+            <label class="option-check" id="flightDirectField"><input type="checkbox" id="flightDirect">直飛</label>
+          </div>
+          <div class="search-fields-row" id="flightSingleFields">
+            <div class="field"><label for="flightFrom">出發地</label><input id="flightFrom" type="text" placeholder="台北"></div>
+            <button type="button" class="field-swap" data-swap-a="flightFrom" data-swap-b="flightTo" aria-label="交換出發地與目的地">⇄</button>
+            <div class="field"><label for="flightTo">目的地</label><input id="flightTo" type="text" placeholder="東京"></div>
+            <div class="field date-range-field">
+              <label for="flightDateRange">日期</label>
+              <div class="date-range-box">
+                <input id="flightDateRange" type="text">
+              </div>
+              <input type="hidden" id="flightDepart">
+              <input type="hidden" id="flightReturn">
+            </div>
+            <div class="field"><label for="flightPax">人數</label><input id="flightPax" type="number" min="1" value="1"></div>
+            <button class="search-submit" type="submit">搜尋</button>
+          </div>
+          <div class="multi-city-fields" id="flightMultiFields" hidden>
+            <div class="multi-city-legs" id="multiCityLegs">
+              <div class="multi-city-leg" data-leg>
+                <span class="multi-city-leg-badge">1</span>
+                <div class="field"><label>出發地</label><input class="mc-from" type="text" placeholder="台北"></div>
+                <button type="button" class="field-swap" data-mc-swap aria-label="交換出發地與目的地">⇄</button>
+                <div class="field"><label>目的地</label><input class="mc-to" type="text" placeholder="東京"></div>
+                <div class="field"><label>日期</label><input class="mc-date" type="date"></div>
+                <button type="button" class="mc-remove" hidden aria-label="移除這段航班">✕</button>
+              </div>
+              <div class="multi-city-leg" data-leg>
+                <span class="multi-city-leg-badge">2</span>
+                <div class="field"><label>出發地</label><input class="mc-from" type="text" placeholder="東京"></div>
+                <button type="button" class="field-swap" data-mc-swap aria-label="交換出發地與目的地">⇄</button>
+                <div class="field"><label>目的地</label><input class="mc-to" type="text" placeholder="大阪"></div>
+                <div class="field"><label>日期</label><input class="mc-date" type="date"></div>
+                <button type="button" class="mc-remove" hidden aria-label="移除這段航班">✕</button>
+              </div>
+            </div>
+            <button type="button" class="mc-add-leg" id="mcAddLeg">＋ 添加航班</button>
+            <div class="search-fields-row">
+              <div class="field"><label for="flightPaxMc">人數</label><input id="flightPaxMc" type="number" min="1" value="1"></div>
+              <button class="search-submit" type="button" id="mcSubmit">搜尋</button>
+            </div>
+          </div>
+        </div>
+        <div class="search-fields-group" data-tab-fields="train" hidden>
+          <div class="search-options-row">
+            <label class="option-radio"><input type="radio" name="trainMode" value="oneway" checked>單程</label>
+            <label class="option-radio"><input type="radio" name="trainMode" value="roundtrip">來回</label>
+          </div>
+          <div class="search-fields-row">
+            <div class="field"><label for="trainFrom">出發站</label><input id="trainFrom" type="text" placeholder="台北"></div>
+            <button type="button" class="field-swap" data-swap-a="trainFrom" data-swap-b="trainTo" aria-label="交換出發站與到達站">⇄</button>
+            <div class="field"><label for="trainTo">到達站</label><input id="trainTo" type="text" placeholder="高雄"></div>
+            <div class="field date-range-field">
+              <label for="trainDateRange">出發・回程</label>
+              <div class="date-range-box">
+                <input id="trainDateRange" type="text">
+              </div>
+              <input type="hidden" id="trainDate">
+              <input type="hidden" id="trainReturn">
+            </div>
+            <div class="field"><label for="trainPax">人數</label><input id="trainPax" type="number" min="1" value="1"></div>
+            <button class="search-submit" type="submit">搜尋</button>
+          </div>
+        </div>
+      </form>
+      <p class="search-note" id="searchNote"></p>
     </section>
     {% if is_member and line_status and not line_status.line_friend and line_add_friend_url %}
     <section class="line-friend-banner" aria-label="LINE 行程通知">
@@ -528,5 +685,8 @@
       document.getElementById('weatherModal').classList.remove('open');
     }
   </script>
+{% if is_member %}{% include 'member/_notification_drawer.html' %}<script src="{{ url_for('static', filename='js/member_notifications.js') }}" defer></script>{% endif %}
+{% if is_member %}<script src="{{ url_for('static', filename='js/member-nav.js') }}" defer></script>{% endif %}
+<script src="{{ url_for('static', filename='js/booking-tools.js') }}" defer></script>
 </body>
 </html>

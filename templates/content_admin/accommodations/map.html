@@ -1,0 +1,79 @@
+{% extends "content_admin/base.html" %}
+{% set active_menu = "accommodations" %}
+
+{% block title %}住宿地圖檢視｜Travel Together{% endblock %}
+{% block page_title %}住宿地圖檢視{% endblock %}
+{% block page_subtitle %}地圖上顯示 {{ accommodations|length }} 間已啟用且有座標的住宿{% if missing_count %}，另有 {{ missing_count }} 間啟用中住宿尚未設定座標，不會顯示在地圖上{% endif %}{% endblock %}
+
+{% block content %}
+
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+      integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="" />
+
+<div class="admin-section">
+    <a href="{{ url_for('accommodations.list_accommodations') }}" class="small-button">← 返回住宿列表</a>
+    <div id="accommodation-map" style="height: 620px; margin-top: 15px; border-radius: 12px; overflow: hidden;"></div>
+    {% if not accommodations %}
+    <p style="margin-top: 15px; color: #777;">目前沒有已啟用且已設定座標的住宿，地圖上不會顯示任何標記。座標會在用 Google 地圖匯入住宿時自動帶入，手動新增的住宿目前還無法補上經緯度。</p>
+    {% endif %}
+</div>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+        integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+<script>
+    var accommodations = {{ accommodations | tojson }};
+    var defaultCenter = [23.6978, 120.9605]; // 台灣地理中心，沒有任何住宿資料時的預設地圖中心點
+
+    var map = L.map('accommodation-map').setView(defaultCenter, 7);
+
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+        maxZoom: 19
+    }).addTo(map);
+
+    var bounds = [];
+
+    accommodations.forEach(function (accommodation) {
+        var marker = L.marker([accommodation.latitude, accommodation.longitude]).addTo(map);
+
+        var popup = document.createElement('div');
+
+        var title = document.createElement('strong');
+        title.textContent = accommodation.name;
+        popup.appendChild(title);
+        popup.appendChild(document.createElement('br'));
+
+        var meta = document.createElement('span');
+        meta.textContent = [accommodation.country_name, accommodation.city_name, accommodation.category_name || accommodation.accommodation_type]
+            .filter(Boolean).join(' · ');
+        popup.appendChild(meta);
+
+        if (accommodation.address) {
+            popup.appendChild(document.createElement('br'));
+            var address = document.createElement('span');
+            address.textContent = accommodation.address;
+            popup.appendChild(address);
+        }
+
+        popup.appendChild(document.createElement('br'));
+        var price = document.createElement('span');
+        price.textContent = accommodation.price_per_night ? ('每晚 NT$ ' + accommodation.price_per_night) : '價格未提供';
+        popup.appendChild(price);
+
+        popup.appendChild(document.createElement('br'));
+        var editLink = document.createElement('a');
+        editLink.href = accommodation.edit_url;
+        editLink.textContent = '編輯這間住宿';
+        popup.appendChild(editLink);
+
+        marker.bindPopup(popup);
+        bounds.push([accommodation.latitude, accommodation.longitude]);
+    });
+
+    if (bounds.length > 0) {
+        map.fitBounds(bounds, { padding: [30, 30] });
+    }
+</script>
+
+{% endblock %}
+

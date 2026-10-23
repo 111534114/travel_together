@@ -1,0 +1,53 @@
+{% extends 'member/base.html' %}{% block title %}新手開團引導｜走吧揪團{% endblock %}{% block content %}
+<div class="trip-form-page">
+    <div class="page-heading trip-form-heading">
+        <a href="{{ url_for('friend_groups.index') }}">← 返回交友揪團</a>
+    </div>
+    <div class="panel">
+        <h1>新手開團引導</h1>
+        <p class="muted">預計閱讀時間約 3 分鐘。完成並勾選以下三個項目後，就能解鎖「發起揪團」並獲得「新手開團者」徽章。</p>
+    </div>
+
+    <form method="post" action="{{ url_for('friend_groups.onboarding') }}">
+        <div class="panel">
+            <h2>📋 一、揪團規範</h2>
+            <p class="muted">你即將成為一個揪團的發起人，對參加的旅伴負有基本的誠信責任，請遵守以下規範：</p>
+            <ul>
+                <li>如實填寫揪團名稱、時間、地點、人數上限等資訊，不要發布與實際行程不符的內容。</li>
+                <li>不得利用交友揪團功能從事商業推銷、販售商品、拉人加入其他群組或任何形式的詐騙。</li>
+                <li>尊重每一位旅伴的意願與隱私，不得強迫他人參加、消費，或未經同意公開他人的個人資料。</li>
+                <li>違規或造成其他會員不適的言行，經查證後可能導致揪團被下架或帳號停權。</li>
+            </ul>
+            <label class="issue-option" style="margin-top: 10px;"><span>我已閱讀並同意遵守以上揪團規範</span><input type="checkbox" name="ack_rules" required></label>
+        </div>
+
+        <div class="panel">
+            <h2>⚖️ 二、法律免責聲明</h2>
+            <p class="muted">在你發起或參加任何一場會員揪團之前，請先了解平台在其中扮演的角色：</p>
+            <ul>
+                <li>Travel Together 僅提供會員之間的媒合功能，並非活動的主辦、承辦或保險單位。</li>
+                <li>揪團的行程安排、人身安全、財物損失、行程變動等風險，由發起人與參加者自行評估並承擔。</li>
+                <li>若對方涉及詐騙、騷擾或其他違法行為，請盡速保留對話紀錄等相關證據，並通知官方活動的工作人員或平台管理員協助處理。</li>
+            </ul>
+            <label class="issue-option" style="margin-top: 10px;"><span>我已閱讀並了解以上免責聲明</span><input type="checkbox" name="ack_disclaimer" required></label>
+        </div>
+
+        <div class="panel">
+            <h2>🛟 三、安全守則與緊急應變</h2>
+            <p class="muted">和陌生旅伴見面前，這些習慣能降低大部分的風險：</p>
+            <ul>
+                <li>初次見面建議約在人潮多的公開場所集合，避免單獨前往偏僻或密閉空間。</li>
+                <li>出發前把揪團行程、集合地點、同行者資訊告知家人或朋友，並保持聯絡暢通。</li>
+                <li>妥善保管身分證件、金融卡、密碼等個人資料，不隨意提供給剛認識的旅伴。</li>
+                <li>如遇緊急狀況，請立即撥打 110（警察）或 119（消防／救護），安全永遠優先於行程。</li>
+            </ul>
+            <label class="issue-option" style="margin-top: 10px;"><span>我已閱讀並了解以上安全守則</span><input type="checkbox" name="ack_safety" required></label>
+        </div>
+
+        <div class="panel">
+            <button class="member-btn primary" type="submit">完成引導，解鎖發起揪團</button>
+        </div>
+    </form>
+</div>
+{% endblock %}
+

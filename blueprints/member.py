@@ -9,7 +9,7 @@ from flask import Blueprint, current_app, flash, jsonify, redirect, render_templ
 from werkzeug.security import check_password_hash, generate_password_hash
 
 from auth import login_required
-from attraction_rankings import count_attraction_rankings, fetch_attraction_rankings
+from attraction_rankings import TAIWAN_COUNTIES, count_attraction_rankings, fetch_attraction_rankings
 from db import get_db_connection
 from utils import delete_uploaded_image, format_hm, get_cities, get_countries, save_uploaded_attachment, save_uploaded_image
 from content_moderation import is_image_explicit
@@ -667,11 +667,65 @@ def toggle_trip_favorite(trip_id):
     return redirect(next_url)
 
 
+@member_bp.route("/notifications/unread")
+@login_required("member")
+def unread_notifications():
+    if "notification_login_id" not in session:
+        session["notification_login_id"] = secrets.token_hex(8)
+    connection = get_db_connection()
+    if connection is None:
+        return jsonify({"error": "目前無法讀取通知。"}), 503
+    cursor = connection.cursor(dictionary=True)
+    try:
+        cursor.execute(
+            "SELECT COUNT(*) AS total FROM notifications WHERE user_id=%s AND is_read=FALSE",
+            (session["user_id"],),
+        )
+        total = cursor.fetchone()["total"]
+        cursor.execute("""
+            SELECT notification_id, title, message, target_url, created_at
+            FROM notifications WHERE user_id=%s AND is_read=FALSE
+            ORDER BY created_at DESC, notification_id DESC LIMIT 20
+        """, (session["user_id"],))
+        notifications = cursor.fetchall()
+        for notification in notifications:
+            notification["created_at"] = notification["created_at"].strftime("%Y/%m/%d %H:%M")
+        return jsonify({"total": total, "notifications": notifications,
+                        "login_id": session["notification_login_id"]})
+    finally:
+        cursor.close()
+        connection.close()
+
+
+@member_bp.route("/notifications/read-all", methods=["POST"])
+@login_required("member")
+def mark_all_notifications_read():
+    connection = get_db_connection()
+    if connection is None:
+        return jsonify({"error": "目前無法更新通知。"}), 503
+    cursor = connection.cursor()
+    try:
+        cursor.execute("""
+            UPDATE notifications SET is_read=TRUE, read_at=NOW()
+            WHERE user_id=%s AND is_read=FALSE
+        """, (session["user_id"],))
+        connection.commit()
+        return jsonify({"ok": True})
+    except Exception:
+        connection.rollback()
+        return jsonify({"error": "更新通知失敗。"}), 500
+    finally:
+        cursor.close()
+        connection.close()
+
+
 @member_bp.route("/notifications/<int:notification_id>/read", methods=["POST"])
 @login_required("member")
 def mark_notification_read(notification_id):
     connection = _connection_or_home()
     if connection is None:
+        if request.accept_mimetypes.best == "application/json":
+            return jsonify({"error": "目前無法更新通知。"}), 503
         return redirect(url_for("member.dashboard"))
     cursor = connection.cursor()
     try:
@@ -684,11 +738,15 @@ def mark_notification_read(notification_id):
     except Exception as error:
         connection.rollback()
         print("更新通知狀態失敗：", error)
+        if request.accept_mimetypes.best == "application/json":
+            return jsonify({"error": "更新通知失敗。"}), 500
         flash("通知狀態更新失敗。", "error")
     finally:
         cursor.close()
         connection.close()
-    return redirect(url_for("member.dashboard") + "#member-notifications")
+    if request.accept_mimetypes.best == "application/json":
+        return jsonify({"ok": True})
+    return redirect(url_for("member.dashboard"))
 
 
 def _addable_trips(cursor, user_id):
@@ -717,7 +775,8 @@ def browse_attractions():
     if connection is None:
         return render_template("member/attractions.html", attractions=[], countries=[], cities=[],
                                 keyword=keyword, country_id=country_id, city_id=city_id,
-                                favorites_only=favorites_only, ranking_preview=[], addable_trips=[])
+                                favorites_only=favorites_only, ranking_preview=[], addable_trips=[],
+                                taiwan_counties=TAIWAN_COUNTIES)
     cursor = connection.cursor(dictionary=True)
     try:
         conditions = ["a.status = 'active'", "a.deleted_at IS NULL"]
@@ -761,7 +820,8 @@ def browse_attractions():
 
     return render_template("member/attractions.html", attractions=attractions, countries=countries, cities=cities,
                             keyword=keyword, country_id=country_id, city_id=city_id, favorites_only=favorites_only,
-                            ranking_preview=ranking_preview, addable_trips=addable_trips)
+                            ranking_preview=ranking_preview, addable_trips=addable_trips,
+                            taiwan_counties=TAIWAN_COUNTIES)
 
 
 @member_bp.route("/attractions/rankings")
@@ -809,6 +869,12 @@ def attraction_rankings_data():
     city_id = request.args.get("city_id", "").strip()
     country_id = country_id if country_id.isdecimal() and int(country_id) > 0 else ""
     city_id = city_id if city_id.isdecimal() and int(city_id) > 0 else ""
+    top_mode = request.args.get("view") == "top"
+    metric = request.args.get("metric", "itineraries").strip()
+    county = request.args.get("county", "").strip().replace("臺", "台")
+    if top_mode and (metric not in ("itineraries", "favorites") or
+                     (county and county not in TAIWAN_COUNTIES)):
+        return jsonify({"error": "無效的排行榜篩選"}), 400
     try:
         requested_page = max(1, int(request.args.get("page", "1")))
     except ValueError:
@@ -819,6 +885,18 @@ def attraction_rankings_data():
         return jsonify({"error": "排行榜暫時無法載入，請稍後再試。"}), 503
     cursor = connection.cursor(dictionary=True)
     try:
+        if top_mode:
+            rankings = fetch_attraction_rankings(
+                cursor, country_id=None if county else country_id or None,
+                county_name=county or None,
+                favorites_only=metric == "favorites",
+                positive_only=metric == "itineraries", sort_by=metric, limit=5)
+            return jsonify({"rankings": [{
+                "rank": index, "name": row["name"], "country": row["country"],
+                "city": row["city"], "itinerary_count": row["itinerary_count"],
+                "favorite_count": row["favorite_count"],
+                "detail_url": url_for("member.attraction_detail", attraction_id=row["attraction_id"]),
+            } for index, row in enumerate(rankings, start=1)]})
         filters = dict(country_id=country_id, city_id=city_id, keyword=keyword)
         total = count_attraction_rankings(cursor, **filters)
         page_count = max(1, (total + 9) // 10)
@@ -1647,9 +1725,15 @@ def add_proposal(trip_id):
                 except ValueError as error:
                     flash(str(error), "error")
                     return redirect(url_for("member.trip_detail", trip_id=trip_id) + "#proposals")
+            needs_review = proposal_type in ("attraction", "restaurant", "accommodation")
+            review_status = "pending" if needs_review else "not_required"
             cursor.execute("""INSERT INTO proposals (trip_id,proposer_id,proposal_type,title,location,description,estimated_cost,proposed_date,website_url,image_path,content_review_status)
-                              VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,'not_required')""", (trip_id, session["user_id"], proposal_type, title, request.form.get("location", "").strip() or None, request.form.get("description", "").strip() or None, request.form.get("estimated_cost") or 0, request.form.get("proposed_date") or None, website_url, image_path))
-            connection.commit(); flash("提案已送出，旅伴現在可以一起討論。", "success")
+                              VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)""", (trip_id, session["user_id"], proposal_type, title, request.form.get("location", "").strip() or None, request.form.get("description", "").strip() or None, request.form.get("estimated_cost") or 0, request.form.get("proposed_date") or None, website_url, image_path, review_status))
+            connection.commit()
+            if needs_review:
+                flash("提案已送出，旅伴可以先討論；新增景點、餐廳或住宿須經內容管理員審核後才會正式收錄。", "success")
+            else:
+                flash("提案已送出，旅伴現在可以一起討論。", "success")
     except Exception:
         connection.rollback(); flash("送出提案失敗。", "error")
     finally:

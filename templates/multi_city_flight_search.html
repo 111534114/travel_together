@@ -1,0 +1,135 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>多座城市機票搜尋結果｜走吧揪團</title>
+  <link rel="icon" type="image/png" href="{{ url_for('static', filename='images/logo.png') }}">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <style>
+    :root { --purple: #4B838B; --purple-light: #57A2AC; --purple-soft: #EDF6F7; --ink: #23373A; --muted: #708284; --line: #E1EBEC; --page: #EAF8F9; }
+    * { box-sizing: border-box; }
+    body { margin: 0; background: var(--page); color: var(--ink); font-family: "Noto Sans TC", "Segoe UI", sans-serif; }
+    a { color: inherit; text-decoration: none; }
+    button, input { font: inherit; }
+    .site-nav { position: sticky; top: 0; z-index: 10; display: flex; align-items: center; min-height: 72px; padding: 8px max(24px, calc((100vw - 1180px) / 2)); background: #fff; border-bottom: 1px solid #E2EDEF; box-shadow: 0 2px 10px rgba(45, 37, 68, .05); }
+    .brand { display: flex; align-items: center; width: 126px; height: 56px; }
+    .brand img { display: block; width: 100%; height: 100%; object-fit: contain; }
+    .nav-links { display: flex; align-items: center; gap: 8px; margin-left: auto; }
+    .nav-links a { padding: 10px 13px; border-radius: 6px; color: #426064; font-size: 15px; }
+    .nav-links a:hover { color: var(--purple); background: var(--purple-soft); }
+    .nav-links .nav-register { color: #fff; background: var(--purple); }
+    .nav-links .nav-register:hover { color: #fff; background: #37676D; }
+    main { width: min(1180px, calc(100% - 48px)); margin: 0 auto; padding: 32px 0 70px; }
+    .breadcrumb { margin: 0 0 18px; color: var(--muted); font-size: 14px; }
+    .breadcrumb a { color: var(--purple); font-weight: 600; }
+    .toast { position: fixed; z-index: 50; bottom: 30px; left: 50%; padding: 12px 22px; color: #fff; background: #293C3F; border-radius: 8px; box-shadow: 0 10px 25px rgba(0, 0, 0, .25); font-size: 14px; opacity: 0; transform: translate(-50%, 10px); transition: opacity 200ms ease, transform 200ms ease; pointer-events: none; }
+    .toast.show { opacity: 1; transform: translate(-50%, 0); }
+    .section-header { display: flex; align-items: end; justify-content: space-between; gap: 18px; margin-bottom: 18px; }
+    .section-header h2 { margin: 0; font-size: 26px; }
+    .section-header p { margin: 5px 0 0; color: var(--muted); font-size: 14px; }
+    .flight-leg { margin-bottom: 32px; }
+    .flight-leg:last-child { margin-bottom: 0; }
+    .flight-leg h3 { display: flex; align-items: center; gap: 10px; }
+    .flight-leg-badge { display: inline-flex; align-items: center; justify-content: center; width: 24px; height: 24px; color: #fff; background: var(--purple); border-radius: 50%; font-size: 13px; font-weight: 700; }
+    .flight-list { display: flex; flex-direction: column; gap: 14px; }
+    .flight-card { display: flex; flex-wrap: wrap; align-items: center; gap: 18px; padding: 18px 20px; background: #fff; border: 1px solid var(--line); border-radius: 10px; box-shadow: 0 8px 22px rgba(45, 37, 68, .06); transition: transform 160ms ease, box-shadow 160ms ease; }
+    .flight-card:hover { transform: translateY(-2px); box-shadow: 0 12px 28px rgba(45, 37, 68, .12); }
+    .flight-airline { display: flex; flex: 0 0 150px; flex-direction: column; gap: 4px; }
+    .flight-airline b { font-size: 15px; }
+    .flight-airline span { color: var(--muted); font-size: 12px; }
+    .flight-route { display: flex; flex: 1 1 300px; align-items: center; gap: 16px; }
+    .flight-time { display: flex; flex-direction: column; align-items: center; gap: 2px; min-width: 72px; }
+    .flight-time b { font-size: 20px; }
+    .flight-time span { color: var(--muted); font-size: 12px; }
+    .flight-path { display: flex; flex: 1; flex-direction: column; align-items: center; gap: 4px; color: var(--muted); font-size: 12px; }
+    .flight-path .line { position: relative; width: 100%; height: 1px; background: #D3E4E6; }
+    .flight-path .line::after { content: "✈"; position: absolute; top: 50%; left: 50%; color: var(--purple-light); font-size: 13px; transform: translate(-50%, -50%); background: #fff; padding: 0 4px; }
+    .flight-meta { display: flex; flex: 0 0 auto; flex-direction: column; gap: 4px; color: var(--muted); font-size: 12px; }
+    .flight-footer { display: flex; flex: 0 0 auto; align-items: center; gap: 14px; margin-left: auto; }
+    .price { color: var(--purple); font-size: 18px; font-weight: 800; text-align: right; }
+    .price small { display: block; color: var(--muted); font-size: 12px; font-weight: 500; }
+    .view-button { padding: 7px 12px; color: var(--purple); background: #fff; border: 1px solid #C6DCDF; border-radius: 6px; cursor: pointer; font-weight: 700; white-space: nowrap; }
+    .view-button:hover { color: #fff; background: var(--purple); border-color: var(--purple); }
+    .empty { padding: 36px; color: var(--muted); text-align: center; background: #fff; border: 1px dashed #C6DCDF; border-radius: 8px; }
+    @media (max-width: 850px) { .site-nav { align-items: flex-start; flex-direction: column; gap: 6px; padding: 8px 18px 12px; } .nav-links { width: 100%; margin-left: 0; overflow-x: auto; } main { width: min(100% - 28px, 680px); padding-top: 24px; } .flight-card { flex-direction: column; align-items: stretch; } .flight-footer { margin-left: 0; justify-content: space-between; } }
+    @media (max-width: 560px) { .brand { width: 108px; height: 48px; } .nav-links { gap: 2px; } .nav-links a { padding: 8px; font-size: 14px; white-space: nowrap; } .section-header { align-items: stretch; flex-direction: column; } .section-header h2 { font-size: 22px; } .flight-route { flex-direction: column; align-items: stretch; } .flight-path { display: none; } }
+  </style>
+</head>
+<body>
+  {% set is_member = session.get('user_id') and session.get('role') == 'member' %}
+  <header class="site-nav">
+    <a class="brand" href="{{ url_for('member.dashboard') if is_member else url_for('visitor') }}"><img src="{{ url_for('static', filename='images/logo.png') }}" alt="走吧揪團"></a>
+    <nav class="nav-links">
+      <a href="{{ url_for('member.dashboard') if is_member else url_for('visitor') }}#announcements">公告事項</a>
+      <a href="{{ url_for('member.dashboard') if is_member else url_for('visitor') }}#weather">目的地天氣</a>
+      <a href="{{ url_for('member.dashboard') if is_member else url_for('visitor') }}#trips">探索行程</a>
+      <a href="{{ url_for('member.dashboard') if is_member else url_for('visitor') }}#companions">尋找旅伴</a>
+      {% if is_member %}
+      <a href="{{ url_for('member.dashboard') }}">我的旅程</a>
+      <a href="{{ url_for('member.browse_attractions') }}">探索景點</a>
+      <a href="{{ url_for('member.profile') }}">個人資料</a>
+      <a class="nav-register" href="{{ url_for('logout') }}">登出</a>
+      {% else %}
+      <a href="/login">登入</a>
+      <a class="nav-register" href="/register">免費註冊</a>
+      {% endif %}
+    </nav>
+  </header>
+  <main>
+    <p class="breadcrumb"><a href="{{ url_for('member.dashboard') if is_member else url_for('visitor') }}">{{ '← 返回會員首頁' if is_member else '← 返回訪客首頁' }}</a></p>
+    <section id="multi-city-results">
+      <div class="section-header">
+        <div>
+          <h2>多座城市機票搜尋結果</h2>
+          <p>共 {{ legs|length }} 段航班 ・ {{ pax }} 人</p>
+        </div>
+      </div>
+      {% for leg in legs %}
+      <div class="flight-leg">
+        <h3><span class="flight-leg-badge">{{ leg.index }}</span>{{ leg.origin or '任何出發地' }} → {{ leg.destination or '任何目的地' }}{% if leg.date %}｜{{ leg.date }}{% endif %}</h3>
+        <div class="flight-list">
+          {% for flight in leg.flights %}
+            <article class="flight-card">
+{% set save_kind='flight' %}{% set save_id=flight.flight_id %}{% include 'partials/booking_favorite_button.html' %}
+              <div class="flight-airline"><b>{{ flight.airline_name }}</b><span>{{ flight.flight_number }}・{{ flight.cabin_class }}・{{ '直飛' if not flight.stops else ('轉機 ' ~ flight.stops ~ ' 次') }}</span></div>
+              <div class="flight-route">
+                <div class="flight-time"><b>{{ flight.departure_time|hm }}</b><span>{{ flight.origin_city }}</span></div>
+                <div class="flight-path"><div class="line"></div><span>{{ (flight.duration_minutes // 60) }} 小時 {{ (flight.duration_minutes % 60) }} 分</span></div>
+                <div class="flight-time"><b>{{ flight.arrival_time|hm }}</b><span>{{ flight.destination_city }}</span></div>
+              </div>
+              <div class="flight-meta"><span>{{ flight.origin_country }} → {{ flight.destination_country }}</span><span>剩餘 {{ flight.seats_available }} 席</span></div>
+              <div class="flight-footer">
+                <span class="price">NT$ {{ "{:,.0f}".format(flight.price * pax) }}<small>{{ pax }} 人・NT$ {{ "{:,.0f}".format(flight.price) }} /人</small></span>
+                <button class="view-button" type="button" onclick="showToast('機票線上訂購功能開發中，敬請期待！')">選擇航班</button>
+              </div>
+            </article>
+          {% else %}
+            <div class="empty">找不到符合「{{ leg.origin or '任意出發地' }} → {{ leg.destination or '任意目的地' }}」的航班，換個城市關鍵字試試，或<a href="{{ url_for('visitor') }}" style="color: var(--purple); font-weight: 700;">回首頁重新搜尋</a>。</div>
+          {% endfor %}
+        </div>
+      </div>
+      {% endfor %}
+    </section>
+  </main>
+  <script>
+    let toastTimer;
+    function showToast(message) {
+      let toast = document.getElementById('siteToast');
+      if (!toast) {
+        toast = document.createElement('div');
+        toast.id = 'siteToast';
+        toast.className = 'toast';
+        document.body.appendChild(toast);
+      }
+      toast.textContent = message;
+      requestAnimationFrame(() => toast.classList.add('show'));
+      clearTimeout(toastTimer);
+      toastTimer = setTimeout(() => toast.classList.remove('show'), 3000);
+    }
+  </script>
+</body>
+</html>
+

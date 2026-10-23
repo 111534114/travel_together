@@ -17,6 +17,26 @@ STATUS_LABELS = {  # 定義審核狀態對應的中文顯示名稱
     "not_required": "無需審核",
 }
 
+# 提案類型 -> 核准後要寫入的正式資料表、主鍵欄位名稱、以及編輯頁的 blueprint 端點名稱
+CATALOG_TABLES = {
+    "attraction": ("attractions", "attraction_id", "attractions.edit_attraction"),
+    "restaurant": ("restaurants", "restaurant_id", "restaurants.edit_restaurant"),
+    "accommodation": ("accommodations", "accommodation_id", "accommodations.edit_accommodation"),
+}
+
+PROPOSAL_TYPE_LABELS = {  # 定義提案類型對應的中文顯示名稱
+    "attraction": "景點", "restaurant": "餐廳", "accommodation": "住宿",
+    "activity": "活動", "transport": "交通", "date": "日期", "other": "其他",
+}
+
+
+def _linked_item_edit_url(proposal):  # 定義內部函式：如果這筆提案核准後已經建立正式資料，組出該筆資料的編輯連結
+    catalog = CATALOG_TABLES.get(proposal["proposal_type"])
+    if not catalog or not proposal["linked_item_id"]:  # 不是景點/餐廳/住宿類型，或還沒建立正式資料
+        return None
+    _, id_column, edit_endpoint = catalog
+    return url_for(edit_endpoint, **{id_column: proposal["linked_item_id"]})
+
 
 @proposals_bp.route("/")  # 設定提案列表頁路由
 @login_required("content_admin")  # 限制只有內容管理員登入後才能存取
@@ -87,6 +107,7 @@ def list_proposals():  # 定義提案列表頁函式
         proposals=proposals,  # 當頁提案清單
         status=status,  # 目前篩選的狀態
         status_labels=STATUS_LABELS,  # 狀態對應的中文名稱
+        type_labels=PROPOSAL_TYPE_LABELS,  # 提案類型對應的中文名稱
         page=page,  # 目前頁碼
         total_pages=total_pages,  # 總頁數
         total=total,  # 符合條件的總筆數
@@ -130,7 +151,10 @@ def view_proposal(proposal_id):  # 定義提案詳情頁函式
     return render_template(  # 渲染提案詳情頁面
         "content_admin/proposals/detail.html",
         proposal=proposal,  # 提案完整資料
-        status_labels=STATUS_LABELS  # 狀態對應的中文名稱
+        status_labels=STATUS_LABELS,  # 狀態對應的中文名稱
+        type_labels=PROPOSAL_TYPE_LABELS,  # 提案類型對應的中文名稱
+        needs_review=proposal["proposal_type"] in CATALOG_TABLES,  # 這個類型核准後是否會自動建立正式資料
+        linked_item_edit_url=_linked_item_edit_url(proposal),  # 如果已經建立正式資料，給編輯連結
     )
 
 
@@ -143,9 +167,77 @@ def approve_proposal(proposal_id):  # 定義核准提案函式
         flash("資料庫連線失敗", "error")  # 顯示錯誤提示
         return redirect(url_for("proposals.view_proposal", proposal_id=proposal_id))  # 導回提案詳情頁
 
-    cursor = connection.cursor()  # 建立一般游標
+    cursor = connection.cursor(dictionary=True)  # 建立字典格式游標(要讀取提案內容才能決定要不要建立正式資料)
 
     try:  # 嘗試更新資料
+        cursor.execute(  # 查詢提案內容，連同所屬行程的國家/城市(新資料的國家/城市就跟著這趟行程走)
+            """
+            SELECT p.proposal_id, p.proposal_type, p.title, p.location, p.description,
+                   p.estimated_cost, p.website_url, p.linked_item_id,
+                   t.country_id, t.city_id
+            FROM proposals p
+            JOIN trips t ON t.trip_id = p.trip_id
+            WHERE p.proposal_id = %s
+            """,
+            (proposal_id,)
+        )
+        proposal = cursor.fetchone()  # 取出提案資料
+
+        if proposal is None:  # 如果提案不存在(理論上不會發生，防呆用)
+            flash("找不到這筆提案", "error")  # 顯示錯誤提示
+            return redirect(url_for("proposals.list_proposals"))  # 導回提案列表頁
+
+        created_note = ""  # 建立正式資料後，要附加在成功訊息裡的補充說明
+
+        # 景點/餐廳/住宿類型的提案，核准時要順便在對應的正式資料表建一筆新資料(狀態設為待確認，
+        # 因為提案沒有分類等欄位，需要管理員再進去補齊才能正式啟用)；linked_item_id 有值代表之前已經建立過，
+        # 不要重複建立(例如退回後又重新核准的情況)
+        catalog = CATALOG_TABLES.get(proposal["proposal_type"])
+        if catalog and not proposal["linked_item_id"]:
+            table, id_column, edit_endpoint = catalog
+            name = proposal["title"]
+            address = proposal["location"]
+            description = proposal["description"]
+            website_url = proposal["website_url"]
+            country_id = proposal["country_id"]
+            city_id = proposal["city_id"]
+
+            if proposal["proposal_type"] == "attraction":
+                cursor.execute(
+                    """
+                    INSERT INTO attractions (name, country_id, city_id, address, ticket_price, description, website_url, status, created_by)
+                    VALUES (%s,%s,%s,%s,%s,%s,%s,'pending',%s)
+                    """,
+                    (name, country_id, city_id, address, proposal["estimated_cost"] or 0, description, website_url, session["user_id"])
+                )
+            elif proposal["proposal_type"] == "restaurant":
+                cursor.execute(
+                    """
+                    INSERT INTO restaurants (name, country_id, city_id, address, description, website_url, status, created_by)
+                    VALUES (%s,%s,%s,%s,%s,%s,'pending',%s)
+                    """,
+                    (name, country_id, city_id, address, description, website_url, session["user_id"])
+                )
+            else:  # accommodation
+                cursor.execute(
+                    """
+                    INSERT INTO accommodations (name, country_id, city_id, address, price_per_night, description, website_url, status, created_by)
+                    VALUES (%s,%s,%s,%s,%s,%s,%s,'pending',%s)
+                    """,
+                    (name, country_id, city_id, address, proposal["estimated_cost"] or 0, description, website_url, session["user_id"])
+                )
+
+            new_item_id = cursor.lastrowid  # 取得剛剛建立的新資料 ID
+            log_action(  # 把這次建立正式資料的動作也寫入操作紀錄
+                cursor, "create_from_proposal", proposal["proposal_type"], new_item_id,
+                f"由提案核准建立：{name}（提案 #{proposal_id}），狀態為待確認，請補齊分類等資訊"
+            )
+            cursor.execute(  # 把新建立的資料 ID 記回提案，避免之後重複核准時又建立第二筆
+                "UPDATE proposals SET linked_item_id = %s WHERE proposal_id = %s",
+                (new_item_id, proposal_id)
+            )
+            created_note = "，已自動建立一筆對應資料(狀態為待確認)，請記得補上分類、地址等資訊後再啟用"
+
         cursor.execute(  # 執行核准提案的 SQL：更新審核狀態、審核者、審核時間，並清空之前的退回原因
             """
             UPDATE proposals
@@ -156,8 +248,8 @@ def approve_proposal(proposal_id):  # 定義核准提案函式
             (session["user_id"], proposal_id)
         )
         log_action(cursor, "approve_proposal", "proposal", proposal_id, "核准提案")  # 寫入操作紀錄
-        connection.commit()  # 提交交易(提案狀態與操作紀錄一起寫入)
-        flash("提案已核准", "success")  # 顯示成功訊息
+        connection.commit()  # 提交交易(提案狀態、新建立的正式資料、操作紀錄一起寫入)
+        flash(f"提案已核准{created_note}", "success")  # 顯示成功訊息
     except Exception as error:  # 如果更新過程發生例外
         connection.rollback()  # 回復交易
         print("核准提案失敗：", error)  # 在伺服器端印出錯誤內容

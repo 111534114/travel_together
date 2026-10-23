@@ -12,7 +12,7 @@
     <div class="detail-grid">
         <div class="detail-item">
             <label>提案類型</label>
-            <p>{{ proposal.proposal_type }}</p>
+            <p>{{ type_labels.get(proposal.proposal_type, proposal.proposal_type) }}</p>
         </div>
         <div class="detail-item">
             <label>所屬行程</label>
@@ -46,6 +46,18 @@
         <div class="detail-item full-width">
             <label>審核意見</label>
             <p>{{ proposal.review_note }}</p>
+        </div>
+        {% endif %}
+        {% if linked_item_edit_url %}
+        <div class="detail-item full-width">
+            <label>對應的正式資料</label>
+            <p>核准時已自動建立一筆{{ type_labels.get(proposal.proposal_type, '') }}資料，狀態為「待確認」，記得補齊分類、地址等資訊後再啟用。
+                <a href="{{ linked_item_edit_url }}">前往編輯 →</a></p>
+        </div>
+        {% elif needs_review and proposal.content_review_status == 'pending' %}
+        <div class="detail-item full-width">
+            <label>提醒</label>
+            <p>這是新增{{ type_labels.get(proposal.proposal_type, '') }}的提案，核准後會自動建立一筆對應的正式資料（狀態為待確認），之後需要再補齊分類等欄位才能啟用。</p>
         </div>
         {% endif %}
     </div>

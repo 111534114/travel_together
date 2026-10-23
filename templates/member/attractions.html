@@ -28,7 +28,7 @@
         </label>
     </div>
     <div class="form-actions-member">
-        <label class="favorites-toggle"><input type="checkbox" name="favorites_only" value="1" {{ 'checked' if favorites_only else '' }}><span>♡ 只看我的收藏</span></label>
+        <label class="favorites-toggle"><input type="checkbox" name="favorites_only" value="1" {{ 'checked' if favorites_only else '' }} onchange="this.form.requestSubmit()"><span>♡ 只看我的收藏</span></label>
         <button class="member-btn primary" type="submit">篩選</button>
         <a class="member-btn ghost" href="{{ url_for('member.browse_attractions') }}">清除篩選</a>
     </div>
@@ -58,26 +58,31 @@
 
 <dialog id="attractionRankingDialog" class="attraction-ranking-dialog"
         data-ranking-endpoint="{{ url_for('member.attraction_rankings_data') }}"
-        data-keyword="{{ keyword }}" data-country-id="{{ country_id }}" data-city-id="{{ city_id }}"
         aria-labelledby="rankingDialogTitle">
     <div class="ranking-dialog-heading">
-        <div><p class="eyebrow">RANKING</p><h2 id="rankingDialogTitle">景點排行榜</h2><p>依加入行程次數排序；相同時參考收藏數。</p></div>
+        <div><p class="eyebrow">RANKING</p><h2 id="rankingDialogTitle">景點排行榜</h2></div>
         <button type="button" class="ranking-dialog-close" data-ranking-close aria-label="關閉排行榜">×</button>
     </div>
-    <p class="ranking-dialog-status" data-ranking-status role="status" aria-live="polite"></p>
     <div class="ranking-dialog-body">
-        <ol class="ranking-dialog-list" data-ranking-list></ol>
-        <section class="ranking-chart" aria-labelledby="rankingChartTitle" data-ranking-chart hidden>
-            <h3 id="rankingChartTitle">本頁前五名</h3>
-            <div class="attraction-chart-legend"><span><i class="attraction-chart-trip"></i>加入行程</span><span><i class="attraction-chart-favorite"></i>收藏</span></div>
-            <div class="attraction-chart" data-ranking-chart-list></div>
-            <p class="attraction-report-note">與系統管理員圖表使用相同的排序及統計方式。</p>
+        <section class="ranking-dialog-filters" aria-label="景點排行篩選">
+            <div class="attraction-filter-group" aria-label="選擇國家"><span>國家</span>
+                <button type="button" class="attraction-filter-button is-active" data-ranking-country="" aria-pressed="true">全部</button>
+                {% for country in countries %}<button type="button" class="attraction-filter-button" data-ranking-country="{{ country.country_id }}" data-taiwan="{{ 'true' if country.name in ['台灣', '臺灣', 'Taiwan'] else 'false' }}" aria-pressed="false">{{ country.name }}</button>{% endfor %}
+            </div>
+            <div class="attraction-filter-group" data-ranking-county-group aria-label="選擇臺灣縣市" hidden><span>臺灣縣市</span>
+                <button type="button" class="attraction-filter-button is-active" data-ranking-county="" aria-pressed="true">全部縣市</button>
+                {% for county in taiwan_counties %}<button type="button" class="attraction-filter-button" data-ranking-county="{{ county }}" aria-pressed="false">{{ county }}</button>{% endfor %}
+            </div>
+            <div class="attraction-filter-group" role="group" aria-label="景點排名方式"><span>排名依據</span>
+                <button type="button" class="attraction-metric-button is-active" data-ranking-metric="itineraries" aria-pressed="true"><i class="attraction-chart-trip" aria-hidden="true"></i>加入行程</button>
+                <button type="button" class="attraction-metric-button" data-ranking-metric="favorites" aria-pressed="false"><i class="attraction-chart-favorite" aria-hidden="true"></i>收藏</button>
+            </div>
         </section>
-    </div>
-    <div class="ranking-dialog-pagination" data-ranking-pagination hidden>
-        <button type="button" class="member-btn outline small" data-ranking-prev>上一頁</button>
-        <span data-ranking-page-label></span>
-        <button type="button" class="member-btn outline small" data-ranking-next>下一頁</button>
+        <section class="ranking-chart" aria-labelledby="rankingChartTitle">
+            <h3 id="rankingChartTitle" data-ranking-title>加入行程景點前五名</h3>
+            <p class="ranking-dialog-status" data-ranking-status role="status" aria-live="polite"></p>
+            <div class="attraction-chart" data-ranking-chart-list aria-live="polite"></div>
+        </section>
     </div>
 </dialog>
 
@@ -125,119 +130,61 @@
     window.addEventListener('DOMContentLoaded', filterCitiesByCountry);
 
     const rankingDialog = document.getElementById('attractionRankingDialog');
-    const rankingList = rankingDialog.querySelector('[data-ranking-list]');
-    const rankingChart = rankingDialog.querySelector('[data-ranking-chart]');
     const rankingChartList = rankingDialog.querySelector('[data-ranking-chart-list]');
     const rankingStatus = rankingDialog.querySelector('[data-ranking-status]');
-    const rankingPagination = rankingDialog.querySelector('[data-ranking-pagination]');
-    const rankingPageLabel = rankingDialog.querySelector('[data-ranking-page-label]');
-    const rankingPrevious = rankingDialog.querySelector('[data-ranking-prev]');
-    const rankingNext = rankingDialog.querySelector('[data-ranking-next]');
-    let rankingPage = 1;
-    let rankingPageCount = 1;
-    let rankingLoading = false;
-    let rankingRetryPage = 1;
+    const rankingTitle = rankingDialog.querySelector('[data-ranking-title]');
+    const countyGroup = rankingDialog.querySelector('[data-ranking-county-group]');
+    let rankingCountry = '', rankingCounty = '', rankingMetric = 'itineraries', rankingRequest = 0;
 
-    async function loadRankingPage(page) {
-        if (rankingLoading) return;
-        rankingRetryPage = page;
-        rankingLoading = true;
-        rankingPrevious.disabled = true;
-        rankingNext.disabled = true;
+    function selectRankingButton(buttons, selected) {
+        buttons.forEach(button => {
+            const active = button === selected;
+            button.classList.toggle('is-active', active);
+            button.setAttribute('aria-pressed', String(active));
+        });
+    }
+
+    async function loadRanking() {
+        const current = ++rankingRequest;
+        const metricLabel = rankingMetric === 'favorites' ? '收藏' : '加入行程';
+        rankingTitle.textContent = `${metricLabel}景點前五名`;
         rankingStatus.textContent = '排行榜載入中…';
-        rankingList.replaceChildren();
         rankingChartList.replaceChildren();
-        rankingChart.hidden = true;
-        rankingPagination.hidden = true;
-        const params = new URLSearchParams({ page: String(page) });
-        if (rankingDialog.dataset.keyword) params.set('keyword', rankingDialog.dataset.keyword);
-        if (rankingDialog.dataset.countryId) params.set('country_id', rankingDialog.dataset.countryId);
-        if (rankingDialog.dataset.cityId) params.set('city_id', rankingDialog.dataset.cityId);
+        const params = new URLSearchParams({view: 'top', metric: rankingMetric});
+        if (rankingCountry) params.set('country_id', rankingCountry);
+        if (rankingCounty) params.set('county', rankingCounty);
         try {
             const response = await fetch(`${rankingDialog.dataset.rankingEndpoint}?${params}`, { credentials: 'same-origin' });
             if (!response.ok) throw new Error('ranking request failed');
             const data = await response.json();
-            rankingPage = data.page;
-            rankingPageCount = data.page_count;
-            rankingStatus.textContent = data.total ? `共 ${data.total} 個景點` : '目前範圍內沒有符合條件的上架景點。';
-            data.rankings.forEach(function (item) {
-                const row = document.createElement('li');
-                const link = document.createElement('a');
-                const number = document.createElement('span');
-                const copy = document.createElement('span');
-                const name = document.createElement('strong');
-                const place = document.createElement('small');
-                const counts = document.createElement('span');
-                link.href = item.detail_url;
-                number.className = 'ranking-number';
-                number.textContent = item.rank;
-                copy.className = 'ranking-dialog-copy';
-                name.textContent = item.name;
-                place.textContent = `${item.country} · ${item.city}`;
-                counts.className = 'ranking-dialog-counts';
-                counts.textContent = `加入行程 ${item.itinerary_count} 次 · 收藏 ${item.favorite_count} 次`;
-                copy.append(name, place);
-                link.append(number, copy, counts);
-                row.append(link);
-                rankingList.append(row);
+            if (current !== rankingRequest) return;
+            const key = rankingMetric === 'favorites' ? 'favorite_count' : 'itinerary_count';
+            const kind = rankingMetric === 'favorites' ? 'attraction-chart-favorite' : 'attraction-chart-trip';
+            const scale = Math.max(1, ...data.rankings.map(item => Number(item[key]) || 0));
+            data.rankings.forEach(item => {
+                const row = document.createElement('div'); row.className = 'attraction-chart-row';
+                const label = document.createElement('div'); label.className = 'attraction-chart-name';
+                const link = document.createElement('a'); link.href = item.detail_url; link.textContent = item.name;
+                const place = document.createElement('span'); place.textContent = `${item.country} · ${item.city}`;
+                label.append(link, place);
+                const bars = document.createElement('div'); bars.className = 'attraction-chart-bars';
+                const measure = document.createElement('div'); measure.className = 'attraction-chart-measure';
+                const track = document.createElement('span'); track.className = 'attraction-chart-track';
+                const fill = document.createElement('span'); fill.className = `attraction-chart-fill ${kind}`;
+                fill.style.width = `${Number(item[key]) / scale * 100}%`;
+                const value = document.createElement('strong'); value.textContent = String(item[key]);
+                track.append(fill); measure.append(track, value); bars.append(measure);
+                row.append(label, bars); rankingChartList.append(row);
             });
-            const chartItems = data.rankings.slice(0, 5);
-            if (chartItems.length) {
-                const scale = Math.max(1, ...chartItems.flatMap(function (item) {
-                    return [Number(item.itinerary_count) || 0, Number(item.favorite_count) || 0];
-                }));
-                chartItems.forEach(function (item) {
-                    const row = document.createElement('div');
-                    const label = document.createElement('div');
-                    const name = document.createElement('strong');
-                    const city = document.createElement('span');
-                    const bars = document.createElement('div');
-                    row.className = 'attraction-chart-row';
-                    label.className = 'attraction-chart-name';
-                    name.textContent = item.name;
-                    city.textContent = item.city;
-                    label.append(name, city);
-                    bars.className = 'attraction-chart-bars';
-                    [['attraction-chart-trip', item.itinerary_count], ['attraction-chart-favorite', item.favorite_count]].forEach(function ([kind, rawCount]) {
-                        const count = Math.max(0, Number(rawCount) || 0);
-                        const measure = document.createElement('div');
-                        const track = document.createElement('span');
-                        const fill = document.createElement('span');
-                        const value = document.createElement('strong');
-                        measure.className = 'attraction-chart-measure';
-                        track.className = 'attraction-chart-track';
-                        fill.className = `attraction-chart-fill ${kind}`;
-                        fill.style.width = `${Math.min(100, count / scale * 100)}%`;
-                        value.textContent = count;
-                        track.append(fill);
-                        measure.append(track, value);
-                        bars.append(measure);
-                    });
-                    row.append(label, bars);
-                    rankingChartList.append(row);
-                });
-                rankingChart.hidden = false;
-            }
-            rankingPageLabel.textContent = `第 ${rankingPage}／${rankingPageCount} 頁`;
-            rankingPrevious.disabled = rankingPage <= 1;
-            rankingNext.disabled = rankingPage >= rankingPageCount;
-            rankingNext.textContent = '下一頁';
-            rankingPagination.hidden = !data.total;
+            rankingStatus.textContent = data.rankings.length ? '' : `目前沒有景點${metricLabel}紀錄。`;
         } catch (error) {
-            rankingStatus.textContent = '排行榜載入失敗，請稍後再試。';
-            rankingPagination.hidden = false;
-            rankingPageLabel.textContent = '';
-            rankingPrevious.disabled = true;
-            rankingNext.disabled = false;
-            rankingNext.textContent = '重試';
-        } finally {
-            rankingLoading = false;
+            if (current === rankingRequest) rankingStatus.textContent = '排行榜載入失敗，請稍後再試。';
         }
     }
 
     document.querySelector('[data-ranking-open]').addEventListener('click', function () {
         rankingDialog.showModal();
-        loadRankingPage(1);
+        loadRanking();
     });
     rankingDialog.querySelector('[data-ranking-close]').addEventListener('click', function () {
         rankingDialog.close();
@@ -245,9 +192,24 @@
     rankingDialog.addEventListener('click', function (event) {
         if (event.target === rankingDialog) rankingDialog.close();
     });
-    rankingPrevious.addEventListener('click', function () { loadRankingPage(rankingPage - 1); });
-    rankingNext.addEventListener('click', function () {
-        loadRankingPage(rankingNext.textContent === '重試' ? rankingRetryPage : rankingPage + 1);
-    });
+    rankingDialog.querySelectorAll('[data-ranking-country]').forEach(button => button.addEventListener('click', () => {
+        rankingCountry = button.dataset.rankingCountry;
+        rankingCounty = '';
+        selectRankingButton(rankingDialog.querySelectorAll('[data-ranking-country]'), button);
+        selectRankingButton(rankingDialog.querySelectorAll('[data-ranking-county]'), rankingDialog.querySelector('[data-ranking-county=""]'));
+        countyGroup.hidden = button.dataset.taiwan !== 'true';
+        loadRanking();
+    }));
+    rankingDialog.querySelectorAll('[data-ranking-county]').forEach(button => button.addEventListener('click', () => {
+        rankingCounty = button.dataset.rankingCounty;
+        selectRankingButton(rankingDialog.querySelectorAll('[data-ranking-county]'), button);
+        loadRanking();
+    }));
+    rankingDialog.querySelectorAll('[data-ranking-metric]').forEach(button => button.addEventListener('click', () => {
+        if (rankingMetric === button.dataset.rankingMetric) return;
+        rankingMetric = button.dataset.rankingMetric;
+        selectRankingButton(rankingDialog.querySelectorAll('[data-ranking-metric]'), button);
+        loadRanking();
+    }));
 </script>
 {% endblock %}

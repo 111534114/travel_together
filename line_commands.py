@@ -7,6 +7,7 @@ from mysql.connector import Error
 from config import PUBLIC_BASE_URL
 from db import get_db_connection
 from utils import format_hm
+import line_announcements
 import line_flex as flex
 import line_votes
 import weather
@@ -16,11 +17,13 @@ NEXT_TRIP = "下一趟旅程"
 TODO = "待辦事項"
 MY_TRIPS = "我的行程"
 HELP = "使用說明"
-COMMANDS = (NEXT_TRIP, TODO, MY_TRIPS, HELP)
+NEWS = "最新消息"
+COMMANDS = (NEWS, NEXT_TRIP, TODO, MY_TRIPS, HELP)  # 也是快速回覆按鈕的順序，最新消息放第一個
 # 聊天室下方的快速回覆按鈕：關鍵字 + 傳送位置（找附近景點，只有手機版 LINE 支援）
 QUICK_REPLIES = COMMANDS + ({"type": "location", "label": "找附近景點"},)
-ALIASES = {"說明": HELP, "help": HELP, "選單": HELP, "行程": MY_TRIPS, "待辦": TODO, "投票": TODO, "下一趟": NEXT_TRIP}
+ALIASES = {"說明": HELP, "help": HELP, "選單": HELP, "行程": MY_TRIPS, "待辦": TODO, "投票": TODO, "下一趟": NEXT_TRIP, "公告": NEWS, "消息": NEWS, "最新": NEWS}
 LIST_LIMIT = 5
+TYPHOON_NOTICE_DAYS = 3  # 出發日（或旅程中的今天）在幾天內，才在行程卡片上提醒目前的颱風警報
 WEEKDAYS = "一二三四五六日"
 
 
@@ -51,6 +54,7 @@ def help_text():
         f"・{NEXT_TRIP}：最近一趟旅程的日期和安排",
         f"・{TODO}：還沒投的票、還沒付的分帳",
         f"・{MY_TRIPS}：所有即將出發的行程",
+        f"・{NEWS}：網站最新公告",
         "・傳送「位置資訊」：找附近的景點，還能直接加入行程",
         "", "行程出發前一天，也會自動傳 LINE 提醒你。",
     ], "打開網站", "/member/")
@@ -125,6 +129,17 @@ def trip_card(cursor, trip, countdown, show_date, show_label, note=None):  # 行
     if forecast:
         body.append(flex.info_row("天氣", weather.describe_forecast(forecast)))
         body += [flex.text(tip, size="xs", color="#8A6200") for tip in weather.travel_tips(forecast)]
+    warnings = weather.get_city_warnings(trip["city"], show_date)  # 颱風警報、豪雨特報、強風特報等（不會多用推播額度）
+    if warnings:
+        body += [flex.text(weather.describe_warning(hazard), size="sm", color="#C0392B", weight="bold") for hazard in warnings]
+        if weather.has_typhoon(warnings):
+            body.append(flex.text("🌀 颱風警報期間，請留意交通與行程是否需要調整", size="xs", color="#C0392B"))
+    if (not weather.has_typhoon(warnings) and (show_date - date.today()).days <= TYPHOON_NOTICE_DAYS
+            and weather.is_taiwan_city(trip["city"])):
+        typhoon = weather.get_typhoon_notice()  # 海上颱風警報不會出現在縣市警特報裡，另外提醒（已有陸上颱風警報就不重複）
+        if typhoon:
+            body.append(flex.text(f"🌀 {typhoon['headline']}：{typhoon['name']}", size="sm", color="#C0392B", weight="bold"))
+            body.append(flex.text("請留意颱風動態，交通與行程可能需要調整", size="xs", color="#C0392B"))
     body += [
         flex.separator(),
         flex.text(show_label, size="sm", weight="bold", color=flex.PRIMARY_DEEP, margin="lg"),
@@ -276,6 +291,8 @@ def reply_for(line_sub, text):  # 回傳文字（str）或卡片訊息（dict）
         return unknown_text()
     if command == HELP:
         return help_text()
+    if command == NEWS:  # 公告是公開資訊，不需要綁定帳號
+        return line_announcements.latest_reply()
     connection = get_db_connection()
     if connection is None:
         return "系統暫時無法查詢，請稍後再試。"

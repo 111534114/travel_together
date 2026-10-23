@@ -24,10 +24,42 @@ TRAVELER_TYPE_NAMES = {
 }
 
 
+def _format_time(value):
+    if value is None:
+        return None
+    total_seconds = int(value.total_seconds())
+    hours, remainder = divmod(total_seconds, 3600)
+    minutes, seconds = divmod(remainder, 60)
+    return f"{hours:02d}:{minutes:02d}:{seconds:02d}"
+
+
 def _feature_enabled(cursor):
     cursor.execute("SELECT setting_value FROM app_settings WHERE setting_key='friend_group_enabled'")
     row = cursor.fetchone()
     return bool(row) and row["setting_value"] == "1"
+
+
+def _parsed_event_items(form):
+    starts = form.getlist("item_start_time[]")
+    ends = form.getlist("item_end_time[]")
+    titles = form.getlist("item_title[]")
+    locations = form.getlist("item_location[]")
+    items = []
+    for start_time, end_time, title, location in zip(starts, ends, titles, locations):
+        title = title.strip()
+        if not title or not start_time:
+            continue
+        items.append((start_time, end_time or None, title, location.strip() or None))
+    return items
+
+
+def _save_event_items(cursor, event_id, items):
+    cursor.execute("DELETE FROM friend_group_event_items WHERE event_id=%s", (event_id,))
+    for sort_order, (start_time, end_time, title, location) in enumerate(items):
+        cursor.execute("""
+            INSERT INTO friend_group_event_items (event_id, start_time, end_time, title, location, sort_order)
+            VALUES (%s,%s,%s,%s,%s,%s)
+        """, (event_id, start_time, end_time, title, location, sort_order))
 
 
 @friend_groups_admin_bp.route("/applications")
@@ -259,6 +291,7 @@ def new_event():
                 VALUES (%s,%s,%s,%s,%s,%s,%s,%s)
             """, (title, description, location, event_date, start_time, end_time, capacity, session["user_id"]))
             event_id = cursor.lastrowid
+            _save_event_items(cursor, event_id, _parsed_event_items(request.form))
             log_action(cursor, "create_friend_group_event", "friend_group_event", event_id, f"建立官方活動：{title}")
             connection.commit()
             flash("官方活動已建立。", "success")
@@ -271,7 +304,7 @@ def new_event():
             connection.close()
         return redirect(url_for("friend_groups_admin.list_events"))
 
-    return render_template("content_admin/friend_groups/event_form.html", event=None)
+    return render_template("content_admin/friend_groups/event_form.html", event=None, event_items=[])
 
 
 @friend_groups_admin_bp.route("/events/<int:event_id>/edit", methods=["GET", "POST"])
@@ -288,6 +321,13 @@ def edit_event(event_id):
         if not event:
             flash("找不到這場活動。", "error")
             return redirect(url_for("friend_groups_admin.list_events"))
+        event["start_time"] = _format_time(event["start_time"])
+        event["end_time"] = _format_time(event["end_time"])
+        cursor.execute("SELECT * FROM friend_group_event_items WHERE event_id=%s ORDER BY sort_order", (event_id,))
+        event_items = cursor.fetchall()
+        for item in event_items:
+            item["start_time"] = _format_time(item["start_time"])
+            item["end_time"] = _format_time(item["end_time"])
 
         if request.method == "POST":
             title = request.form.get("title", "").strip()
@@ -307,6 +347,7 @@ def edit_event(event_id):
                 SET title=%s, description=%s, location=%s, event_date=%s, start_time=%s, end_time=%s, capacity=%s
                 WHERE event_id=%s
             """, (title, description, location, event_date, start_time, end_time, capacity, event_id))
+            _save_event_items(cursor, event_id, _parsed_event_items(request.form))
             log_action(cursor, "update_friend_group_event", "friend_group_event", event_id, f"編輯官方活動：{title}")
             connection.commit()
             flash("活動內容已更新。", "success")
@@ -314,7 +355,7 @@ def edit_event(event_id):
     finally:
         cursor.close()
         connection.close()
-    return render_template("content_admin/friend_groups/event_form.html", event=event)
+    return render_template("content_admin/friend_groups/event_form.html", event=event, event_items=event_items)
 
 
 @friend_groups_admin_bp.route("/events/<int:event_id>/cancel", methods=["POST"])
@@ -381,9 +422,21 @@ def check_in_participant(event_id, user_id):
     cursor = connection.cursor()
     try:
         cursor.execute(
+            "SELECT 1 FROM friend_group_event_participants WHERE user_id=%s AND status='attended' LIMIT 1",
+            (user_id,)
+        )
+        already_unlocked = cursor.fetchone() is not None
+
+        cursor.execute(
             "UPDATE friend_group_event_participants SET status='attended', checked_in_at=NOW() WHERE event_id=%s AND user_id=%s",
             (event_id, user_id)
         )
+        if not already_unlocked:
+            cursor.execute(
+                "INSERT INTO notifications (user_id, notification_type, title, message, target_url) "
+                "VALUES (%s,'system','🎉 解鎖交友揪團功能','你已出席官方活動，現在可以瀏覽並申請加入其他會員的揪團；若要發起自己的揪團，請先完成新手開團引導。',%s)",
+                (user_id, url_for("friend_groups.index"))
+            )
         log_action(cursor, "check_in_friend_group_participant", "friend_group_event", event_id, f"標記報到：使用者 {user_id}")
         connection.commit()
         flash("已標記報到。", "success")

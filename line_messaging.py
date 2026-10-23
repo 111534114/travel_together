@@ -109,6 +109,38 @@ def _line_targets(user_ids):  # 依網站 user_id 查出已加好友的 LINE use
         connection.close()
 
 
+
+def monthly_quota():  # 查詢本月推播額度，回傳 {"limit": 上限或 None(無上限), "used": 已用則數}；查詢失敗回傳 None
+    if not is_configured():
+        return None
+    headers = {"Authorization": "Bearer " + LINE_BOT_ACCESS_TOKEN}
+    try:
+        quota = requests.get(API_BASE + "/message/quota", headers=headers, timeout=10)
+        usage = requests.get(API_BASE + "/message/quota/consumption", headers=headers, timeout=10)
+        quota.raise_for_status()
+        usage.raise_for_status()
+        quota_data, used = quota.json(), usage.json().get("totalUsage", 0)
+    except (requests.RequestException, ValueError) as error:
+        print("查詢 LINE 推播額度失敗：", error)
+        return None
+    return {"limit": quota_data.get("value") if quota_data.get("type") == "limited" else None, "used": used}
+
+
+def linked_friend_user_ids():  # 所有綁定網站帳號、且加了官方帳號好友的會員（公告推播對象）
+    connection = get_db_connection()
+    if connection is None:
+        return []
+    cursor = connection.cursor()
+    try:
+        cursor.execute("SELECT user_id FROM users WHERE line_sub IS NOT NULL AND line_friend = 1 AND status = 'active'")
+        return [row[0] for row in cursor.fetchall()]
+    except Error as error:
+        print("查詢 LINE 推播對象失敗：", error)
+        return []
+    finally:
+        cursor.close()
+        connection.close()
+
 def push_to_users(user_ids, message):  # 推播文字（str）或卡片（dict）給多位網站會員，回傳實際送出的人數
     """沒有綁定 LINE 或沒加官方帳號好友的會員會自動略過。會計入每月訊息額度。"""
     messages = [_to_message(message)]

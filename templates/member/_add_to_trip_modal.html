@@ -23,7 +23,7 @@
                 <label class="add-trip-full">時間模式<select name="time_mode" id="addToTripTimeMode" class="time-mode-select"><option value="range">指定時段</option><option value="all_day">整天</option><option value="start_only">只填開始</option><option value="end_only">只填結束</option></select></label>
                 <label class="time-field-start">開始時間<input type="time" name="start_time"></label>
                 <label class="time-field-end">結束時間<input type="time" name="end_time"></label>
-                <label>交通方式<input name="transport_method" id="addToTripTransportMethod" list="transport-method-list" autocomplete="off" placeholder="選填，例如：捷運／地鐵"></label>
+                <label>交通方式<select name="transport_method" id="addToTripTransportMethod"><option value="">不指定</option>{% for method in ['步行', '捷運／地鐵', '公車', '計程車', '高鐵', '火車', '客運', '開車', '租車', '機車', '腳踏車', '飛機', '船'] %}<option value="{{ method }}">{{ method }}</option>{% endfor %}</select></label>
                 <label>交通／移動時間(分鐘)<input type="number" min="0" name="transport_minutes" id="addToTripTransportMinutes"></label>
                 <p class="form-hint add-trip-full" id="addToTripEstimateHint" hidden>已依選擇的交通方式，自動估算跟上一個行程點的通勤時間，你可以再自行調整。</p>
                 <label class="add-trip-full">備註<input name="notes" maxlength="500" placeholder="選填，例如：想看夕陽"></label>

@@ -38,7 +38,7 @@
     {% if trips %}
     <div class="trip-grid" id="memberTripGrid">
         {% for trip in trips %}
-        <div class="trip-card-member" data-member-search="{{ trip.trip_name }} {{ trip.country or '' }} {{ trip.city or '' }}" data-phase="{{ trip.phase }}">
+        <div class="trip-card-member" data-member-search="{{ trip.trip_name }} {{ trip.country or '' }} {{ trip.city or '' }}" data-phase="{{ trip.phase }}" style="cursor:pointer;" onclick="if (!event.target.closest('form, button, a')) { window.location.href='{{ url_for('member.trip_detail', trip_id=trip.trip_id) }}'; }">
             <div class="card-art" {% if trip.cover_image_path %}style="background-image:url('{{ url_for('static', filename=trip.cover_image_path) }}'); background-size:cover; background-position:center;"{% endif %}>
                 {% if not trip.cover_image_path %}✦{% endif %}
                 <span>{{ '公開' if trip.visibility == 'public' else '私人旅程' }}</span>

@@ -32,7 +32,13 @@
     </div>
 
     <div class="page-tab-panel" id="tab-friend-groups">
-    {% if not friend_group_on %}
+    {% if not line_bound %}
+    <div class="panel">
+        <h2>請先綁定 LINE</h2>
+        <p class="form-hint">為了讓揪團成員都能找得到彼此、保障參加者安全，使用交友揪團前需要先綁定 LINE 帳號。綁定後也能收到申請結果與活動提醒。</p>
+        <a class="member-btn primary" href="{{ url_for('line_bind', next=url_for('friend_groups.index')) }}">綁定 LINE</a>
+    </div>
+    {% elif not friend_group_on %}
     <div class="panel">
         <h2>交友揪團</h2>
         <p class="form-hint">這個功能目前尚未開放，請稍後再回來看看。</p>

@@ -78,10 +78,20 @@ def _block_when_feature_disabled():
         if not _feature_enabled(cursor):
             flash("交友揪團功能目前尚未開放。", "error")
             return redirect(url_for("member.dashboard"))
+        # 交友揪團要能追溯到真人，所以沒綁定 LINE 的會員一律擋下，導回首頁顯示綁定提示。
+        if not _has_line_bound(cursor, session["user_id"]):
+            flash("請先綁定 LINE 帳號，才能使用交友揪團功能。", "error")
+            return redirect(url_for("friend_groups.index"))
     finally:
         cursor.close()
         connection.close()
     return None
+
+
+def _has_line_bound(cursor, user_id):
+    cursor.execute("SELECT line_sub FROM users WHERE user_id=%s", (user_id,))
+    row = cursor.fetchone()
+    return bool(row and row["line_sub"])
 
 
 def _latest_application(cursor, user_id):
@@ -211,7 +221,8 @@ def index():
         for comp in companions:
             comp["is_favorited"] = comp["trip_id"] in favorite_trip_ids
 
-        if friend_group_on:
+        line_bound = _has_line_bound(cursor, user_id)
+        if friend_group_on and line_bound:
             application = _latest_application(cursor, user_id)
 
         if application and application["status"] == "approved":
@@ -259,7 +270,7 @@ def index():
 
     return render_template(
         "member/friend_groups/index.html",
-        friend_group_on=friend_group_on,
+        friend_group_on=friend_group_on, line_bound=line_bound,
         application=application, unlocked=unlocked, profile=profile, tier=tier,
         events=events, my_groups=my_groups, onboarding_done=onboarding_done,
         companions=companions,

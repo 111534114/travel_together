@@ -869,6 +869,12 @@ def line_bind():
         flash("LINE 尚未完成設定，暫時無法綁定。", "error")
         return redirect(url_for("member.profile"))
     session["line_bind_user_id"] = session["user_id"]
+    next_url = request.args.get("next", "")
+    # 只接受站內相對路徑，避免被拿來導去外部網站
+    if next_url.startswith("/") and not next_url.startswith("//"):
+        session["line_bind_next"] = next_url
+    else:
+        session.pop("line_bind_next", None)
     return line_oauth.authorize_redirect(url_for("line_callback", _external=True), bot_prompt="aggressive")
 
 
@@ -916,6 +922,7 @@ def bind_line_to_current_user(line_sub, friend_flag):
                        (line_sub, 1 if friend_flag else 0, session["user_id"]))
         connection.commit()
         flash("LINE 綁定完成！" + ("之後會收到行程提醒。" if friend_flag else "請再加入官方帳號好友。"), "success")
+        return redirect(session.pop("line_bind_next", None) or url_for("member.profile"))
     except Error as error:
         connection.rollback()
         print("綁定 LINE 失敗：", error)

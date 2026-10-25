@@ -1,0 +1,127 @@
+{% extends 'member/base.html' %}{% block title %}{{ event.title }}｜走吧揪團{% endblock %}{% block content %}
+<div class="trip-form-page">
+    <div class="page-heading trip-form-heading">
+        <a href="{{ url_for('friend_groups.index') }}#friend-groups">← 返回尋找旅伴</a>
+    </div>
+    <div class="panel">
+        <p class="attraction-detail-breadcrumb">官方活動{% if event.location %} · {{ event.location }}{% endif %}</p>
+        <h1>{{ event.title }}</h1>
+        <div class="attraction-detail-stats">
+            <div><span>日期</span><strong>{{ event.event_date }}{% if event.start_time %} {{ event.start_time|hm }}{% endif %}</strong></div>
+            <div><span>人數</span><strong>{{ event.registered_count }}{% if event.capacity %} / {{ event.capacity }}{% endif %} 人</strong></div>
+            <div><span>我的狀態</span><strong>{{ {'registered':'已報名','attended':'已報到'}.get(my_status, '未報名') }}</strong></div>
+        </div>
+        {% if event.description %}<div class="attraction-detail-intro"><h2>活動說明</h2><p>{{ event.description }}</p></div>{% endif %}
+    </div>
+
+    {% if schedule %}
+    <div class="panel">
+        <h2>活動時間軸</h2>
+        <div class="timeline">
+            {% for item in schedule %}
+            <div class="timeline-item">
+                <b>{{ item.start_time|hm }}{% if item.end_time %} - {{ item.end_time|hm }}{% endif %}{% if item.location %} · {{ item.location }}{% endif %}</b>
+                <span>{{ item.title }}</span>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+    {% endif %}
+
+    <div class="panel">
+        <h2>揪團者公告</h2>
+        {% if announcements %}
+        <div class="timeline">
+            {% for a in announcements %}
+            <div class="timeline-item">
+                <b>{{ a.created_at.strftime('%Y/%m/%d %H:%M') }} · {{ a.nickname or a.full_name }}</b>
+                <span>{{ a.content }}</span>
+            </div>
+            {% endfor %}
+        </div>
+        {% else %}
+        <p class="muted">目前還沒有公告。</p>
+        {% endif %}
+    </div>
+
+    <div class="panel">
+        <h2>聊天室</h2>
+        {% if can_chat %}
+        <div class="event-chat-messages" id="eventChatMessages" data-me="{{ session.user_id }}"><p class="muted">聊天室載入中…</p></div>
+        <form id="eventChatForm" class="chat-form">
+            <textarea name="content" rows="2" maxlength="1000" required placeholder="輸入訊息，Enter 送出、Shift+Enter 換行"></textarea>
+            <button class="member-btn primary" type="submit">送出</button>
+        </form>
+        <p class="chat-error" id="eventChatError" hidden></p>
+        {% else %}
+        <p class="form-hint">要先報名這場活動，才能進聊天室跟其他參加者聊天。</p>
+        {% endif %}
+    </div>
+</div>
+
+{% if can_chat %}
+<script>
+(function () {
+    var feedUrl = "{{ url_for('friend_groups.event_chat_feed', event_id=event.event_id) }}";
+    var sendUrl = "{{ url_for('friend_groups.event_chat_send', event_id=event.event_id) }}";
+    var listEl = document.getElementById('eventChatMessages');
+    var form = document.getElementById('eventChatForm');
+    var input = form.querySelector('textarea');
+    var errorEl = document.getElementById('eventChatError');
+    var me = Number(listEl.dataset.me);
+    var lastId = 0;
+    var POLL_MS = 4000;
+
+    function escapeHtml(value) { var el = document.createElement('div'); el.textContent = value || ''; return el.innerHTML; }
+
+    function isNearBottom() { return listEl.scrollHeight - listEl.scrollTop - listEl.clientHeight < 60; }
+
+    function render(messages) {
+        var atBottom = isNearBottom();
+        if (lastId === 0) listEl.innerHTML = '';
+        messages.forEach(function (m) {
+            var row = document.createElement('div');
+            row.className = 'event-chat-message' + (m.user_id === me ? ' me' : '');
+            row.innerHTML = '<div class="event-chat-msg-body"><div class="event-chat-name">' + escapeHtml(m.name) + '</div>' +
+                '<p class="event-chat-text">' + escapeHtml(m.content) + '</p>' +
+                '<div class="event-chat-meta">' + escapeHtml(m.created_at) + '</div></div>';
+            listEl.appendChild(row);
+            lastId = Math.max(lastId, m.id);
+        });
+        if (!messages.length && lastId === 0) listEl.innerHTML = '<p class="muted">還沒有訊息，說句話開始聊天吧！</p>';
+        if (atBottom) listEl.scrollTop = listEl.scrollHeight;
+    }
+
+    function poll() {
+        fetch(feedUrl + '?after=' + lastId)
+            .then(function (res) { return res.json(); })
+            .then(function (data) { if (data.messages) render(data.messages); })
+            .catch(function () {});
+    }
+
+    form.addEventListener('submit', function (e) {
+        e.preventDefault();
+        var content = input.value.trim();
+        if (!content) return;
+        errorEl.hidden = true;
+        fetch(sendUrl, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ content: content })
+        }).then(function (res) { return res.json().then(function (data) { return { ok: res.ok, data: data }; }); })
+          .then(function (result) {
+            if (!result.ok) { errorEl.textContent = result.data.error || '送出失敗'; errorEl.hidden = false; return; }
+            input.value = '';
+            poll();
+        }).catch(function () { errorEl.textContent = '送出失敗，請再試一次。'; errorEl.hidden = false; });
+    });
+    input.addEventListener('keydown', function (e) {
+        if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); form.requestSubmit(); }
+    });
+
+    poll();
+    setInterval(poll, POLL_MS);
+})();
+</script>
+{% endif %}
+{% endblock %}

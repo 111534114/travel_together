@@ -1,0 +1,27 @@
+{% extends 'member/base.html' %}{% block title %}瀏覽交友揪團｜走吧揪團{% endblock %}{% block content %}
+<div class="trip-form-page">
+    <div class="page-heading trip-form-heading">
+        <a href="{{ url_for('friend_groups.index') }}#friend-groups">← 返回交友揪團</a>
+    </div>
+    <div class="panel">
+        <h1>其他會員的揪團</h1>
+        <p class="muted">瀏覽其他會員發起的交友揪團，點進去查看詳情並申請加入。</p>
+    </div>
+
+    {% if groups %}
+    <div class="trip-grid">
+        {% for group in groups %}
+        <article class="trip-card companion-panel-clickable" onclick="window.location.href='{{ url_for('friend_groups.group_detail', group_id=group.group_id) }}'">
+            <div class="trip-content">
+                <h3>{{ group.title }}</h3>
+                <p class="location">{{ group.event_date }}{% if group.end_date and group.end_date != group.event_date %} ～ {{ group.end_date }}{% endif %}{% if group.location %} · {{ group.location }}{% endif %} · 團主 {{ group.nickname or group.full_name }}（Lv.{{ group.host_tier.level }} {{ group.host_tier.label }}）</p>
+                <div class="trip-details"><span>{{ group.member_count }}{% if group.capacity %} / {{ group.capacity }}{% endif %} 人</span></div>
+            </div>
+        </article>
+        {% endfor %}
+    </div>
+    {% else %}
+    <div class="empty-member"><div>✦</div><h2>目前還沒有其他會員發起揪團</h2><p>等其他會員發起之後就會顯示在這裡。</p></div>
+    {% endif %}
+</div>
+{% endblock %}

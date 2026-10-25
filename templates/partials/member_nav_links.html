@@ -2,10 +2,9 @@
 <a class="side-link" href="{{ url_for('member.dashboard') }}">首頁</a>
 <a class="side-link" href="{{ url_for('member.my_trips') }}">我的旅程</a>
 <a class="side-link" href="{{ url_for('member.browse_attractions') }}">探索景點</a>
-<a class="side-link" href="{{ url_for('member.companions_page') }}">尋找旅伴</a>
+<a class="side-link" href="{{ url_for('friend_groups.index') }}">尋找旅伴</a>
 <a class="side-link" href="{{ url_for('member.album_page') }}">旅遊相簿</a>
 <a class="side-link" href="{{ url_for('member.announcements_page') }}">公告事項</a>
-{% if friend_group_feature_enabled() %}<a class="side-link" href="{{ url_for('friend_groups.index') }}">交友揪團</a>{% endif %}
 <div class="side-footer">
     <a class="side-link" href="{{ url_for('member.profile') }}">個人資料</a>
     {% include 'partials/language_select.html' %}

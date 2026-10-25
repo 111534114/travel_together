@@ -4,6 +4,30 @@
 {% block page_title %}{{ event.title }}{% endblock %}
 {% block page_subtitle %}{{ event.event_date }}｜活動結束後請幫出席的會員標記報到，報到紀錄是解鎖揪團資格的依據{% endblock %}
 {% block content %}
+{% if content_admin_can('friend_groups_admin', 'edit') %}
+<div class="admin-section">
+  <div class="section-title"><h2>活動公告</h2></div>
+  <form method="post" action="{{ url_for('friend_groups_admin.post_event_announcement', event_id=event.event_id) }}" class="content-form">
+    <div class="form-group">
+      <label for="content">發布新公告（會通知所有已報名／已報到的會員）</label>
+      <textarea id="content" name="content" rows="3" maxlength="1000" required placeholder="例如：活動地點改到 OO 教室、下雨備案等"></textarea>
+    </div>
+    <div class="form-actions"><button type="submit" class="primary-button">發布公告</button></div>
+  </form>
+  {% if announcements %}
+  <div class="table-container" style="margin-top: 16px;">
+    <table class="admin-table">
+      <thead><tr><th>內容</th><th>發布者</th><th>時間</th></tr></thead>
+      <tbody>
+      {% for a in announcements %}
+      <tr><td>{{ a.content }}</td><td>{{ a.nickname or a.full_name }}</td><td>{{ a.created_at.strftime('%Y/%m/%d %H:%M') }}</td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% endif %}
+</div>
+{% endif %}
 <div class="admin-section">
   <div class="section-title"><h2>報名名單</h2><span>共 {{ participants|length }} 人</span></div>
   <div class="table-container">

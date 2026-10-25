@@ -1,7 +1,7 @@
 {% extends 'member/base.html' %}{% block title %}{{ group.title }}｜走吧揪團{% endblock %}{% block content %}
 <div class="trip-form-page">
     <div class="page-heading trip-form-heading">
-        <a href="{{ url_for('friend_groups.index') }}">← 返回交友揪團</a>
+        <a href="{{ url_for('friend_groups.index') }}#friend-groups">← 返回交友揪團</a>
     </div>
     <div class="panel">
         <p class="attraction-detail-breadcrumb">團主 {{ group.nickname or group.full_name }}（Lv.{{ host_tier.level }} {{ host_tier.label }}{% if host_tier.avg_rating is not none %} · ⭐{{ "%.1f"|format(host_tier.avg_rating) }}{% endif %}） · {{ {'open':'開放中','closed':'已關閉','cancelled':'已取消'}[group.status] }}</p>
@@ -18,6 +18,9 @@
             <a class="member-btn primary" href="{{ url_for('friend_groups.manage_group', group_id=group.group_id) }}">管理揪團</a>
             {% elif my_membership %}
             <span class="status-tag">{{ {'pending':'審核中','approved':'已加入','rejected':'已被婉拒','left':'已退出'}[my_membership.status] }}</span>
+            {% if my_membership.status == 'approved' and group.trip_id %}
+            <a class="member-btn primary" href="{{ url_for('member.trip_detail', trip_id=group.trip_id) }}">📋 前往行程（每日行程、聊天室、記帳）</a>
+            {% endif %}
             {% elif group.status == 'open' %}
             <form method="post" action="{{ url_for('friend_groups.apply_group', group_id=group.group_id) }}"><button class="member-btn primary" type="submit">申請加入</button></form>
             {% endif %}

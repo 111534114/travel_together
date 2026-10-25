@@ -1,7 +1,7 @@
 {% extends 'member/base.html' %}{% block title %}發起揪團｜走吧揪團{% endblock %}{% block content %}
 <div class="trip-form-page">
     <div class="page-heading trip-form-heading">
-        <a href="{{ url_for('friend_groups.index') }}">← 返回交友揪團</a>
+        <a href="{{ url_for('friend_groups.index') }}#friend-groups">← 返回交友揪團</a>
     </div>
     <div class="panel">
         <h1>發起交友揪團</h1>
@@ -10,8 +10,11 @@
             {% if tier.avg_rating is not none %}（已開團 {{ tier.hosted_count }} 次 · 平均評價 {{ "%.1f"|format(tier.avg_rating) }} 顆星，{{ tier.review_count }} 則評價）{% else %}（已開團 {{ tier.hosted_count }} 次，還沒有收到評價）{% endif %}。
             {% if tier.level == 1 %}這個等級限開「單日」揪團，人數上限 {{ tier.max_capacity }} 人；累積開滿 {{ tier.hosted_required }} 次、平均評價達 {{ tier.rating_required }} 顆星以上即可升級成 Lv.2 資深團長，開放多天行程、人數不限。{% else %}已經是資深團長了，可以開多天行程、人數也不設限。{% endif %}
         </p>
+        <p class="form-hint">發起揪團後，系統會同步建立一個對應的行程，你可以在裡面安排每日行程、用聊天室跟團員聊天、記帳分帳。</p>
         <form method="post" action="{{ url_for('friend_groups.new_group') }}" class="form-grid-member">
             <label>揪團名稱 *<input required name="title" maxlength="150"></label>
+            <label>目的地國家 *<select id="countrySelect" name="country_id" required><option value="">請選擇國家</option>{% for country in countries %}<option value="{{ country.country_id }}">{{ country.name }}</option>{% endfor %}</select></label>
+            <label>目的地城市 *<select id="citySelect" name="city_id" required><option value="">請選擇城市</option>{% for city in cities %}<option value="{{ city.city_id }}" data-country="{{ city.country_id }}">{{ city.name }}</option>{% endfor %}</select></label>
             <label>開始日期 *<input required type="date" name="event_date"></label>
             {% if tier.allow_multi_day %}
             <label>結束日期（選填，不填代表單日）<input type="date" name="end_date"></label>
@@ -27,4 +30,19 @@
         </form>
     </div>
 </div>
+<script>
+    function filterCitiesByCountry() {
+        var countryId = document.getElementById('countrySelect').value;
+        var citySelect = document.getElementById('citySelect');
+        var options = citySelect.querySelectorAll('option[data-country]');
+        options.forEach(function (option) {
+            option.hidden = Boolean(countryId) && option.dataset.country !== countryId;
+            option.disabled = option.hidden;
+        });
+        var selected = citySelect.options[citySelect.selectedIndex];
+        if (selected && selected.value && selected.disabled) citySelect.value = '';
+    }
+    document.getElementById('countrySelect').addEventListener('change', filterCitiesByCountry);
+    window.addEventListener('DOMContentLoaded', filterCitiesByCountry);
+</script>
 {% endblock %}

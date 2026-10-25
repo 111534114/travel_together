@@ -1,0 +1,3 @@
+ALTER TABLE friend_groups
+    ADD COLUMN IF NOT EXISTS trip_id BIGINT UNSIGNED NULL AFTER group_id,
+    ADD CONSTRAINT fk_friend_groups_trip FOREIGN KEY IF NOT EXISTS (trip_id) REFERENCES trips(trip_id) ON DELETE SET NULL;

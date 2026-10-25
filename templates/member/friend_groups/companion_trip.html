@@ -1,0 +1,84 @@
+{% extends 'member/base.html' %}{% block title %}{{ trip.trip_name }}｜走吧揪團{% endblock %}{% block content %}
+<div class="trip-form-page">
+    <div class="page-heading trip-form-heading">
+        <a href="{{ url_for('friend_groups.index') }}">← 返回尋找旅伴</a>
+    </div>
+    <div class="panel">
+        <p class="attraction-detail-breadcrumb">{{ trip.country or '未設定國家' }}{% if trip.city %} · {{ trip.city }}{% endif %} · 發起者 {{ trip.owner_nickname or trip.owner_name or '未提供' }}</p>
+        <h1>{{ trip.trip_name }}</h1>
+        <div class="attraction-detail-stats">
+            <div><span>日期</span><strong>{{ trip.start_date }} ～ {{ trip.end_date }}（{{ trip.days_count }} 天）</strong></div>
+            <div><span>人數</span><strong>{{ trip.people_count }} 人</strong></div>
+            <div><span>預算</span><strong>{{ (trip.currency ~ ' ' ~ '{:,.0f}'.format(trip.total_budget)) if trip.total_budget is not none else '未提供預算' }}</strong></div>
+        </div>
+        {% if trip.introduction %}<div class="attraction-detail-intro"><h2>行程簡介</h2><p>{{ trip.introduction }}</p></div>{% endif %}
+
+        <div class="attraction-detail-actions">
+            {% if is_owner %}
+            <a class="member-btn primary" href="{{ url_for('member.trip_detail', trip_id=trip.trip_id) }}">這是我的行程，前往管理</a>
+            {% elif member_status == 'accepted' %}
+            <a class="member-btn primary" href="{{ url_for('member.trip_detail', trip_id=trip.trip_id) }}">你已經是成員，前往行程</a>
+            {% endif %}
+            <form method="post" action="{{ url_for('member.toggle_trip_favorite', trip_id=trip.trip_id) }}" style="margin:0;"><input type="hidden" name="next" value="{{ url_for('friend_groups.companion_trip_detail', trip_id=trip.trip_id) }}"><button type="submit" class="member-btn outline">{{ '取消收藏' if is_favorited else '☆ 收藏' }}</button></form>
+            {% if trip.allow_copy or is_owner %}
+            <form method="post" action="{{ url_for('member.duplicate_trip', trip_id=trip.trip_id) }}" style="margin:0;"><button type="submit" class="member-btn outline">複製此行程</button></form>
+            {% endif %}
+            {% if can_issue %}
+            <button class="member-btn outline" type="button" onclick="document.getElementById('issueModal').classList.add('open')">問題回報</button>
+            {% endif %}
+        </div>
+    </div>
+
+    {% if not is_owner %}
+    <div class="panel">
+        <h2>申請加入</h2>
+        {% if member_status == 'accepted' %}
+        <p class="form-hint">你已經是這個行程的成員了。</p>
+        {% elif member_status == 'requested' %}
+        <p class="form-hint">已送出申請，等待發起人審核。</p>
+        {% elif needs_official_event %}
+        <p class="form-hint">⚠️ 要先出席過一場官方活動，才能申請加入其他會員的行程，避免彼此都是完全陌生的人。<a href="{{ url_for('friend_groups.index') }}#friend-groups">前往交友揪團了解怎麼參加官方活動</a>。</p>
+        {% elif can_apply %}
+        <form method="post" action="{{ url_for('friend_groups.apply_companion_trip', trip_id=trip.trip_id) }}" class="form-grid-member">
+            <label class="span-2">想說的話（選填）<textarea name="note" rows="2" maxlength="300" placeholder="簡單自我介紹，或說明想加入的原因"></textarea></label>
+            <button class="member-btn primary" type="submit">送出申請</button>
+        </form>
+        {% endif %}
+    </div>
+    {% endif %}
+
+    <div class="panel">
+        <h2>行程明細</h2>
+        {% if itinerary %}
+        <div class="timeline">
+            {% for item in itinerary %}
+            <div class="timeline-item">
+                <b>{{ item.itinerary_date }}{% if item.start_time %} {{ item.start_time|hm }}{% if item.end_time %} - {{ item.end_time|hm }}{% endif %}{% endif %}{% if item.address %} · {{ item.address }}{% endif %}</b>
+                <span>{{ item.title }}{% if item.estimated_cost %}（預估 {{ trip.currency }} {{ '{:,.0f}'.format(item.estimated_cost) }}）{% endif %}</span>
+            </div>
+            {% endfor %}
+        </div>
+        {% else %}
+        <p class="muted">這個行程目前沒有公開的每日明細。</p>
+        {% endif %}
+    </div>
+</div>
+
+{% if can_issue %}
+<div class="trip-view-modal" id="issueModal" onclick="if (event.target === this) this.classList.remove('open')">
+    <div class="trip-view-card">
+        <button class="trip-view-close" type="button" onclick="document.getElementById('issueModal').classList.remove('open')" aria-label="關閉">×</button>
+        <h2>問題回報</h2>
+        <p class="trip-view-meta">{{ trip.trip_name }}</p>
+        <form method="post" action="{{ url_for('member.submit_trip_issue', trip_id=trip.trip_id) }}">
+            <fieldset style="border: 0; padding: 0; margin: 0">
+                <legend>這篇行程有什麼需要回報的地方？</legend>
+                <div class="issue-options">{% for reason in issue_reasons %}<label class="issue-option"><span>{{ reason }}</span><input type="radio" name="reason" value="{{ reason }}" required></label>{% endfor %}</div>
+            </fieldset>
+            <label class="issue-description-label">問題描述<textarea name="description" maxlength="1000" placeholder="補充問題細節，幫助管理員了解情況"></textarea></label>
+            <button class="issue-submit" type="submit">送出回報</button>
+        </form>
+    </div>
+</div>
+{% endif %}
+{% endblock %}

@@ -1,9 +1,12 @@
 from datetime import date, datetime
+import secrets
 
-from flask import Blueprint, flash, redirect, render_template, request, session, url_for
+from flask import Blueprint, flash, jsonify, redirect, render_template, request, session, url_for
 
 from auth import login_required
+from blueprints.member import ISSUE_PREFIX, ISSUE_REASONS, _city_matches_country
 from db import get_db_connection
+from utils import get_cities, get_countries
 
 friend_groups_bp = Blueprint("friend_groups", __name__, url_prefix="/member/friend-groups")
 
@@ -57,9 +60,15 @@ def _feature_enabled(cursor):
 
 @friend_groups_bp.before_request
 def _block_when_feature_disabled():
-    # 總開關關閉時，整個藍圖下的路由一律擋下，不只首頁；避免像「發起揪團」這種動作型路由
+    # 總開關關閉時，整個藍圖下的路由一律擋下（除了首頁）；避免像「發起揪團」這種動作型路由
     # 漏掉檢查，導致資料寫進去了、重導回首頁才被擋下，前後兩則訊息同時出現造成誤解。
-    if session.get("role") != "member":
+    # 首頁現在同時顯示「依行程找旅伴」區塊，不受這個總開關管控，所以要放行，讓 index() 自己決定
+    # 交友揪團那個區塊要不要顯示「尚未開放」。
+    if session.get("role") != "member" or request.endpoint in {
+        "friend_groups.index",
+        "friend_groups.companion_trip_detail",
+        "friend_groups.apply_companion_trip",
+    }:
         return None
     connection = get_db_connection()
     if connection is None:
@@ -168,14 +177,42 @@ def index():
     cursor = connection.cursor(dictionary=True)
     try:
         user_id = session["user_id"]
-        application = _latest_application(cursor, user_id)
+        friend_group_on = _feature_enabled(cursor)
+        application = None
         unlocked = False
         profile = None
         events = []
-        groups = []
         my_groups = []
         tier = None
         onboarding_done = False
+
+        # 依行程找旅伴只列出公開行程，避免曝光私人多人行程的資料。
+        cursor.execute("""
+            SELECT t.trip_id, t.owner_id, t.trip_name, t.visibility, co.name AS country, ci.name AS city,
+                   t.people_count, t.total_budget, t.currency, t.introduction, t.allow_copy,
+                   u.full_name AS owner_name, u.nickname AS owner_nickname,
+                   DATEDIFF(t.end_date, t.start_date) + 1 AS days_count,
+                   COUNT(tm.user_id) AS joined_count
+            FROM trips t
+            JOIN users u ON u.user_id = t.owner_id
+            JOIN countries co ON co.country_id = t.country_id
+            JOIN cities ci ON ci.city_id = t.city_id
+            LEFT JOIN trip_members tm ON tm.trip_id = t.trip_id AND tm.join_status = 'accepted'
+            WHERE t.visibility = 'public'
+              AND t.moderation_status = 'visible' AND t.deleted_at IS NULL
+            GROUP BY t.trip_id, t.owner_id, t.trip_name, t.visibility, co.name, ci.name, t.people_count,
+                     t.total_budget, t.currency, t.introduction, t.allow_copy, u.full_name, u.nickname
+            ORDER BY t.trip_id DESC
+        """)
+        companions = cursor.fetchall()
+
+        cursor.execute("SELECT trip_id FROM favorites WHERE user_id=%s AND target_type='trip'", (user_id,))
+        favorite_trip_ids = {row["trip_id"] for row in cursor.fetchall()}
+        for comp in companions:
+            comp["is_favorited"] = comp["trip_id"] in favorite_trip_ids
+
+        if friend_group_on:
+            application = _latest_application(cursor, user_id)
 
         if application and application["status"] == "approved":
             unlocked = _has_attended_event(cursor, user_id)
@@ -207,18 +244,6 @@ def index():
 
             if unlocked:
                 cursor.execute("""
-                    SELECT g.*, u.nickname, u.full_name,
-                           (SELECT COUNT(*) FROM friend_group_members m WHERE m.group_id=g.group_id AND m.status='approved') AS member_count,
-                           (SELECT status FROM friend_group_members m WHERE m.group_id=g.group_id AND m.user_id=%s) AS my_status
-                    FROM friend_groups g JOIN users u ON u.user_id=g.host_user_id
-                    WHERE g.status='open' AND g.host_user_id != %s
-                    ORDER BY g.event_date ASC
-                """, (user_id, user_id))
-                groups = cursor.fetchall()
-                for g in groups:  # 附上每個揪團團主目前的等級，瀏覽時可以參考
-                    g["host_tier"] = _host_tier(cursor, g["host_user_id"])
-
-                cursor.execute("""
                     SELECT g.*,
                            (SELECT COUNT(*) FROM friend_group_members m WHERE m.group_id=g.group_id AND m.status='approved') AS member_count,
                            (SELECT COUNT(*) FROM friend_group_members m WHERE m.group_id=g.group_id AND m.status='pending') AS pending_count
@@ -234,44 +259,157 @@ def index():
 
     return render_template(
         "member/friend_groups/index.html",
+        friend_group_on=friend_group_on,
         application=application, unlocked=unlocked, profile=profile, tier=tier,
-        events=events, groups=groups, my_groups=my_groups, onboarding_done=onboarding_done,
-        pace_labels=PACE_LABELS, social_labels=SOCIAL_LABELS,
+        events=events, my_groups=my_groups, onboarding_done=onboarding_done,
+        companions=companions,
     )
+
+
+@friend_groups_bp.route("/companions/<int:trip_id>")
+@login_required("member")
+def companion_trip_detail(trip_id):
+    connection = _connection_or_home()
+    if connection is None: return redirect(url_for("friend_groups.index"))
+    cursor = connection.cursor(dictionary=True)
+    try:
+        user_id = session["user_id"]
+        cursor.execute("""
+            SELECT t.trip_id, t.owner_id, t.trip_name, t.visibility, co.name AS country, ci.name AS city,
+                   t.start_date, t.end_date, t.people_count, t.total_budget, t.currency, t.introduction,
+                   t.allow_copy, u.full_name AS owner_name, u.nickname AS owner_nickname,
+                   DATEDIFF(t.end_date, t.start_date) + 1 AS days_count
+            FROM trips t
+            JOIN users u ON u.user_id = t.owner_id
+            JOIN countries co ON co.country_id = t.country_id
+            JOIN cities ci ON ci.city_id = t.city_id
+            WHERE t.trip_id=%s AND t.visibility='public'
+              AND t.moderation_status='visible' AND t.deleted_at IS NULL
+        """, (trip_id,))
+        trip = cursor.fetchone()
+        if not trip:
+            flash("找不到這個行程，或行程目前不公開。", "error")
+            return redirect(url_for("friend_groups.index"))
+
+        cursor.execute("""
+            SELECT itinerary_date, title, start_time, end_time, address, estimated_cost
+            FROM itineraries WHERE trip_id=%s ORDER BY itinerary_date ASC, start_time ASC
+        """, (trip_id,))
+        itinerary = cursor.fetchall()
+
+        is_owner = trip["owner_id"] == user_id
+        cursor.execute("SELECT join_status FROM trip_members WHERE trip_id=%s AND user_id=%s", (trip_id, user_id))
+        membership = cursor.fetchone()
+        member_status = membership["join_status"] if membership else None
+
+        cursor.execute("SELECT trip_id FROM favorites WHERE user_id=%s AND trip_id=%s AND target_type='trip'", (user_id, trip_id))
+        is_favorited = cursor.fetchone() is not None
+
+        cursor.execute("""
+            SELECT 1 FROM reports WHERE reporter_id=%s AND target_type='trip' AND target_id=%s
+              AND reason LIKE %s AND status IN ('pending','processing')
+        """, (user_id, trip_id, ISSUE_PREFIX + "%"))
+        already_reported = cursor.fetchone() is not None
+
+        can_apply = (not is_owner) and member_status not in ("accepted", "requested") and _can_use_groups(cursor, user_id)
+        needs_official_event = (not is_owner) and member_status not in ("accepted", "requested") and not _can_use_groups(cursor, user_id)
+        can_issue = (not is_owner) and not already_reported
+    finally:
+        cursor.close(); connection.close()
+    return render_template(
+        "member/friend_groups/companion_trip.html",
+        trip=trip, itinerary=itinerary, is_owner=is_owner, member_status=member_status,
+        is_favorited=is_favorited, can_apply=can_apply, needs_official_event=needs_official_event,
+        can_issue=can_issue, issue_reasons=ISSUE_REASONS,
+    )
+
+
+@friend_groups_bp.route("/companions/<int:trip_id>/apply", methods=["POST"])
+@login_required("member")
+def apply_companion_trip(trip_id):
+    connection = _connection_or_home()
+    if connection is None: return redirect(url_for("friend_groups.index"))
+    cursor = connection.cursor(dictionary=True)
+    try:
+        user_id = session["user_id"]
+        cursor.execute("""
+            SELECT trip_id, owner_id, trip_name FROM trips
+            WHERE trip_id=%s AND visibility='public'
+              AND moderation_status='visible' AND deleted_at IS NULL
+        """, (trip_id,))
+        trip = cursor.fetchone()
+        if not trip:
+            flash("找不到這個行程，或行程目前不公開。", "error")
+            return redirect(url_for("friend_groups.index"))
+        if trip["owner_id"] == user_id:
+            flash("這是你自己的行程。", "error")
+            return redirect(url_for("friend_groups.companion_trip_detail", trip_id=trip_id))
+
+        if not _can_use_groups(cursor, user_id):
+            flash("要先出席過一場官方活動，才能申請加入其他會員的行程。", "error")
+            return redirect(url_for("friend_groups.companion_trip_detail", trip_id=trip_id))
+
+        cursor.execute("SELECT join_status FROM trip_members WHERE trip_id=%s AND user_id=%s", (trip_id, user_id))
+        membership = cursor.fetchone()
+        if membership and membership["join_status"] in ("accepted", "requested"):
+            flash("你已經是成員，或已經送出過申請了。", "error")
+            return redirect(url_for("friend_groups.companion_trip_detail", trip_id=trip_id))
+
+        note = request.form.get("note", "").strip()[:300]
+        cursor.execute("""
+            INSERT INTO trip_members (trip_id, user_id, member_role, join_status)
+            VALUES (%s,%s,'viewer','requested')
+            ON DUPLICATE KEY UPDATE join_status='requested', member_role='viewer', joined_at=NULL
+        """, (trip_id, user_id))
+        cursor.execute(
+            "INSERT INTO notifications (user_id, notification_type, title, message, target_url) "
+            "VALUES (%s,'system','有人想加入你的行程',%s,%s)",
+            (trip["owner_id"], f"有會員申請加入「{trip['trip_name']}」" + (f"：{note}" if note else ""),
+             url_for("member.trip_detail", trip_id=trip_id))
+        )
+        connection.commit()
+        flash("申請已送出，等待對方審核。", "success")
+    except Exception as error:
+        connection.rollback()
+        print("申請加入行程失敗：", error)
+        flash("申請失敗，請再試一次。", "error")
+    finally:
+        cursor.close(); connection.close()
+    return redirect(url_for("friend_groups.companion_trip_detail", trip_id=trip_id))
 
 
 @friend_groups_bp.route("/apply", methods=["POST"])
 @login_required("member")
 def apply():
     connection = _connection_or_home()
-    if connection is None: return redirect(url_for("friend_groups.index"))
+    if connection is None: return redirect(url_for("friend_groups.index") + "#friend-groups")
     cursor = connection.cursor(dictionary=True)
     try:
         user_id = session["user_id"]
         application = _latest_application(cursor, user_id)
         if application and application["status"] in ("pending", "approved"):
             flash("你已經申請過了。", "error")
-            return redirect(url_for("friend_groups.index"))
+            return redirect(url_for("friend_groups.index") + "#friend-groups")
 
         birthdate_raw = request.form.get("birthdate", "").strip()
         note = request.form.get("note", "").strip()
         if not birthdate_raw:
             flash("請填寫生日。", "error")
-            return redirect(url_for("friend_groups.index"))
+            return redirect(url_for("friend_groups.index") + "#friend-groups")
         try:
             birthdate = datetime.strptime(birthdate_raw, "%Y-%m-%d").date()
         except ValueError:
             flash("生日格式不正確。", "error")
-            return redirect(url_for("friend_groups.index"))
+            return redirect(url_for("friend_groups.index") + "#friend-groups")
 
         today = date.today()
         if birthdate > today:
             flash("生日不能是未來的日期。", "error")
-            return redirect(url_for("friend_groups.index"))
+            return redirect(url_for("friend_groups.index") + "#friend-groups")
         age = today.year - birthdate.year - ((today.month, today.day) < (birthdate.month, birthdate.day))
         if age < MIN_AGE:
             flash(f"這個功能限 {MIN_AGE} 歲以上會員申請。", "error")
-            return redirect(url_for("friend_groups.index"))
+            return redirect(url_for("friend_groups.index") + "#friend-groups")
 
         cursor.execute("UPDATE users SET birthdate=%s WHERE user_id=%s", (birthdate, user_id))
         cursor.execute(
@@ -284,21 +422,21 @@ def apply():
         connection.rollback(); flash("申請失敗，請再試一次。", "error")
     finally:
         cursor.close(); connection.close()
-    return redirect(url_for("friend_groups.index"))
+    return redirect(url_for("friend_groups.index") + "#friend-groups")
 
 
 @friend_groups_bp.route("/questionnaire", methods=["GET", "POST"])
 @login_required("member")
 def questionnaire():
     connection = _connection_or_home()
-    if connection is None: return redirect(url_for("friend_groups.index"))
+    if connection is None: return redirect(url_for("friend_groups.index") + "#friend-groups")
     cursor = connection.cursor(dictionary=True)
     try:
         user_id = session["user_id"]
         application = _latest_application(cursor, user_id)
         if not application or application["status"] != "approved":
             flash("要先通過申請才能填問卷。", "error")
-            return redirect(url_for("friend_groups.index"))
+            return redirect(url_for("friend_groups.index") + "#friend-groups")
 
         if request.method == "POST":
             pace = request.form.get("pace")
@@ -330,7 +468,7 @@ def questionnaire():
                   diet, transport_pref, walk_tolerance, traveler_type))
             connection.commit()
             flash(f"問卷已送出！你的旅遊人格是「{traveler_type}」。", "success")
-            return redirect(url_for("friend_groups.index"))
+            return redirect(url_for("friend_groups.index") + "#friend-groups")
 
         profile = _traveler_profile(cursor, user_id)
     finally:
@@ -348,20 +486,20 @@ def questionnaire():
 @login_required("member")
 def register_event(event_id):
     connection = _connection_or_home()
-    if connection is None: return redirect(url_for("friend_groups.index"))
+    if connection is None: return redirect(url_for("friend_groups.index") + "#friend-groups")
     cursor = connection.cursor(dictionary=True)
     try:
         user_id = session["user_id"]
         application = _latest_application(cursor, user_id)
         if not application or application["status"] != "approved":
             flash("要先通過申請才能報名活動。", "error")
-            return redirect(url_for("friend_groups.index"))
+            return redirect(url_for("friend_groups.index") + "#friend-groups")
 
         cursor.execute("SELECT * FROM friend_group_events WHERE event_id=%s AND status='open'", (event_id,))
         event = cursor.fetchone()
         if not event:
             flash("找不到這場活動，或活動已關閉。", "error")
-            return redirect(url_for("friend_groups.index"))
+            return redirect(url_for("friend_groups.index") + "#friend-groups")
 
         if event["capacity"]:
             cursor.execute(
@@ -370,7 +508,7 @@ def register_event(event_id):
             )
             if cursor.fetchone()["c"] >= event["capacity"]:
                 flash("這場活動人數已滿。", "error")
-                return redirect(url_for("friend_groups.index"))
+                return redirect(url_for("friend_groups.index") + "#friend-groups")
 
         cursor.execute(
             """INSERT INTO friend_group_event_participants (event_id, user_id) VALUES (%s,%s)
@@ -383,14 +521,14 @@ def register_event(event_id):
         connection.rollback(); flash("報名失敗，請再試一次。", "error")
     finally:
         cursor.close(); connection.close()
-    return redirect(url_for("friend_groups.index"))
+    return redirect(url_for("friend_groups.index") + "#friend-groups")
 
 
 @friend_groups_bp.route("/events/<int:event_id>/cancel", methods=["POST"])
 @login_required("member")
 def cancel_event(event_id):
     connection = _connection_or_home()
-    if connection is None: return redirect(url_for("friend_groups.index"))
+    if connection is None: return redirect(url_for("friend_groups.index") + "#friend-groups")
     cursor = connection.cursor()
     try:
         cursor.execute(
@@ -403,20 +541,114 @@ def cancel_event(event_id):
         connection.rollback(); flash("取消失敗，請再試一次。", "error")
     finally:
         cursor.close(); connection.close()
-    return redirect(url_for("friend_groups.index"))
+    return redirect(url_for("friend_groups.index") + "#friend-groups")
+
+
+def _event_participant_status(cursor, event_id, user_id):
+    cursor.execute("SELECT status FROM friend_group_event_participants WHERE event_id=%s AND user_id=%s", (event_id, user_id))
+    row = cursor.fetchone()
+    return row["status"] if row else None
+
+
+@friend_groups_bp.route("/events/<int:event_id>")
+@login_required("member")
+def event_detail(event_id):
+    connection = _connection_or_home()
+    if connection is None: return redirect(url_for("friend_groups.index") + "#friend-groups")
+    cursor = connection.cursor(dictionary=True)
+    try:
+        user_id = session["user_id"]
+        cursor.execute("""
+            SELECT e.*,
+                   (SELECT COUNT(*) FROM friend_group_event_participants p WHERE p.event_id=e.event_id AND p.status IN ('registered','attended')) AS registered_count
+            FROM friend_group_events e WHERE e.event_id=%s
+        """, (event_id,))
+        event = cursor.fetchone()
+        if not event:
+            flash("找不到這場活動。", "error")
+            return redirect(url_for("friend_groups.index") + "#friend-groups")
+
+        cursor.execute("SELECT * FROM friend_group_event_items WHERE event_id=%s ORDER BY sort_order", (event_id,))
+        schedule = cursor.fetchall()
+
+        cursor.execute("""
+            SELECT a.*, u.nickname, u.full_name FROM friend_group_event_announcements a
+            JOIN users u ON u.user_id = a.posted_by
+            WHERE a.event_id=%s ORDER BY a.created_at DESC
+        """, (event_id,))
+        announcements = cursor.fetchall()
+
+        my_status = _event_participant_status(cursor, event_id, user_id)
+        can_chat = my_status in ("registered", "attended")
+    finally:
+        cursor.close(); connection.close()
+    return render_template(
+        "member/friend_groups/event_detail.html",
+        event=event, schedule=schedule, announcements=announcements,
+        my_status=my_status, can_chat=can_chat,
+    )
+
+
+@friend_groups_bp.route("/events/<int:event_id>/chat")
+@login_required("member")
+def event_chat_feed(event_id):
+    connection = get_db_connection()
+    if connection is None: return jsonify(error="資料庫連線失敗"), 503
+    cursor = connection.cursor(dictionary=True)
+    try:
+        user_id = session["user_id"]
+        if _event_participant_status(cursor, event_id, user_id) not in ("registered", "attended"):
+            return jsonify(error="你沒有這場活動的聊天權限。"), 403
+        after = request.args.get("after", "0")
+        after = int(after) if after.isdigit() else 0
+        cursor.execute("""
+            SELECT m.message_id, m.user_id, m.content, m.created_at, u.nickname, u.full_name
+            FROM friend_group_event_chat_messages m JOIN users u ON u.user_id = m.user_id
+            WHERE m.event_id=%s AND m.message_id > %s ORDER BY m.message_id ASC
+        """, (event_id, after))
+        messages = [{
+            "id": row["message_id"], "user_id": row["user_id"],
+            "name": row["nickname"] or row["full_name"],
+            "content": row["content"], "created_at": row["created_at"].strftime("%H:%M"),
+        } for row in cursor.fetchall()]
+    finally:
+        cursor.close(); connection.close()
+    return jsonify(messages=messages)
+
+
+@friend_groups_bp.route("/events/<int:event_id>/chat", methods=["POST"])
+@login_required("member")
+def event_chat_send(event_id):
+    connection = get_db_connection()
+    if connection is None: return jsonify(error="資料庫連線失敗"), 503
+    cursor = connection.cursor(dictionary=True)
+    try:
+        user_id = session["user_id"]
+        if _event_participant_status(cursor, event_id, user_id) not in ("registered", "attended"):
+            return jsonify(error="你沒有這場活動的聊天權限。"), 403
+        payload = request.get_json(silent=True)
+        content = payload.get("content") if isinstance(payload, dict) else None
+        content = content.strip() if isinstance(content, str) else ""
+        if not content or len(content) > 1000:
+            return jsonify(error="訊息不能是空的，且不能超過 1000 字。"), 400
+        cursor.execute("INSERT INTO friend_group_event_chat_messages (event_id, user_id, content) VALUES (%s,%s,%s)", (event_id, user_id, content))
+        connection.commit()
+    finally:
+        cursor.close(); connection.close()
+    return jsonify(ok=True)
 
 
 @friend_groups_bp.route("/onboarding", methods=["GET", "POST"])
 @login_required("member")
 def onboarding():
     connection = _connection_or_home()
-    if connection is None: return redirect(url_for("friend_groups.index"))
+    if connection is None: return redirect(url_for("friend_groups.index") + "#friend-groups")
     cursor = connection.cursor(dictionary=True)
     try:
         user_id = session["user_id"]
         if not _can_use_groups(cursor, user_id):
             flash("要先出席過一場官方活動才能使用這個功能。", "error")
-            return redirect(url_for("friend_groups.index"))
+            return redirect(url_for("friend_groups.index") + "#friend-groups")
 
         if _has_completed_onboarding(cursor, user_id):
             flash("你已經完成過新手開團引導了。", "success")
@@ -446,22 +678,52 @@ def onboarding():
     return render_template("member/friend_groups/onboarding.html")
 
 
+@friend_groups_bp.route("/groups/browse")
+@login_required("member")
+def browse_groups():
+    connection = _connection_or_home()
+    if connection is None: return redirect(url_for("friend_groups.index") + "#friend-groups")
+    cursor = connection.cursor(dictionary=True)
+    try:
+        user_id = session["user_id"]
+        if not _can_use_groups(cursor, user_id):
+            flash("要先出席過一場官方活動才能瀏覽其他會員的揪團。", "error")
+            return redirect(url_for("friend_groups.index") + "#friend-groups")
+
+        cursor.execute("""
+            SELECT g.*, u.nickname, u.full_name,
+                   (SELECT COUNT(*) FROM friend_group_members m WHERE m.group_id=g.group_id AND m.status='approved') AS member_count,
+                   (SELECT status FROM friend_group_members m WHERE m.group_id=g.group_id AND m.user_id=%s) AS my_status
+            FROM friend_groups g JOIN users u ON u.user_id=g.host_user_id
+            WHERE g.status='open' AND g.host_user_id != %s
+            ORDER BY g.event_date ASC
+        """, (user_id, user_id))
+        groups = cursor.fetchall()
+        for g in groups:  # 附上每個揪團團主目前的等級，瀏覽時可以參考
+            g["host_tier"] = _host_tier(cursor, g["host_user_id"])
+    finally:
+        cursor.close(); connection.close()
+    return render_template("member/friend_groups/browse_groups.html", groups=groups)
+
+
 @friend_groups_bp.route("/groups/new", methods=["GET", "POST"])
 @login_required("member")
 def new_group():
     connection = _connection_or_home()
-    if connection is None: return redirect(url_for("friend_groups.index"))
+    if connection is None: return redirect(url_for("friend_groups.index") + "#friend-groups")
     cursor = connection.cursor(dictionary=True)
     try:
         user_id = session["user_id"]
         if not _can_use_groups(cursor, user_id):
             flash("要先出席過一場官方活動才能發起揪團。", "error")
-            return redirect(url_for("friend_groups.index"))
+            return redirect(url_for("friend_groups.index") + "#friend-groups")
         if not _has_completed_onboarding(cursor, user_id):
             flash("發起揪團前，請先完成新手開團引導。", "error")
             return redirect(url_for("friend_groups.onboarding"))
 
         tier = _host_tier(cursor, user_id)
+        countries = get_countries(cursor)
+        cities = get_cities(cursor)
 
         if request.method == "POST":
             title = request.form.get("title", "").strip()
@@ -474,9 +736,17 @@ def new_group():
             description = request.form.get("description", "").strip() or None
             pace_filter = request.form.get("pace_filter") or None
             social_style_filter = request.form.get("social_style_filter") or None
+            country_id = request.form.get("country_id") or None
+            city_id = request.form.get("city_id") or None
 
             if not title or not event_date:
                 flash("請填寫揪團名稱與日期。", "error")
+                return redirect(url_for("friend_groups.new_group"))
+            if not country_id or not city_id:
+                flash("請選擇目的地國家與城市，系統會同步建立一個對應的行程給這個揪團使用。", "error")
+                return redirect(url_for("friend_groups.new_group"))
+            if not _city_matches_country(cursor, country_id, city_id):
+                flash("所選城市不屬於該國家，請重新選擇。", "error")
                 return redirect(url_for("friend_groups.new_group"))
 
             # Lv.1 新手團長限制單日、人數上限；Lv.2 資深團長才能排多天行程、人數不設限
@@ -502,27 +772,44 @@ def new_group():
                     return redirect(url_for("friend_groups.new_group"))
                 capacity = int(capacity_raw) if capacity_raw.isdigit() and int(capacity_raw) > 0 else None
 
+            # 每個揪團都同步建立一個關聯的「行程」，讓團長可以直接沿用行程既有的每日行程、聊天室、記帳分帳功能，
+            # 不用再為揪團另外做一套；這個行程預設不公開，避免跟「依行程找旅伴」的瀏覽清單混在一起。
+            cursor.execute("""
+                INSERT INTO trips (owner_id, trip_name, country_id, city_id, start_date, end_date, people_count,
+                                    introduction, visibility, status, share_token)
+                VALUES (%s,%s,%s,%s,%s,%s,%s,%s,'private','planning',%s)
+            """, (user_id, title, country_id, city_id, event_date, end_date or event_date,
+                  capacity or 2, description, secrets.token_urlsafe(16)))
+            trip_id = cursor.lastrowid
+            cursor.execute(
+                "INSERT INTO trip_members (trip_id,user_id,member_role,join_status,joined_at) VALUES (%s,%s,'owner','accepted',NOW())",
+                (trip_id, user_id)
+            )
+
             cursor.execute("""
                 INSERT INTO friend_groups
-                    (host_user_id, title, description, location, event_date, end_date, start_time, end_time,
+                    (trip_id, host_user_id, title, description, location, event_date, end_date, start_time, end_time,
                      capacity, pace_filter, social_style_filter)
-                VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
-            """, (user_id, title, description, location or None, event_date, end_date, start_time, end_time,
+                VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
+            """, (trip_id, user_id, title, description, location or None, event_date, end_date, start_time, end_time,
                   capacity, pace_filter, social_style_filter))
             connection.commit()
-            flash("揪團已發起。", "success")
-            return redirect(url_for("friend_groups.index"))
+            flash("揪團已發起，也幫你建立了對應的行程，可以開始排每日行程、用聊天室跟記帳分帳。", "success")
+            return redirect(url_for("friend_groups.index") + "#friend-groups")
     finally:
         cursor.close(); connection.close()
 
-    return render_template("member/friend_groups/group_new.html", pace_labels=PACE_LABELS, social_labels=SOCIAL_LABELS, tier=tier)
+    return render_template(
+        "member/friend_groups/group_new.html", pace_labels=PACE_LABELS, social_labels=SOCIAL_LABELS,
+        tier=tier, countries=countries, cities=cities,
+    )
 
 
 @friend_groups_bp.route("/groups/<int:group_id>")
 @login_required("member")
 def group_detail(group_id):
     connection = _connection_or_home()
-    if connection is None: return redirect(url_for("friend_groups.index"))
+    if connection is None: return redirect(url_for("friend_groups.index") + "#friend-groups")
     cursor = connection.cursor(dictionary=True)
     try:
         user_id = session["user_id"]
@@ -534,12 +821,12 @@ def group_detail(group_id):
         group = cursor.fetchone()
         if not group:
             flash("找不到這個揪團。", "error")
-            return redirect(url_for("friend_groups.index"))
+            return redirect(url_for("friend_groups.index") + "#friend-groups")
 
         is_host = group["host_user_id"] == user_id
         if not is_host and not _can_use_groups(cursor, user_id):
             flash("要先出席過一場官方活動才能查看其他人的揪團。", "error")
-            return redirect(url_for("friend_groups.index"))
+            return redirect(url_for("friend_groups.index") + "#friend-groups")
 
         cursor.execute(
             "SELECT status FROM friend_group_members WHERE group_id=%s AND user_id=%s",
@@ -575,7 +862,7 @@ def group_reviews(group_id):
     """雙向評價（盲評）：團長評每位團員、團員評團長；雙方都評完了才會看到對方寫的內容，
     避免有人為了報復亂給負評。活動日期要過了才能互評。"""
     connection = _connection_or_home()
-    if connection is None: return redirect(url_for("friend_groups.index"))
+    if connection is None: return redirect(url_for("friend_groups.index") + "#friend-groups")
     cursor = connection.cursor(dictionary=True)
     try:
         user_id = session["user_id"]
@@ -583,7 +870,7 @@ def group_reviews(group_id):
         group = cursor.fetchone()
         if not group:
             flash("找不到這個揪團。", "error")
-            return redirect(url_for("friend_groups.index"))
+            return redirect(url_for("friend_groups.index") + "#friend-groups")
 
         is_host = group["host_user_id"] == user_id
         cursor.execute(
@@ -655,19 +942,19 @@ def group_reviews(group_id):
 @login_required("member")
 def apply_group(group_id):
     connection = _connection_or_home()
-    if connection is None: return redirect(url_for("friend_groups.index"))
+    if connection is None: return redirect(url_for("friend_groups.index") + "#friend-groups")
     cursor = connection.cursor(dictionary=True)
     try:
         user_id = session["user_id"]
         if not _can_use_groups(cursor, user_id):
             flash("要先出席過一場官方活動才能加入揪團。", "error")
-            return redirect(url_for("friend_groups.index"))
+            return redirect(url_for("friend_groups.index") + "#friend-groups")
 
         cursor.execute("SELECT * FROM friend_groups WHERE group_id=%s AND status='open'", (group_id,))
         group = cursor.fetchone()
         if not group:
             flash("找不到這個揪團，或已關閉。", "error")
-            return redirect(url_for("friend_groups.index"))
+            return redirect(url_for("friend_groups.index") + "#friend-groups")
         if group["host_user_id"] == user_id:
             flash("你是這個揪團的團主。", "error")
             return redirect(url_for("friend_groups.group_detail", group_id=group_id))
@@ -698,14 +985,14 @@ def apply_group(group_id):
 @login_required("member")
 def manage_group(group_id):
     connection = _connection_or_home()
-    if connection is None: return redirect(url_for("friend_groups.index"))
+    if connection is None: return redirect(url_for("friend_groups.index") + "#friend-groups")
     cursor = connection.cursor(dictionary=True)
     try:
         cursor.execute("SELECT * FROM friend_groups WHERE group_id=%s", (group_id,))
         group = cursor.fetchone()
         if not group or group["host_user_id"] != session["user_id"]:
             flash("找不到這個揪團，或你不是團主。", "error")
-            return redirect(url_for("friend_groups.index"))
+            return redirect(url_for("friend_groups.index") + "#friend-groups")
 
         cursor.execute("""
             SELECT m.*, u.nickname, u.full_name
@@ -724,14 +1011,14 @@ def manage_group(group_id):
 @login_required("member")
 def approve_group_member(group_id, member_user_id):
     connection = _connection_or_home()
-    if connection is None: return redirect(url_for("friend_groups.index"))
+    if connection is None: return redirect(url_for("friend_groups.index") + "#friend-groups")
     cursor = connection.cursor(dictionary=True)
     try:
-        cursor.execute("SELECT host_user_id, title, capacity FROM friend_groups WHERE group_id=%s", (group_id,))
+        cursor.execute("SELECT host_user_id, title, capacity, trip_id FROM friend_groups WHERE group_id=%s", (group_id,))
         group = cursor.fetchone()
         if not group or group["host_user_id"] != session["user_id"]:
             flash("你不是這個揪團的團主。", "error")
-            return redirect(url_for("friend_groups.index"))
+            return redirect(url_for("friend_groups.index") + "#friend-groups")
 
         if group["capacity"]:
             cursor.execute(
@@ -746,6 +1033,12 @@ def approve_group_member(group_id, member_user_id):
             "UPDATE friend_group_members SET status='approved', responded_at=NOW() WHERE group_id=%s AND user_id=%s",
             (group_id, member_user_id)
         )
+        if group["trip_id"]:
+            cursor.execute(
+                "INSERT INTO trip_members (trip_id,user_id,member_role,join_status,joined_at) VALUES (%s,%s,'viewer','accepted',NOW()) "
+                "ON DUPLICATE KEY UPDATE join_status='accepted', joined_at=NOW()",
+                (group["trip_id"], member_user_id)
+            )
         cursor.execute(
             "INSERT INTO notifications (user_id, notification_type, title, message, target_url) VALUES (%s,'system','揪團申請已通過',%s,%s)",
             (member_user_id, f"你申請加入的「{group['title']}」已經通過審核！",
@@ -764,14 +1057,14 @@ def approve_group_member(group_id, member_user_id):
 @login_required("member")
 def reject_group_member(group_id, member_user_id):
     connection = _connection_or_home()
-    if connection is None: return redirect(url_for("friend_groups.index"))
+    if connection is None: return redirect(url_for("friend_groups.index") + "#friend-groups")
     cursor = connection.cursor(dictionary=True)
     try:
         cursor.execute("SELECT host_user_id FROM friend_groups WHERE group_id=%s", (group_id,))
         group = cursor.fetchone()
         if not group or group["host_user_id"] != session["user_id"]:
             flash("你不是這個揪團的團主。", "error")
-            return redirect(url_for("friend_groups.index"))
+            return redirect(url_for("friend_groups.index") + "#friend-groups")
 
         cursor.execute(
             "UPDATE friend_group_members SET status='rejected', responded_at=NOW() WHERE group_id=%s AND user_id=%s",
@@ -790,14 +1083,14 @@ def reject_group_member(group_id, member_user_id):
 @login_required("member")
 def cancel_group(group_id):
     connection = _connection_or_home()
-    if connection is None: return redirect(url_for("friend_groups.index"))
+    if connection is None: return redirect(url_for("friend_groups.index") + "#friend-groups")
     cursor = connection.cursor(dictionary=True)
     try:
         cursor.execute("SELECT host_user_id FROM friend_groups WHERE group_id=%s", (group_id,))
         group = cursor.fetchone()
         if not group or group["host_user_id"] != session["user_id"]:
             flash("你不是這個揪團的團主。", "error")
-            return redirect(url_for("friend_groups.index"))
+            return redirect(url_for("friend_groups.index") + "#friend-groups")
         cursor.execute("UPDATE friend_groups SET status='cancelled' WHERE group_id=%s", (group_id,))
         connection.commit()
         flash("揪團已取消。", "success")
@@ -805,4 +1098,4 @@ def cancel_group(group_id):
         connection.rollback(); flash("取消失敗，請再試一次。", "error")
     finally:
         cursor.close(); connection.close()
-    return redirect(url_for("friend_groups.index"))
+    return redirect(url_for("friend_groups.index") + "#friend-groups")

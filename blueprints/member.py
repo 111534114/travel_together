@@ -481,50 +481,8 @@ def my_trips():
 @member_bp.route("/companions")
 @login_required("member")
 def companions_page():
-    connection = _connection_or_home()
-    if connection is None:
-        return redirect(url_for("member.dashboard"))
-    cursor = connection.cursor(dictionary=True)
-    try:
-        user_id = session["user_id"]
-        cursor.execute("""
-            SELECT t.trip_id, t.owner_id, t.trip_name, t.visibility, co.name AS country, ci.name AS city,
-                   t.people_count, t.total_budget, t.currency, t.introduction, t.allow_copy,
-                   u.full_name AS owner_name, u.nickname AS owner_nickname,
-                   DATEDIFF(t.end_date, t.start_date) + 1 AS days_count,
-                   COUNT(tm.user_id) AS joined_count
-            FROM trips t
-            JOIN users u ON u.user_id = t.owner_id
-            JOIN countries co ON co.country_id = t.country_id
-            JOIN cities ci ON ci.city_id = t.city_id
-            LEFT JOIN trip_members tm ON tm.trip_id = t.trip_id AND tm.join_status = 'accepted'
-            WHERE (t.visibility = 'public' OR t.people_count > 1)
-              AND t.moderation_status = 'visible' AND t.deleted_at IS NULL
-            GROUP BY t.trip_id, t.owner_id, t.trip_name, t.visibility, co.name, ci.name, t.people_count,
-                     t.total_budget, t.currency, t.introduction, t.allow_copy, u.full_name, u.nickname
-            ORDER BY t.trip_id DESC
-        """)
-        companions = cursor.fetchall()
-
-        cursor.execute("""
-            SELECT target_id FROM reports
-            WHERE reporter_id = %s AND target_type = 'trip' AND reason LIKE %s
-              AND status IN ('pending', 'processing')
-        """, (user_id, ISSUE_PREFIX + "%"))
-        reported_trip_ids = {row["target_id"] for row in cursor.fetchall()}
-
-        cursor.execute("SELECT trip_id FROM favorites WHERE user_id=%s AND target_type='trip'", (user_id,))
-        favorite_trip_ids = {row["trip_id"] for row in cursor.fetchall()}
-
-        # 只有公開行程才能在這裡查看明細／複製／回報，非公開的多人行程只做為揪團資訊展示
-        public_companions = [c for c in companions if c["visibility"] == "public"]
-        trips_timeline_json = _build_trips_timeline(cursor, public_companions, user_id, favorite_trip_ids, reported_trip_ids)
-    finally:
-        cursor.close(); connection.close()
-    return render_template(
-        "member/companions.html", companions=companions,
-        trips_timeline_json=trips_timeline_json, issue_reasons=ISSUE_REASONS,
-    )
+    """Keep older shared links working after moving companion search into the group page."""
+    return redirect(url_for("friend_groups.index") + "#companions")
 
 
 @member_bp.route("/announcements")
@@ -1321,6 +1279,8 @@ def trip_detail(trip_id):
         cursor.execute("""SELECT ti.*, u.full_name AS invitee_name, u.nickname AS invitee_nickname
                           FROM trip_invitations ti JOIN users u ON u.user_id=ti.invitee_id
                           WHERE ti.trip_id=%s AND ti.status='pending' ORDER BY ti.created_at DESC""", (trip_id,)); pending_invitations = cursor.fetchall()
+        cursor.execute("""SELECT tm.*, u.full_name,u.nickname FROM trip_members tm JOIN users u ON u.user_id=tm.user_id
+                          WHERE tm.trip_id=%s AND tm.join_status='requested' ORDER BY tm.created_at""", (trip_id,)); pending_requests = cursor.fetchall()
         cursor.execute("""SELECT invitation_id, invite_token, assigned_role, expires_at FROM trip_invitations
                           WHERE trip_id=%s AND invitee_id IS NULL AND status='pending'
                             AND (expires_at IS NULL OR expires_at > NOW())
@@ -1354,7 +1314,7 @@ def trip_detail(trip_id):
         transport_summary = _summarize_transport_time(itinerary)
     finally:
         cursor.close(); connection.close()
-    return render_template("member/trip_detail.html", trip=trip, itinerary=itinerary, place_options=place_options, popular_attractions=popular_attractions, addable_trips=[trip], day_last_coords=day_last_coords, city_weather_days=city_weather_days, members=members, pending_invitations=pending_invitations, invite_link=invite_link, proposals=proposals, votes=votes, comments=comments, itinerary_comments=itinerary_comments, proposal_comments=proposal_comments, reported_comment_ids=reported_comment_ids, comment_report_reasons=COMMENT_REPORT_REASONS, expenses=expenses, balance_summary=balance_summary, attachments=attachments, actual=actual, can_edit=_can_edit(trip), is_owner=trip["member_role"] == "owner", now=datetime.now(), item_type_labels=ITEM_TYPE_LABELS, itinerary_change_field_labels=ITINERARY_CHANGE_FIELD_LABELS, disney_parks=theme_parks.get_disney_parks(), transport_summary=transport_summary)
+    return render_template("member/trip_detail.html", trip=trip, itinerary=itinerary, place_options=place_options, popular_attractions=popular_attractions, addable_trips=[trip], day_last_coords=day_last_coords, city_weather_days=city_weather_days, members=members, pending_invitations=pending_invitations, pending_requests=pending_requests, invite_link=invite_link, proposals=proposals, votes=votes, comments=comments, itinerary_comments=itinerary_comments, proposal_comments=proposal_comments, reported_comment_ids=reported_comment_ids, comment_report_reasons=COMMENT_REPORT_REASONS, expenses=expenses, balance_summary=balance_summary, attachments=attachments, actual=actual, can_edit=_can_edit(trip), is_owner=trip["member_role"] == "owner", now=datetime.now(), item_type_labels=ITEM_TYPE_LABELS, itinerary_change_field_labels=ITINERARY_CHANGE_FIELD_LABELS, disney_parks=theme_parks.get_disney_parks(), transport_summary=transport_summary)
 
 
 @member_bp.route("/trips/<int:trip_id>/park-hours")
@@ -2834,6 +2794,57 @@ def remove_member(trip_id, member_user_id):
                 flash("已移除該成員。", "success")
     except Exception:
         connection.rollback(); flash("移除成員失敗。", "error")
+    finally:
+        cursor.close(); connection.close()
+    return redirect(url_for("member.trip_detail", trip_id=trip_id) + "#members")
+
+
+@member_bp.route("/trips/<int:trip_id>/requests/<int:member_user_id>/approve", methods=["POST"])
+@login_required("member")
+def approve_trip_request(trip_id, member_user_id):
+    connection = _connection_or_home()
+    if connection is None: return redirect(url_for("member.dashboard"))
+    cursor = connection.cursor(dictionary=True)
+    try:
+        trip = _member_access(cursor, trip_id, session["user_id"])
+        if not trip or trip["member_role"] != "owner":
+            flash("只有建立者可以審核加入申請。", "error")
+        else:
+            cursor.execute("SELECT trip_member_id FROM trip_members WHERE trip_id=%s AND user_id=%s AND join_status='requested'", (trip_id, member_user_id))
+            if not cursor.fetchone():
+                flash("找不到這筆申請。", "error")
+            else:
+                cursor.execute("UPDATE trip_members SET join_status='accepted', joined_at=NOW() WHERE trip_id=%s AND user_id=%s", (trip_id, member_user_id))
+                cursor.execute("INSERT INTO notifications (user_id,trip_id,notification_type,title,message,target_url) VALUES (%s,%s,'trip_update','加入申請已通過',%s,%s)", (member_user_id, trip_id, f"你申請加入「{trip['trip_name']}」已經通過了", url_for('member.trip_detail', trip_id=trip_id)))
+                connection.commit()
+                flash("已核准加入申請。", "success")
+    except Exception:
+        connection.rollback(); flash("審核失敗，請再試一次。", "error")
+    finally:
+        cursor.close(); connection.close()
+    return redirect(url_for("member.trip_detail", trip_id=trip_id) + "#members")
+
+
+@member_bp.route("/trips/<int:trip_id>/requests/<int:member_user_id>/reject", methods=["POST"])
+@login_required("member")
+def reject_trip_request(trip_id, member_user_id):
+    connection = _connection_or_home()
+    if connection is None: return redirect(url_for("member.dashboard"))
+    cursor = connection.cursor(dictionary=True)
+    try:
+        trip = _member_access(cursor, trip_id, session["user_id"])
+        if not trip or trip["member_role"] != "owner":
+            flash("只有建立者可以審核加入申請。", "error")
+        else:
+            cursor.execute("SELECT trip_member_id FROM trip_members WHERE trip_id=%s AND user_id=%s AND join_status='requested'", (trip_id, member_user_id))
+            if not cursor.fetchone():
+                flash("找不到這筆申請。", "error")
+            else:
+                cursor.execute("UPDATE trip_members SET join_status='rejected' WHERE trip_id=%s AND user_id=%s", (trip_id, member_user_id))
+                connection.commit()
+                flash("已婉拒這筆申請。", "success")
+    except Exception:
+        connection.rollback(); flash("操作失敗，請再試一次。", "error")
     finally:
         cursor.close(); connection.close()
     return redirect(url_for("member.trip_detail", trip_id=trip_id) + "#members")

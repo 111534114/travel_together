@@ -147,7 +147,7 @@ def approve_application(application_id):
         cursor.execute(
             "INSERT INTO notifications (user_id, notification_type, title, message, target_url) VALUES (%s,'system','交友揪團申請已核准',%s,%s)",
             (application["user_id"], "你的交友揪團使用申請已經通過，先去報名一場官方活動吧！",
-             url_for("friend_groups.index"))
+             url_for("friend_groups.index") + "#friend-groups")
         )
         log_action(cursor, "approve_friend_group_application", "friend_group_application", application_id, "核准交友揪團使用申請")
         connection.commit()
@@ -192,7 +192,7 @@ def reject_application(application_id):
         )
         cursor.execute(
             "INSERT INTO notifications (user_id, notification_type, title, message, target_url) VALUES (%s,'system','交友揪團申請被退回',%s,%s)",
-            (application["user_id"], f"你的交友揪團使用申請沒有通過，原因：{review_note}", url_for("friend_groups.index"))
+            (application["user_id"], f"你的交友揪團使用申請沒有通過，原因：{review_note}", url_for("friend_groups.index") + "#friend-groups")
         )
         log_action(cursor, "reject_friend_group_application", "friend_group_application", application_id, f"退回交友揪團使用申請，原因：{review_note}")
         connection.commit()
@@ -403,13 +403,67 @@ def event_participants(event_id):
             ORDER BY FIELD(p.status,'registered','attended','no_show','cancelled'), p.registered_at
         """, (event_id,))
         participants = cursor.fetchall()
+
+        cursor.execute("""
+            SELECT a.*, u.nickname, u.full_name FROM friend_group_event_announcements a
+            JOIN users u ON u.user_id = a.posted_by
+            WHERE a.event_id=%s ORDER BY a.created_at DESC
+        """, (event_id,))
+        announcements = cursor.fetchall()
     finally:
         cursor.close()
         connection.close()
     return render_template(
         "content_admin/friend_groups/event_participants.html",
-        event=event, participants=participants,
+        event=event, participants=participants, announcements=announcements,
     )
+
+
+@friend_groups_admin_bp.route("/events/<int:event_id>/announcements", methods=["POST"])
+@login_required("content_admin")
+def post_event_announcement(event_id):
+    connection = get_db_connection()
+    if connection is None:
+        flash("資料庫連線失敗", "error")
+        return redirect(url_for("friend_groups_admin.event_participants", event_id=event_id))
+    cursor = connection.cursor(dictionary=True)
+    try:
+        cursor.execute("SELECT title FROM friend_group_events WHERE event_id=%s", (event_id,))
+        event = cursor.fetchone()
+        if not event:
+            flash("找不到這場活動。", "error")
+            return redirect(url_for("friend_groups_admin.list_events"))
+
+        content = request.form.get("content", "").strip()
+        if not content or len(content) > 1000:
+            flash("請填寫公告內容，且不能超過 1000 字。", "error")
+            return redirect(url_for("friend_groups_admin.event_participants", event_id=event_id))
+
+        cursor.execute(
+            "INSERT INTO friend_group_event_announcements (event_id, posted_by, content) VALUES (%s,%s,%s)",
+            (event_id, session["user_id"], content)
+        )
+        cursor.execute("""
+            SELECT user_id FROM friend_group_event_participants
+            WHERE event_id=%s AND status IN ('registered','attended')
+        """, (event_id,))
+        for row in cursor.fetchall():
+            cursor.execute(
+                "INSERT INTO notifications (user_id, notification_type, title, message, target_url) "
+                "VALUES (%s,'system','活動公告更新',%s,%s)",
+                (row["user_id"], f"「{event['title']}」有新公告：{content[:50]}", url_for("friend_groups.event_detail", event_id=event_id))
+            )
+        log_action(cursor, "post_friend_group_event_announcement", "friend_group_event", event_id, "發布活動公告")
+        connection.commit()
+        flash("公告已發布。", "success")
+    except Exception as error:
+        connection.rollback()
+        print("發布活動公告失敗：", error)
+        flash("發布失敗，請再試一次。", "error")
+    finally:
+        cursor.close()
+        connection.close()
+    return redirect(url_for("friend_groups_admin.event_participants", event_id=event_id))
 
 
 @friend_groups_admin_bp.route("/events/<int:event_id>/participants/<int:user_id>/check-in", methods=["POST"])
@@ -435,7 +489,7 @@ def check_in_participant(event_id, user_id):
             cursor.execute(
                 "INSERT INTO notifications (user_id, notification_type, title, message, target_url) "
                 "VALUES (%s,'system','🎉 解鎖交友揪團功能','你已出席官方活動，現在可以瀏覽並申請加入其他會員的揪團；若要發起自己的揪團，請先完成新手開團引導。',%s)",
-                (user_id, url_for("friend_groups.index"))
+                (user_id, url_for("friend_groups.index") + "#friend-groups")
             )
         log_action(cursor, "check_in_friend_group_participant", "friend_group_event", event_id, f"標記報到：使用者 {user_id}")
         connection.commit()

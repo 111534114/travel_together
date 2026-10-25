@@ -1,11 +1,15 @@
 {% extends 'member/base.html' %}{% block title %}管理揪團｜走吧揪團{% endblock %}{% block content %}
 <div class="trip-form-page">
     <div class="page-heading trip-form-heading">
-        <a href="{{ url_for('friend_groups.index') }}">← 返回交友揪團</a>
+        <a href="{{ url_for('friend_groups.index') }}#friend-groups">← 返回交友揪團</a>
     </div>
     <div class="panel">
         <div class="panel-title"><div><p class="eyebrow">MANAGE</p><h1>{{ group.title }}</h1></div></div>
         <p class="form-hint">{{ group.event_date }}{% if group.location %} · {{ group.location }}{% endif %} · {{ {'open':'開放中','closed':'已關閉','cancelled':'已取消'}[group.status] }}</p>
+
+        {% if group.trip_id %}
+        <a class="member-btn primary" href="{{ url_for('member.trip_detail', trip_id=group.trip_id) }}" style="margin-top: 12px; display: inline-flex;">📋 管理行程（每日行程、聊天室、記帳分帳、公告）</a>
+        {% endif %}
 
         {% if group.status != 'cancelled' %}
         <form method="post" action="{{ url_for('friend_groups.cancel_group', group_id=group.group_id) }}" onsubmit="return confirm('確定要取消這個揪團嗎？')" style="margin-top: 12px;">

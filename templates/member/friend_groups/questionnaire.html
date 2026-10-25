@@ -1,8 +1,18 @@
 {% extends 'member/base.html' %}{% block title %}旅遊人格問卷｜走吧揪團{% endblock %}{% block content %}
 <div class="trip-form-page">
     <div class="page-heading trip-form-heading">
-        <a href="{{ url_for('friend_groups.index') }}">← 返回交友揪團</a>
+        <a href="{{ url_for('friend_groups.index') }}#friend-groups">← 返回交友揪團</a>
     </div>
+    {% if profile %}
+    <div class="panel">
+        <p class="attraction-detail-breadcrumb">你目前的旅遊人格是</p>
+        <h1>{{ profile.traveler_type }}</h1>
+        <div class="attraction-detail-stats">
+            <div><span>步調</span><strong>{{ pace_labels[profile.pace] }}</strong></div>
+            <div><span>社交傾向</span><strong>{{ social_labels[profile.social_style] }}</strong></div>
+        </div>
+    </div>
+    {% endif %}
     <div class="panel">
         <h1>旅遊人格問卷</h1>
         <p class="form-hint">填寫完成後，我們會依照你的步調跟社交傾向算出一個旅遊人格稱號，用來推薦行程、也用來幫你在交友揪團裡配對適合的旅伴。</p>

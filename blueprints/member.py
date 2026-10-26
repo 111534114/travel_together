@@ -10,6 +10,7 @@ from werkzeug.security import check_password_hash, generate_password_hash
 
 from auth import login_required
 from attraction_rankings import TAIWAN_COUNTIES, count_attraction_rankings, fetch_attraction_rankings
+from nearby_attractions import find_nearby_attractions
 from db import get_db_connection
 from utils import delete_uploaded_image, format_hm, get_cities, get_countries, save_uploaded_attachment, save_uploaded_image
 from content_moderation import is_image_explicit
@@ -888,6 +889,8 @@ def attraction_detail(attraction_id):
     connection = _connection_or_home()
     if connection is None: return redirect(url_for("member.browse_attractions"))
     cursor = connection.cursor(dictionary=True)
+    nearby_trip = None
+    nearby_recommendations = []
     try:
         cursor.execute("""
             SELECT a.*, cat.category_name, co.name AS country, ci.name AS city,
@@ -903,6 +906,23 @@ def attraction_detail(attraction_id):
         addable_trips = _addable_trips(cursor, session["user_id"]) if attraction else []
         posts = []
         if attraction:
+            added_to = request.args.get("added_to", "")
+            if added_to.isdigit() and len(added_to) <= 20:
+                cursor.execute("""
+                    SELECT i.trip_id, i.itinerary_date, t.trip_name
+                    FROM itineraries i
+                    JOIN trips t ON t.trip_id = i.trip_id AND t.deleted_at IS NULL
+                    JOIN trip_members tm ON tm.trip_id = i.trip_id
+                        AND tm.user_id = %s AND tm.join_status = 'accepted'
+                        AND tm.member_role IN ('owner', 'editor')
+                    WHERE i.itinerary_id = %s AND i.created_by = %s
+                      AND i.item_type = 'attraction'
+                """, (session["user_id"], int(added_to), session["user_id"]))
+                nearby_trip = cursor.fetchone()
+                if nearby_trip:
+                    nearby_recommendations = find_nearby_attractions(
+                        cursor, attraction, nearby_trip["trip_id"], nearby_trip["itinerary_date"]
+                    )
             cursor.execute("""
                 SELECT p.*, u.nickname, u.full_name
                 FROM attraction_posts p JOIN users u ON u.user_id = p.user_id
@@ -930,7 +950,10 @@ def attraction_detail(attraction_id):
         flash("找不到這個景點，或已被下架。", "error")
         return redirect(url_for("member.browse_attractions"))
 
-    return render_template("member/attraction_detail.html", a=attraction, addable_trips=addable_trips, posts=posts)
+    return render_template(
+        "member/attraction_detail.html", a=attraction, addable_trips=addable_trips,
+        posts=posts, nearby_trip=nearby_trip, nearby_recommendations=nearby_recommendations,
+    )
 
 
 @member_bp.route("/attractions/<int:attraction_id>/posts", methods=["POST"])
@@ -1134,8 +1157,11 @@ def add_attraction_to_trip(attraction_id):
                        (trip["trip_id"], session["user_id"], day_value, attraction["name"][:150], start, end, is_all_day, attraction["address"],
                         request.form.get("transport_method", "").strip() or None, transport_minutes,
                         attraction["ticket_price"] or 0, request.form.get("notes", "").strip() or None, attraction_id, order))
+        added_itinerary_id = cursor.lastrowid
         connection.commit()
         flash(f"已將「{attraction['name']}」加入「{trip['trip_name']}」的 {day_value} 行程。", "success")
+        if re.fullmatch(r"/member/attractions/\d+", next_url.split("?", 1)[0].split("#", 1)[0]):
+            next_url = f"{next_url.split('?', 1)[0].split('#', 1)[0]}?added_to={added_itinerary_id}#nearby"
     except Exception:
         current_app.logger.exception("加入景點到行程失敗 user_id=%s", session.get("user_id"))
         connection.rollback(); flash("加入行程失敗，請再試一次。", "error")

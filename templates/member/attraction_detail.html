@@ -48,6 +48,40 @@
             {% if a.website_url %}<a href="{{ a.website_url }}" target="_blank" rel="noopener" class="member-btn ghost">官方網站</a>{% endif %}
         </div>
     </div>
+    {% if nearby_trip %}
+    <section class="panel nearby-attractions" id="nearby" aria-labelledby="nearby-title">
+        <div class="nearby-attractions-heading">
+            <div>
+                <h2 id="nearby-title">附近景點推薦</h2>
+                <p class="form-hint">以「{{ a.name }}」為中心，推薦 5 公里內的景點；已加入「{{ nearby_trip.trip_name }}」{{ nearby_trip.itinerary_date }} 當日行程的景點不重複顯示。</p>
+            </div>
+        </div>
+        {% if a.latitude is none or a.longitude is none or (a.latitude == 0 and a.longitude == 0) %}
+            <p class="empty-data">這個景點尚無座標，暫時無法計算附近景點。</p>
+        {% elif nearby_recommendations %}
+            <div class="nearby-attractions-list">
+                {% for place in nearby_recommendations %}
+                <article class="nearby-attraction-item">
+                    <div class="nearby-attraction-info">
+                        <a href="{{ url_for('member.attraction_detail', attraction_id=place.attraction_id) }}">{{ place.name }}</a>
+                        <span>{{ place.city }} · {{ place.distance_label }}{% if place.address %} · {{ place.address }}{% endif %}</span>
+                    </div>
+                    <form method="post" action="{{ url_for('member.add_attraction_to_trip', attraction_id=place.attraction_id) }}">
+                        <input type="hidden" name="trip_id" value="{{ nearby_trip.trip_id }}">
+                        <input type="hidden" name="itinerary_date" value="{{ nearby_trip.itinerary_date }}">
+                        <input type="hidden" name="time_mode" value="range">
+                        <input type="hidden" name="next" value="{{ url_for('member.attraction_detail', attraction_id=a.attraction_id) }}">
+                        <button type="submit" class="member-btn ghost small">＋加入同一天</button>
+                    </form>
+                </article>
+                {% endfor %}
+            </div>
+            <p class="form-hint nearby-attractions-note">距離為直線估算；加入後可到行程頁調整順序、時間與交通方式。</p>
+        {% else %}
+            <p class="empty-data">5 公里內暫無其他可推薦的景點。</p>
+        {% endif %}
+    </section>
+    {% endif %}
     <div class="panel" id="album">
         <h2>景點相簿</h2>
         <p class="form-hint">分享實拍照片與旅遊心得；內容會先經過審核。</p>

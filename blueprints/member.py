@@ -890,6 +890,7 @@ def attraction_detail(attraction_id):
     if connection is None: return redirect(url_for("member.browse_attractions"))
     cursor = connection.cursor(dictionary=True)
     nearby_trip = None
+    nearby_trip_addable = False
     nearby_recommendations = []
     try:
         cursor.execute("""
@@ -920,6 +921,9 @@ def attraction_detail(attraction_id):
                 """, (session["user_id"], int(added_to), session["user_id"]))
                 nearby_trip = cursor.fetchone()
                 if nearby_trip:
+                    nearby_trip_addable = any(
+                        trip["trip_id"] == nearby_trip["trip_id"] for trip in addable_trips
+                    )
                     nearby_recommendations = find_nearby_attractions(
                         cursor, attraction, nearby_trip["trip_id"], nearby_trip["itinerary_date"]
                     )
@@ -952,7 +956,8 @@ def attraction_detail(attraction_id):
 
     return render_template(
         "member/attraction_detail.html", a=attraction, addable_trips=addable_trips,
-        posts=posts, nearby_trip=nearby_trip, nearby_recommendations=nearby_recommendations,
+        posts=posts, nearby_trip=nearby_trip, nearby_trip_addable=nearby_trip_addable,
+        nearby_recommendations=nearby_recommendations,
     )
 
 

@@ -869,6 +869,11 @@ def line_bind():
         flash("LINE 尚未完成設定，暫時無法綁定。", "error")
         return redirect(url_for("member.profile"))
     session["line_bind_user_id"] = session["user_id"]
+    next_url = safe_next_url(request.args.get("next"))
+    if next_url:
+        session["line_bind_next"] = next_url
+    else:
+        session.pop("line_bind_next", None)
     return line_oauth.authorize_redirect(url_for("line_callback", _external=True), bot_prompt="aggressive")
 
 
@@ -900,12 +905,13 @@ def line_unbind():
     return redirect(url_for("member.profile"))
 
 
-def bind_line_to_current_user(line_sub, friend_flag):
+def bind_line_to_current_user(line_sub, friend_flag, next_url=None):
     connection = get_db_connection()
     if connection is None:
         flash("資料庫連線失敗，請稍後再試。", "error")
         return redirect(url_for("member.profile"))
     cursor = connection.cursor(dictionary=True)
+    redirect_url = url_for("member.profile")
     try:
         cursor.execute("SELECT user_id FROM users WHERE line_sub=%s AND user_id<>%s LIMIT 1",
                        (line_sub, session["user_id"]))
@@ -916,6 +922,7 @@ def bind_line_to_current_user(line_sub, friend_flag):
                        (line_sub, 1 if friend_flag else 0, session["user_id"]))
         connection.commit()
         flash("LINE 綁定完成！" + ("之後會收到行程提醒。" if friend_flag else "請再加入官方帳號好友。"), "success")
+        redirect_url = next_url or redirect_url
     except Error as error:
         connection.rollback()
         print("綁定 LINE 失敗：", error)
@@ -923,7 +930,7 @@ def bind_line_to_current_user(line_sub, friend_flag):
     finally:
         cursor.close()
         connection.close()
-    return redirect(url_for("member.profile"))
+    return redirect(redirect_url)
 
 
 def fetch_line_friend_flag(access_token):  # 查詢使用者是否為官方帳號好友，查不到時回傳 None
@@ -943,6 +950,7 @@ def fetch_line_friend_flag(access_token):  # 查詢使用者是否為官方帳�
 @app.route("/auth/line/callback")
 def line_callback():
     bind_user_id = session.pop("line_bind_user_id", None)
+    bind_next_url = session.pop("line_bind_next", None)
     binding = bind_user_id is not None and bind_user_id == session.get("user_id")
     fail_redirect = url_for("member.profile") if binding else url_for("login")
     try:
@@ -966,7 +974,7 @@ def line_callback():
         return redirect(fail_redirect)
 
     if binding:
-        return bind_line_to_current_user(line_sub, friend_flag)
+        return bind_line_to_current_user(line_sub, friend_flag, next_url=bind_next_url)
     return finish_line_login(line_sub, profile.get("displayName"), friend_flag)
 
 

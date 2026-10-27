@@ -37,7 +37,7 @@ def find_nearby_attractions(cursor, source, trip_id, itinerary_date, radius_km=5
     latitude_span = radius_km / 110
     longitude_span = min(180, radius_km / (110 * max(abs(cos(radians(latitude))), 0.01)))
     cursor.execute("""
-        SELECT a.attraction_id, a.name, a.address, a.image_path,
+        SELECT a.attraction_id, a.name, a.address, a.image_path, a.city_id,
                a.latitude, a.longitude, ci.name AS city
         FROM attractions a
         JOIN cities ci ON ci.city_id = a.city_id

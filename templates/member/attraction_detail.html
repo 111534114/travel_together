@@ -66,17 +66,17 @@
                         <a href="{{ url_for('member.attraction_detail', attraction_id=place.attraction_id) }}">{{ place.name }}</a>
                         <span>{{ place.city }} · {{ place.distance_label }}{% if place.address %} · {{ place.address }}{% endif %}</span>
                     </div>
-                    <form method="post" action="{{ url_for('member.add_attraction_to_trip', attraction_id=place.attraction_id) }}">
-                        <input type="hidden" name="trip_id" value="{{ nearby_trip.trip_id }}">
-                        <input type="hidden" name="itinerary_date" value="{{ nearby_trip.itinerary_date }}">
-                        <input type="hidden" name="time_mode" value="range">
-                        <input type="hidden" name="next" value="{{ url_for('member.attraction_detail', attraction_id=a.attraction_id) }}">
-                        <button type="submit" class="member-btn ghost small">＋加入同一天</button>
-                    </form>
+                    {% if nearby_trip_addable %}
+                    <button type="button" class="member-btn ghost small" data-add-to-trip
+                            data-action="{{ url_for('member.add_attraction_to_trip', attraction_id=place.attraction_id) }}"
+                            data-name="{{ place.name }}" data-city-id="{{ place.city_id }}"
+                            data-lat="{{ place.latitude }}" data-lng="{{ place.longitude }}"
+                            data-trip-id="{{ nearby_trip.trip_id }}" data-itinerary-date="{{ nearby_trip.itinerary_date }}">＋加入同一天</button>
+                    {% endif %}
                 </article>
                 {% endfor %}
             </div>
-            <p class="form-hint nearby-attractions-note">距離為直線估算；加入後可到行程頁調整順序、時間與交通方式。</p>
+            <p class="form-hint nearby-attractions-note">距離為直線估算；{% if nearby_trip_addable %}點選後可選擇時間，也可以不指定時間直接加入。{% else %}這個行程已結束，無法再加入景點。{% endif %}</p>
         {% else %}
             <p class="empty-data">5 公里內暫無其他可推薦的景點。</p>
         {% endif %}

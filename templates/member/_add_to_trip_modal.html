@@ -23,6 +23,7 @@
                 <label class="add-trip-full">時間模式<select name="time_mode" id="addToTripTimeMode" class="time-mode-select"><option value="range">指定時段</option><option value="all_day">整天</option><option value="start_only">只填開始</option><option value="end_only">只填結束</option></select></label>
                 <label class="time-field-start">開始時間<input type="time" name="start_time"></label>
                 <label class="time-field-end">結束時間<input type="time" name="end_time"></label>
+                <p class="form-hint add-trip-full">時間可留空；不指定時間也能先加入行程，之後再安排。</p>
                 <label>交通方式<select name="transport_method" id="addToTripTransportMethod"><option value="">不指定</option>{% for method in ['步行', '捷運／地鐵', '公車', '計程車', '高鐵', '火車', '客運', '開車', '租車', '機車', '腳踏車', '飛機', '船'] %}<option value="{{ method }}">{{ method }}</option>{% endfor %}</select></label>
                 <label>交通／移動時間(分鐘)<input type="number" min="0" name="transport_minutes" id="addToTripTransportMinutes"></label>
                 <p class="form-hint add-trip-full" id="addToTripEstimateHint" hidden>已依選擇的交通方式，自動估算跟上一個行程點的通勤時間，你可以再自行調整。</p>
@@ -163,12 +164,13 @@ window.estimateTransportMinutes = function (lat1, lng1, lat2, lng2, method) {
         if (form) {
             form.action = button.dataset.action;
             form.reset();
-            dateInput.value = '';
             if (estimateHint) estimateHint.hidden = true;
             syncTimeFields();
-            // 預設選同城市的第一個行程
+            // 附近推薦沿用剛加入的行程與日期；一般加入仍預設同城市的行程。
+            var preferredTrip = Array.prototype.find.call(select.options, function (o) { return o.value === button.dataset.tripId; });
             var sameCity = Array.prototype.find.call(select.options, function (o) { return o.dataset.city === currentCity; });
-            select.value = (sameCity || select.options[0]).value;
+            select.value = (preferredTrip || sameCity || select.options[0]).value;
+            dateInput.value = preferredTrip ? (button.dataset.itineraryDate || '') : '';
             syncTrip();
         }
         modal.hidden = false;

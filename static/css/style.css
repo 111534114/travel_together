@@ -3622,7 +3622,7 @@ body {
     font-size: 13px;
 }
 
-.nearby-attraction-item form {
+.nearby-attraction-item > .member-btn {
     flex: none;
 }
 

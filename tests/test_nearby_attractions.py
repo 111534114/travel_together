@@ -1,8 +1,10 @@
 import unittest
 from datetime import date
+from pathlib import Path
 from unittest.mock import Mock, patch
 
 from app import app
+from blueprints.member import _parse_itinerary_time
 from nearby_attractions import find_nearby_attractions
 
 
@@ -52,11 +54,18 @@ class NearbyAttractionTests(unittest.TestCase):
              )):
             response = client.post("/member/attractions/1/add-to-trip", data={
                 "next": "/member/attractions/1", "trip_id": "7",
-                "itinerary_date": "2026-10-27", "time_mode": "all_day",
+                "itinerary_date": "2026-10-27", "time_mode": "range",
+                "start_time": "09:00", "end_time": "10:30",
             })
         self.assertEqual(response.status_code, 302)
         self.assertEqual(response.headers["Location"], "/member/attractions/1?added_to=42#nearby")
+        insert_sql, insert_params = cursor.execute.call_args_list[-1].args
+        self.assertIn("INSERT INTO itineraries", insert_sql)
+        self.assertEqual(insert_params[4:7], ("09:00", "10:30", False))
         connection.commit.assert_called_once()
+
+    def test_time_can_be_left_unscheduled(self):
+        self.assertEqual(_parse_itinerary_time({"time_mode": "range"})[:3], (None, None, False))
 
     def test_recommendations_only_show_for_own_editable_trip(self):
         attraction = dict(
@@ -90,9 +99,13 @@ class NearbyAttractionTests(unittest.TestCase):
             website_url=None,
         )
         trip = dict(trip_id=7, itinerary_date=date(2026, 10, 27), trip_name="台北")
+        addable_trip = dict(
+            trip_id=7, trip_name="台北", city_id=1, city="台北市",
+            start_date=date(2026, 10, 27), end_date=date(2026, 10, 28),
+        )
         nearby = dict(
             attraction_id=2, name="附近景點", address="信義區", image_path=None,
-            latitude=25.036, longitude=121.565, city="台北市",
+            latitude=25.036, longitude=121.565, city="台北市", city_id=1,
         )
         cursor = Mock()
         cursor.fetchone.side_effect = [attraction, trip]
@@ -103,16 +116,27 @@ class NearbyAttractionTests(unittest.TestCase):
         with client.session_transaction() as session:
             session.update(user_id=1, role="member")
         with patch("blueprints.member.get_db_connection", return_value=connection), \
-             patch("blueprints.member._addable_trips", return_value=[]), \
+             patch("blueprints.member._addable_trips", return_value=[addable_trip]), \
              patch.dict(app.jinja_env.globals, {"friend_group_feature_enabled": lambda: False}):
             response = client.get("/member/attractions/1?added_to=42")
         self.assertEqual(response.status_code, 200)
         html = response.get_data(as_text=True)
         self.assertIn("附近景點推薦", html)
         self.assertIn("附近景點", html)
-        self.assertIn('name="trip_id" value="7"', html)
-        self.assertIn('name="itinerary_date" value="2026-10-27"', html)
+        self.assertIn('data-trip-id="7"', html)
+        self.assertIn('data-itinerary-date="2026-10-27"', html)
+        self.assertIn('data-action="/member/attractions/2/add-to-trip"', html)
+        self.assertIn('data-city-id="1"', html)
         self.assertIn("＋加入同一天", html)
+
+    def test_nearby_button_reuses_modal_with_prefilled_trip_and_day(self):
+        template_path = Path(__file__).resolve().parents[1] / "templates/member/_add_to_trip_modal.html"
+        with template_path.open(encoding="utf-8") as template:
+            modal = template.read()
+        self.assertIn("button.dataset.tripId", modal)
+        self.assertIn("button.dataset.itineraryDate", modal)
+        self.assertIn("select.value = (preferredTrip || sameCity || select.options[0]).value", modal)
+        self.assertIn("時間可留空", modal)
 
 
 if __name__ == "__main__":

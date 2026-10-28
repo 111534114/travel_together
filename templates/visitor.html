@@ -89,6 +89,9 @@
     .field-sep { display: flex; flex: 0 0 auto; align-items: center; justify-content: center; padding-bottom: 11px; color: var(--muted); font-size: 16px; }
     .search-submit { flex: 0 0 auto; min-height: 44px; padding: 10px 26px; color: #fff; background: var(--purple); border: 0; border-radius: 6px; cursor: pointer; font-size: 15px; font-weight: 700; }
     .search-submit:hover { background: #37676D; }
+    /* 錯誤訊息改成浮在欄位下面(不佔版面高度)，這樣有沒有錯誤訊息都不會影響同一排其他欄位(人數、搜尋按鈕)的垂直對齊 */
+    .search-fields-row .field { position: relative; }
+    .search-fields-row .booking-field-error { position: absolute; top: 100%; left: 0; width: 100%; margin: 4px 0 0; }
     .search-note { margin: 14px 0 0; color: var(--muted); font-size: 12px; }
     .date-range-field { flex: 1 1 260px; }
     .date-range-box { display: flex; align-items: center; gap: 8px; min-height: 44px; padding: 0 12px; background: #fff; border: 1px solid #C5D5D7; border-radius: 6px; }
@@ -314,8 +317,8 @@
           <div class="field"><label for="hotelDest">目的地</label><input id="hotelDest" type="text" placeholder="城市、飯店名稱"></div>
           <div class="field date-range-field">
             <label for="hotelDateRange">入住・退房</label>
-            <div class="date-range-box">
-              <input id="hotelDateRange" type="text">
+            <div class="date-range-box" id="hotelDateBox">
+              <input id="hotelDateRange" type="text" placeholder="請選擇入住與退房日期">
               <span class="date-range-badge" id="hotelDateBadge" hidden></span>
             </div>
             <input type="hidden" id="hotelCheckin">
@@ -337,8 +340,8 @@
             <div class="field"><label for="flightTo">目的地</label><input id="flightTo" type="text" placeholder="東京"></div>
             <div class="field date-range-field">
               <label for="flightDateRange">日期</label>
-              <div class="date-range-box">
-                <input id="flightDateRange" type="text">
+              <div class="date-range-box" id="flightDateBox">
+                <input id="flightDateRange" type="text" placeholder="請選擇日期">
               </div>
               <input type="hidden" id="flightDepart">
               <input type="hidden" id="flightReturn">
@@ -383,8 +386,8 @@
             <div class="field"><label for="trainTo">到達站</label><input id="trainTo" type="text" placeholder="高雄"></div>
             <div class="field date-range-field">
               <label for="trainDateRange">出發・回程</label>
-              <div class="date-range-box">
-                <input id="trainDateRange" type="text">
+              <div class="date-range-box" id="trainDateBox">
+                <input id="trainDateRange" type="text" placeholder="請選擇日期">
               </div>
               <input type="hidden" id="trainDate">
               <input type="hidden" id="trainReturn">
@@ -687,6 +690,5 @@
   </script>
 {% if is_member %}{% include 'member/_notification_drawer.html' %}<script src="{{ url_for('static', filename='js/member_notifications.js') }}" defer></script>{% endif %}
 {% if is_member %}<script src="{{ url_for('static', filename='js/member-nav.js') }}" defer></script>{% endif %}
-<script src="{{ url_for('static', filename='js/booking-tools.js') }}" defer></script>
 </body>
 </html>

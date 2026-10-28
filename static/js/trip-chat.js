@@ -69,7 +69,10 @@
         if (!mine) row.appendChild(el('i', 'chat-avatar', message.name.slice(0, 1)));
         var bubbleWrap = el('div', 'chat-msg-body');
         if (!mine) bubbleWrap.appendChild(el('b', 'chat-name', message.name));
-        bubbleWrap.appendChild(el('p', 'chat-text', message.content));
+        var text = el('p', 'chat-text');
+        // @提及標示由 trip_detail.html 提供；沒有的話就當純文字
+        text.appendChild(window.highlightMentions ? window.highlightMentions(message.content) : document.createTextNode(message.content));
+        bubbleWrap.appendChild(text);
         var meta = el('small', 'chat-meta');
         meta.appendChild(el('span', 'chat-read'));
         meta.appendChild(el('span', '', message.time));

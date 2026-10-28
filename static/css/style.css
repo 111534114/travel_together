@@ -3231,6 +3231,52 @@ body {
     align-self: flex-end;
 }
 
+.comment-body .mention,
+#chat .chat-text .mention {
+    padding: 0 3px;
+    border-radius: 4px;
+    background: #E0F2F4;
+    color: var(--ocean-primary-dark);
+    font-weight: 600;
+}
+
+#chat .chat-message.mine .chat-text .mention {
+    background: rgba(255, 255, 255, 0.22);
+    color: #fff;
+}
+
+.mention-menu {
+    position: fixed;
+    z-index: 2000;
+    max-width: 320px;
+    margin: 0;
+    padding: 4px;
+    list-style: none;
+    background: #fff;
+    border: 1px solid #C5D5D7;
+    border-radius: 8px;
+    box-shadow: 0 8px 24px rgba(16, 42, 46, 0.14);
+}
+
+.mention-menu li {
+    display: flex;
+    align-items: baseline;
+    gap: 8px;
+    padding: 6px 10px;
+    border-radius: 6px;
+    cursor: pointer;
+}
+
+.mention-menu li.selected,
+.mention-menu li:hover {
+    background: #E0F2F4;
+}
+
+.mention-menu small {
+    color: var(--ocean-muted);
+    font-size: 12px;
+}
+
 .balance-summary {
     padding: 14px 16px;
     margin-bottom: 16px;

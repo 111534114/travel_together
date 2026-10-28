@@ -254,31 +254,45 @@
     const p=document.createElement('p');p.className='booking-field-error';p.textContent=message;p.id=input.id+'-error';
     input.setAttribute('aria-describedby',p.id);input.after(p);
   }
+  // 入住/退房、去程/回程這種日期範圍，底層其實是兩個隱藏欄位(checkin+checkout等)，
+  // 用 error() 各自插訊息會在同一個欄位下面疊出兩則一樣的「請填寫此欄位」，所以錯誤訊息
+  // 統一改成插在看得到的那個 .date-range-box 後面，跟目的地欄位的訊息位置、樣式一致。
+  const DATE_RANGE_BOX = {hotel:'hotelDateBox', flight:'flightDateBox', train:'trainDateBox'};
+  function rangeError(kind,message) {
+    const box=get(DATE_RANGE_BOX[kind]); if (!box) return;
+    box.setAttribute('aria-invalid','true');
+    const p=document.createElement('p');p.className='booking-field-error';p.textContent=message;
+    box.after(p);
+  }
   function clear() {
     document.querySelectorAll('.booking-field-error').forEach(el=>el.remove());
     document.querySelectorAll('[aria-invalid=true]').forEach(el=>{el.removeAttribute('aria-invalid');el.removeAttribute('aria-describedby');});
   }
   const backend=JSON.parse(get('booking-errors-data')?.textContent || '{}');
   Object.entries(backend).forEach(([key,msg])=>error(get(ids[current]?.[key]) || document.querySelector('.booking-filters [name="'+key+'"]'),msg));
+  const RANGE_KEYS={hotel:['checkin','checkout'],flight:['depart','return'],train:['date','return']};
   form.addEventListener('submit',event=>{
     const kind=active(); if (!ids[kind]) return;
     event.preventDefault();event.stopImmediatePropagation();clear();
     const params=new URLSearchParams();const values={};
     const mode=kind==='hotel'?'':getMode(kind);
-    let failed=false;
+    const rangeKeys=RANGE_KEYS[kind]||[];
+    let failed=false,rangeMissing=false;
     Object.entries(ids[kind]).forEach(([key,id])=>{
       const input=get(id);if(!input || (key==='return' && mode==='oneway')) return;
       const value=input.value.trim();values[key]=value;params.set(key,value);
+      const isRangeKey=rangeKeys.includes(key);
       let message='';
-      if(!value) message='請填寫此欄位';
+      if(!value){ if(isRangeKey){rangeMissing=true;} else {message='請填寫此欄位';} }
       else if(input.type==='date' && value<isoToday) message='日期不能早於今天';
       else if((key==='pax'||key==='guests') && (!/^\d+$/.test(value)||Number(value)<1||Number(value)>99)) message='人數須介於 1 與 99';
       if(message){error(input,message);failed=true;}
     });
+    if(rangeMissing){rangeError(kind,'請選擇日期');failed=true;}
     const start=kind==='hotel'?'checkin':kind==='flight'?'depart':'date';
     const end=kind==='hotel'?'checkout':'return';
-    if(values[end] && values[start] && (values[end]<values[start] || (kind==='hotel' && values[end]===values[start]))) {
-      error(get(ids[kind][end]),kind==='hotel'?'退房日期必須晚於入住':'回程不能早於去程');failed=true;
+    if(!rangeMissing && values[end] && values[start] && (values[end]<values[start] || (kind==='hotel' && values[end]===values[start]))) {
+      rangeError(kind,kind==='hotel'?'退房日期必須晚於入住':'回程不能早於去程');failed=true;
     }
     if(kind!=='hotel' && values.from && values.from===values.to){error(get(ids[kind].to),'出發地與目的地不能相同');failed=true;}
     if(failed){form.querySelector('[aria-invalid=true]')?.focus();return;}

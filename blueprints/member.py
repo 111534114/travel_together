@@ -6,6 +6,7 @@ import re
 import secrets
 
 from flask import Blueprint, current_app, flash, jsonify, redirect, render_template, request, session, url_for
+from markupsafe import Markup, escape
 from werkzeug.security import check_password_hash, generate_password_hash
 
 from auth import login_required
@@ -204,6 +205,71 @@ def _load_item_comments(cursor, trip_id):
         elif row["proposal_id"] is not None:
             proposal_comments.setdefault(row["proposal_id"], []).append(row)
     return itinerary_comments, proposal_comments
+
+
+# 留言 @提及：@暱稱（或本名）提及特定旅伴，@ALL／@所有人 通知全部旅伴
+MENTION_ALL_KEYWORDS = ("ALL", "所有人")
+
+
+def _load_mention_members(cursor, trip_id):
+    cursor.execute("""SELECT u.user_id, u.full_name, u.nickname FROM trip_members tm JOIN users u ON u.user_id=tm.user_id
+                      WHERE tm.trip_id=%s AND tm.join_status='accepted'""", (trip_id,))
+    return cursor.fetchall()
+
+
+def _mention_pattern(members):
+    """回傳 (正則, 名稱→user_id 集合)。名稱由長到短排，避免「小明」先吃掉「小明明」。"""
+    lookup = {}
+    for m in members:
+        for name in (m.get("nickname"), m.get("full_name")):
+            if name and name.strip():
+                lookup.setdefault(name.strip().casefold(), set()).add(m["user_id"])
+    alternatives = [re.escape(k) for k in MENTION_ALL_KEYWORDS] + [re.escape(name) for name in lookup]
+    alternatives.sort(key=len, reverse=True)
+    # ALL 後面不能緊接英數字，免得 @allen 被當成 @ALL
+    alternatives = [a + r"(?![A-Za-z0-9_])" if a == "ALL" else a for a in alternatives]
+    return re.compile("@(" + "|".join(alternatives) + ")", re.IGNORECASE), lookup
+
+
+def _mentioned_user_ids(content, members):
+    pattern, lookup = _mention_pattern(members)
+    all_keywords = {k.casefold() for k in MENTION_ALL_KEYWORDS}
+    user_ids = set()
+    for match in pattern.finditer(content or ""):
+        token = match.group(1).casefold()
+        if token in all_keywords:
+            return {m["user_id"] for m in members}
+        user_ids |= lookup.get(token, set())
+    return user_ids
+
+
+def _notify_mentions(cursor, trip, members, content, anchor, author_id, exclude_ids=(), place="留言"):
+    target_ids = _mentioned_user_ids(content, members) - {author_id} - set(exclude_ids)
+    if not target_ids: return
+    author = next((m for m in members if m["user_id"] == author_id), {})
+    author_name = author.get("nickname") or author.get("full_name") or "旅伴"
+    snippet = content if len(content) <= 60 else content[:60] + "…"
+    title = f"有人在{place}中提及你"
+    message = f"{author_name} 在「{trip['trip_name']}」的{place}中提及了你：{snippet}"
+    target_url = url_for("member.trip_detail", trip_id=trip["trip_id"]) + anchor
+    for user_id in target_ids:
+        cursor.execute("INSERT INTO notifications (user_id,trip_id,notification_type,title,message,target_url) VALUES (%s,%s,'comment',%s,%s,%s)",
+                       (user_id, trip["trip_id"], title, message, target_url))
+
+
+@member_bp.app_template_filter("mentions")
+def render_mentions(content, members):
+    """把留言裡的 @提及 包成 <span class="mention">，其餘文字照常跳脫。"""
+    content = content or ""
+    if not members: return escape(content)
+    pattern, _ = _mention_pattern(members)
+    parts, last = [], 0
+    for match in pattern.finditer(content):
+        parts.append(escape(content[last:match.start()]))
+        parts.append(Markup('<span class="mention">{}</span>').format(match.group(0)))
+        last = match.end()
+    parts.append(escape(content[last:]))
+    return Markup("").join(parts)
 
 
 def _load_expenses(cursor, trip_id):
@@ -1345,7 +1411,7 @@ def trip_detail(trip_id):
         transport_summary = _summarize_transport_time(itinerary)
     finally:
         cursor.close(); connection.close()
-    return render_template("member/trip_detail.html", trip=trip, itinerary=itinerary, place_options=place_options, popular_attractions=popular_attractions, addable_trips=[trip], day_last_coords=day_last_coords, city_weather_days=city_weather_days, members=members, pending_invitations=pending_invitations, pending_requests=pending_requests, invite_link=invite_link, proposals=proposals, votes=votes, comments=comments, itinerary_comments=itinerary_comments, proposal_comments=proposal_comments, reported_comment_ids=reported_comment_ids, comment_report_reasons=COMMENT_REPORT_REASONS, expenses=expenses, balance_summary=balance_summary, attachments=attachments, actual=actual, can_edit=_can_edit(trip), is_owner=trip["member_role"] == "owner", now=datetime.now(), item_type_labels=ITEM_TYPE_LABELS, itinerary_change_field_labels=ITINERARY_CHANGE_FIELD_LABELS, disney_parks=theme_parks.get_disney_parks(), transport_summary=transport_summary)
+    return render_template("member/trip_detail.html", trip=trip, itinerary=itinerary, place_options=place_options, popular_attractions=popular_attractions, addable_trips=[trip], day_last_coords=day_last_coords, city_weather_days=city_weather_days, members=members, mention_members=[{"name": m["nickname"] or m["full_name"], "full_name": m["full_name"], "is_me": m["user_id"] == session["user_id"]} for m in members], pending_invitations=pending_invitations, pending_requests=pending_requests, invite_link=invite_link, proposals=proposals, votes=votes, comments=comments, itinerary_comments=itinerary_comments, proposal_comments=proposal_comments, reported_comment_ids=reported_comment_ids, comment_report_reasons=COMMENT_REPORT_REASONS, expenses=expenses, balance_summary=balance_summary, attachments=attachments, actual=actual, can_edit=_can_edit(trip), is_owner=trip["member_role"] == "owner", now=datetime.now(), item_type_labels=ITEM_TYPE_LABELS, itinerary_change_field_labels=ITINERARY_CHANGE_FIELD_LABELS, disney_parks=theme_parks.get_disney_parks(), transport_summary=transport_summary)
 
 
 @member_bp.route("/trips/<int:trip_id>/park-hours")
@@ -2180,6 +2246,7 @@ def add_comment(trip_id):
                     parent_id = None
             cursor.execute("""INSERT INTO comments (trip_id,user_id,parent_comment_id,itinerary_id,proposal_id,content)
                               VALUES (%s,%s,%s,%s,%s,%s)""", (trip_id, session["user_id"], parent_id, itinerary_id, proposal_id, content))
+            _notify_mentions(cursor, trip, _load_mention_members(cursor, trip_id), content, anchor, session["user_id"])
             connection.commit()
             flash("留言已送出。", "success")
     except Exception:
@@ -2209,6 +2276,10 @@ def edit_comment(trip_id, comment_id):
         elif not content: flash("留言內容不能是空的。", "error")
         else:
             cursor.execute("UPDATE comments SET content=%s WHERE comment_id=%s", (content, comment_id))
+            # 編輯時只通知這次新加進來的提及，原本就被提及的人不重複通知
+            mention_members = _load_mention_members(cursor, trip_id)
+            _notify_mentions(cursor, trip, mention_members, content, anchor, session["user_id"],
+                             exclude_ids=_mentioned_user_ids(comment["content"], mention_members))
             connection.commit()
             flash("留言已更新。", "success")
     except Exception:
@@ -2389,9 +2460,11 @@ def chat_send(trip_id):
     if connection is None: return jsonify(error="目前無法連線資料庫。"), 503
     cursor = connection.cursor(dictionary=True)
     try:
-        if not _member_access(cursor, trip_id, session["user_id"]):
+        trip = _member_access(cursor, trip_id, session["user_id"])
+        if not trip:
             return jsonify(error="你沒有這個行程的聊天權限。"), 403
         message_id = _post_chat_message(cursor, trip_id, session["user_id"], content)
+        _notify_mentions(cursor, trip, _load_mention_members(cursor, trip_id), content, "#chat", session["user_id"], place="聊天室")
         connection.commit()
     except Exception:
         connection.rollback(); return jsonify(error="訊息送出失敗，請再試一次。"), 500

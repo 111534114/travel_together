@@ -30,7 +30,7 @@ CONTENT_ADMIN_ACTIONS = {
     "ai_data": ("view", "edit"),
     "reports": ("view",),
     "logs": ("view",),
-    "ai_chat": ("view",),
+    "ai_chat": (),  # 暫時關閉：還沒設定 ANTHROPIC_API_KEY，先把入口藏起來，設定好金鑰後把 () 改回 ("view",) 即可恢復
 }
 
 ACTION_LABELS = {"view": "查看", "create": "新增", "edit": "編輯", "delete": "刪除"}

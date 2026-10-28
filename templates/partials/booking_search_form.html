@@ -26,7 +26,11 @@
 </div>
 <script>
   (function () {
-    var todayStr = new Date().toISOString().slice(0, 10);
+    // 不能用 toISOString() 取「今天」：那個函式會先轉成 UTC 時間再取日期，在台灣這種
+    // UTC+8 時區，半夜 0 點到早上 8 點之間算出來的日期還停留在昨天，導致手機上凌晨
+    // 時段 min 被設成昨天，過去的日期還能被選到。改成直接用瀏覽器當地時間組字串。
+    var now = new Date();
+    var todayStr = now.getFullYear() + '-' + String(now.getMonth() + 1).padStart(2, '0') + '-' + String(now.getDate()).padStart(2, '0');
     document.querySelectorAll('.booking-search-form input[type="date"]').forEach(function (input) { input.min = todayStr; });
     var startInput = document.getElementById('searchCheckin') || document.getElementById('searchDepart');
     var endInput = document.getElementById('searchCheckout') || document.getElementById('searchReturn');

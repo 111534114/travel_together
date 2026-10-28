@@ -4,12 +4,14 @@
     <div class="panel-title"><h2>最新公告</h2>{% if announcements %}<span class="muted">{{ announcements|length }} 則</span>{% endif %}</div>
     <div class="announcement-compact">
         {% for announcement in announcements %}
-        <div class="announcement-row">
-            <span class="announcement-dot" aria-hidden="true">{% if announcement.is_pinned %}📌{% else %}📢{% endif %}</span>
-            <h3>{{ announcement.title }}{% if announcement.is_pinned %}<span class="pinned-badge">置頂</span>{% endif %}</h3>
-            <time datetime="{{ announcement.publish_at or announcement.created_at }}">{{ (announcement.publish_at or announcement.created_at).strftime('%Y-%m-%d') if (announcement.publish_at or announcement.created_at) else '' }}</time>
+        <div class="announcement-item">
+            <div class="announcement-row">
+                <span class="announcement-dot" aria-hidden="true">{% if announcement.is_pinned %}📌{% else %}📢{% endif %}</span>
+                <h3>{{ announcement.title }}{% if announcement.is_pinned %}<span class="pinned-badge">置頂</span>{% endif %}</h3>
+                <time datetime="{{ announcement.publish_at or announcement.created_at }}">{{ (announcement.publish_at or announcement.created_at).strftime('%Y-%m-%d') if (announcement.publish_at or announcement.created_at) else '' }}</time>
+            </div>
+            <p class="announcement-content muted">{{ announcement.content }}</p>
         </div>
-        <p class="muted" style="margin: -6px 0 10px 30px; white-space: pre-wrap;">{{ announcement.content }}</p>
         {% else %}
         <p class="muted">目前尚無公告事項。</p>
         {% endfor %}

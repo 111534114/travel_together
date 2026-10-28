@@ -11,7 +11,7 @@
     </div>
 
     <div class="page-tab-panel" id="tab-companions">
-        <p class="form-hint" style="margin-top: 0;">☆ 收藏的行程會顯示在<a href="{{ url_for('member.my_trips') }}">「我的旅程」頁面</a>。</p>
+        <a class="fav-hint-btn" href="{{ url_for('member.my_trips') }}"><span class="fav-hint-star">⭐</span>收藏的行程會顯示在「我的旅程」喔</a>
         {% if companions %}
         <div class="trip-grid">
             {% for comp in companions %}

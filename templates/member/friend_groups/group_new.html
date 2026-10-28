@@ -32,15 +32,19 @@
 </div>
 <script>
     function filterCitiesByCountry() {
+        // 用重建 <option> 清單取代 hidden/disabled：iOS Safari 的原生選單不會真的隱藏
+        // 被標成 hidden/disabled 的選項，手機上還是會整批列出來，所以改成直接把不符合
+        // 國家的節點從 DOM 移除，只留下符合的，才能在手機上也正確過濾。
         var countryId = document.getElementById('countrySelect').value;
         var citySelect = document.getElementById('citySelect');
-        var options = citySelect.querySelectorAll('option[data-country]');
-        options.forEach(function (option) {
-            option.hidden = Boolean(countryId) && option.dataset.country !== countryId;
-            option.disabled = option.hidden;
+        if (!citySelect._allCityNodes) citySelect._allCityNodes = Array.prototype.slice.call(citySelect.children);
+        var currentValue = citySelect.value;
+        citySelect.innerHTML = '';
+        citySelect._allCityNodes.forEach(function (node) {
+            if (!countryId || !node.dataset.country || node.dataset.country === countryId) citySelect.appendChild(node);
         });
-        var selected = citySelect.options[citySelect.selectedIndex];
-        if (selected && selected.value && selected.disabled) citySelect.value = '';
+        var stillThere = Array.prototype.some.call(citySelect.querySelectorAll('option'), function (o) { return o.value === currentValue; });
+        citySelect.value = stillThere ? currentValue : '';
     }
     document.getElementById('countrySelect').addEventListener('change', filterCitiesByCountry);
     window.addEventListener('DOMContentLoaded', filterCitiesByCountry);

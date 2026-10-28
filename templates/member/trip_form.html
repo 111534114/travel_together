@@ -16,21 +16,29 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.1/cropper.min.js"></script>
 <script>
     function filterCitiesByCountry() {
+        // 用重建 <option> 清單取代 hidden/disabled：iOS Safari 的原生選單不會真的隱藏
+        // 被標成 hidden/disabled 的選項，手機上還是會整批列出來，所以改成直接把不符合
+        // 國家的節點從 DOM 移除，只留下符合的，才能在手機上也正確過濾。
         var countryId = document.getElementById('countrySelect').value;
         var citySelect = document.getElementById('citySelect');
-        var options = citySelect.querySelectorAll('option[data-country]');
-        options.forEach(function (option) {
-            option.hidden = Boolean(countryId) && option.dataset.country !== countryId;
-            option.disabled = option.hidden;
+        if (!citySelect._allCityNodes) citySelect._allCityNodes = Array.prototype.slice.call(citySelect.children);
+        var currentValue = citySelect.value;
+        citySelect.innerHTML = '';
+        citySelect._allCityNodes.forEach(function (node) {
+            if (!countryId || !node.dataset.country || node.dataset.country === countryId) citySelect.appendChild(node);
         });
-        var selected = citySelect.options[citySelect.selectedIndex];
-        if (selected && selected.value && selected.disabled) citySelect.value = '';
+        var stillThere = Array.prototype.some.call(citySelect.querySelectorAll('option'), function (o) { return o.value === currentValue; });
+        citySelect.value = stillThere ? currentValue : '';
     }
     document.getElementById('countrySelect').addEventListener('change', filterCitiesByCountry);
     window.addEventListener('DOMContentLoaded', filterCitiesByCountry);
 
     (function restrictPastTripDates() {
-        var todayStr = new Date().toISOString().slice(0, 10);
+        // 不能用 toISOString() 取「今天」：那個函式會先轉成 UTC 時間再取日期，在台灣這種
+        // UTC+8 時區，半夜 0 點到早上 8 點之間算出來的日期還停留在昨天，導致手機上凌晨
+        // 時段 min 被設成昨天，過去的日期還能被選到。改成直接用瀏覽器當地時間組字串。
+        var now = new Date();
+        var todayStr = now.getFullYear() + '-' + String(now.getMonth() + 1).padStart(2, '0') + '-' + String(now.getDate()).padStart(2, '0');
         var startInput = document.getElementById('startDateInput');
         var endInput = document.getElementById('endDateInput');
         if (!startInput || !endInput) return;

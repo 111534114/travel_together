@@ -41,7 +41,11 @@
         <td>{{ p.registered_at.strftime('%Y/%m/%d %H:%M') }}</td>
         <td>{{ p.checked_in_at.strftime('%Y/%m/%d %H:%M') if p.checked_in_at else '—' }}</td>
         {% if content_admin_can('friend_groups_admin', 'edit') %}
-        <td>{% if p.status != 'attended' %}<form method="post" action="{{ url_for('friend_groups_admin.check_in_participant', event_id=event.event_id, user_id=p.user_id) }}"><button class="small-button">標記報到</button></form>{% else %}—{% endif %}</td>
+        <td class="stack-form">
+          {% if p.status != 'attended' %}<form method="post" action="{{ url_for('friend_groups_admin.check_in_participant', event_id=event.event_id, user_id=p.user_id) }}"><button class="small-button">標記報到</button></form>{% endif %}
+          {% if p.status != 'no_show' %}<form method="post" action="{{ url_for('friend_groups_admin.mark_no_show_participant', event_id=event.event_id, user_id=p.user_id) }}" onsubmit="return confirm('確定要把這位會員標記為未出席嗎？')"><button class="small-button">標記未出席</button></form>{% endif %}
+          {% if p.status in ('attended', 'no_show') %}<span class="muted" style="font-size:12px;">可再次點選上方按鈕更正</span>{% endif %}
+        </td>
         {% endif %}
       </tr>
       {% else %}

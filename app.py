@@ -38,6 +38,7 @@ from activity_log import ACTION_LABELS, log_action
 from mailer import send_password_reset_email  # 匯入忘記密碼重設信的寄送函式
 from utils import google_maps_url, google_maps_embed_url, format_hm, friend_group_feature_enabled  # 匯入組 Google 地圖連結/嵌入縮圖地圖、格式化 TIME 欄位、查交友揪團總開關的共用函式，註冊成樣板全域函式讓所有頁面都能直接呼叫
 import weather  # 匯入中央氣象署天氣預報模組(訪客頁面「目的地天氣」功能用)
+import amadeus_client  # 匯入 Amadeus 機票比價 API 模組(機票搜尋的真實即時報價)
 import line_messaging  # 匯入 LINE 官方帳號共用工具(加好友連結、QR Code)
 import line_announcements  # 匯入公告推播到 LINE
 import trip_reminders
@@ -459,8 +460,28 @@ def visitor_flight_search():
     pax_raw = request.args.get("pax", "1").strip()  # 取得人數參數(字串)
     pax = int(pax_raw) if pax_raw.isdigit() and int(pax_raw) > 0 else 1  # 驗證人數為正整數，否則預設 1 人
 
-    outbound_flights = _search_flights(origin, destination, pax)  # 去程：出發地 -> 目的地
-    return_flights = _search_flights(destination, origin, pax) if return_date and request.args.get('trip_mode', 'roundtrip') == 'roundtrip' else []
+    is_roundtrip = return_date and request.args.get('trip_mode', 'roundtrip') == 'roundtrip'
+
+    # 優先打 Amadeus 的真實機票報價 API（價格會依日期浮動）；沒設定金鑰、查不到這條航線、或 API
+    # 呼叫失敗，就自動改用本地資料庫裡固定班表的機票資料，兩種情況畫面都看得出差異(有沒有「即時報價」標籤)。
+    outbound_flights = amadeus_client.search_flight_offers(origin, destination, depart_date, pax)
+    using_live_data = outbound_flights is not None
+    if using_live_data:
+        for row in outbound_flights:
+            row["origin_city"] = origin or row["origin_city"]
+            row["destination_city"] = destination or row["destination_city"]
+    else:
+        outbound_flights = _search_flights(origin, destination, pax)  # 去程：出發地 -> 目的地
+
+    return_flights = []
+    if is_roundtrip:
+        if using_live_data:
+            return_flights = amadeus_client.search_flight_offers(destination, origin, return_date, pax) or []
+            for row in return_flights:
+                row["origin_city"] = destination or row["origin_city"]
+                row["destination_city"] = origin or row["destination_city"]
+        else:
+            return_flights = _search_flights(destination, origin, pax)
 
     all_flights = outbound_flights + return_flights
     flight_price_buckets = price_buckets(all_flights, "price")
@@ -469,6 +490,49 @@ def visitor_flight_search():
     depart_band_options = time_band_options(all_flights, "departure_time")
     outbound_flights = apply_time_band(apply_facets(outbound_flights, (("airline_name", "airline"),)), "departure_time")
     return_flights = apply_time_band(apply_facets(return_flights, (("airline_name", "airline"),)), "departure_time")
+
+    # 日期選擇列：固定每日航班、票價不會因日期而不同，所以每一格顯示的都是同一組搜尋結果的最低價，
+    # 不是真的去查每個日期的即時票價(目前的航班資料本來就不分日期)。沒有去程日期就不顯示這排。
+    date_strip = []
+    strip_prev = strip_next = None
+    strip_prices = [row["price"] for row in all_flights if row.get("price")]
+    strip_price = min(strip_prices) if strip_prices else None
+    if depart_date:
+        try:
+            base_depart = datetime.strptime(depart_date, "%Y-%m-%d").date()
+            base_return = datetime.strptime(return_date, "%Y-%m-%d").date() if return_date else None
+
+            def shifted(offset):
+                d = base_depart + timedelta(days=offset)
+                r = base_return + timedelta(days=offset) if base_return else None
+                return {"depart": d.isoformat(), "return": r.isoformat() if r else ""}
+
+            for offset in range(-3, 4):
+                entry = shifted(offset)
+                d = base_depart + timedelta(days=offset)
+                r = base_return + timedelta(days=offset) if base_return else None
+                entry["label"] = f"{d.month}月{d.day}日" + (f"－{r.month}月{r.day}日" if r else "")
+                entry["selected"] = offset == 0
+                if using_live_data:
+                    if offset == 0:
+                        entry["price"] = strip_price
+                    else:
+                        # 其他 6 個日期要各自另外打一次 API 才能拿到那天真正的價格(每天浮動)，
+                        # cheapest_price() 內建短時間快取，同一條航線/日期不會短時間內重複打。
+                        leg_prices = []
+                        out_price = amadeus_client.cheapest_price(origin, destination, d.isoformat(), pax)
+                        if out_price is not None: leg_prices.append(out_price)
+                        if r:
+                            ret_price = amadeus_client.cheapest_price(destination, origin, r.isoformat(), pax)
+                            if ret_price is not None: leg_prices.append(ret_price)
+                        entry["price"] = sum(leg_prices) if leg_prices else None
+                else:
+                    entry["price"] = strip_price
+                date_strip.append(entry)
+            strip_prev = shifted(-7)
+            strip_next = shifted(7)
+        except ValueError:
+            date_strip = []
 
     return render_template(
         "flight_search.html",
@@ -483,6 +547,11 @@ def visitor_flight_search():
         price_max=flight_price_max,
         airline_facets=airline_facets,
         depart_band_options=depart_band_options,
+        date_strip=date_strip,
+        strip_price=strip_price,
+        strip_prev=strip_prev,
+        strip_next=strip_next,
+        using_live_data=using_live_data,
     )
 
 

@@ -65,3 +65,9 @@ PUBLIC_BASE_URL = os.environ.get("PUBLIC_BASE_URL", "").rstrip("/")
 # LIFF（在 LINE 裡打開網頁自動登入）：LINE Developers → LINE Login channel → LIFF 分頁建立後取得的 LIFF ID
 # Endpoint URL 請填：https://你的公開網址/liff
 LIFF_ID = os.environ.get("LIFF_ID", "")
+
+# Amadeus 機票比價 API（真實票價，會依日期浮動），免費自助註冊：https://developers.amadeus.com/register
+# 註冊後到 My Self-Service Workspace 建立一個 App，就會拿到 API Key 跟 API Secret（Test environment 不用付費）
+# 請在 .env 檔案裡新增：AMADEUS_API_KEY / AMADEUS_API_SECRET
+AMADEUS_API_KEY = os.environ.get("AMADEUS_API_KEY", "")
+AMADEUS_API_SECRET = os.environ.get("AMADEUS_API_SECRET", "")

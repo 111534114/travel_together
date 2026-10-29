@@ -50,7 +50,7 @@
     {% if booking_kind == 'train' %}{{ facet_checkboxes('車廂等級', 'car_class', car_class_facets) }}{% endif %}
     <button type="submit" class="view-button">套用篩選</button>
   </form>
-  <p class="price-range-note">{{ '僅供估算，實際空房與價格請洽業者確認。' if booking_kind == 'hotel' else '僅供估算，為資料庫參考票價，尚無學生票或優惠票資訊，實際票價以售票平台為準。' }}</p>
+  <p class="price-range-note">{{ '僅供估算，實際空房與價格請洽業者確認。' if booking_kind == 'hotel' else ('即時機票報價（Amadeus API），價格會隨日期與座位狀況浮動，實際票價與座位請以航空公司或售票平台為準。' if using_live_data else '僅供估算，為資料庫參考票價，尚無學生票或優惠票資訊，實際票價以售票平台為準。') }}</p>
   {% endif %}
   {% if search_errors %}<div class="booking-errors" role="alert">{% for key, message in search_errors.items() %}<p>{{ message }}</p>{% endfor %}</div>{% endif %}
 </div>

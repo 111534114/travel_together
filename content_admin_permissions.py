@@ -72,7 +72,7 @@ _ENDPOINT_ACTIONS = {
     "friend_groups_admin": {
         "approve_application": "edit", "reject_application": "edit", "toggle_setting": "edit",
         "new_event": "edit", "edit_event": "edit", "cancel_event": "edit", "check_in_participant": "edit",
-        "post_event_announcement": "edit",
+        "mark_no_show_participant": "edit", "post_event_announcement": "edit",
     },
     "ai_data": {"verify_item": "edit"},
 }

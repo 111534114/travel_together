@@ -504,6 +504,32 @@ def check_in_participant(event_id, user_id):
     return redirect(url_for("friend_groups_admin.event_participants", event_id=event_id))
 
 
+@friend_groups_admin_bp.route("/events/<int:event_id>/participants/<int:user_id>/no-show", methods=["POST"])
+@login_required("content_admin")
+def mark_no_show_participant(event_id, user_id):
+    connection = get_db_connection()
+    if connection is None:
+        flash("資料庫連線失敗", "error")
+        return redirect(url_for("friend_groups_admin.event_participants", event_id=event_id))
+    cursor = connection.cursor()
+    try:
+        cursor.execute(
+            "UPDATE friend_group_event_participants SET status='no_show', checked_in_at=NULL WHERE event_id=%s AND user_id=%s",
+            (event_id, user_id)
+        )
+        log_action(cursor, "mark_no_show_friend_group_participant", "friend_group_event", event_id, f"標記未出席：使用者 {user_id}")
+        connection.commit()
+        flash("已標記未出席。", "success")
+    except Exception as error:
+        connection.rollback()
+        print("標記未出席失敗：", error)
+        flash("操作失敗，請再試一次。", "error")
+    finally:
+        cursor.close()
+        connection.close()
+    return redirect(url_for("friend_groups_admin.event_participants", event_id=event_id))
+
+
 @friend_groups_admin_bp.route("/stats")
 @login_required("content_admin")
 def stats():

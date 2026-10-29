@@ -1,3 +1,4 @@
+from collections import Counter
 from datetime import date, datetime
 from decimal import ROUND_DOWN, Decimal, InvalidOperation
 import json
@@ -35,6 +36,8 @@ ITEM_TYPE_LABELS = {
 }
 
 TIME_MODES = ("range", "all_day", "start_only", "end_only")
+PREFERENCE_ACTIVITY_TAGS = ["觀光景點", "在地美食", "購物", "戶外活動", "文化體驗", "夜生活", "拍照打卡", "放鬆度假"]
+PREFERENCE_INTENSITY_LABELS = [("relaxed", "輕鬆型"), ("standard", "標準型"), ("packed", "充實型"), ("family", "親子型"), ("senior_friendly", "長輩友善型")]
 
 ISSUE_REASONS = (
     "內容品質不佳／資訊太少",
@@ -270,6 +273,53 @@ def render_mentions(content, members):
         last = match.end()
     parts.append(escape(content[last:]))
     return Markup("").join(parts)
+
+
+def _load_trip_preferences(cursor, trip_id, user_id):
+    """載入這趟行程所有成員已經填過的旅伴偏好，順便即時算出團體統計(不是寫死的範例資料)。"""
+    cursor.execute("SELECT * FROM trip_preferences WHERE trip_id=%s", (trip_id,))
+    rows = cursor.fetchall()
+    my_pref = next((r for r in rows if r["user_id"] == user_id), None)
+
+    like_counter = Counter()
+    intensity_counter = Counter()
+    budgets = []
+    must_visit_items = []
+    avoid_items = []
+    for row in rows:
+        if row["like_activities"]:
+            like_counter.update(tag for tag in row["like_activities"].split(",") if tag)
+        if row["intensity"]:
+            intensity_counter[row["intensity"]] += 1
+        if row["budget_limit"]:
+            budgets.append(row["budget_limit"])
+        if row["must_visit"]:
+            must_visit_items.extend(line.strip() for line in row["must_visit"].splitlines() if line.strip())
+        if row["avoid_places"]:
+            avoid_items.extend(line.strip() for line in row["avoid_places"].splitlines() if line.strip())
+
+    max_like_count = max(like_counter.values()) if like_counter else 0
+    like_stats = sorted(
+        ((tag, like_counter.get(tag, 0), round(like_counter.get(tag, 0) / max_like_count * 100) if max_like_count else 0)
+         for tag in PREFERENCE_ACTIVITY_TAGS),
+        key=lambda item: -item[1],
+    )
+
+    max_intensity_count = max(intensity_counter.values()) if intensity_counter else 0
+    intensity_stats = [
+        (label, intensity_counter.get(value, 0), round(intensity_counter.get(value, 0) / max_intensity_count * 100) if max_intensity_count else 0)
+        for value, label in PREFERENCE_INTENSITY_LABELS
+    ]
+
+    return {
+        "my_pref": my_pref,
+        "submitted_count": len(rows),
+        "like_stats": like_stats,
+        "intensity_stats": intensity_stats,
+        "avg_budget": (sum(budgets) / len(budgets)) if budgets else None,
+        "must_visit_items": must_visit_items,
+        "avoid_items": avoid_items,
+    }
 
 
 def _load_expenses(cursor, trip_id):
@@ -1392,6 +1442,7 @@ def trip_detail(trip_id):
         itinerary_comments, proposal_comments = _load_item_comments(cursor, trip_id)
         cursor.execute("SELECT target_id FROM reports WHERE reporter_id=%s AND target_type='comment' AND status IN ('pending','processing')", (session["user_id"],))
         reported_comment_ids = {row["target_id"] for row in cursor.fetchall()}
+        trip_preferences = _load_trip_preferences(cursor, trip_id, session["user_id"])
         expenses = _load_expenses(cursor, trip_id)
         balance_summary = _load_balance_summary(cursor, trip_id)
         attachments = _load_attachments(cursor, trip_id)
@@ -1411,7 +1462,60 @@ def trip_detail(trip_id):
         transport_summary = _summarize_transport_time(itinerary)
     finally:
         cursor.close(); connection.close()
-    return render_template("member/trip_detail.html", trip=trip, itinerary=itinerary, place_options=place_options, popular_attractions=popular_attractions, addable_trips=[trip], day_last_coords=day_last_coords, city_weather_days=city_weather_days, members=members, mention_members=[{"name": m["nickname"] or m["full_name"], "full_name": m["full_name"], "is_me": m["user_id"] == session["user_id"]} for m in members], pending_invitations=pending_invitations, pending_requests=pending_requests, invite_link=invite_link, proposals=proposals, votes=votes, comments=comments, itinerary_comments=itinerary_comments, proposal_comments=proposal_comments, reported_comment_ids=reported_comment_ids, comment_report_reasons=COMMENT_REPORT_REASONS, expenses=expenses, balance_summary=balance_summary, attachments=attachments, actual=actual, can_edit=_can_edit(trip), is_owner=trip["member_role"] == "owner", now=datetime.now(), item_type_labels=ITEM_TYPE_LABELS, itinerary_change_field_labels=ITINERARY_CHANGE_FIELD_LABELS, disney_parks=theme_parks.get_disney_parks(), transport_summary=transport_summary)
+    return render_template("member/trip_detail.html", trip=trip, itinerary=itinerary, place_options=place_options, popular_attractions=popular_attractions, addable_trips=[trip], day_last_coords=day_last_coords, city_weather_days=city_weather_days, members=members, mention_members=[{"name": m["nickname"] or m["full_name"], "full_name": m["full_name"], "is_me": m["user_id"] == session["user_id"]} for m in members], pending_invitations=pending_invitations, pending_requests=pending_requests, invite_link=invite_link, proposals=proposals, votes=votes, comments=comments, itinerary_comments=itinerary_comments, proposal_comments=proposal_comments, reported_comment_ids=reported_comment_ids, comment_report_reasons=COMMENT_REPORT_REASONS, expenses=expenses, balance_summary=balance_summary, attachments=attachments, actual=actual, can_edit=_can_edit(trip), is_owner=trip["member_role"] == "owner", now=datetime.now(), item_type_labels=ITEM_TYPE_LABELS, itinerary_change_field_labels=ITINERARY_CHANGE_FIELD_LABELS, disney_parks=theme_parks.get_disney_parks(), transport_summary=transport_summary, trip_preferences=trip_preferences, preference_activity_tags=PREFERENCE_ACTIVITY_TAGS)
+
+
+@member_bp.route("/trips/<int:trip_id>/preferences", methods=["POST"])
+@login_required("member")
+def save_trip_preferences(trip_id):
+    connection = _connection_or_home()
+    if connection is None: return redirect(url_for("member.dashboard"))
+    cursor = connection.cursor(dictionary=True)
+    try:
+        trip = _member_access(cursor, trip_id, session["user_id"])
+        if not trip:
+            flash("你沒有填寫這個行程偏好的權限。", "error")
+            return redirect(url_for("member.dashboard"))
+
+        like_activities = ",".join(t for t in request.form.getlist("like_activities") if t in PREFERENCE_ACTIVITY_TAGS)
+        dislike_activities = ",".join(t for t in request.form.getlist("dislike_activities") if t in PREFERENCE_ACTIVITY_TAGS)
+        must_visit = request.form.get("must_visit", "").strip() or None
+        avoid_places = request.form.get("avoid_places", "").strip() or None
+        diet = request.form.get("diet", "none")
+        transport_pref = request.form.get("transport_pref", "any")
+        walk_tolerance = request.form.get("walk_tolerance", "medium")
+        intensity = request.form.get("intensity") or None
+        special_needs = request.form.get("special_needs", "").strip() or None
+
+        budget_raw = request.form.get("budget_limit", "").strip()
+        budget_limit = None
+        if budget_raw:
+            try:
+                budget_limit = max(0, float(budget_raw))
+            except ValueError:
+                flash("可接受預算請填寫數字。", "error")
+                return redirect(url_for("member.trip_detail", trip_id=trip_id) + "#preferences")
+
+        cursor.execute("""
+            INSERT INTO trip_preferences
+                (trip_id,user_id,like_activities,dislike_activities,must_visit,avoid_places,budget_limit,diet,transport_pref,walk_tolerance,intensity,special_needs)
+            VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
+            ON DUPLICATE KEY UPDATE
+                like_activities=VALUES(like_activities), dislike_activities=VALUES(dislike_activities),
+                must_visit=VALUES(must_visit), avoid_places=VALUES(avoid_places), budget_limit=VALUES(budget_limit),
+                diet=VALUES(diet), transport_pref=VALUES(transport_pref), walk_tolerance=VALUES(walk_tolerance),
+                intensity=VALUES(intensity), special_needs=VALUES(special_needs)
+        """, (trip_id, session["user_id"], like_activities or None, dislike_activities or None, must_visit, avoid_places,
+              budget_limit, diet, transport_pref, walk_tolerance, intensity, special_needs))
+        connection.commit()
+        flash("已儲存你的旅遊偏好。", "success")
+    except Exception as error:
+        connection.rollback()
+        print("儲存旅伴偏好失敗：", error)
+        flash("儲存失敗，請再試一次。", "error")
+    finally:
+        cursor.close(); connection.close()
+    return redirect(url_for("member.trip_detail", trip_id=trip_id) + "#preferences")
 
 
 @member_bp.route("/trips/<int:trip_id>/park-hours")

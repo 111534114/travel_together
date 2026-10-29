@@ -34,27 +34,34 @@
     .flight-leg:last-child { margin-bottom: 0; }
     .flight-leg h3 { display: flex; align-items: center; gap: 10px; }
     .flight-leg-badge { display: inline-flex; align-items: center; justify-content: center; width: 24px; height: 24px; color: #fff; background: var(--purple); border-radius: 50%; font-size: 13px; font-weight: 700; }
-    .flight-list { display: flex; flex-direction: column; gap: 14px; }
-    .flight-card { display: flex; flex-wrap: wrap; align-items: center; gap: 18px; padding: 18px 20px; background: #fff; border: 1px solid var(--line); border-radius: 10px; box-shadow: 0 8px 22px rgba(45, 37, 68, .06); transition: transform 160ms ease, box-shadow 160ms ease; }
-    .flight-card:hover { transform: translateY(-2px); box-shadow: 0 12px 28px rgba(45, 37, 68, .12); }
-    .flight-airline { display: flex; flex: 0 0 150px; flex-direction: column; gap: 4px; }
-    .flight-airline b { font-size: 15px; }
+    .flight-list { display: flex; flex-direction: column; gap: 16px; }
+    .flight-card { position: relative; display: flex; flex-wrap: wrap; align-items: center; gap: 18px; padding: 22px 24px; background: #fff; border: 1px solid var(--line); border-radius: 14px; box-shadow: 0 8px 22px rgba(45, 37, 68, .06); transition: transform 160ms ease, box-shadow 160ms ease, border-color 160ms ease; }
+    .flight-card:hover { transform: translateY(-3px); box-shadow: 0 16px 34px rgba(45, 37, 68, .14); border-color: var(--purple-light); }
+    .flight-best-badge { position: absolute; top: -11px; left: 24px; padding: 3px 12px; color: #fff; background: var(--purple); border-radius: 999px; font-size: 11px; font-weight: 700; box-shadow: 0 4px 10px rgba(75, 131, 139, .35); }
+    .flight-airline { display: flex; flex: 0 0 170px; align-items: center; gap: 12px; }
+    .airline-logo { display: flex; flex: 0 0 auto; align-items: center; justify-content: center; width: 40px; height: 40px; color: #fff; background: linear-gradient(135deg, var(--purple), var(--purple-light)); border-radius: 50%; font-size: 16px; font-weight: 800; }
+    .flight-airline b { display: block; font-size: 14px; line-height: 1.4; }
     .flight-airline span { color: var(--muted); font-size: 12px; }
-    .flight-route { display: flex; flex: 1 1 300px; align-items: center; gap: 16px; }
-    .flight-time { display: flex; flex-direction: column; align-items: center; gap: 2px; min-width: 72px; }
-    .flight-time b { font-size: 20px; }
+    .flight-route { display: flex; flex: 1 1 320px; align-items: center; gap: 18px; }
+    .flight-time { display: flex; flex-direction: column; align-items: center; gap: 2px; min-width: 76px; }
+    .flight-time b { font-size: 24px; font-weight: 800; }
     .flight-time span { color: var(--muted); font-size: 12px; }
-    .flight-path { display: flex; flex: 1; flex-direction: column; align-items: center; gap: 4px; color: var(--muted); font-size: 12px; }
-    .flight-path .line { position: relative; width: 100%; height: 1px; background: #D3E4E6; }
-    .flight-path .line::after { content: "✈"; position: absolute; top: 50%; left: 50%; color: var(--purple-light); font-size: 13px; transform: translate(-50%, -50%); background: #fff; padding: 0 4px; }
-    .flight-meta { display: flex; flex: 0 0 auto; flex-direction: column; gap: 4px; color: var(--muted); font-size: 12px; }
-    .flight-footer { display: flex; flex: 0 0 auto; align-items: center; gap: 14px; margin-left: auto; }
-    .price { color: var(--purple); font-size: 18px; font-weight: 800; text-align: right; }
+    .flight-path { display: flex; flex: 1; flex-direction: column; align-items: center; gap: 6px; color: var(--muted); font-size: 12px; }
+    .flight-stop-tag { padding: 2px 10px; border-radius: 999px; font-size: 11px; font-weight: 700; background: #EEF3F3; color: var(--muted); }
+    .flight-stop-tag.direct { background: var(--purple-soft); color: var(--purple); }
+    .flight-path .line { position: relative; width: 100%; height: 2px; background: #D3E4E6; border-radius: 2px; }
+    .flight-path .line::before, .flight-path .line::after { content: ""; position: absolute; top: 50%; width: 6px; height: 6px; background: var(--purple-light); border-radius: 50%; transform: translateY(-50%); }
+    .flight-path .line::before { left: -2px; }
+    .flight-path .line::after { right: -2px; }
+    .flight-meta { display: flex; flex: 0 0 auto; flex-direction: column; gap: 5px; margin: 0 4px; padding-left: 16px; border-left: 1px dashed var(--line); color: var(--muted); font-size: 12px; }
+    .seats-low { color: #B23B3B; font-weight: 700; }
+    .flight-footer { display: flex; flex: 0 0 auto; align-items: center; gap: 16px; margin-left: auto; }
+    .price { color: var(--purple); font-size: 23px; font-weight: 800; text-align: right; }
     .price small { display: block; color: var(--muted); font-size: 12px; font-weight: 500; }
-    .view-button { padding: 7px 12px; color: var(--purple); background: #fff; border: 1px solid #C6DCDF; border-radius: 6px; cursor: pointer; font-weight: 700; white-space: nowrap; }
-    .view-button:hover { color: #fff; background: var(--purple); border-color: var(--purple); }
+    .view-button { padding: 11px 22px; color: #fff; background: var(--purple); border: 0; border-radius: 8px; cursor: pointer; font-weight: 700; font-size: 14px; white-space: nowrap; box-shadow: 0 6px 16px rgba(75, 131, 139, .32); transition: background 160ms ease, transform 160ms ease; }
+    .view-button:hover { background: #37676D; transform: translateY(-1px); }
     .empty { padding: 36px; color: var(--muted); text-align: center; background: #fff; border: 1px dashed #C6DCDF; border-radius: 8px; }
-    @media (max-width: 850px) { .site-nav { align-items: flex-start; flex-direction: column; gap: 6px; padding: 8px 18px 12px; } .nav-links { width: 100%; margin-left: 0; overflow-x: auto; } main { width: min(100% - 28px, 680px); padding-top: 24px; } .flight-card { flex-direction: column; align-items: stretch; } .flight-footer { margin-left: 0; justify-content: space-between; } }
+    @media (max-width: 850px) { .site-nav { align-items: flex-start; flex-direction: column; gap: 6px; padding: 8px 18px 12px; } .nav-links { width: 100%; margin-left: 0; overflow-x: auto; } main { width: min(100% - 28px, 680px); padding-top: 24px; } .flight-card { flex-direction: column; align-items: stretch; } .flight-meta { margin: 0; padding-left: 0; border-left: 0; } .flight-footer { margin-left: 0; justify-content: space-between; } }
     @media (max-width: 560px) { .brand { width: 108px; height: 48px; } .nav-links { gap: 2px; } .nav-links a { padding: 8px; font-size: 14px; white-space: nowrap; } .section-header { align-items: stretch; flex-direction: column; } .section-header h2 { font-size: 22px; } .flight-route { flex-direction: column; align-items: stretch; } .flight-path { display: none; } }
   </style>
 </head>
@@ -91,16 +98,18 @@
       <div class="flight-leg">
         <h3><span class="flight-leg-badge">{{ leg.index }}</span>{{ leg.origin or '任何出發地' }} → {{ leg.destination or '任何目的地' }}{% if leg.date %}｜{{ leg.date }}{% endif %}</h3>
         <div class="flight-list">
+          {% set leg_min_price = leg.flights|map(attribute='price')|min if leg.flights else none %}
           {% for flight in leg.flights %}
             <article class="flight-card">
-{% set save_kind='flight' %}{% set save_id=flight.flight_id %}{% include 'partials/booking_favorite_button.html' %}
-              <div class="flight-airline"><b>{{ flight.airline_name }}</b><span>{{ flight.flight_number }}・{{ flight.cabin_class }}・{{ '直飛' if not flight.stops else ('轉機 ' ~ flight.stops ~ ' 次') }}</span></div>
+{% if flight.is_live %}<span class="booking-heart" aria-disabled="true" title="即時報價暫不支援收藏">&#9825;</span>{% else %}{% set save_kind='flight' %}{% set save_id=flight.flight_id %}{% include 'partials/booking_favorite_button.html' %}{% endif %}
+              {% if flight.price == leg_min_price %}<span class="flight-best-badge">最低價</span>{% endif %}
+              <div class="flight-airline"><span class="airline-logo">{{ flight.airline_name[:1] }}</span><div><b>{{ flight.airline_name }}</b><span>{{ flight.flight_number }}・{{ flight.cabin_class }}</span></div></div>
               <div class="flight-route">
                 <div class="flight-time"><b>{{ flight.departure_time|hm }}</b><span>{{ flight.origin_city }}</span></div>
-                <div class="flight-path"><div class="line"></div><span>{{ (flight.duration_minutes // 60) }} 小時 {{ (flight.duration_minutes % 60) }} 分</span></div>
+                <div class="flight-path"><span class="flight-stop-tag {{ 'direct' if not flight.stops }}">{{ '直飛' if not flight.stops else ('轉機 ' ~ flight.stops ~ ' 次') }}</span><div class="line"></div><span>{{ (flight.duration_minutes // 60) }} 小時 {{ (flight.duration_minutes % 60) }} 分</span></div>
                 <div class="flight-time"><b>{{ flight.arrival_time|hm }}</b><span>{{ flight.destination_city }}</span></div>
               </div>
-              <div class="flight-meta"><span>{{ flight.origin_country }} → {{ flight.destination_country }}</span><span>剩餘 {{ flight.seats_available }} 席</span></div>
+              <div class="flight-meta"><span>{{ flight.origin_country }} → {{ flight.destination_country }}</span><span class="{{ 'seats-low' if flight.seats_available <= 3 }}">剩餘 {{ flight.seats_available }} 席</span></div>
               <div class="flight-footer">
                 <span class="price">NT$ {{ "{:,.0f}".format(flight.price * pax) }}<small>{{ pax }} 人・NT$ {{ "{:,.0f}".format(flight.price) }} /人</small></span>
                 <button class="view-button" type="button" onclick="showToast('機票線上訂購功能開發中，敬請期待！')">選擇航班</button>

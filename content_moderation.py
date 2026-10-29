@@ -27,7 +27,13 @@ def is_image_explicit(absolute_path):
     if _detector is None:
         return False
     try:
-        detections = _detector.detect(absolute_path)
+        # 不能直接把路徑字串傳給 detect()：nudenet 內部字串路徑一律走 cv2.imread()，
+        # 而 OpenCV 在 Windows 上讀不懂路徑裡的非 ASCII 字元（例如「桌面」），遇到就會
+        # 讀檔失敗、整張圖都沒分析到，偵測永遠是「沒問題」，不是真的判斷過內容。改成自己
+        # 用 Python 讀成 bytes 再傳進去，nudenet 就會改用 cv2.imdecode()，不受路徑編碼影響。
+        with open(absolute_path, "rb") as image_file:
+            image_bytes = image_file.read()
+        detections = _detector.detect(image_bytes)
     except Exception as error:
         print("NSFW 照片偵測失敗，改由人工審核：", error)
         return False

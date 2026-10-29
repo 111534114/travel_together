@@ -55,6 +55,7 @@
             <a href="{{ url_for('accommodations.map_view') }}" class="small-button">🗺️ 地圖檢視</a>
             <a href="{{ url_for('accommodations.list_trash') }}" class="small-button">🗑️ 回收桶</a>
             <a href="{{ url_for('accommodations.import_from_google') }}" class="small-button">🔍 Google地圖匯入</a>
+            <a href="{{ url_for('accommodations.search_import_accommodations') }}" class="small-button">🔎 關鍵字搜尋匯入</a>
             <a href="{{ url_for('accommodations.import_accommodations') }}" class="small-button">⬆ 匯入 CSV</a>
             <a href="{{ url_for('accommodations.create_accommodation') }}" class="small-button">＋ 新增住宿</a>
             <form method="POST" action="{{ url_for('accommodations.backfill_descriptions') }}" class="inline-form"

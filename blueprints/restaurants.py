@@ -1,16 +1,19 @@
 import csv  # 匯入 csv，用來解析上傳的 CSV 檔案內容
 import io  # 匯入 io，用來把上傳的檔案內容包裝成可供 csv 模組讀取的物件
 
-from flask import Blueprint, flash, redirect, render_template, request, session, url_for  # 匯入 Flask 藍圖與常用功能
+from flask import Blueprint, flash, jsonify, redirect, render_template, request, session, url_for  # 匯入 Flask 藍圖與常用功能
 
 from activity_log import log_action  # 匯入操作紀錄共用函式
 from auth import login_required  # 匯入登入/角色檢查裝飾器
 from db import get_db_connection  # 匯入取得資料庫連線的函式
 from google_places import (  # 匯入 Google Places API 相關函式
+    MAX_SEARCH_RESULTS,  # 單一關鍵字搜尋最多能拿到的筆數上限(Google 本身的限制)
     PlacesApiError,  # Google Places API 呼叫失敗時拋出的例外類別
+    build_photo_url,  # 把照片資源名稱組成可以下載圖片的網址
     extract_place_fields,  # 把 Google 回傳的地點資料整理成我們需要的欄位
     is_configured,  # 檢查是否已設定 API 金鑰
     search_place,  # 用文字搜尋一個地點
+    search_places,  # 用關鍵字搜尋多筆地點(例如「台北市 餐廳」)
 )
 from utils import (  # 匯入圖片、下拉選單、CSV 匯入匯出相關的共用工具函式
     build_place_description,  # 沒有現成簡介時，自動組一段描述
@@ -81,6 +84,7 @@ def _load_options(cursor):  # 定義內部函式：一次取得新增/編輯表�
         "cities": cities,  # 城市清單
         "city_groups": group_cities_by_region(cities),  # 依國家、地區分組後的城市清單(給下拉選單分組顯示用)
         "categories": get_categories(cursor, "restaurant"),  # 餐廳分類清單
+        "api_configured": is_configured(),  # 是否已設定 Google Places API 金鑰，決定要不要顯示查詢按鈕
     }
 
 
@@ -704,6 +708,53 @@ def backfill_descriptions():  # 定義批次補上餐廳描述函式
     return redirect(url_for("restaurants.list_restaurants"))  # 導回餐廳列表頁
 
 
+@restaurants_bp.route("/geocode", methods=["POST"])  # 設定單一餐廳查詢 Google 地圖資料的路由(新增/編輯表單上的查詢按鈕用)
+@login_required("content_admin")  # 限制只有內容管理員登入後才能存取
+def geocode_restaurant():  # 定義查詢函式：不直接存檔，只回傳資料給前端填入表單欄位，由使用者按「儲存」才真的寫進資料庫
+    if not is_configured():  # 如果還沒設定 Google Places API 金鑰
+        return jsonify(error="尚未設定 Google Places API 金鑰"), 400
+
+    query = request.form.get("query", "").strip()  # 取得前端送來的查詢字串(通常是餐廳名稱+地址)
+    if not query:  # 如果查詢字串是空的
+        return jsonify(error="請先輸入餐廳名稱"), 400
+
+    try:
+        place = search_place(query)  # 呼叫 Google Places API 搜尋地點
+    except PlacesApiError as error:  # 如果 API 呼叫失敗(金鑰錯誤、額度用完等)
+        return jsonify(error=str(error)), 502
+
+    if not place:  # 如果查無結果
+        return jsonify(error="找不到符合的地點，請確認名稱或地址是否正確"), 404
+
+    fields = extract_place_fields(place)  # 把 Google 回傳的資料整理成我們需要的欄位
+
+    connection = get_db_connection()  # 建立資料庫連線，準備把國家/城市名稱轉成 ID(找不到就自動新增)
+    if connection is None:
+        return jsonify(error="資料庫連線失敗"), 503
+    cursor = connection.cursor()  # get_or_create_country/city 是用位置索引(row[0])取值，要用非字典格式的 cursor
+    country_id = city_id = None
+    try:
+        if fields["country_name"]:  # 如果 Google 有回傳國家名稱
+            country_id = get_or_create_country(cursor, fields["country_name"])  # 找不到就自動新增這個國家
+            if fields["city_name"]:  # 如果 Google 有回傳城市名稱
+                city_id = get_or_create_city(cursor, country_id, fields["city_name"])  # 找不到就自動新增這個城市
+        connection.commit()  # 新增國家/城市也要 commit，不然查詢結果不會存住
+    finally:
+        cursor.close()
+        connection.close()
+
+    return jsonify(  # 回傳整理好的資料給前端，由 JS 填入表單欄位
+        address=fields["address"],
+        opening_hours=fields["opening_hours"],
+        website_url=fields["website_url"],
+        description=fields["description"],
+        country_id=country_id,
+        country_name=fields["country_name"],
+        city_id=city_id,
+        city_name=fields["city_name"],
+    )
+
+
 @restaurants_bp.route("/import/google", methods=["GET", "POST"])  # 設定用 Google 地圖批次匯入餐廳的路由
 @login_required("content_admin")  # 限制只有內容管理員登入後才能存取
 def import_from_google():  # 定義 Google 地圖批次匯入餐廳函式
@@ -813,6 +864,162 @@ def import_from_google():  # 定義 Google 地圖批次匯入餐廳函式
         results=results,  # 每一列的處理結果
         success_count=success_count,  # 成功筆數
         fail_count=len(results) - success_count,  # 失敗筆數
+    )
+
+
+@restaurants_bp.route("/import/google-search", methods=["GET", "POST"])  # 設定「依關鍵字搜尋多筆地點、批次匯入」的路由(第一步：搜尋並列出候選清單)
+@login_required("content_admin")
+def search_import_restaurants():  # 定義搜尋函式：輸入一個泛用關鍵字(例如「台北市 餐廳」)，一次拿回一批候選地點
+    if request.method == "GET":
+        return render_template(
+            "content_admin/restaurants/import_google_search.html",
+            api_configured=is_configured(), max_results=MAX_SEARCH_RESULTS
+        )
+
+    if not is_configured():
+        flash("尚未設定 Google Places API 金鑰，請先在專案的 .env 檔案設定 GOOGLE_MAPS_API_KEY", "error")
+        return redirect(url_for("restaurants.search_import_restaurants"))
+
+    keyword = request.form.get("keyword", "").strip()
+    if not keyword:
+        flash("請輸入搜尋關鍵字", "error")
+        return redirect(url_for("restaurants.search_import_restaurants"))
+
+    max_results = request.form.get("max_results", "20").strip()
+    max_results = int(max_results) if max_results.isdigit() else 20
+    max_results = max(1, min(max_results, MAX_SEARCH_RESULTS))
+
+    try:
+        places = search_places(keyword, max_results)
+    except PlacesApiError as error:
+        flash(f"Google API 錯誤：{error}", "error")
+        return redirect(url_for("restaurants.search_import_restaurants"))
+
+    if not places:
+        flash("Google 地圖查無符合這個關鍵字的地點，請換個關鍵字再試一次", "error")
+        return redirect(url_for("restaurants.search_import_restaurants"))
+
+    candidates = [extract_place_fields(place) for place in places]
+
+    connection = get_db_connection()  # 開一個連線取我們系統現有的分類清單，讓預覽頁可以直接選用
+    categories = []
+    if connection is not None:
+        cursor = connection.cursor(dictionary=True)
+        try:
+            categories = get_categories(cursor, "restaurant")
+        finally:
+            cursor.close()
+            connection.close()
+
+    category_lookup = {cat["category_name"].strip().lower(): cat["category_id"] for cat in categories}
+    for candidate in candidates:  # 嘗試用 Google 判斷的類型文字去比對我們現有的分類，比對到就先幫忙選起來
+        guess_name = (candidate.get("category_name") or "").strip().lower()
+        candidate["suggested_category_id"] = category_lookup.get(guess_name)
+
+    return render_template(
+        "content_admin/restaurants/import_google_search_preview.html",
+        keyword=keyword, candidates=list(enumerate(candidates)), categories=categories,
+    )
+
+
+@restaurants_bp.route("/import/google-search/confirm", methods=["POST"])  # 設定「依關鍵字搜尋」第二步：確認要匯入哪幾筆候選地點
+@login_required("content_admin")
+def confirm_search_import_restaurants():  # 定義確認匯入函式：把預覽頁勾選的候選地點，正式寫進資料庫
+    selected_indices = request.form.getlist("selected")
+    if not selected_indices:
+        flash("請至少勾選一筆要匯入的地點", "error")
+        return redirect(url_for("restaurants.search_import_restaurants"))
+
+    connection = get_db_connection()
+    if connection is None:
+        flash("資料庫連線失敗", "error")
+        return redirect(url_for("restaurants.search_import_restaurants"))
+
+    cursor = connection.cursor()
+    results = []
+    success_count = 0
+
+    try:
+        for row_number, index in enumerate(selected_indices, start=1):
+            try:
+                name = request.form.get(f"name_{index}", "").strip()
+                country_name = request.form.get(f"country_name_{index}", "").strip()
+                city_name = request.form.get(f"city_name_{index}", "").strip()
+                category_name = request.form.get(f"category_name_{index}", "").strip() or None  # Google 判斷的類型文字，只用來顯示、不直接拿來當系統分類
+
+                if not country_name or not city_name:
+                    results.append((row_number, name or f"第 {index} 筆", False, "無法從 Google 資料判斷國家或城市，請改用手動新增"))
+                    continue
+
+                address = request.form.get(f"address_{index}", "").strip() or None
+                opening_hours_text = request.form.get(f"opening_hours_{index}", "").strip() or None
+                website_url = request.form.get(f"website_url_{index}", "").strip() or None
+                description_raw = request.form.get(f"description_{index}", "").strip() or None
+                latitude_raw = request.form.get(f"latitude_{index}", "").strip()
+                longitude_raw = request.form.get(f"longitude_{index}", "").strip()
+                latitude = float(latitude_raw) if latitude_raw else None
+                longitude = float(longitude_raw) if longitude_raw else None
+                price_level = request.form.get(f"price_level_{index}", "").strip() or "medium"
+
+                category_id_raw = request.form.get(f"category_id_{index}", "").strip()  # 預覽頁下拉選單選的是我們系統既有的分類 ID
+                category_id = int(category_id_raw) if category_id_raw.isdigit() else None
+
+                country_id = get_or_create_country(cursor, country_name)
+                city_id = get_or_create_city(cursor, country_id, city_name)
+                cuisine_type = category_name
+
+                description = description_raw or build_place_description(
+                    name, category_name, country_name, city_name
+                )
+
+                photo_note = ""  # 照片下載結果附註，預設沒有特別訊息
+                image_path = None
+                photo_name = request.form.get(f"photo_name_{index}", "").strip() or None  # 這間餐廳的 Google 代表照資源名稱(沒有就是 None)
+                want_photo = request.form.get(f"import_photo_{index}") == "on"  # 預覽頁有沒有勾選「同時匯入照片」
+                if photo_name and want_photo:
+                    try:
+                        image_path = save_image_from_url(build_photo_url(photo_name), "restaurants")  # 呼叫 Place Photo 端點換成真正圖片網址後下載存檔
+                    except ValueError as photo_error:  # 下載失敗不影響整筆餐廳匯入，只是沒有照片
+                        photo_note = f"，照片下載失敗：{photo_error}"
+                elif photo_name and not want_photo:
+                    photo_note = "，未勾選匯入照片"
+
+                is_data_complete = bool(address and category_id)
+                status = "active" if is_data_complete else "pending"
+
+                cursor.execute(
+                    """
+                    INSERT INTO restaurants
+                    (category_id, name, country_id, city_id, address, latitude, longitude, cuisine_type,
+                     price_level, opening_hours, description, website_url, image_path, status, created_by)
+                    VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
+                    """,
+                    (
+                        category_id, name, country_id, city_id, address, latitude, longitude, cuisine_type,
+                        price_level, opening_hours_text, description, website_url, image_path,
+                        status, session["user_id"]
+                    )
+                )
+                success_count += 1
+                category_note = f"，分類：{category_name}" if category_name else ""
+                status_note = "已直接啟用" if is_data_complete else "狀態為「待確認」，請人工複核後改為啟用"
+                results.append((row_number, name, True, f"已從 Google 地圖匯入，{status_note}{category_note}{photo_note}"))
+
+            except Exception as error:
+                results.append((row_number, request.form.get(f"name_{index}", f"第 {index} 筆"), False, str(error)))
+
+        log_action(
+            cursor, "import_restaurants_google_search", "restaurant", None,
+            f"依關鍵字搜尋匯入餐廳，成功 {success_count} 筆，失敗 {len(results) - success_count} 筆"
+        )
+        connection.commit()
+    finally:
+        cursor.close()
+        connection.close()
+
+    return render_template(
+        "content_admin/restaurants/import_google_result.html",
+        results=results, success_count=success_count, fail_count=len(results) - success_count,
     )
 
 

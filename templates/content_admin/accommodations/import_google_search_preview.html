@@ -1,0 +1,82 @@
+{% extends "content_admin/base.html" %}
+{% set active_menu = "accommodations" %}
+
+{% block title %}搜尋結果預覽｜Travel Together{% endblock %}
+{% block page_title %}搜尋結果：「{{ keyword }}」{% endblock %}
+{% block page_subtitle %}勾選要匯入的住宿，確認後才會正式寫進資料庫；取消勾選就不會匯入那一筆{% endblock %}
+
+{% block content %}
+
+<div class="admin-section">
+
+    <form method="POST" action="{{ url_for('accommodations.confirm_search_import_accommodations') }}" class="content-form">
+        <p class="form-hint">勾選「同時匯入照片」會額外呼叫 Google 的照片下載功能，一樣會計入付費 API 用量，筆數多時確認匯入會需要多等一下。</p>
+
+        <div class="form-actions" style="margin-bottom: 14px;">
+            <button type="button" class="secondary-link" onclick="document.querySelectorAll('.search-preview-check').forEach(function(c){c.checked=true;})">全選</button>
+            <button type="button" class="secondary-link" onclick="document.querySelectorAll('.search-preview-check').forEach(function(c){c.checked=false;})">全不選</button>
+        </div>
+
+        <div class="table-container">
+            <table class="admin-table">
+                <thead>
+                <tr>
+                    <th></th>
+                    <th>名稱</th>
+                    <th>地址</th>
+                    <th>系統分類</th>
+                    <th>照片</th>
+                </tr>
+                </thead>
+                <tbody>
+                {% for index, c in candidates %}
+                <tr>
+                    <td><input type="checkbox" class="search-preview-check" name="selected" value="{{ index }}" checked></td>
+                    <td>
+                        {{ c.name or '（Google 未提供名稱）' }}
+                        <input type="hidden" name="name_{{ index }}" value="{{ c.name or '' }}">
+                        <input type="hidden" name="country_name_{{ index }}" value="{{ c.country_name or '' }}">
+                        <input type="hidden" name="city_name_{{ index }}" value="{{ c.city_name or '' }}">
+                        <input type="hidden" name="category_name_{{ index }}" value="{{ c.category_name or '' }}">
+                        <input type="hidden" name="website_url_{{ index }}" value="{{ c.website_url or '' }}">
+                        <input type="hidden" name="description_{{ index }}" value="{{ c.description or '' }}">
+                        <input type="hidden" name="latitude_{{ index }}" value="{{ c.latitude if c.latitude is not none else '' }}">
+                        <input type="hidden" name="longitude_{{ index }}" value="{{ c.longitude if c.longitude is not none else '' }}">
+                        <input type="hidden" name="address_{{ index }}" value="{{ c.address or '' }}">
+                        <input type="hidden" name="photo_name_{{ index }}" value="{{ c.photo_name or '' }}">
+                    </td>
+                    <td>{{ c.address or '—' }}</td>
+                    <td>
+                        <select name="category_id_{{ index }}">
+                            <option value="">未分類</option>
+                            {% for category in categories %}
+                                <option value="{{ category.category_id }}" {{ 'selected' if c.suggested_category_id == category.category_id else '' }}>{{ category.category_name }}</option>
+                            {% endfor %}
+                        </select>
+                        {% if c.category_name %}<br><span class="form-hint">Google建議：{{ c.category_name }}</span>{% endif %}
+                        {% if not c.country_name or not c.city_name %}<br><span class="status-returned">缺國家/城市，會匯入失敗</span>{% endif %}
+                    </td>
+                    <td>
+                        {% if c.photo_name %}
+                            <label><input type="checkbox" name="import_photo_{{ index }}" checked> 同時匯入照片</label>
+                        {% else %}
+                            <span class="form-hint">Google 無提供照片</span>
+                        {% endif %}
+                    </td>
+                </tr>
+                {% else %}
+                <tr><td colspan="5" class="empty-data">沒有搜尋到任何地點</td></tr>
+                {% endfor %}
+                </tbody>
+            </table>
+        </div>
+
+        <div class="form-actions" style="margin-top: 20px;">
+            <button type="submit" class="primary-button">匯入勾選的住宿</button>
+            <a href="{{ url_for('accommodations.search_import_accommodations') }}" class="secondary-link">重新搜尋</a>
+        </div>
+    </form>
+
+</div>
+
+{% endblock %}

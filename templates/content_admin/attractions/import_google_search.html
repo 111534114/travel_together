@@ -1,0 +1,45 @@
+{% extends "content_admin/base.html" %}
+{% set active_menu = "attractions" %}
+
+{% block title %}依關鍵字搜尋匯入景點｜Travel Together{% endblock %}
+{% block page_title %}依關鍵字搜尋、批次匯入景點{% endblock %}
+{% block page_subtitle %}輸入一個泛用關鍵字（例如「台北市 景點」），系統會從 Google 地圖抓一批候選地點，勾選後一次匯入{% endblock %}
+
+{% block content %}
+
+<div class="admin-section">
+
+    {% if not api_configured %}
+    <div class="message error">
+        尚未設定 Google Places API 金鑰。請在專案根目錄的 <code>.env</code> 檔案中設定
+        <code>GOOGLE_MAPS_API_KEY=你的金鑰</code>，並重新啟動伺服器後再使用這個功能。
+    </div>
+    {% endif %}
+
+    <ul>
+        <li>這不是「匯入 Google 地圖上全部的景點」——Google 一次查詢最多只會給 {{ max_results }} 筆最相關的結果，不保證涵蓋這個地區所有地點，查不到的還是要手動新增。</li>
+        <li>搜尋完會先列出候選清單讓你勾選確認，不會一查就直接存進資料庫。</li>
+        <li>匯入後的景點狀態會是「<strong>待確認</strong>」，請到景點列表逐筆確認資料正確後，再把狀態改成「啟用」。</li>
+        <li>跟「<a href="{{ url_for('attractions.import_from_google') }}">依地點名稱清單匯入</a>」不同：那個要你自己先列出精確的地點名字，這個只要給一個泛用關鍵字就好。</li>
+    </ul>
+
+    <form method="POST" class="content-form" style="margin-top:10px;">
+        <div class="form-grid">
+            <div class="form-group full-width">
+                <label for="keyword">搜尋關鍵字</label>
+                <input type="text" id="keyword" name="keyword" placeholder="例如：台北市 景點、台中 美術館" required>
+            </div>
+            <div class="form-group">
+                <label for="max_results">想要幾筆結果（最多 {{ max_results }}）</label>
+                <input type="number" id="max_results" name="max_results" min="1" max="{{ max_results }}" value="20">
+            </div>
+        </div>
+        <div class="form-actions">
+            <button type="submit" class="primary-button" {{ 'disabled' if not api_configured else '' }}>開始搜尋</button>
+            <a href="{{ url_for('attractions.list_attractions') }}" class="secondary-link">取消</a>
+        </div>
+    </form>
+
+</div>
+
+{% endblock %}

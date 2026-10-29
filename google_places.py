@@ -10,8 +10,14 @@ FIELD_MASK = (  # 定義要跟 Google 要哪些欄位，只要必要欄位可以
     "places.id,places.displayName,places.formattedAddress,places.location,"
     "places.websiteUri,places.regularOpeningHours,places.addressComponents,"
     "places.googleMapsUri,places.primaryTypeDisplayName,places.editorialSummary,"
-    "places.priceLevel"
+    "places.priceLevel,places.photos"
 )
+
+FIELD_MASK_MULTI = FIELD_MASK + ",nextPageToken"  # 多筆搜尋(search_places)要多要 nextPageToken 欄位才能翻頁拿更多筆
+
+PHOTO_MEDIA_URL = "https://places.googleapis.com/v1/{photo_name}/media"  # Place Photo(新版)端點：換實際圖片，是跟文字搜尋分開計費的另一個 API
+
+MAX_SEARCH_RESULTS = 60  # Google Text Search 單一查詢條件最多只會回傳 60 筆(翻 3 頁、每頁 20 筆)，無法真的「全部」撈出來
 
 PRICE_LEVEL_MAP = {  # 定義 Google 價位等級對應到我們資料庫用的價位等級(只有餐廳會用到)
     "PRICE_LEVEL_FREE": "low",
@@ -63,6 +69,52 @@ def search_place(query):  # 定義函式：用文字搜尋一個地點，回傳�
     return places[0]  # 回傳相關性最高的第一筆結果
 
 
+def search_places(query, max_results=20):  # 定義函式：用文字搜尋多筆地點(例如「台北市 景點」)，一次拿回一批結果
+    """搜尋多筆符合的地點，用來做「依關鍵字批次匯入」。Google 一組查詢字串最多只會給 60 筆結果(翻 3 頁、
+    每頁 20 筆)，這是 Google Text Search 本身的上限，不是我們自己設的，所以不等於「這個地區所有景點」，
+    只是 Google 排序出來最相關的一批，找不到的地方還是要手動補。"""
+    max_results = max(1, min(max_results, MAX_SEARCH_RESULTS))  # 限制在 1~60 之間，避免無上限翻頁
+    places = []  # 累積搜尋結果
+    page_token = None  # 下一頁的分頁權杖，第一次查詢還沒有
+
+    while len(places) < max_results:  # 還沒湊滿要求的筆數就繼續翻頁
+        body = {  # 請求內容(JSON 格式)
+            "textQuery": query,  # 使用者輸入的關鍵字(可以是「台北市 景點」這種泛用查詢，不用是精確地點名稱)
+            "languageCode": "zh-TW",  # 要求回傳繁體中文結果
+            "pageSize": min(20, max_results - len(places)),  # 這一頁要幾筆(Google 單頁上限 20 筆)
+        }
+        if page_token:  # 如果有上一頁回傳的分頁權杖
+            body["pageToken"] = page_token  # 帶入分頁權杖，取得下一頁結果
+
+        response = requests.post(
+            TEXT_SEARCH_URL,
+            headers={
+                "Content-Type": "application/json",
+                "X-Goog-Api-Key": GOOGLE_MAPS_API_KEY,
+                "X-Goog-FieldMask": FIELD_MASK_MULTI,  # 多筆搜尋要多要 nextPageToken 欄位才能翻頁
+            },
+            json=body,
+            timeout=10
+        )
+
+        if not response.ok:  # 如果 HTTP 狀態碼不是 2xx
+            message = response.text
+            try:
+                error_body = response.json().get("error", {})
+                message = error_body.get("message", message)
+            except ValueError:
+                pass
+            raise PlacesApiError(message)
+
+        data = response.json()
+        places.extend(data.get("places") or [])  # 把這一頁的結果加進累積清單
+        page_token = data.get("nextPageToken")  # 取得下一頁的分頁權杖(沒有的話代表已經是最後一頁)
+        if not page_token:  # 沒有下一頁了
+            break
+
+    return places[:max_results]  # 回傳不超過要求筆數的結果
+
+
 def extract_country_and_city(address_components):  # 定義函式：從 Google 回傳的地址組成裡，抓出國家名稱與城市名稱
     country = None  # 預設國家為 None
     city = None  # 預設城市為 None
@@ -96,6 +148,12 @@ def format_opening_hours(regular_opening_hours):  # 定義函式：把 Google �
     return "；".join(weekday_descriptions)  # 用中文分號把每天的資訊接成一行文字
 
 
+def build_photo_url(photo_name, max_width_px=1024):  # 定義函式：把照片資源名稱組成可以直接下載圖片的網址(呼叫這個網址才會真的計費)
+    if not photo_name:  # 如果沒有照片資源名稱
+        return None  # 回傳 None，代表沒有照片可以下載
+    return f"{PHOTO_MEDIA_URL.format(photo_name=photo_name)}?maxWidthPx={max_width_px}&key={GOOGLE_MAPS_API_KEY}"
+
+
 def extract_place_fields(place):  # 定義函式：把 Google 回傳的單筆地點資料，整理成我們資料庫需要的欄位
     name = (place.get("displayName") or {}).get("text")  # 取得地點名稱(新版 API 巢狀在 displayName.text 裡)
     address = place.get("formattedAddress")  # 取得完整地址
@@ -108,6 +166,8 @@ def extract_place_fields(place):  # 定義函式：把 Google 回傳的單筆地
     category_name = (place.get("primaryTypeDisplayName") or {}).get("text")  # 取得 Google 判斷的地點類型中文名稱(例如「觀光景點」「博物館」)，當作分類
     description = (place.get("editorialSummary") or {}).get("text")  # 取得 Google 官方簡介(不是每個地點都有)
     price_level = PRICE_LEVEL_MAP.get(place.get("priceLevel"))  # 把 Google 的價位等級轉成我們資料庫用的等級(找不到對應就是 None)
+    photos = place.get("photos") or []  # 取得這個地點的照片清單(可能是空的)
+    photo_name = photos[0].get("name") if photos else None  # 只取第一張當代表照，資源名稱(例如 places/xxx/photos/yyy)，不是真正的圖片網址
 
     return {  # 回傳整理好的欄位字典
         "name": name,
@@ -121,4 +181,5 @@ def extract_place_fields(place):  # 定義函式：把 Google 回傳的單筆地
         "category_name": category_name,
         "description": description,
         "price_level": price_level,
+        "photo_name": photo_name,
     }

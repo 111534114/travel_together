@@ -62,6 +62,10 @@
             <div class="form-group full-width">
                 <label for="address">地址</label>
                 <input type="text" id="address" name="address" value="{{ accommodation.address or '' }}">
+                {% if api_configured %}
+                <button type="button" id="geocodeBtn" class="small-button" style="margin-top: 6px;">🔍 用 Google 地圖查詢</button>
+                <span id="geocodeStatus" class="form-hint"></span>
+                {% endif %}
             </div>
 
             <div class="form-group">
@@ -152,6 +156,65 @@
 
     document.getElementById('countrySelect').addEventListener('change', filterCitiesByCountry);
     window.addEventListener('DOMContentLoaded', filterCitiesByCountry);
+
+    var geocodeBtn = document.getElementById('geocodeBtn');
+    if (geocodeBtn) {
+        geocodeBtn.addEventListener('click', function () {
+            var nameInput = document.getElementById('name');
+            var addressInput = document.getElementById('address');
+            var statusEl = document.getElementById('geocodeStatus');
+            var query = [nameInput.value.trim(), addressInput.value.trim()].filter(Boolean).join(' ');
+            if (!query) {
+                statusEl.textContent = '請先輸入住宿名稱';
+                return;
+            }
+            geocodeBtn.disabled = true;
+            statusEl.textContent = '查詢中…';
+            var body = new URLSearchParams();
+            body.set('query', query);
+            fetch('{{ url_for("accommodations.geocode_accommodation") }}', { method: 'POST', body: body })
+                .then(function (res) { return res.json().then(function (data) { return { ok: res.ok, data: data }; }); })
+                .then(function (result) {
+                    geocodeBtn.disabled = false;
+                    if (!result.ok) {
+                        statusEl.textContent = '⚠️ ' + (result.data.error || '查詢失敗');
+                        return;
+                    }
+                    var data = result.data;
+                    if (data.address) addressInput.value = data.address;
+                    if (data.website_url) document.getElementById('website_url').value = data.website_url;
+                    var descInput = document.getElementById('description');
+                    if (data.description && !descInput.value.trim()) descInput.value = data.description;
+
+                    function selectOrInsertOption(select, id, label, groupSelector) {
+                        if (!id) return;
+                        var idStr = String(id);
+                        var existing = Array.prototype.find.call(select.querySelectorAll('option'), function (o) { return o.value === idStr; });
+                        if (!existing) {
+                            existing = document.createElement('option');
+                            existing.value = idStr;
+                            existing.textContent = label || idStr;
+                            if (groupSelector) existing.dataset.country = groupSelector;
+                            select.appendChild(existing);
+                            if (select._allCityNodes) select._allCityNodes.push(existing);
+                        }
+                        select.value = idStr;
+                    }
+
+                    var countrySelect = document.getElementById('countrySelect');
+                    selectOrInsertOption(countrySelect, data.country_id, data.country_name);
+                    filterCitiesByCountry();
+                    var citySelect = document.getElementById('citySelect');
+                    selectOrInsertOption(citySelect, data.city_id, data.city_name, data.country_id ? String(data.country_id) : null);
+
+                    statusEl.textContent = '✅ 已帶入查詢結果，確認無誤後記得按「儲存」';
+                })
+                .catch(function () {
+                    geocodeBtn.disabled = false;
+                    statusEl.textContent = '⚠️ 查詢失敗，請再試一次';
+                });
+        });
+    }
 </script>
 
 {% endblock %}

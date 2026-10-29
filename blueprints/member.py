@@ -1050,6 +1050,9 @@ def add_attraction_post(attraction_id):
             flash("找不到這個景點，或已被下架。", "error")
             return redirect(url_for("member.browse_attractions"))
         image_paths = [save_uploaded_image(file, "attraction_posts") for file in image_files]
+        # AI 偵測只拿來擋「確定有問題」的照片，不能拿來當作「可以自動放行」的依據——
+        # 實測過 AI 會漏判（例如裸露但角度/遮擋讓信心分數沒過門檻），一旦漏判就直接變成公開內容，
+        # 風險遠高於「正常照片多等一下人工審核」，所以沒被偵測到問題的照片還是要排審核，不自動核准。
         is_explicit = any(is_image_explicit(os.path.join(current_app.static_folder, path)) for path in image_paths)
         review_note = ("系統自動偵測到疑似不適當的照片內容，已自動退回。"
                        if is_explicit else None)

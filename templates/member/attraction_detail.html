@@ -85,10 +85,11 @@
     <div class="panel" id="album">
         <h2>景點相簿</h2>
         <p class="form-hint">分享實拍照片與旅遊心得；內容會先經過審核。</p>
-        <form method="post" action="{{ url_for('member.add_attraction_post', attraction_id=a.attraction_id) }}" enctype="multipart/form-data" class="attraction-post-form">
+        <form method="post" action="{{ url_for('member.add_attraction_post', attraction_id=a.attraction_id) }}" enctype="multipart/form-data" class="attraction-post-form" id="attractionPostForm">
             <textarea name="caption" rows="2" maxlength="1000" placeholder="分享這裡的心得⋯（選填）"></textarea>
-            <div class="attraction-post-form-actions"><input type="file" name="images" accept=".png,.jpg,.jpeg,.gif,.webp" multiple><button class="member-btn primary">發佈</button></div>
-            <p class="form-hint">一次最多上傳 6 張照片。</p>
+            <div class="attraction-post-form-actions"><input type="file" name="images" id="attractionPostImages" accept=".png,.jpg,.jpeg,.gif,.webp" multiple><button class="member-btn primary">發佈</button></div>
+            <p class="form-hint">一次最多 6 張，支援 PNG／JPG／GIF／WEBP，單張 5MB 以內。</p>
+            <p class="form-hint attraction-post-file-error" id="attractionPostFileError" hidden></p>
         </form>
         <div class="attraction-post-feed">
           {% for post in posts %}<article class="attraction-post-card">
@@ -96,7 +97,11 @@
               {% if post.user_id == session.user_id %}<div class="attraction-post-owner-actions"><button type="button" class="member-btn ghost small attraction-post-edit-trigger">編輯</button><form method="post" action="{{ url_for('member.delete_attraction_post', attraction_id=a.attraction_id, post_id=post.post_id) }}" onsubmit="return confirm('確定要刪除這則貼文嗎？')"><button class="member-btn ghost small">刪除</button></form></div>{% endif %}
             </div>
             {% if post.user_id == session.user_id and post.review_status != 'approved' %}<p class="attraction-post-status attraction-post-status-{{ post.review_status }}">{% if post.review_status == 'pending' %}⏳ 審核中，目前只有你看得到{% else %}🚫 已退回{% if post.review_note %}：{{ post.review_note }}{% endif %}{% endif %}</p>{% endif %}
-            {% if post.images %}<div class="attraction-post-images attraction-post-images-count-{{ post.images|length if post.images|length <= 4 else 'many' }}">{% for image in post.images %}<img src="{{ url_for('static', filename=image.image_path) }}" alt="" loading="lazy">{% endfor %}</div>{% endif %}
+            {% if post.images %}
+            {% set image_urls = [] %}
+            {% for image in post.images %}{% set _ = image_urls.append(url_for('static', filename=image.image_path)) %}{% endfor %}
+            <div class="attraction-post-images attraction-post-images-count-{{ post.images|length if post.images|length <= 4 else 'many' }}" data-images='{{ image_urls|tojson }}'>{% for url in image_urls %}<img src="{{ url }}" alt="" loading="lazy" draggable="false" oncontextmenu="return false" onclick="openAlbumLightbox(JSON.parse(this.closest('.attraction-post-images').dataset.images), {{ loop.index0 }})" style="cursor: zoom-in;">{% endfor %}</div>
+            {% endif %}
             {% if post.caption %}<p class="attraction-post-caption">{{ post.caption }}</p>{% endif %}
             {% if post.user_id == session.user_id %}<form method="post" action="{{ url_for('member.edit_attraction_post', attraction_id=a.attraction_id, post_id=post.post_id) }}" enctype="multipart/form-data" class="attraction-post-edit-form" hidden>
               <textarea name="caption" rows="2" maxlength="1000">{{ post.caption or '' }}</textarea>
@@ -109,6 +114,51 @@
     </div>
 </div>
 {% include 'member/_add_to_trip_modal.html' %}
+<div class="trip-view-modal" id="albumLightbox" onclick="if (event.target === this) closeAlbumLightbox()">
+    <div class="trip-view-card album-lightbox-card">
+        <button class="trip-view-close" type="button" onclick="closeAlbumLightbox()" aria-label="關閉">×</button>
+        <div class="album-lightbox-stage">
+            <button type="button" class="album-lightbox-nav album-lightbox-prev" onclick="albumLightboxStep(-1)" aria-label="上一張" hidden>‹</button>
+            <img id="albumLightboxImg" src="" alt="" draggable="false" oncontextmenu="return false">
+            <button type="button" class="album-lightbox-nav album-lightbox-next" onclick="albumLightboxStep(1)" aria-label="下一張" hidden>›</button>
+        </div>
+        <p class="album-lightbox-count" id="albumLightboxCount" hidden></p>
+    </div>
+</div>
+<script>
+let albumLightboxImages = [];
+let albumLightboxIndex = 0;
+
+function openAlbumLightbox(images, index) {
+    albumLightboxImages = images;
+    albumLightboxIndex = index;
+    renderAlbumLightbox();
+    document.getElementById('albumLightbox').classList.add('open');
+}
+function renderAlbumLightbox() {
+    document.getElementById('albumLightboxImg').src = albumLightboxImages[albumLightboxIndex];
+    const multi = albumLightboxImages.length > 1;
+    document.querySelectorAll('.album-lightbox-nav').forEach((btn) => { btn.hidden = !multi; });
+    const countEl = document.getElementById('albumLightboxCount');
+    countEl.hidden = !multi;
+    countEl.textContent = (albumLightboxIndex + 1) + ' / ' + albumLightboxImages.length;
+}
+function albumLightboxStep(delta) {
+    const total = albumLightboxImages.length;
+    albumLightboxIndex = (albumLightboxIndex + delta + total) % total;
+    renderAlbumLightbox();
+}
+function closeAlbumLightbox() {
+    document.getElementById('albumLightbox').classList.remove('open');
+    document.getElementById('albumLightboxImg').src = '';
+}
+document.addEventListener('keydown', (event) => {
+    if (!document.getElementById('albumLightbox').classList.contains('open')) return;
+    if (event.key === 'ArrowLeft') albumLightboxStep(-1);
+    else if (event.key === 'ArrowRight') albumLightboxStep(1);
+    else if (event.key === 'Escape') closeAlbumLightbox();
+});
+</script>
 <script>
 document.querySelectorAll('.attraction-post-edit-trigger').forEach((button) => button.addEventListener('click', () => {
   const form = button.closest('.attraction-post-card').querySelector('.attraction-post-edit-form');
@@ -117,5 +167,43 @@ document.querySelectorAll('.attraction-post-edit-trigger').forEach((button) => b
 document.querySelectorAll('.attraction-post-cancel-edit').forEach((button) => button.addEventListener('click', () => {
   button.closest('.attraction-post-edit-form').hidden = true;
 }));
+
+(function () {
+  // 選好檔案當下就先檢查格式/大小/張數，不用等上傳完才被伺服器擋下來
+  const form = document.getElementById('attractionPostForm');
+  const input = document.getElementById('attractionPostImages');
+  const errorEl = document.getElementById('attractionPostFileError');
+  if (!form || !input || !errorEl) return;
+  const MAX_FILES = 6;
+  const MAX_SIZE = 5 * 1024 * 1024;
+  const ALLOWED = ['png', 'jpg', 'jpeg', 'gif', 'webp'];
+
+  function checkFiles() {
+    const files = Array.from(input.files || []);
+    if (!files.length) { errorEl.hidden = true; return true; }
+    if (files.length > MAX_FILES) {
+      errorEl.textContent = `⚠️ 一次最多上傳 ${MAX_FILES} 張照片，目前選了 ${files.length} 張。`;
+      errorEl.hidden = false;
+      return false;
+    }
+    const tooBig = files.find((f) => f.size > MAX_SIZE);
+    if (tooBig) {
+      errorEl.textContent = `⚠️「${tooBig.name}」有 ${(tooBig.size / 1024 / 1024).toFixed(1)}MB，超過 5MB 上限。`;
+      errorEl.hidden = false;
+      return false;
+    }
+    const badType = files.find((f) => !ALLOWED.includes((f.name.split('.').pop() || '').toLowerCase()));
+    if (badType) {
+      errorEl.textContent = `⚠️「${badType.name}」的格式不支援，請上傳 PNG／JPG／GIF／WEBP。`;
+      errorEl.hidden = false;
+      return false;
+    }
+    errorEl.hidden = true;
+    return true;
+  }
+
+  input.addEventListener('change', checkFiles);
+  form.addEventListener('submit', (event) => { if (!checkFiles()) event.preventDefault(); });
+})();
 </script>
 {% endblock %}

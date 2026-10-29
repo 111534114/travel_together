@@ -16,6 +16,8 @@
     </div>
     {% endif %}
 
+    <p class="form-hint">不知道要列哪些地點名稱嗎？可以改用<a href="{{ url_for('accommodations.search_import_accommodations') }}">依關鍵字搜尋匯入</a>，輸入「台北市 飯店」這種泛用關鍵字，一次拿一批候選住宿來勾選。</p>
+
     <ul>
         <li>每一行輸入一個住宿名稱，例如「台北W飯店」，系統會用 Google 地圖搜尋最相符的地點。</li>
         <li>一次最多 50 筆，避免一次送出過多付費 API 請求。</li>

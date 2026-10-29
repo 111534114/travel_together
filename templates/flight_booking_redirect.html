@@ -1,0 +1,91 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>前往訂票頁面｜走吧揪團</title>
+  <link rel="icon" type="image/png" href="{{ url_for('static', filename='images/logo.png') }}">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <style>
+    :root { --purple: #4B838B; --purple-soft: #EDF6F7; --ink: #23373A; --muted: #708284; --line: #E1EBEC; --page: #EAF8F9; }
+    * { box-sizing: border-box; }
+    body { margin: 0; min-height: 100vh; display: flex; align-items: center; justify-content: center; background: var(--page); color: var(--ink); font-family: "Noto Sans TC", "Segoe UI", sans-serif; }
+    .box { width: min(420px, calc(100% - 48px)); padding: 40px 32px; background: #fff; border-radius: 16px; box-shadow: 0 10px 30px rgba(45, 37, 68, .08); text-align: center; }
+    .spinner { width: 46px; height: 46px; margin: 0 auto 20px; border: 4px solid var(--purple-soft); border-top-color: var(--purple); border-radius: 50%; animation: spin 0.8s linear infinite; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    h1 { margin: 0 0 8px; font-size: 18px; font-weight: 700; }
+    p { margin: 0; color: var(--muted); font-size: 14px; line-height: 1.6; }
+    .error p { color: #B4453A; }
+    .back-link { display: inline-block; margin-top: 18px; color: var(--purple); font-weight: 600; font-size: 14px; text-decoration: none; }
+  </style>
+</head>
+<body>
+  <div class="box" id="statusBox">
+    <div class="spinner" id="spinner"></div>
+    <h1 id="statusTitle">正在前往訂票頁面</h1>
+    <p id="statusText">查詢這班機票的連結，大約需要 30～45 秒，請不要關閉這個頁面⋯⋯</p>
+  </div>
+
+  <form id="redirectForm" method="post" style="display:none;"></form>
+
+  <script>
+    (function () {
+      var params = new URLSearchParams({
+        token: {{ token | tojson }},
+        from: {{ origin | tojson }},
+        to: {{ destination | tojson }},
+        depart: {{ depart_date | tojson }},
+        return: {{ return_date | tojson }},
+        pax: {{ pax | tojson }}
+      });
+      var fallbackUrl = {{ fallback_url | tojson }};
+
+      function showError(message, canFallback) {
+        document.getElementById('spinner').style.display = 'none';
+        document.getElementById('statusBox').classList.add('error');
+        document.getElementById('statusTitle').textContent = '找不到即時訂票連結';
+        document.getElementById('statusText').textContent = message;
+        if (canFallback && fallbackUrl) {
+          var link = document.createElement('a');
+          link.href = fallbackUrl;
+          link.className = 'back-link';
+          link.textContent = '改用比價網站查這班機票 →';
+          document.getElementById('statusBox').appendChild(link);
+        }
+      }
+
+      if (!params.get('token')) {
+        showError('這個查詢結果沒有訂票資料，可以改用下面的連結查詢。', true);
+        return;
+      }
+
+      fetch('/visitor/flights/booking-redirect/lookup?' + params.toString())
+        .then(function (resp) { return resp.json(); })
+        .then(function (data) {
+          if (!data.ok) {
+            showError('可能是這班飛機已經停止開放訂位，或是暫時查詢失敗，可以改用下面的連結查詢。', true);
+            return;
+          }
+          var form = document.getElementById('redirectForm');
+          form.action = data.url;
+          var input = document.createElement('input');
+          input.type = 'hidden';
+          input.name = data.field_name;
+          input.value = data.field_value;
+          form.appendChild(input);
+          var message = '查詢完成，正在跳轉⋯⋯';
+          if (data.book_with) {
+            message = '已找到最便宜的訂票來源：' + data.book_with + (data.price ? '（NT$ ' + Math.round(data.price).toLocaleString('zh-TW') + '）' : '') + '，正在跳轉⋯⋯';
+          }
+          document.getElementById('statusText').textContent = message;
+          form.submit();
+        })
+        .catch(function () {
+          showError('網路連線發生問題，可以改用下面的連結查詢。', true);
+        });
+    })();
+  </script>
+</body>
+</html>

@@ -40,6 +40,7 @@
     .flight-best-badge { position: absolute; top: -11px; left: 24px; padding: 3px 12px; color: #fff; background: var(--purple); border-radius: 999px; font-size: 11px; font-weight: 700; box-shadow: 0 4px 10px rgba(75, 131, 139, .35); }
     .flight-airline { display: flex; flex: 0 0 170px; align-items: center; gap: 12px; }
     .airline-logo { display: flex; flex: 0 0 auto; align-items: center; justify-content: center; width: 40px; height: 40px; color: #fff; background: linear-gradient(135deg, var(--purple), var(--purple-light)); border-radius: 50%; font-size: 16px; font-weight: 800; }
+    .airline-logo-img { flex: 0 0 auto; width: 40px; height: 40px; object-fit: contain; background: #fff; border: 1px solid var(--line); border-radius: 50%; padding: 4px; }
     .flight-airline b { display: block; font-size: 14px; line-height: 1.4; }
     .flight-airline span { color: var(--muted); font-size: 12px; }
     .flight-route { display: flex; flex: 1 1 320px; align-items: center; gap: 18px; }
@@ -103,16 +104,16 @@
             <article class="flight-card">
 {% if flight.is_live %}<span class="booking-heart" aria-disabled="true" title="即時報價暫不支援收藏">&#9825;</span>{% else %}{% set save_kind='flight' %}{% set save_id=flight.flight_id %}{% include 'partials/booking_favorite_button.html' %}{% endif %}
               {% if flight.price == leg_min_price %}<span class="flight-best-badge">最低價</span>{% endif %}
-              <div class="flight-airline"><span class="airline-logo">{{ flight.airline_name[:1] }}</span><div><b>{{ flight.airline_name }}</b><span>{{ flight.flight_number }}・{{ flight.cabin_class }}</span></div></div>
+              <div class="flight-airline">{% if flight.airline_logo %}<img class="airline-logo-img" src="{{ flight.airline_logo }}" alt="{{ flight.airline_name }}" loading="lazy">{% else %}<span class="airline-logo">{{ flight.airline_name[:1] }}</span>{% endif %}<div><b>{{ flight.airline_name }}</b><span>{{ flight.flight_number }}・{{ flight.cabin_class }}</span></div></div>
               <div class="flight-route">
                 <div class="flight-time"><b>{{ flight.departure_time|hm }}</b><span>{{ flight.origin_city }}</span></div>
                 <div class="flight-path"><span class="flight-stop-tag {{ 'direct' if not flight.stops }}">{{ '直飛' if not flight.stops else ('轉機 ' ~ flight.stops ~ ' 次') }}</span><div class="line"></div><span>{{ (flight.duration_minutes // 60) }} 小時 {{ (flight.duration_minutes % 60) }} 分</span></div>
                 <div class="flight-time"><b>{{ flight.arrival_time|hm }}</b><span>{{ flight.destination_city }}</span></div>
               </div>
-              <div class="flight-meta"><span>{{ flight.origin_country }} → {{ flight.destination_country }}</span><span class="{{ 'seats-low' if flight.seats_available <= 3 }}">剩餘 {{ flight.seats_available }} 席</span></div>
+              <div class="flight-meta">{% if flight.origin_country or flight.destination_country %}<span>{{ flight.origin_country }} → {{ flight.destination_country }}</span>{% endif %}{% if flight.seats_available is not none %}<span class="{{ 'seats-low' if flight.seats_available <= 3 }}">剩餘 {{ flight.seats_available }} 席</span>{% endif %}</div>
               <div class="flight-footer">
                 <span class="price">NT$ {{ "{:,.0f}".format(flight.price * pax) }}<small>{{ pax }} 人・NT$ {{ "{:,.0f}".format(flight.price) }} /人</small></span>
-                <button class="view-button" type="button" onclick="showToast('機票線上訂購功能開發中，敬請期待！')">選擇航班</button>
+                {% if flight.booking_token %}<a class="view-button" href="{{ url_for('visitor_flight_booking_redirect', **{'token': flight.booking_token, 'from': leg.origin, 'to': leg.destination, 'depart': leg.date, 'return': '', 'pax': pax, 'fallback': leg.skyscanner_url or ''}) }}" target="_blank" rel="noopener">選擇 →</a>{% elif leg.skyscanner_url %}<a class="view-button" href="{{ leg.skyscanner_url }}" target="_blank" rel="noopener">選擇 →</a>{% else %}<button class="view-button" type="button" onclick="showToast('找不到這個城市的比價連結，換個關鍵字試試。')">選擇航班</button>{% endif %}
               </div>
             </article>
           {% else %}

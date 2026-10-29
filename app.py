@@ -1,6 +1,7 @@
 import os  # 匯入作業系統功能，用來判斷 Flask 開發伺服器是哪一個行程
 import re  # 匯入正規表示式模組，用來驗證註冊欄位格式
 import secrets  # 匯入 secrets 模組，用來產生忘記密碼用的隨機 token
+from urllib.parse import unquote_plus  # 用來把 SerpApi 回傳的表單資料(post_data)解碼還原成原始值
 from booking_search import (
     TRAIN_TYPE_LABELS, apply_facets, apply_time_band, booking_bp, facet_options,
     filter_prices, price_buckets, price_range, time_band_options,
@@ -38,7 +39,9 @@ from activity_log import ACTION_LABELS, log_action
 from mailer import send_password_reset_email  # 匯入忘記密碼重設信的寄送函式
 from utils import google_maps_url, google_maps_embed_url, format_hm, friend_group_feature_enabled  # 匯入組 Google 地圖連結/嵌入縮圖地圖、格式化 TIME 欄位、查交友揪團總開關的共用函式，註冊成樣板全域函式讓所有頁面都能直接呼叫
 import weather  # 匯入中央氣象署天氣預報模組(訪客頁面「目的地天氣」功能用)
-import amadeus_client  # 匯入 Amadeus 機票比價 API 模組(機票搜尋的真實即時報價)
+import amadeus_client  # 匯入 Amadeus 機票比價 API 模組(機票搜尋的真實即時報價，備用資料來源)
+import serpapi_flights  # 匯入 SerpApi 的 Google Flights 模組(機票搜尋的真實即時報價，優先資料來源)
+import flight_links  # 匯入城市->機場代碼對照表、Skyscanner 比價連結組網址工具
 import line_messaging  # 匯入 LINE 官方帳號共用工具(加好友連結、QR Code)
 import line_announcements  # 匯入公告推播到 LINE
 import trip_reminders
@@ -450,6 +453,25 @@ def _search_flights(from_keyword, to_keyword, pax):
     return results
 
 
+def _live_flight_search(origin_keyword, destination_keyword, depart_date, return_date=None, pax=1):
+    """依序嘗試 SerpApi(Google Flights) -> Amadeus，兩個都沒設定金鑰/查不到/失敗就回傳 (None, False)，
+    呼叫端自己改用本地資料庫的固定班表資料。回傳 (flights, is_live)。"""
+    flights = serpapi_flights.search_flight_offers(origin_keyword, destination_keyword, depart_date, return_date, pax)
+    if flights is not None:
+        return flights, True
+    flights = amadeus_client.search_flight_offers(origin_keyword, destination_keyword, depart_date, pax)
+    if flights is not None:
+        return flights, True
+    return None, False
+
+
+def _live_cheapest_price(origin_keyword, destination_keyword, depart_date, pax=1):
+    price = serpapi_flights.cheapest_price(origin_keyword, destination_keyword, depart_date, None, pax)
+    if price is not None:
+        return price
+    return amadeus_client.cheapest_price(origin_keyword, destination_keyword, depart_date, pax)
+
+
 @app.route("/visitor/flights")  # 設定訪客機票搜尋結果頁路由(從訪客頁面的機票搜尋表單導入，帶入出發地/目的地/日期/人數)
 def visitor_flight_search():
     origin = request.args.get("from", "").strip()  # 取得出發地關鍵字
@@ -462,10 +484,10 @@ def visitor_flight_search():
 
     is_roundtrip = return_date and request.args.get('trip_mode', 'roundtrip') == 'roundtrip'
 
-    # 優先打 Amadeus 的真實機票報價 API（價格會依日期浮動）；沒設定金鑰、查不到這條航線、或 API
-    # 呼叫失敗，就自動改用本地資料庫裡固定班表的機票資料，兩種情況畫面都看得出差異(有沒有「即時報價」標籤)。
-    outbound_flights = amadeus_client.search_flight_offers(origin, destination, depart_date, pax)
-    using_live_data = outbound_flights is not None
+    # 優先打真實機票報價 API（SerpApi 的 Google Flights，查不到再試 Amadeus），價格會依日期浮動；
+    # 兩個都沒設定金鑰、查不到這條航線、或 API 呼叫失敗，就自動改用本地資料庫裡固定班表的機票資料，
+    # 兩種情況畫面都看得出差異(有沒有「即時報價」標籤)。
+    outbound_flights, using_live_data = _live_flight_search(origin, destination, depart_date, return_date if is_roundtrip else None, pax)
     if using_live_data:
         for row in outbound_flights:
             row["origin_city"] = origin or row["origin_city"]
@@ -476,7 +498,10 @@ def visitor_flight_search():
     return_flights = []
     if is_roundtrip:
         if using_live_data:
-            return_flights = amadeus_client.search_flight_offers(destination, origin, return_date, pax) or []
+            # 來回機票的回程，用同一個 API 來源查(SerpApi 把來回包在同一次查詢結果裡回傳最佳組合，
+            # 這裡簡化成分開各查一次單程，取得兩段都可以各自篩選/排序的清單)
+            return_flights, return_is_live = _live_flight_search(destination, origin, return_date, None, pax)
+            return_flights = return_flights or []
             for row in return_flights:
                 row["origin_city"] = destination or row["origin_city"]
                 row["destination_city"] = origin or row["destination_city"]
@@ -520,10 +545,10 @@ def visitor_flight_search():
                         # 其他 6 個日期要各自另外打一次 API 才能拿到那天真正的價格(每天浮動)，
                         # cheapest_price() 內建短時間快取，同一條航線/日期不會短時間內重複打。
                         leg_prices = []
-                        out_price = amadeus_client.cheapest_price(origin, destination, d.isoformat(), pax)
+                        out_price = _live_cheapest_price(origin, destination, d.isoformat(), pax)
                         if out_price is not None: leg_prices.append(out_price)
                         if r:
-                            ret_price = amadeus_client.cheapest_price(destination, origin, r.isoformat(), pax)
+                            ret_price = _live_cheapest_price(destination, origin, r.isoformat(), pax)
                             if ret_price is not None: leg_prices.append(ret_price)
                         entry["price"] = sum(leg_prices) if leg_prices else None
                 else:
@@ -534,6 +559,10 @@ def visitor_flight_search():
         except ValueError:
             date_strip = []
 
+    # 「前往比價訂票」：帶使用者去 Skyscanner 看這條航線的即時報價並完成真正的訂票，
+    # 我們自己不用寫金流/結帳。純粹組網址(不是串 API)，查不到城市代碼就不顯示這顆按鈕。
+    skyscanner_url = flight_links.skyscanner_search_url(origin, destination, depart_date, return_date if is_roundtrip else None, pax)
+
     return render_template(
         "flight_search.html",
         origin=origin,
@@ -541,8 +570,8 @@ def visitor_flight_search():
         depart_date=depart_date,
         return_date=return_date,
         pax=pax,
-        outbound_flights=filter_prices(outbound_flights, 'price', 'duration_minutes', 'stops'),
-        return_flights=filter_prices(return_flights, 'price', 'duration_minutes', 'stops'),
+        outbound_flights=filter_prices(outbound_flights, 'price', 'duration_minutes', 'stops', cabin_field='cabin_class'),
+        return_flights=filter_prices(return_flights, 'price', 'duration_minutes', 'stops', cabin_field='cabin_class'),
         price_buckets=flight_price_buckets,
         price_max=flight_price_max,
         airline_facets=airline_facets,
@@ -552,6 +581,8 @@ def visitor_flight_search():
         strip_prev=strip_prev,
         strip_next=strip_next,
         using_live_data=using_live_data,
+        skyscanner_url=skyscanner_url,
+        is_roundtrip=bool(is_roundtrip),
     )
 
 
@@ -571,16 +602,73 @@ def visitor_multi_city_flight_search():
         leg_origin = request.args.get(f"from{i}", "").strip()
         leg_destination = request.args.get(f"to{i}", "").strip()
         leg_date = request.args.get(f"date{i}", "").strip()
-        flights = _search_flights(leg_origin, leg_destination, pax) if (leg_origin or leg_destination) else []
+        flights = None
+        leg_is_live = False
+        if leg_origin or leg_destination:
+            flights, leg_is_live = _live_flight_search(leg_origin, leg_destination, leg_date, None, pax)
+        if leg_is_live:
+            for row in flights:
+                row["origin_city"] = leg_origin or row["origin_city"]
+                row["destination_city"] = leg_destination or row["destination_city"]
+        elif leg_origin or leg_destination:
+            flights = _search_flights(leg_origin, leg_destination, pax)
+        else:
+            flights = []
         legs.append({
             "index": i,
             "origin": leg_origin,
             "destination": leg_destination,
             "date": leg_date,
-            "flights": filter_prices(flights, "price", "duration_minutes", "stops"),
+            "flights": filter_prices(flights, "price", "duration_minutes", "stops", cabin_field="cabin_class"),
+            "is_live": leg_is_live,
+            "skyscanner_url": flight_links.skyscanner_search_url(leg_origin, leg_destination, leg_date, None, pax),
         })
 
     return render_template("multi_city_flight_search.html", legs=legs, pax=pax)
+
+
+@app.route("/visitor/flights/booking-redirect")  # 點「選擇」之後先到這個載入畫面，背景去查這班飛機真正的訂票連結(要等 30~45 秒)
+def visitor_flight_booking_redirect():
+    return render_template(
+        "flight_booking_redirect.html",
+        token=request.args.get("token", "").strip(),
+        origin=request.args.get("from", "").strip(),
+        destination=request.args.get("to", "").strip(),
+        depart_date=request.args.get("depart", "").strip(),
+        return_date=request.args.get("return", "").strip(),
+        pax=request.args.get("pax", "1").strip(),
+        fallback_url=request.args.get("fallback", "").strip(),
+    )
+
+
+@app.route("/visitor/flights/booking-redirect/lookup")  # 載入畫面用 AJAX 打這個路由，拿到結果才自動送出表單跳轉
+def visitor_flight_booking_redirect_lookup():
+    token = request.args.get("token", "").strip()
+    origin = request.args.get("from", "").strip()
+    destination = request.args.get("to", "").strip()
+    depart_date = request.args.get("depart", "").strip()
+    return_date = request.args.get("return", "").strip() or None
+    pax_raw = request.args.get("pax", "1").strip()
+    pax = int(pax_raw) if pax_raw.isdigit() and int(pax_raw) > 0 else 1
+
+    redirect_info = serpapi_flights.get_booking_redirect(origin, destination, depart_date, token, return_date, pax)
+    if not redirect_info:
+        return jsonify({"ok": False})
+
+    # post_data 是單一一組 key=value(例如 "u=AAcR...")，是 Google 點擊追蹤轉址用的表單資料。
+    # 這裡把值解碼出來，交給前端組一個隱藏表單再用瀏覽器原生的表單編碼送出，
+    # 避免我們自己手動組 POST body editing 編碼跟 Google 原本預期的不一致。
+    post_data = redirect_info["post_data"]
+    field_name, _, raw_value = post_data.partition("=")
+    field_value = unquote_plus(raw_value)
+    return jsonify({
+        "ok": True,
+        "url": redirect_info["url"],
+        "field_name": field_name or "u",
+        "field_value": field_value,
+        "book_with": redirect_info.get("book_with") or "",
+        "price": float(redirect_info["price"]) if redirect_info.get("price") is not None else None,
+    })
 
 
 @app.route("/visitor/trains")  # 設定訪客高鐵／台鐵搜尋結果頁路由(從訪客頁面的高鐵/火車票搜尋表單導入，帶入出發站/到達站/日期/人數)

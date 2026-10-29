@@ -11,6 +11,7 @@ booking_bp = Blueprint('booking', __name__)
 TABLES = {'hotel': ('accommodations', 'accommodation_id'), 'flight': ('flights', 'flight_id'), 'train': ('trains', 'train_id')}
 ENDPOINTS = {'visitor_hotel_search': 'hotel', 'visitor_flight_search': 'flight', 'visitor_train_search': 'train'}
 FARES = {'all': '全部票種', 'regular': '一般票', 'discount': '打折票', 'promotion': '優惠票', 'student': '學生票'}
+CABIN_CLASSES = {'all': '全部艙等', '經濟艙': '經濟艙', '豪華經濟艙': '豪華經濟艙', '商務艙': '商務艙', '頭等艙': '頭等艙'}
 TRAIN_TYPE_LABELS = {'thsr': '高鐵', 'tra': '台鐵'}
 TIME_BANDS = [
     ('dawn', '凌晨 00:00–06:00', '00:00', '06:00'),
@@ -58,7 +59,10 @@ def validate_search(kind, args):
     if not any(k in errors for k in ('min_price', 'max_price')) and args.get('min_price') and args.get('max_price'):
         if Decimal(args['min_price']) > Decimal(args['max_price']):
             errors['max_price'] = '最高預算不能小於最低預算'
-    if args.get('fare', 'all') not in FARES:
+    if kind == 'flight':
+        if args.get('cabin', 'all') not in CABIN_CLASSES:
+            errors['cabin'] = '請選擇有效艙等'
+    elif args.get('fare', 'all') not in FARES:
         errors['fare'] = '請選擇有效票種'
     if kind == 'flight' and args.get('stops', '') not in ('', 'direct', 'connecting'):
         errors['stops'] = '請選擇有效的轉機條件'
@@ -167,15 +171,19 @@ def apply_time_band(rows, field):
     return [row for row in rows if matches(row)]
 
 
-def filter_prices(rows, field, duration_field=None, stops_field=None):
+def filter_prices(rows, field, duration_field=None, stops_field=None, cabin_field=None):
     low = Decimal(request.args.get('min_price') or '0')
     high = Decimal(request.args['max_price']) if request.args.get('max_price') else None
     fare = request.args.get('fare', 'all')
+    cabin = request.args.get('cabin', 'all')
     stops_filter = request.args.get('stops', '') if stops_field else ''
     result = []
     for row in rows:
+        if cabin_field:
+            if cabin != 'all' and row.get(cabin_field) != cabin:
+                continue
         # Existing transport records are standard fares; no discount is inferred.
-        if fare not in ('all', row.get('fare_type', 'regular')):
+        elif fare not in ('all', row.get('fare_type', 'regular')):
             continue
         if stops_filter == 'direct' and row.get(stops_field):
             continue
@@ -209,7 +217,7 @@ def booking_context():
             finally:
                 cursor.close(); connection.close()
     return dict(booking_saved=saved, booking_csrf=session['booking_csrf'], fare_options=FARES,
-                booking_kind=ENDPOINTS.get(request.endpoint))
+                cabin_options=CABIN_CLASSES, booking_kind=ENDPOINTS.get(request.endpoint))
 
 
 @booking_bp.route('/member/booking-favorites/<kind>/<int:target_id>', methods=['POST'])

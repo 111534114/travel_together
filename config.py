@@ -71,3 +71,8 @@ LIFF_ID = os.environ.get("LIFF_ID", "")
 # 請在 .env 檔案裡新增：AMADEUS_API_KEY / AMADEUS_API_SECRET
 AMADEUS_API_KEY = os.environ.get("AMADEUS_API_KEY", "")
 AMADEUS_API_SECRET = os.environ.get("AMADEUS_API_SECRET", "")
+
+# SerpApi「Google Flights」API：比 Amadeus 好註冊很多(不用走企業審核)，免費方案每月 250 次查詢。
+# 註冊：https://serpapi.com/users/sign_up，登入後在 Dashboard 首頁就能看到 API Key。
+# 請在 .env 檔案裡新增：SERPAPI_API_KEY
+SERPAPI_API_KEY = os.environ.get("SERPAPI_API_KEY", "")

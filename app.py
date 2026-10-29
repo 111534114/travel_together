@@ -7,6 +7,7 @@ from booking_search import (
 )
 import requests  # 匯入 requests，用來呼叫 LINE 的個人資料 API
 from datetime import datetime, timedelta
+from urllib.parse import urlsplit
 from authlib.integrations.flask_client import OAuth  # 匯入 Authlib 的 Flask 整合，處理 Google 登入 OAuth 流程
 from attraction_rankings import TAIWAN_COUNTIES, fetch_attraction_rankings
 from flask import Flask, render_template, request, redirect, url_for, session, flash, jsonify  # 匯入 Flask 核心功能：建立 App、渲染樣板、取得請求、導向、產生網址、session、顯示訊息
@@ -60,6 +61,14 @@ def public_url(endpoint, **values):
     if PUBLIC_BASE_URL:
         return PUBLIC_BASE_URL + url_for(endpoint, **values)
     return url_for(endpoint, _external=True, **values)
+
+
+def oauth_callback_url(endpoint):
+    # ngrok 對外是 HTTPS、轉給本機時是 HTTP；公開登入必須使用固定的 HTTPS 回呼網址。
+    # 直接在 localhost 開發時仍保留本機網址，不會誤導向公開網站。
+    if PUBLIC_BASE_URL and request.host.casefold() == urlsplit(PUBLIC_BASE_URL).netloc.casefold():
+        return public_url(endpoint)
+    return url_for(endpoint, _external=True)
 
 
 app.jinja_env.globals["public_url"] = public_url
@@ -757,7 +766,7 @@ def google_login():
     if not GOOGLE_CLIENT_ID or not GOOGLE_CLIENT_SECRET:
         flash("Google 登入尚未完成設定，請先使用帳號密碼登入。", "error")
         return redirect(url_for("login"))
-    redirect_uri = url_for("google_callback", _external=True)
+    redirect_uri = oauth_callback_url("google_callback")
     try:
         return google_oauth.authorize_redirect(redirect_uri)
     except requests.RequestException:
@@ -855,7 +864,7 @@ def line_login():
     if not LINE_CHANNEL_ID or not LINE_CHANNEL_SECRET:
         flash("LINE 登入尚未完成設定，請先使用帳號密碼登入。", "error")
         return redirect(url_for("login"))
-    redirect_uri = url_for("line_callback", _external=True)
+    redirect_uri = oauth_callback_url("line_callback")
     # bot_prompt：登入同意畫面會一併詢問是否加入官方帳號好友
     # （需先在 LINE Login channel 的 Linked LINE Official Account 選好官方帳號才會出現）
     return line_oauth.authorize_redirect(redirect_uri, bot_prompt="aggressive")
@@ -874,7 +883,7 @@ def line_bind():
         session["line_bind_next"] = next_url
     else:
         session.pop("line_bind_next", None)
-    return line_oauth.authorize_redirect(url_for("line_callback", _external=True), bot_prompt="aggressive")
+    return line_oauth.authorize_redirect(oauth_callback_url("line_callback"), bot_prompt="aggressive")
 
 
 @app.route("/auth/line/unbind", methods=["POST"])

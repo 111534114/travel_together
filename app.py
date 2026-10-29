@@ -14,7 +14,7 @@ from mysql.connector import Error  # 匯入 MySQL 連線錯誤類別，用來捕
 from werkzeug.security import check_password_hash, generate_password_hash  # 匯入密碼工具：驗證密碼、產生密碼雜湊值
 from werkzeug.middleware.proxy_fix import ProxyFix
 
-from config import GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, LINE_CHANNEL_ID, LINE_CHANNEL_SECRET  # 匯入第三方登入設定
+from config import FLASK_SECRET_KEY, GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, LINE_CHANNEL_ID, LINE_CHANNEL_SECRET  # 匯入第三方登入設定
 from config import LIFF_ID, PUBLIC_BASE_URL  # 匯入 LIFF ID 與網站公開網址(分享給別人的連結要用這個網址)
 from db import get_db_connection  # 匯入自訂的資料庫連線函式
 from blueprints.attractions import attractions_bp  # 匯入景點管理的藍圖(Blueprint)
@@ -46,8 +46,8 @@ app = Flask(__name__)  # 建立 Flask 應用程式實例
 app.wsgi_app = ProxyFix(app.wsgi_app, x_proto=1, x_host=1)
 app.register_blueprint(booking_bp)
 
-# Session 加密金鑰，之後可以改成更複雜的字串
-app.secret_key = "travel-together-secret-key"  # 設定 session 加密金鑰，用來簽章 cookie 防止竄改
+# 未設定 .env 時只使用每次啟動都不同的暫時金鑰；對外服務入口會要求固定金鑰。
+app.secret_key = FLASK_SECRET_KEY or secrets.token_urlsafe(48)
 
 # 上傳圖片大小限制（8MB）
 app.config["MAX_CONTENT_LENGTH"] = 8 * 1024 * 1024  # 限制單次請求上傳資料的最大位元組數為 8MB
@@ -2566,7 +2566,6 @@ def logout():  # 定義登出函式
     return redirect(url_for("login"))  # 導向登入頁
 
 
-if __name__ == "__main__":  # 如果這個檔案是直接被執行(而不是被匯入)
-    if os.environ.get("WERKZEUG_RUN_MAIN") == "true":
-        trip_reminders.start_scheduler()
-    app.run(debug=True)  # 啟動 Flask 開發伺服器，開啟除錯模式
+if __name__ == "__main__":  # 僅供本機開發；公開測試請使用 serve_public.py
+    trip_reminders.start_scheduler()
+    app.run(host="127.0.0.1", debug=False)

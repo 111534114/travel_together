@@ -4,13 +4,18 @@ from dotenv import load_dotenv  # 匯入 dotenv，用來讀取本機的 .env 檔
 
 load_dotenv()  # 載入 .env 檔案裡設定的環境變數(檔案不存在也不會報錯)
 
+# 本機開發可沿用原本的預設值；對外開放前請在 .env 設定專用資料庫帳號。
 DB_CONFIG = {
-    "host": "localhost",
-    "user": "root",
-    "password": "",
-    "database": "travel_together",
-    "use_pure": True
+    "host": os.environ.get("DB_HOST", "localhost"),
+    "port": int(os.environ.get("DB_PORT", "3306")),
+    "user": os.environ.get("DB_USER", "root"),
+    "password": os.environ.get("DB_PASSWORD", ""),
+    "database": os.environ.get("DB_NAME", "travel_together"),
+    "use_pure": True,
 }
+
+# 對外服務時須在 .env 設定固定且隨機的金鑰，不能將金鑰提交到 Git。
+FLASK_SECRET_KEY = os.environ.get("FLASK_SECRET_KEY", "")
 
 # Google Places API 金鑰，用來批次匯入 Google 地圖景點資料
 # 請在專案根目錄建立 .env 檔案，寫入一行：GOOGLE_MAPS_API_KEY=你的金鑰

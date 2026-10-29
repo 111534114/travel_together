@@ -6,6 +6,7 @@ from flask import Blueprint, flash, jsonify, redirect, render_template, request,
 from auth import login_required
 from blueprints.member import ISSUE_PREFIX, ISSUE_REASONS, _city_matches_country
 from db import get_db_connection
+from notification_preferences import send_notification
 from utils import get_cities, get_countries
 
 friend_groups_bp = Blueprint("friend_groups", __name__, url_prefix="/member/friend-groups")
@@ -373,11 +374,10 @@ def apply_companion_trip(trip_id):
             VALUES (%s,%s,'viewer','requested')
             ON DUPLICATE KEY UPDATE join_status='requested', member_role='viewer', joined_at=NULL
         """, (trip_id, user_id))
-        cursor.execute(
-            "INSERT INTO notifications (user_id, notification_type, title, message, target_url) "
-            "VALUES (%s,'system','有人想加入你的行程',%s,%s)",
-            (trip["owner_id"], f"有會員申請加入「{trip['trip_name']}」" + (f"：{note}" if note else ""),
-             url_for("member.trip_detail", trip_id=trip_id))
+        send_notification(
+            cursor, trip["owner_id"], "trip", "system", "有人想加入你的行程",
+            f"有會員申請加入「{trip['trip_name']}」" + (f"：{note}" if note else ""),
+            url_for("member.trip_detail", trip_id=trip_id)
         )
         connection.commit()
         flash("申請已送出，等待對方審核。", "success")
@@ -677,10 +677,9 @@ def onboarding():
                 "ON DUPLICATE KEY UPDATE completed_at=NOW()",
                 (user_id,)
             )
-            cursor.execute(
-                "INSERT INTO notifications (user_id, notification_type, title, message, target_url) "
-                "VALUES (%s,'system','🏅 解鎖「新手開團者」徽章','你已完成新手開團引導，現在可以發起你的第一個交友揪團了！',%s)",
-                (user_id, url_for("friend_groups.new_group"))
+            send_notification(
+                cursor, user_id, "friend_group", "system", "🏅 解鎖「新手開團者」徽章",
+                "你已完成新手開團引導，現在可以發起你的第一個交友揪團了！", url_for("friend_groups.new_group")
             )
             connection.commit()
             flash("新手開團引導已完成，獲得「新手開團者」徽章！", "success")
@@ -978,11 +977,10 @@ def apply_group(group_id):
         )
         cursor.execute("SELECT nickname, full_name FROM users WHERE user_id=%s", (user_id,))
         applicant = cursor.fetchone()
-        cursor.execute(
-            "INSERT INTO notifications (user_id, notification_type, title, message, target_url) VALUES (%s,'system','有人申請加入你的揪團',%s,%s)",
-            (group["host_user_id"],
-             f"{applicant['nickname'] or applicant['full_name']} 申請加入「{group['title']}」，去審核一下吧。",
-             url_for("friend_groups.manage_group", group_id=group_id))
+        send_notification(
+            cursor, group["host_user_id"], "friend_group", "system", "有人申請加入你的揪團",
+            f"{applicant['nickname'] or applicant['full_name']} 申請加入「{group['title']}」，去審核一下吧。",
+            url_for("friend_groups.manage_group", group_id=group_id)
         )
         connection.commit()
         flash("已送出申請，等待團主審核。", "success")
@@ -1051,10 +1049,9 @@ def approve_group_member(group_id, member_user_id):
                 "ON DUPLICATE KEY UPDATE join_status='accepted', joined_at=NOW()",
                 (group["trip_id"], member_user_id)
             )
-        cursor.execute(
-            "INSERT INTO notifications (user_id, notification_type, title, message, target_url) VALUES (%s,'system','揪團申請已通過',%s,%s)",
-            (member_user_id, f"你申請加入的「{group['title']}」已經通過審核！",
-             url_for("friend_groups.group_detail", group_id=group_id))
+        send_notification(
+            cursor, member_user_id, "friend_group", "system", "揪團申請已通過",
+            f"你申請加入的「{group['title']}」已經通過審核！", url_for("friend_groups.group_detail", group_id=group_id)
         )
         connection.commit()
         flash("已通過這位成員的申請。", "success")

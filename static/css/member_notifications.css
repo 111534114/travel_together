@@ -4,6 +4,13 @@
 .member-notification-bell:hover { background: #216a74; }
 .member-notification-hide { position: absolute; top: 0; right: 0; width: 20px; height: 20px; padding: 0; border: 1px solid #b7cdd0; border-radius: 50%; background: #fff; color: #315b61; cursor: pointer; font-size: 16px; line-height: 16px; }
 .member-notification-hide:hover { background: #e9f5f6; }
+.member-notification-launcher { transition: right 220ms ease; }
+.member-notification-bell { transition: transform 220ms ease, background 160ms ease; }
+.member-notification-launcher.is-tucked { right: 0; }
+.member-notification-launcher.is-tucked .member-notification-bell { transform: translateX(54px); }
+.member-notification-launcher.is-tucked .member-notification-bell:hover, .member-notification-launcher.is-tucked .member-notification-bell:focus-visible { transform: translateX(44px); }
+.member-notification-launcher.is-tucked .member-notification-hide { display: none; }
+.member-notification-launcher.is-tucked .member-notification-badge { right: auto; left: -4px; }
 .member-notification-badge { position: absolute; top: -3px; right: -3px; min-width: 20px; height: 20px; padding: 0 4px; border-radius: 10px; background: #ce694d; color: #fff; font-size: 12px; line-height: 20px; font-weight: 700; }
 .member-notification-backdrop { position: fixed; inset: 0; z-index: 1000; background: #142e3470; }
 .member-notification-drawer { position: fixed; top: 0; right: 0; bottom: 0; z-index: 1001; width: min(420px, 100vw); display: flex; flex-direction: column; background: #fff; box-shadow: -8px 0 30px #142e3429; transform: translateX(100%); transition: transform 220ms ease; font-family: "Noto Sans TC", "Segoe UI", sans-serif; }
@@ -25,5 +32,5 @@
 .member-notification-empty { padding: 36px 8px; color: #61777a; text-align: center; }
 .member-notification-footer { padding: 14px 24px; border-top: 1px solid #dce9eb; text-align: right; }
 .member-notification-footer button:disabled { opacity: .5; cursor: default; }
-@media (prefers-reduced-motion: reduce) { .member-notification-drawer { transition: none; } }
+@media (prefers-reduced-motion: reduce) { .member-notification-drawer, .member-notification-launcher, .member-notification-bell { transition: none; } }
 

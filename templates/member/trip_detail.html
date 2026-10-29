@@ -17,32 +17,39 @@
 {% include 'member/_attraction_preview.html' %}
 <section class="panel trip-tab-panel" id="preferences">
 <div class="panel-title"><div><p class="eyebrow">PREFERENCES</p><h2>旅伴偏好</h2></div></div>
-<div class="pref-note">⚠️ 此區塊目前僅為畫面設計預覽，尚未串接資料庫儲存，填寫送出後內容不會被保留；正式功能會在資料表確認後補上。</div>
+{% set opts = preference_options %}{% set mine = my_preference %}
+{% if not preferences_ready %}<div class="pref-note">⚠️ 旅伴偏好資料表尚未建立，目前無法儲存。請管理員執行 database/migrate_1029_trip_member_preferences.sql。</div>
+{% elif my_preference_source == 'profile' %}<div class="pref-note">已先帶入你在旅遊人格問卷填寫的偏好，確認後按「儲存我的偏好」才會套用到這趟行程。</div>
+{% elif my_preference_source is none %}<div class="pref-note">你還沒有填寫這趟行程的偏好，填寫後會一起計入下方的團體偏好統計。</div>{% endif %}
 <h4>我的旅遊偏好</h4>
-<form onsubmit="event.preventDefault(); alert('已送出（畫面示意，尚未串接資料庫儲存）');">
+<form method="post" action="{{ url_for('member.save_trip_preferences', trip_id=trip.trip_id) }}">
 <p style="margin: 0 0 8px; color: #443d54; font-weight: 600;">喜歡的活動</p>
-<div class="pref-tags">{% for act in ['觀光景點','在地美食','購物','戶外活動','文化體驗','夜生活','拍照打卡','放鬆度假'] %}<label class="pref-tag"><input type="checkbox" name="like_activities" value="{{ act }}">{{ act }}</label>{% endfor %}</div>
+<div class="pref-tags">{% for act in opts.ACTIVITY_TAGS %}<label class="pref-tag"><input type="checkbox" name="like_activities" value="{{ act }}" {{ 'checked' if act in mine.like_activities }}>{{ act }}</label>{% endfor %}</div>
 <p style="margin: 0 0 8px; color: #443d54; font-weight: 600;">不喜歡的活動</p>
-<div class="pref-tags">{% for act in ['觀光景點','在地美食','購物','戶外活動','文化體驗','夜生活','拍照打卡','放鬆度假'] %}<label class="pref-tag"><input type="checkbox" name="dislike_activities" value="{{ act }}">{{ act }}</label>{% endfor %}</div>
+<div class="pref-tags">{% for act in opts.ACTIVITY_TAGS %}<label class="pref-tag"><input type="checkbox" name="dislike_activities" value="{{ act }}" {{ 'checked' if act in mine.dislike_activities }}>{{ act }}</label>{% endfor %}</div>
 <div class="form-grid-member">
-<label class="span-2">必去景點<textarea name="must_visit" rows="2" placeholder="一行一個，例如：清水寺"></textarea></label>
-<label class="span-2">不想去的景點<textarea name="avoid_places" rows="2" placeholder="一行一個"></textarea></label>
-<label>可接受預算<input type="number" min="0" name="budget_limit" placeholder="例如：15000"></label>
-<label>飲食偏好<select name="diet"><option value="none">不限</option><option value="vegetarian">素食</option><option value="halal">清真</option><option value="no_beef">不吃牛</option><option value="no_seafood">不吃海鮮</option><option value="other">其他（請在特殊需求說明）</option></select></label>
-<label>交通偏好<select name="transport_pref"><option value="any">皆可</option><option value="public">大眾運輸</option><option value="drive">自行開車</option><option value="taxi">計程車／叫車</option><option value="carpool">共乘</option></select></label>
-<label>步行接受程度<select name="walk_tolerance"><option value="low">低（盡量少走路）</option><option value="medium">中</option><option value="high">高（不介意多走）</option></select></label>
+<label class="span-2">必去景點<textarea name="must_visit" rows="2" placeholder="一行一個，例如：清水寺">{{ mine.must_visit }}</textarea></label>
+<label class="span-2">不想去的景點<textarea name="avoid_places" rows="2" placeholder="一行一個">{{ mine.avoid_places }}</textarea></label>
+<label>可接受預算（{{ trip.currency }}）<input type="number" min="0" step="1" name="budget_limit" placeholder="例如：15000" value="{{ mine.budget_limit|int if mine.budget_limit is not none else '' }}"></label>
+<label>飲食偏好<select name="diet">{% for value, label in opts.DIET_LABELS.items() %}<option value="{{ value }}" {{ 'selected' if mine.diet == value }}>{{ label }}</option>{% endfor %}</select></label>
+<label>交通偏好<select name="transport_pref">{% for value, label in opts.TRANSPORT_LABELS.items() %}<option value="{{ value }}" {{ 'selected' if mine.transport_pref == value }}>{{ label }}</option>{% endfor %}</select></label>
+<label>步行接受程度<select name="walk_tolerance">{% for value, label in opts.WALK_LABELS.items() %}<option value="{{ value }}" {{ 'selected' if mine.walk_tolerance == value }}>{{ label }}</option>{% endfor %}</select></label>
 </div>
 <p style="margin: 18px 0 8px; color: #443d54; font-weight: 600;">行程強度</p>
-<div class="pref-tags">{% for label, value in [('輕鬆型','relaxed'),('標準型','standard'),('充實型','packed'),('親子型','family'),('長輩友善型','senior_friendly')] %}<label class="pref-tag"><input type="radio" name="intensity" value="{{ value }}">{{ label }}</label>{% endfor %}</div>
-<div class="form-grid-member" style="margin-top: 18px;"><label class="span-2">特殊需求<textarea name="special_needs" rows="2" placeholder="例如：行動不便、對海鮮過敏……"></textarea></label></div>
-<div class="form-actions-member"><button class="member-btn primary" type="submit">儲存我的偏好</button></div>
+<div class="pref-tags">{% for value, label in opts.INTENSITY_LABELS.items() %}<label class="pref-tag"><input type="radio" name="intensity" value="{{ value }}" {{ 'checked' if mine.intensity == value }}>{{ label }}</label>{% endfor %}</div>
+<div class="form-grid-member" style="margin-top: 18px;"><label class="span-2">特殊需求<textarea name="special_needs" rows="2" maxlength="500" placeholder="例如：行動不便、對海鮮過敏……">{{ mine.special_needs }}</textarea></label></div>
+<div class="form-actions-member"><button class="member-btn primary" type="submit" {{ 'disabled' if not preferences_ready }}>儲存我的偏好</button></div>
 </form>
+{% set summary = preference_summary %}
 <h4 style="margin-top: 32px;">團體偏好統計</h4>
-<div class="pref-stat-block"><h4>各類活動支持人數</h4><div class="vote-bars">{% for name, count, percent in [('在地美食', 4, 100), ('觀光景點', 3, 75), ('放鬆度假', 3, 75), ('戶外活動', 2, 50), ('拍照打卡', 2, 50), ('購物', 1, 25), ('文化體驗', 1, 25), ('夜生活', 0, 0)] %}<div class="vote-bar-row"><span>{{ name }}</span><div class="vote-bar-track"><div class="vote-bar-fill pref" style="width: {{ percent }}%"></div></div><b>{{ count }}</b></div>{% endfor %}</div></div>
-<div class="pref-stat-block"><h4>平均可接受預算</h4><p class="muted">{{ trip.currency }} 12,500（範例資料）</p></div>
-<div class="pref-stat-block"><h4>行程強度分布</h4><div class="vote-bars">{% for name, count, percent in [('輕鬆型', 1, 33), ('標準型', 3, 100), ('充實型', 1, 33), ('親子型', 0, 0), ('長輩友善型', 0, 0)] %}<div class="vote-bar-row"><span>{{ name }}</span><div class="vote-bar-track"><div class="vote-bar-fill pref" style="width: {{ percent }}%"></div></div><b>{{ count }}</b></div>{% endfor %}</div></div>
-<div class="pref-stat-block"><h4>成員必去景點</h4><div class="pref-list-tags">{% for place in ['清水寺','嵐山竹林','道頓堀'] %}<span>{{ place }}</span>{% endfor %}</div></div>
-<div class="pref-stat-block"><h4>成員不想去的內容</h4><div class="pref-list-tags">{% for place in ['人擠人的夜市','高強度爬山行程'] %}<span>{{ place }}</span>{% endfor %}</div></div>
+<p class="muted">已有 {{ summary.respondents }} / {{ members|length }} 位成員填寫。</p>
+{% if summary.respondents %}
+<div class="pref-stat-block"><h4>各類活動支持人數</h4><div class="vote-bars">{% for name, count, percent in summary.activities %}<div class="vote-bar-row"><span>{{ name }}</span><div class="vote-bar-track"><div class="vote-bar-fill pref" style="width: {{ percent }}%"></div></div><b>{{ count }}</b></div>{% endfor %}</div></div>
+<div class="pref-stat-block"><h4>平均可接受預算</h4><p class="muted">{% if summary.average_budget is not none %}{{ trip.currency }} {{ '{:,}'.format(summary.average_budget|int) }}（{{ summary.budget_count }} 人填寫）{% else %}尚無成員填寫預算{% endif %}</p></div>
+<div class="pref-stat-block"><h4>行程強度分布</h4><div class="vote-bars">{% for name, count, percent in summary.intensity %}<div class="vote-bar-row"><span>{{ name }}</span><div class="vote-bar-track"><div class="vote-bar-fill pref" style="width: {{ percent }}%"></div></div><b>{{ count }}</b></div>{% endfor %}</div></div>
+<div class="pref-stat-block"><h4>成員必去景點</h4>{% if summary.must_visit %}<div class="pref-list-tags">{% for place, count in summary.must_visit %}<span>{{ place }}{% if count > 1 %} ×{{ count }}{% endif %}</span>{% endfor %}</div>{% else %}<p class="muted">尚無</p>{% endif %}</div>
+<div class="pref-stat-block"><h4>成員不想去的內容</h4>{% if summary.avoid_places %}<div class="pref-list-tags">{% for place, count in summary.avoid_places %}<span>{{ place }}{% if count > 1 %} ×{{ count }}{% endif %}</span>{% endfor %}</div>{% else %}<p class="muted">尚無</p>{% endif %}</div>
+{% else %}<p class="muted">還沒有成員填寫偏好，統計會在有人填寫後顯示。</p>{% endif %}
 <h4 style="margin-top: 32px;">共識分數</h4>
 {% for name, score, agreement in [('清水寺', 4.5, 90), ('環球影城', 4.0, 75), ('心齋橋購物', 3.2, 55)] %}<div class="consensus-row"><span>{{ name }}</span><span class="consensus-score">{{ score }} 分</span><span class="muted">{{ agreement }}% 成員一致</span></div>{% endfor %}
 <p class="muted" style="margin-top: 8px;">＊以上為範例資料，正式功能會依成員評分與投票結果自動計算。</p>

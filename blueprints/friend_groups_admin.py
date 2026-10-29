@@ -3,6 +3,7 @@ from flask import Blueprint, flash, redirect, render_template, request, session,
 from activity_log import log_action
 from auth import login_required
 from db import get_db_connection
+from notification_preferences import send_notification
 
 friend_groups_admin_bp = Blueprint("friend_groups_admin", __name__, url_prefix="/content-admin/friend-groups")
 
@@ -144,10 +145,9 @@ def approve_application(application_id):
                WHERE application_id=%s""",
             (session["user_id"], application_id)
         )
-        cursor.execute(
-            "INSERT INTO notifications (user_id, notification_type, title, message, target_url) VALUES (%s,'system','交友揪團申請已核准',%s,%s)",
-            (application["user_id"], "你的交友揪團使用申請已經通過，先去報名一場官方活動吧！",
-             url_for("friend_groups.index") + "#friend-groups")
+        send_notification(
+            cursor, application["user_id"], "friend_group", "system", "交友揪團申請已核准",
+            "你的交友揪團使用申請已經通過，先去報名一場官方活動吧！", url_for("friend_groups.index") + "#friend-groups"
         )
         log_action(cursor, "approve_friend_group_application", "friend_group_application", application_id, "核准交友揪團使用申請")
         connection.commit()
@@ -190,9 +190,9 @@ def reject_application(application_id):
                WHERE application_id=%s""",
             (session["user_id"], review_note, application_id)
         )
-        cursor.execute(
-            "INSERT INTO notifications (user_id, notification_type, title, message, target_url) VALUES (%s,'system','交友揪團申請被退回',%s,%s)",
-            (application["user_id"], f"你的交友揪團使用申請沒有通過，原因：{review_note}", url_for("friend_groups.index") + "#friend-groups")
+        send_notification(
+            cursor, application["user_id"], "friend_group", "system", "交友揪團申請被退回",
+            f"你的交友揪團使用申請沒有通過，原因：{review_note}", url_for("friend_groups.index") + "#friend-groups"
         )
         log_action(cursor, "reject_friend_group_application", "friend_group_application", application_id, f"退回交友揪團使用申請，原因：{review_note}")
         connection.commit()
@@ -448,10 +448,9 @@ def post_event_announcement(event_id):
             WHERE event_id=%s AND status IN ('registered','attended')
         """, (event_id,))
         for row in cursor.fetchall():
-            cursor.execute(
-                "INSERT INTO notifications (user_id, notification_type, title, message, target_url) "
-                "VALUES (%s,'system','活動公告更新',%s,%s)",
-                (row["user_id"], f"「{event['title']}」有新公告：{content[:50]}", url_for("friend_groups.event_detail", event_id=event_id))
+            send_notification(
+                cursor, row["user_id"], "event", "system", "活動公告更新",
+                f"「{event['title']}」有新公告：{content[:50]}", url_for("friend_groups.event_detail", event_id=event_id)
             )
         log_action(cursor, "post_friend_group_event_announcement", "friend_group_event", event_id, "發布活動公告")
         connection.commit()
@@ -486,10 +485,10 @@ def check_in_participant(event_id, user_id):
             (event_id, user_id)
         )
         if not already_unlocked:
-            cursor.execute(
-                "INSERT INTO notifications (user_id, notification_type, title, message, target_url) "
-                "VALUES (%s,'system','🎉 解鎖交友揪團功能','你已出席官方活動，現在可以瀏覽並申請加入其他會員的揪團；若要發起自己的揪團，請先完成新手開團引導。',%s)",
-                (user_id, url_for("friend_groups.index") + "#friend-groups")
+            send_notification(
+                cursor, user_id, "friend_group", "system", "🎉 解鎖交友揪團功能",
+                "你已出席官方活動，現在可以瀏覽並申請加入其他會員的揪團；若要發起自己的揪團，請先完成新手開團引導。",
+                url_for("friend_groups.index") + "#friend-groups"
             )
         log_action(cursor, "check_in_friend_group_participant", "friend_group_event", event_id, f"標記報到：使用者 {user_id}")
         connection.commit()

@@ -3,6 +3,7 @@ from flask import Blueprint, abort, flash, redirect, render_template, request, s
 from activity_log import log_action
 from auth import login_required
 from db import get_db_connection
+from notification_preferences import send_notification
 from utils import delete_uploaded_image
 
 
@@ -98,11 +99,10 @@ def approve_post(post_id):
             "reviewed_at=NOW(), review_note=NULL WHERE post_id=%s",
             (session["user_id"], post_id),
         )
-        cursor.execute(
-            "INSERT INTO notifications (user_id, notification_type, title, message, target_url) "
-            "VALUES (%s, 'system', '景點相簿貼文已核准', "
-            "'你分享的照片已經通過審核，現在大家都看得到了。', %s)",
-            (post["user_id"], url_for("member.attraction_detail", attraction_id=post["attraction_id"]) + "#album"),
+        send_notification(
+            cursor, post["user_id"], "album", "system", "景點相簿貼文已核准",
+            "你分享的照片已經通過審核，現在大家都看得到了。",
+            url_for("member.attraction_detail", attraction_id=post["attraction_id"]) + "#album",
         )
         log_action(cursor, "approve_attraction_post", "attraction_post", post_id, "核准景點相簿貼文")
         connection.commit()
@@ -145,11 +145,10 @@ def reject_post(post_id):
             (session["user_id"], review_note[:255], post_id),
         )
         cursor.execute("DELETE FROM attraction_post_images WHERE post_id=%s", (post_id,))
-        cursor.execute(
-            "INSERT INTO notifications (user_id, notification_type, title, message, target_url) "
-            "VALUES (%s, 'system', '景點相簿貼文被退回', %s, %s)",
-            (post["user_id"], f"你分享的照片沒有通過審核，原因：{review_note[:255]}",
-             url_for("member.attraction_detail", attraction_id=post["attraction_id"]) + "#album"),
+        send_notification(
+            cursor, post["user_id"], "album", "system", "景點相簿貼文被退回",
+            f"你分享的照片沒有通過審核，原因：{review_note[:255]}",
+            url_for("member.attraction_detail", attraction_id=post["attraction_id"]) + "#album",
         )
         log_action(cursor, "reject_attraction_post", "attraction_post", post_id,
                    f"退回景點相簿貼文，原因：{review_note[:255]}")

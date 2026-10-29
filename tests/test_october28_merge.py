@@ -35,7 +35,8 @@ class October28MergeTests(unittest.TestCase):
         sql, values = cursor.execute.call_args.args
         self.assertIn("INSERT INTO notifications", sql)
         self.assertEqual(values[0], 3)
-        self.assertEqual(values[-1], "/member/trips/9#chat")
+        self.assertEqual(values[5], "/member/trips/9#chat")
+        self.assertEqual(values[-1], "mention")
 
     def test_updated_templates_compile(self):
         names = (

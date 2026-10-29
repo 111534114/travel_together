@@ -12,6 +12,8 @@ from werkzeug.security import check_password_hash, generate_password_hash
 from auth import login_required
 from attraction_rankings import TAIWAN_COUNTIES, count_attraction_rankings, fetch_attraction_rankings
 from nearby_attractions import find_nearby_attractions
+from notification_preferences import NOTIFICATION_CATEGORIES, get_preferences, save_preferences, send_notification
+import trip_preferences
 from db import get_db_connection
 from utils import delete_uploaded_image, format_hm, get_cities, get_countries, save_uploaded_attachment, save_uploaded_image
 from content_moderation import is_image_explicit
@@ -253,8 +255,7 @@ def _notify_mentions(cursor, trip, members, content, anchor, author_id, exclude_
     message = f"{author_name} 在「{trip['trip_name']}」的{place}中提及了你：{snippet}"
     target_url = url_for("member.trip_detail", trip_id=trip["trip_id"]) + anchor
     for user_id in target_ids:
-        cursor.execute("INSERT INTO notifications (user_id,trip_id,notification_type,title,message,target_url) VALUES (%s,%s,'comment',%s,%s,%s)",
-                       (user_id, trip["trip_id"], title, message, target_url))
+        send_notification(cursor, user_id, "mention", "comment", title, message, target_url, trip_id=trip["trip_id"])
 
 
 @member_bp.app_template_filter("mentions")
@@ -1409,9 +1410,36 @@ def trip_detail(trip_id):
         """, (trip["country_id"], trip["city_id"])); popular_attractions = cursor.fetchall()
         cursor.execute("SELECT COALESCE(SUM(amount),0) AS actual FROM expenses WHERE trip_id=%s AND expense_type='actual'", (trip_id,)); actual = cursor.fetchone()["actual"]
         transport_summary = _summarize_transport_time(itinerary)
+        preference_rows = trip_preferences.load_trip_preferences(cursor, trip_id)
+        my_preference, my_preference_source = trip_preferences.my_form_values(cursor, preference_rows, session["user_id"])
     finally:
         cursor.close(); connection.close()
-    return render_template("member/trip_detail.html", trip=trip, itinerary=itinerary, place_options=place_options, popular_attractions=popular_attractions, addable_trips=[trip], day_last_coords=day_last_coords, city_weather_days=city_weather_days, members=members, mention_members=[{"name": m["nickname"] or m["full_name"], "full_name": m["full_name"], "is_me": m["user_id"] == session["user_id"]} for m in members], pending_invitations=pending_invitations, pending_requests=pending_requests, invite_link=invite_link, proposals=proposals, votes=votes, comments=comments, itinerary_comments=itinerary_comments, proposal_comments=proposal_comments, reported_comment_ids=reported_comment_ids, comment_report_reasons=COMMENT_REPORT_REASONS, expenses=expenses, balance_summary=balance_summary, attachments=attachments, actual=actual, can_edit=_can_edit(trip), is_owner=trip["member_role"] == "owner", now=datetime.now(), item_type_labels=ITEM_TYPE_LABELS, itinerary_change_field_labels=ITINERARY_CHANGE_FIELD_LABELS, disney_parks=theme_parks.get_disney_parks(), transport_summary=transport_summary)
+    return render_template("member/trip_detail.html", preferences_ready=preference_rows is not None, my_preference=my_preference, my_preference_source=my_preference_source, preference_summary=trip_preferences.summarize(preference_rows), preference_options=trip_preferences, trip=trip, itinerary=itinerary, place_options=place_options, popular_attractions=popular_attractions, addable_trips=[trip], day_last_coords=day_last_coords, city_weather_days=city_weather_days, members=members, mention_members=[{"name": m["nickname"] or m["full_name"], "full_name": m["full_name"], "is_me": m["user_id"] == session["user_id"]} for m in members], pending_invitations=pending_invitations, pending_requests=pending_requests, invite_link=invite_link, proposals=proposals, votes=votes, comments=comments, itinerary_comments=itinerary_comments, proposal_comments=proposal_comments, reported_comment_ids=reported_comment_ids, comment_report_reasons=COMMENT_REPORT_REASONS, expenses=expenses, balance_summary=balance_summary, attachments=attachments, actual=actual, can_edit=_can_edit(trip), is_owner=trip["member_role"] == "owner", now=datetime.now(), item_type_labels=ITEM_TYPE_LABELS, itinerary_change_field_labels=ITINERARY_CHANGE_FIELD_LABELS, disney_parks=theme_parks.get_disney_parks(), transport_summary=transport_summary)
+
+
+@member_bp.route("/trips/<int:trip_id>/preferences", methods=["POST"])
+@login_required("member")
+def save_trip_preferences(trip_id):
+    connection = _connection_or_home()
+    if connection is None: return redirect(url_for("member.dashboard"))
+    cursor = connection.cursor(dictionary=True)
+    try:
+        trip = _member_access(cursor, trip_id, session["user_id"])
+        if not trip:
+            flash("你沒有填寫此行程偏好的權限。", "error"); return redirect(url_for("member.dashboard"))
+        data, errors = trip_preferences.parse_form(request.form)
+        if errors:
+            for error in errors: flash(error, "error")
+        elif trip_preferences.load_trip_preferences(cursor, trip_id) is None:
+            flash("旅伴偏好尚未完成資料庫更新，請通知管理員執行 migrate_1029_trip_member_preferences.sql。", "error")
+        else:
+            trip_preferences.save_preference(cursor, trip_id, session["user_id"], data)
+            connection.commit(); flash("已儲存你的旅遊偏好。", "success")
+    except Exception:
+        connection.rollback(); flash("儲存偏好失敗，請再試一次。", "error")
+    finally:
+        cursor.close(); connection.close()
+    return redirect(url_for("member.trip_detail", trip_id=trip_id) + "#preferences")
 
 
 @member_bp.route("/trips/<int:trip_id>/park-hours")
@@ -2707,7 +2735,7 @@ def invite_member(trip_id):
                     else:
                         code=secrets.token_urlsafe(8)
                         cursor.execute("INSERT INTO trip_invitations (trip_id,inviter_id,invitee_id,invitee_email,invite_code,assigned_role,expires_at) VALUES (%s,%s,%s,%s,%s,%s,%s)",(trip_id,session["user_id"],invitee["user_id"],invitee["email"],code,role,expires_at))
-                        cursor.execute("INSERT INTO notifications (user_id,trip_id,notification_type,title,message,target_url) VALUES (%s,%s,'invitation','收到旅程邀請',%s,%s)",(invitee["user_id"],trip_id,f"你被邀請加入「{trip['trip_name']}」",url_for('member.dashboard')))
+                        send_notification(cursor, invitee["user_id"], "trip", "invitation", "收到旅程邀請", f"你被邀請加入「{trip['trip_name']}」", url_for('member.dashboard'), trip_id=trip_id)
                         connection.commit(); flash("邀請已送出。", "success")
     except Exception:
         connection.rollback(); flash("送出邀請失敗。", "error")
@@ -2893,7 +2921,7 @@ def remove_member(trip_id, member_user_id):
                 flash("找不到這位成員。", "error")
             else:
                 cursor.execute("UPDATE trip_members SET join_status='removed' WHERE trip_id=%s AND user_id=%s", (trip_id, member_user_id))
-                cursor.execute("INSERT INTO notifications (user_id,trip_id,notification_type,title,message,target_url) VALUES (%s,%s,'trip_update','已被移出行程',%s,%s)", (member_user_id, trip_id, f"你已被移出行程「{trip['trip_name']}」", url_for('member.dashboard')))
+                send_notification(cursor, member_user_id, "trip", "permission", "已被移出行程", f"你已被移出行程「{trip['trip_name']}」", url_for('member.dashboard'), trip_id=trip_id)
                 connection.commit()
                 flash("已移除該成員。", "success")
     except Exception:
@@ -2919,7 +2947,7 @@ def approve_trip_request(trip_id, member_user_id):
                 flash("找不到這筆申請。", "error")
             else:
                 cursor.execute("UPDATE trip_members SET join_status='accepted', joined_at=NOW() WHERE trip_id=%s AND user_id=%s", (trip_id, member_user_id))
-                cursor.execute("INSERT INTO notifications (user_id,trip_id,notification_type,title,message,target_url) VALUES (%s,%s,'trip_update','加入申請已通過',%s,%s)", (member_user_id, trip_id, f"你申請加入「{trip['trip_name']}」已經通過了", url_for('member.trip_detail', trip_id=trip_id)))
+                send_notification(cursor, member_user_id, "trip", "permission", "加入申請已通過", f"你申請加入「{trip['trip_name']}」已經通過了", url_for('member.trip_detail', trip_id=trip_id), trip_id=trip_id)
                 connection.commit()
                 flash("已核准加入申請。", "success")
     except Exception:
@@ -3052,8 +3080,28 @@ def profile():
                     cursor.execute("UPDATE users SET username=%s,nickname=%s,email=%s,avatar_path=%s WHERE user_id=%s",(username,nickname or None,email,avatar_path,session["user_id"])); connection.commit()
                     if old_avatar != avatar_path and old_avatar and not old_avatar.startswith("http"): delete_uploaded_image(old_avatar)
                     session["username"]=username; session["nickname"]=nickname; flash("個人資料已更新。", "success"); return redirect(url_for("member.profile"))
+        notification_preferences = get_preferences(cursor, session["user_id"])
     finally: cursor.close(); connection.close()
-    return render_template("member/profile.html", user=user)
+    return render_template("member/profile.html", user=user, notification_categories=NOTIFICATION_CATEGORIES,
+                           notification_preferences=notification_preferences)
+
+
+@member_bp.route("/profile/notifications", methods=["POST"])
+@login_required("member")
+def update_notification_preferences():
+    """儲存會員想接收的通知類別；沒勾選的類別之後就不會再收到。"""
+    connection=_connection_or_home()
+    if connection is None: return redirect(url_for("member.profile"))
+    cursor=connection.cursor()
+    try:
+        enabled = set(request.form.getlist("categories")) & set(NOTIFICATION_CATEGORIES)
+        save_preferences(cursor, session["user_id"], enabled); connection.commit()
+        flash("通知設定已更新。", "success")
+    except Exception as error:
+        connection.rollback(); print("更新通知設定失敗：", error)
+        flash("通知設定更新失敗，請稍後再試。", "error")
+    finally: cursor.close(); connection.close()
+    return redirect(url_for("member.profile") + "#notification-settings")
 
 
 @member_bp.route("/profile/password", methods=["GET", "POST"])

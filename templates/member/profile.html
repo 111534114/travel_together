@@ -69,6 +69,22 @@
       </div>
     </div>
     {% endif %}
+
+    <div class="profile-notifications" id="notification-settings">
+      <div class="profile-section-title"><div><h3>通知設定</h3><p>選擇想在網站上收到哪些通知。關掉的類別之後就不會再通知你，已收到的通知不受影響。</p></div></div>
+      <form method="post" action="{{ url_for('member.update_notification_preferences') }}">
+        <div class="notification-options">
+          {% for key, category in notification_categories.items() %}
+          <label class="notification-option">
+            <span><strong>{{ category.label }}</strong><small>{{ category.description }}</small></span>
+            <input type="checkbox" class="notification-switch" name="categories" value="{{ key }}"{% if notification_preferences[key] %} checked{% endif %}>
+          </label>
+          {% endfor %}
+        </div>
+        <p class="notification-note">行程被管理員處理、問題回報結果等帳號相關通知會一律發送。</p>
+        <div class="profile-actions"><button class="member-btn primary">儲存通知設定</button></div>
+      </form>
+    </div>
   </section>
 </div>
 

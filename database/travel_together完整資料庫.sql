@@ -384,6 +384,35 @@ CREATE TABLE notifications (
  FOREIGN KEY(trip_id) REFERENCES trips(trip_id) ON DELETE CASCADE
 ) ENGINE=InnoDB;
 
+CREATE TABLE notification_preferences (
+ user_id BIGINT UNSIGNED NOT NULL,
+ category VARCHAR(30) NOT NULL,
+ enabled BOOLEAN NOT NULL DEFAULT TRUE,
+ updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+ PRIMARY KEY(user_id, category),
+ FOREIGN KEY(user_id) REFERENCES users(user_id) ON DELETE CASCADE
+) ENGINE=InnoDB;
+
+CREATE TABLE trip_member_preferences (
+ trip_id BIGINT UNSIGNED NOT NULL,
+ user_id BIGINT UNSIGNED NOT NULL,
+ like_activities VARCHAR(255),
+ dislike_activities VARCHAR(255),
+ must_visit TEXT,
+ avoid_places TEXT,
+ budget_limit DECIMAL(12,2),
+ diet ENUM('none','vegetarian','halal','no_beef','no_seafood','other') NOT NULL DEFAULT 'none',
+ transport_pref ENUM('any','public','drive','taxi','carpool') NOT NULL DEFAULT 'any',
+ walk_tolerance ENUM('low','medium','high') NOT NULL DEFAULT 'medium',
+ intensity ENUM('relaxed','standard','packed','family','senior_friendly'),
+ special_needs VARCHAR(500),
+ created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+ updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+ PRIMARY KEY(trip_id, user_id),
+ FOREIGN KEY(trip_id) REFERENCES trips(trip_id) ON DELETE CASCADE,
+ FOREIGN KEY(user_id) REFERENCES users(user_id) ON DELETE CASCADE
+) ENGINE=InnoDB;
+
 CREATE TABLE edit_logs (
  edit_log_id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
  trip_id BIGINT UNSIGNED NOT NULL,

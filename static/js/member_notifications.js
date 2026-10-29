@@ -92,27 +92,41 @@
       list.append(article);
     });
   }
+  // 按叉叉後鈴鐺收到右邊邊緣，只露出一小截，點一下就會回來
+  function isTucked() { return launcher.classList.contains('is-tucked'); }
+  function setTucked(tucked) {
+    launcher.classList.toggle('is-tucked', tucked);
+    bell.setAttribute('aria-label', tucked ? '顯示通知按鈕' : '查看通知');
+    bell.title = tucked ? '顯示通知按鈕' : '查看通知';
+  }
   async function refresh(autoOpen) {
     const response = await fetch('/member/notifications/unread', { credentials: 'same-origin', cache: 'no-store' });
     if (!response.ok) throw new Error('無法讀取通知。');
     const data = await response.json();
     dismissedKey = `member-notifications-dismissed:${data.login_id}`;
     hideKey = `member-notification-button-hidden:${data.login_id}`;
-    try { launcher.hidden = sessionStorage.getItem(hideKey) === '1'; }
-    catch { launcher.hidden = false; }
+    try { setTucked(sessionStorage.getItem(hideKey) === '1'); }
+    catch { setTucked(false); }
+    launcher.hidden = false;
     notifications = data.notifications;
     total = data.total;
     render();
-    if (autoOpen && !launcher.hidden && drawer.hidden && notifications.some(item => !dismissedIds().has(item.notification_id))) openDrawer();
+    if (autoOpen && !isTucked() && drawer.hidden && notifications.some(item => !dismissedIds().has(item.notification_id))) openDrawer();
   }
   bell.addEventListener('click', async () => {
+    if (isTucked()) {
+      setTucked(false);
+      try { sessionStorage.removeItem(hideKey); } catch { /* Storage may be unavailable; the button still comes back. */ }
+      return;
+    }
     try { await refresh(false); openDrawer(); }
     catch (error) { alert(error.message); }
   });
   hideButton.addEventListener('click', () => {
     closeDrawer();
     try { sessionStorage.setItem(hideKey, '1'); } catch { /* The button can still hide until navigation. */ }
-    launcher.hidden = true;
+    setTucked(true);
+    bell.focus();
   });
   closeButton.addEventListener('click', closeDrawer);
   backdrop.addEventListener('click', closeDrawer);

@@ -12,6 +12,7 @@ from blueprints.member import (
     _parse_itinerary_time, _summarize_transport_time,
 )
 import theme_parks
+import trip_preferences
 
 
 class October8IntegrationTests(unittest.TestCase):
@@ -101,7 +102,10 @@ class October8IntegrationTests(unittest.TestCase):
                     balance_summary=[], attachments=[], actual=120, can_edit=can_edit,
                     is_owner=can_edit, now=datetime(2026, 10, 10),
                     item_type_labels=ITEM_TYPE_LABELS, disney_parks=theme_parks.get_disney_parks(),
-                    transport_summary=[dict(method='火車', minutes=30)])
+                    transport_summary=[dict(method='火車', minutes=30)],
+                    preferences_ready=True, preference_options=trip_preferences,
+                    my_preference=trip_preferences.my_form_values(MagicMock(fetchone=MagicMock(return_value=None)), [], 1)[0],
+                    my_preference_source=None, preference_summary=trip_preferences.summarize([]))
                 for section in ('itinerary', 'proposals', 'chat', 'budget'):
                     self.assertEqual(html.count('id="'+section+'"'), 1)
                 for text in ('09:00', '景點詳細介紹', '時間不合', '發票明細', 'split_user_ids', 'Viewer', 'trip-chat.js', 'expense-invoice.js', 'id="itineraryMap"', 'item-comment-thread'):
@@ -111,6 +115,7 @@ class October8IntegrationTests(unittest.TestCase):
                     self.assertIn('time-mode-select', html)
                     self.assertIn('park-hours-trigger', html)
                 self.assertIn('/member/trips/1/votes/7/cast', html)
+                self.assertIn('/member/trips/1/preferences', html)
 
 
 if __name__ == '__main__':

@@ -38,21 +38,27 @@ ACTION_LABELS = {"view": "查看", "create": "新增", "edit": "編輯", "delete
 _ENDPOINT_ACTIONS = {
     "attractions": {
         "create_attraction": "create", "import_attractions": "create",
-        "import_from_google": "create", "edit_attraction": "edit",
+        "import_from_google": "create", "search_import_attractions": "create",
+        "confirm_search_import_attractions": "create", "edit_attraction": "edit",
+        "geocode_attraction": "create",
         "bulk_activate_attractions": "edit", "restore_attraction": "edit",
         "backfill_descriptions": "edit", "delete_attraction": "delete",
         "bulk_delete_attractions": "delete", "permanently_delete_attraction": "delete",
     },
     "restaurants": {
         "create_restaurant": "create", "import_restaurants": "create",
-        "import_from_google": "create", "edit_restaurant": "edit",
+        "import_from_google": "create", "search_import_restaurants": "create",
+        "confirm_search_import_restaurants": "create", "edit_restaurant": "edit",
+        "geocode_restaurant": "create",
         "bulk_activate_restaurants": "edit", "restore_restaurant": "edit",
         "backfill_descriptions": "edit", "delete_restaurant": "delete",
         "bulk_delete_restaurants": "delete", "permanently_delete_restaurant": "delete",
     },
     "accommodations": {
         "create_accommodation": "create", "import_accommodations": "create",
-        "import_from_google": "create", "edit_accommodation": "edit",
+        "import_from_google": "create", "search_import_accommodations": "create",
+        "confirm_search_import_accommodations": "create", "edit_accommodation": "edit",
+        "geocode_accommodation": "create",
         "bulk_activate_accommodations": "edit", "restore_accommodation": "edit",
         "backfill_descriptions": "edit", "delete_accommodation": "delete",
         "bulk_delete_accommodations": "delete", "permanently_delete_accommodation": "delete",
@@ -72,7 +78,7 @@ _ENDPOINT_ACTIONS = {
     "friend_groups_admin": {
         "approve_application": "edit", "reject_application": "edit", "toggle_setting": "edit",
         "new_event": "edit", "edit_event": "edit", "cancel_event": "edit", "check_in_participant": "edit",
-        "post_event_announcement": "edit",
+        "mark_no_show_participant": "edit", "post_event_announcement": "edit",
     },
     "ai_data": {"verify_item": "edit"},
 }

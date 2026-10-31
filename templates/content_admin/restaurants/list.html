@@ -55,6 +55,7 @@
             <a href="{{ url_for('restaurants.map_view') }}" class="small-button">🗺️ 地圖檢視</a>
             <a href="{{ url_for('restaurants.list_trash') }}" class="small-button">🗑️ 回收桶</a>
             <a href="{{ url_for('restaurants.import_from_google') }}" class="small-button">🔍 Google地圖匯入</a>
+            <a href="{{ url_for('restaurants.search_import_restaurants') }}" class="small-button">🔎 關鍵字搜尋匯入</a>
             <a href="{{ url_for('restaurants.import_restaurants') }}" class="small-button">⬆ 匯入 CSV</a>
             <a href="{{ url_for('restaurants.create_restaurant') }}" class="small-button">＋ 新增餐廳</a>
             <form method="POST" action="{{ url_for('restaurants.backfill_descriptions') }}" class="inline-form"

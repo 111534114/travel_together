@@ -101,7 +101,12 @@ class October8IntegrationTests(unittest.TestCase):
                     balance_summary=[], attachments=[], actual=120, can_edit=can_edit,
                     is_owner=can_edit, now=datetime(2026, 10, 10),
                     item_type_labels=ITEM_TYPE_LABELS, disney_parks=theme_parks.get_disney_parks(),
-                    transport_summary=[dict(method='火車', minutes=30)])
+                    transport_summary=[dict(method='火車', minutes=30)],
+                    preferences_ready=False, my_preference=dict(like_activities=[], dislike_activities=[],
+                        must_visit='', avoid_places='', budget_limit=None, diet='none', transport_pref='any',
+                        walk_tolerance='medium', intensity=None, special_needs=''),
+                    my_preference_source=None, preference_summary=dict(respondents=0),
+                    preference_options=__import__('trip_preferences'))
                 for section in ('itinerary', 'proposals', 'chat', 'budget'):
                     self.assertEqual(html.count('id="'+section+'"'), 1)
                 for text in ('09:00', '景點詳細介紹', '時間不合', '發票明細', 'split_user_ids', 'Viewer', 'trip-chat.js', 'expense-invoice.js', 'id="itineraryMap"', 'item-comment-thread'):

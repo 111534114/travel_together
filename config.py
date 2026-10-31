@@ -70,3 +70,8 @@ PUBLIC_BASE_URL = os.environ.get("PUBLIC_BASE_URL", "").rstrip("/")
 # LIFF（在 LINE 裡打開網頁自動登入）：LINE Developers → LINE Login channel → LIFF 分頁建立後取得的 LIFF ID
 # Endpoint URL 請填：https://你的公開網址/liff
 LIFF_ID = os.environ.get("LIFF_ID", "")
+
+# Optional live flight-search providers; without credentials, use local flight data.
+AMADEUS_API_KEY = os.environ.get("AMADEUS_API_KEY", "")
+AMADEUS_API_SECRET = os.environ.get("AMADEUS_API_SECRET", "")
+SERPAPI_API_KEY = os.environ.get("SERPAPI_API_KEY", "")

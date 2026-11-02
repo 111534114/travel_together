@@ -6,7 +6,7 @@
   <title>走吧揪團｜{{ '會員首頁' if is_member else '探索公開行程' }}</title>
   <link rel="icon" type="image/png" href="{{ url_for('static', filename='images/logo.png') }}">
   {% if is_member %}<link rel="stylesheet" href="{{ url_for('static', filename='css/member_notifications.css') }}">{% endif %}
-  {% if is_member %}<link rel="stylesheet" href="{{ url_for('static', filename='css/member-nav.css') }}">{% endif %}
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/member-nav.css') }}">
   <script src="{{ url_for('static', filename='js/google-translate.js') }}"></script>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -14,6 +14,7 @@
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/flatpickr/4.6.13/flatpickr.min.css">
   <script src="https://cdnjs.cloudflare.com/ajax/libs/flatpickr/4.6.13/flatpickr.min.js" defer></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/flatpickr/4.6.13/l10n/zh-tw.js" defer></script>
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/site-shell.css') }}">
   <style>
     :root { --purple: #4B838B; --purple-light: #57A2AC; --purple-soft: #EDF6F7; --ink: #23373A; --muted: #708284; --line: #E1EBEC; --page: #EAF8F9; }
     * { box-sizing: border-box; }
@@ -30,16 +31,7 @@
     .nav-links a:hover { color: var(--purple); background: var(--purple-soft); }
     .nav-links .nav-register { color: #fff; background: var(--purple); }
     .nav-links .nav-register:hover { color: #fff; background: #37676D; }
-    .member-shell { position: relative; display: flex; align-items: flex-start; min-height: 100vh; gap: 36px; }
     .member-shell::before { content: ""; position: absolute; top: 0; left: 0; right: 0; height: 48px; background: #fff; z-index: 1; }
-    .member-sidenav { position: sticky; top: 0; z-index: 20; display: flex; flex-direction: column; gap: 2px; width: 220px; flex-shrink: 0; height: 100vh; overflow-y: auto; padding: 18px 12px; background: #fff; border-right: 1px solid #E2EDEF; box-shadow: 2px 0 10px rgba(45, 37, 68, .05); }
-    .member-sidenav .brand { margin: 4px 0 18px 10px; }
-    .member-sidenav nav { display: flex; flex: 1; flex-direction: column; gap: 2px; }
-    .member-content { flex: 1; min-width: 0; }
-    .side-link { display: block; width: 100%; padding: 11px 14px; color: #426064; text-decoration: none; border-radius: 6px; font-weight: 600; white-space: nowrap; }
-    .side-link:hover { color: var(--purple); background: var(--purple-soft); }
-    .side-footer { margin-top: auto; display: flex; flex-direction: column; gap: 2px; padding-top: 10px; border-top: 1px solid #E2EDEF; }
-    .side-footer .language-select { width: 100%; margin: 2px 0; padding: 9px 11px; color: #426064; background: #fff; border: 1px solid #D2E4E6; border-radius: 6px; font: inherit; cursor: pointer; }
     .language-select { min-width: 112px; padding: 9px 30px 9px 11px; color: #426064; background: #fff; border: 1px solid #D2E4E6; border-radius: 6px; font: inherit; cursor: pointer; }
     .language-select:focus { outline: 2px solid #CDEBEF; outline-offset: 1px; }
     main { position: relative; z-index: 2; width: min(1180px, 100%); margin: 0 auto; padding: 0 36px 76px 0; }
@@ -252,14 +244,8 @@
   </style>
 </head>
 <body>
-{% if is_member %}
   <div class="member-shell">
-    <aside class="member-sidenav">
-      <a class="brand" href="{{ url_for('member.dashboard') }}"><img src="{{ url_for('static', filename='images/logo.png') }}" alt="走吧揪團"></a>
-      {% include 'partials/member_nav_toggle.html' %}
-      <nav id="memberNav">{% include 'partials/member_nav_links.html' %}</nav>
-    </aside>
-    <div class="nav-backdrop" aria-hidden="true"></div>
+{% include 'partials/site_sidenav.html' %}
     <main class="member-content">
       <div class="top-marquee" aria-label="最新公告跑馬燈">
         <div class="top-marquee-track">
@@ -273,22 +259,6 @@
           <span>✈️ 訂房／機票／高鐵查詢，規劃行程更方便</span>
         </div>
       </div>
-{% else %}
-  <header class="site-nav">
-    <a class="brand" href="{{ url_for('visitor') }}"><img src="{{ url_for('static', filename='images/logo.png') }}" alt="走吧揪團"></a>
-    <nav class="nav-links">
-      <a href="{{ url_for('visitor') }}">首頁</a>
-      <a href="#announcements">公告事項</a>
-      <a href="#weather">目的地天氣</a>
-      <a href="#trips">探索行程</a>
-      <a href="#companions">尋找旅伴</a>
-      {% include 'partials/language_select.html' %}
-      <a href="{{ url_for('login') }}">登入</a>
-      <a class="nav-register" href="{{ url_for('register') }}">免費註冊</a>
-    </nav>
-  </header>
-  <main>
-{% endif %}
     {% with messages = get_flashed_messages(with_categories=true) %}{% if messages %}<div class="flash-stack" role="status">{% for category, message in messages %}<div class="flash-message {{ category }}">{{ message }}</div>{% endfor %}</div>{% endif %}{% endwith %}
 {% include 'partials/booking_tools.html' %}
     <section class="hero-intro">
@@ -561,12 +531,8 @@
       </div>
     </section>
     {% endif %}
-{% if is_member %}
     </main>
   </div>
-{% else %}
-  </main>
-{% endif %}
   <div class="modal" id="tripModal" onclick="if (event.target === this) closeTripModal()">
     <div class="modal-card">
       <button class="modal-close" type="button" onclick="closeTripModal()" aria-label="關閉">×</button>
@@ -688,6 +654,6 @@
     }
   </script>
 {% if is_member %}{% include 'member/_notification_drawer.html' %}<script src="{{ url_for('static', filename='js/member_notifications.js') }}" defer></script>{% endif %}
-{% if is_member %}<script src="{{ url_for('static', filename='js/member-nav.js') }}" defer></script>{% endif %}
+<script src="{{ url_for('static', filename='js/member-nav.js') }}" defer></script>
 </body>
 </html>

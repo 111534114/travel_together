@@ -23,6 +23,9 @@ Thumbs.db
 # 環境設定
 .env
 
+# TDX 高鐵／台鐵 API 查詢結果快取
+tdx_cache/
+
 # 本機資料庫備份（可能包含帳號資料）
 database/backup_*.sql
 

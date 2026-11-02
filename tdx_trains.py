@@ -1,0 +1,249 @@
+"""串接交通部 TDX 運輸資料流通服務，取得高鐵／台鐵「指定日期」的真實班表與票價。
+
+TDX 免費會員的金鑰每分鐘只能呼叫 5 次 API，所以每次查到的資料都會存進 tdx_cache/ 資料夾
+(班表 6 小時、票價與車站 7 天)，重開伺服器也不用重查，同一條路線第二次搜尋就完全不打 API。
+
+沒有設定 TDX_CLIENT_ID / TDX_CLIENT_SECRET、站名對不到、或 API 查詢失敗(例如超過次數限制)時，
+search_trains 回傳 None，呼叫端（app.py）就改用本地資料庫的 trains 資料表，不會讓網站整個掛掉。
+TDX 不提供台鐵剩餘座位，也沒有訂票 API，所以 seats_available 一律是 None，訂票改連到官方售票網站。
+"""
+from datetime import datetime, timedelta, timezone
+from decimal import Decimal
+import hashlib
+import json
+import os
+import time
+
+import requests
+
+from config import TDX_CLIENT_ID, TDX_CLIENT_SECRET
+
+TOKEN_URL = "https://tdx.transportdata.tw/auth/realms/TDXConnect/protocol/openid-connect/token"
+API_BASE = "https://tdx.transportdata.tw/api/basic"
+CACHE_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "tdx_cache")
+TIMETABLE_TTL_SECONDS = 6 * 3600
+FARE_TTL_SECONDS = 7 * 86400
+STATION_TTL_SECONDS = 7 * 86400
+TAIPEI_TZ = timezone(timedelta(hours=8))
+
+THSR_BOOKING_URL = "https://irs.thsrc.com.tw/IMINT/"
+TRA_BOOKING_URL = "https://tip.railway.gov.tw/tra-tip-web/tip"
+
+# 高鐵只有 12 站而且幾乎不會變動，直接寫死，省下一次 API 呼叫
+THSR_STATIONS = {
+    "南港": "0990", "台北": "1000", "板橋": "1010", "桃園": "1020", "新竹": "1030", "苗栗": "1035",
+    "台中": "1040", "彰化": "1043", "雲林": "1047", "嘉義": "1050", "台南": "1060", "左營": "1070",
+}
+THSR_ALIASES = {"高雄": "左營", "新左營": "左營"}  # 使用者輸入「高雄」時，高鐵要查左營站
+
+# 高鐵票價的 CabinClass：1=標準車廂 2=商務車廂 3=自由座(這裡只列跟本地資料表一致的兩種)
+THSR_CABIN_LABELS = {1: "標準車廂", 2: "商務車廂"}
+
+# 台鐵時刻表的 TrainTypeCode，跟票價資料的 TrainType 是同一組代碼(用台北-台中票價實際對照過)
+TRA_TYPE_LABELS = {
+    "1": "太魯閣號", "2": "普悠瑪號", "3": "自強號", "4": "莒光號", "5": "復興號",
+    "6": "區間車", "7": "普快車", "10": "區間快車", "11": "自強號(3000)",
+}
+
+_memory_cache = {}  # {api_path: (expires_at, data)}
+_token = {"value": None, "expires_at": 0}
+
+
+def is_configured():
+    return bool(TDX_CLIENT_ID and TDX_CLIENT_SECRET)
+
+
+def search_trains(origin_keyword, destination_keyword, travel_date=None):
+    """回傳指定日期的高鐵＋台鐵車次清單(格式跟本地 trains 資料表一致，可以直接丟給 train_search.html)。
+    兩個系統都對不到站名或都查詢失敗就回傳 None，呼叫端要自己 fallback；只有其中一個失敗就回傳另一個的結果。"""
+    if not is_configured() or not origin_keyword or not destination_keyword:
+        return None
+    travel_date = travel_date or datetime.now(TAIPEI_TZ).strftime("%Y-%m-%d")
+
+    results = None
+    for search in (_search_thsr, _search_tra):
+        try:
+            rows = search(origin_keyword, destination_keyword, travel_date)
+        except Exception as error:
+            print("TDX 車次查詢失敗：", error)
+            continue
+        if rows is not None:
+            results = (results or []) + rows
+    if results is not None:
+        results.sort(key=lambda row: row["departure_time"])
+    return results
+
+
+def _normalize_station(name):
+    name = name.strip().replace("臺", "台")
+    for prefix in ("高鐵", "台鐵"):
+        name = name.removeprefix(prefix)
+    for suffix in ("火車站", "車站", "站"):
+        name = name.removesuffix(suffix)
+    return name
+
+
+def _search_thsr(origin_keyword, destination_keyword, travel_date):
+    origin_name = _normalize_station(origin_keyword)
+    destination_name = _normalize_station(destination_keyword)
+    origin = THSR_STATIONS.get(THSR_ALIASES.get(origin_name, origin_name))
+    destination = THSR_STATIONS.get(THSR_ALIASES.get(destination_name, destination_name))
+    if not origin or not destination or origin == destination:
+        return None
+
+    timetable = _api_get(f"/v2/Rail/THSR/DailyTimetable/OD/{origin}/to/{destination}/{travel_date}", TIMETABLE_TTL_SECONDS)
+    if not timetable:
+        return []
+    # 高鐵去回程票價相同，固定用站號小的當起點查，來回兩個方向共用同一份快取
+    fare_rows = _api_get(f"/v2/Rail/THSR/ODFare/{min(origin, destination)}/to/{max(origin, destination)}", FARE_TTL_SECONDS)
+    prices = {}
+    for record in fare_rows or []:
+        for fare in record.get("Fares", []):
+            if fare.get("TicketType") == 1 and fare.get("FareClass") == 1:  # 單程票、全票
+                prices[fare.get("CabinClass")] = fare.get("Price")
+
+    rows = []
+    for item in timetable:
+        try:
+            train_no = item["DailyTrainInfo"]["TrainNo"]
+            departure = item["OriginStopTime"]["DepartureTime"]
+            arrival = item["DestinationStopTime"]["ArrivalTime"]
+            for cabin, label in THSR_CABIN_LABELS.items():
+                if prices.get(cabin) is None:
+                    continue
+                rows.append(_row("thsr", train_no, label, item["OriginStopTime"]["StationName"]["Zh_tw"],
+                                 item["DestinationStopTime"]["StationName"]["Zh_tw"], departure, arrival,
+                                 prices[cabin], THSR_BOOKING_URL, cabin))
+        except (KeyError, TypeError):
+            continue
+    return rows
+
+
+def _search_tra(origin_keyword, destination_keyword, travel_date):
+    stations = _tra_stations()
+    origin = stations.get(_normalize_station(origin_keyword))
+    destination = stations.get(_normalize_station(destination_keyword))
+    if not origin or not destination or origin == destination:
+        return None
+
+    timetable = _api_get(f"/v3/Rail/TRA/DailyTrainTimetable/OD/{origin}/to/{destination}/{travel_date}", TIMETABLE_TTL_SECONDS)
+    trains = (timetable or {}).get("TrainTimetables") or []
+    if not trains:
+        return []
+    prices = _tra_prices(origin, destination)
+
+    rows = []
+    for item in trains:
+        try:
+            info = item["TrainInfo"]
+            if info.get("SuspendedFlag"):  # 停駛車次不顯示
+                continue
+            first_stop, last_stop = item["StopTimes"][0], item["StopTimes"][-1]
+            type_code = str(info["TrainTypeCode"])
+            # 台鐵同一種車在不同路線(例如台北到台中走西部或繞東部)票價不同，要用車次的行駛方向對票價
+            price = prices.get((type_code, info.get("Direction")))
+            if price is None:
+                price = min((p for (code, _), p in prices.items() if code == type_code), default=None)
+            if price is None:
+                continue
+            label = TRA_TYPE_LABELS.get(type_code) or info["TrainTypeName"]["Zh_tw"].split("(")[0]
+            rows.append(_row("tra", info["TrainNo"], label, first_stop["StationName"]["Zh_tw"],
+                             last_stop["StationName"]["Zh_tw"], first_stop["DepartureTime"],
+                             last_stop["ArrivalTime"], price, TRA_BOOKING_URL))
+        except (KeyError, IndexError, TypeError):
+            continue
+    return rows
+
+
+def _tra_stations():
+    """回傳 {正規化站名: 站號}，例如 {"台北": "1000"}。"""
+    data = _api_get("/v3/Rail/TRA/Station", STATION_TTL_SECONDS)
+    return {_normalize_station(s["StationName"]["Zh_tw"]): s["StationID"] for s in data.get("Stations", [])}
+
+
+def _tra_prices(origin, destination):
+    """回傳 {(車種代碼, 行駛方向): 全票價}。
+    台鐵票價也是去回程相同，固定用站號小的當起點查來共用快取；反方向查時，車次的行駛方向
+    (0=順行 1=逆行)剛好相反，所以要把票價資料裡的方向對調。"""
+    reverse = origin > destination
+    low, high = (destination, origin) if reverse else (origin, destination)
+    data = _api_get(f"/v3/Rail/TRA/ODFare/{low}/to/{high}", FARE_TTL_SECONDS)
+    prices = {}
+    for record in data.get("ODFares", []):
+        direction = record.get("Direction")
+        if reverse and direction in (0, 1):
+            direction = 1 - direction
+        for fare in record.get("Fares", []):
+            if fare.get("TicketType") == 1 and fare.get("FareClass") == 1:
+                prices[(str(record.get("TrainType")), direction)] = fare.get("Price")
+    return prices
+
+
+def _row(train_type, train_no, car_class, origin_station, destination_station, departure, arrival, price, booking_url, cabin=""):
+    depart_at = datetime.strptime(departure, "%H:%M")
+    arrive_at = datetime.strptime(arrival, "%H:%M")
+    duration = int((arrive_at - depart_at).total_seconds() // 60)
+    if duration < 0:  # 跨夜車次
+        duration += 24 * 60
+    return {
+        "train_id": f"tdx-{train_type}-{train_no}-{cabin}",
+        "train_type": train_type,
+        "train_number": train_no,
+        "car_class": car_class,
+        "origin_station": origin_station,
+        "destination_station": destination_station,
+        "departure_time": departure,
+        "arrival_time": arrival,
+        "duration_minutes": duration,
+        "price": Decimal(str(price)),  # 跟本地資料庫的 DECIMAL 價格型別一致，篩選/排序時才不會 float 對 Decimal 出錯
+        "seats_available": None,  # TDX 不提供台鐵剩餘座位，不要顯示假數字
+        "is_live": True,
+        "booking_url": booking_url,
+    }
+
+
+def _api_get(path, ttl):
+    """先查記憶體快取、再查 tdx_cache/ 檔案快取，都沒有才真的呼叫 TDX API。"""
+    now = time.time()
+    cached = _memory_cache.get(path)
+    if cached and cached[0] > now:
+        return cached[1]
+
+    cache_file = os.path.join(CACHE_DIR, hashlib.md5(path.encode("utf-8")).hexdigest() + ".json")
+    try:
+        with open(cache_file, encoding="utf-8") as fh:
+            payload = json.load(fh)
+        if payload["expires_at"] > now:
+            _memory_cache[path] = (payload["expires_at"], payload["data"])
+            return payload["data"]
+    except (OSError, ValueError, KeyError):
+        pass
+
+    resp = requests.get(API_BASE + path, headers={"Authorization": f"Bearer {_access_token()}"},
+                        params={"$format": "JSON"}, timeout=15)
+    resp.raise_for_status()
+    data = resp.json()
+    expires_at = now + ttl
+    _memory_cache[path] = (expires_at, data)
+    try:
+        os.makedirs(CACHE_DIR, exist_ok=True)
+        with open(cache_file, "w", encoding="utf-8") as fh:
+            json.dump({"path": path, "expires_at": expires_at, "data": data}, fh, ensure_ascii=False)
+    except OSError:
+        pass
+    return data
+
+
+def _access_token():
+    if _token["value"] and _token["expires_at"] - 60 > time.time():
+        return _token["value"]
+    resp = requests.post(TOKEN_URL, data={
+        "grant_type": "client_credentials",
+        "client_id": TDX_CLIENT_ID,
+        "client_secret": TDX_CLIENT_SECRET,
+    }, timeout=15)
+    resp.raise_for_status()
+    data = resp.json()
+    _token["value"] = data["access_token"]
+    _token["expires_at"] = time.time() + data.get("expires_in", 3600)
+    return _token["value"]

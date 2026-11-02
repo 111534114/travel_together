@@ -16,21 +16,46 @@
         <h1 style="font-size: 20px; text-align: center;">還差一步就完成了</h1>
         <p class="subtitle">
             {% if full_name %}嗨，{{ full_name }}！{% endif %}
-            LINE 沒有提供電子郵件，請補填一個，方便接收通知或找回帳號。
+            請補填電子郵件並設定密碼，之後也可以用電子郵件和密碼直接登入。
         </p>
         {% with messages = get_flashed_messages(with_categories=true) %}
             {% for category, message in messages %}<div class="message {{ category }}">{{ message }}</div>{% endfor %}
         {% endwith %}
         <form method="POST" action="{{ url_for('line_complete_profile') }}">
             <div class="form-group">
+                <label for="nickname">暱稱</label>
+                <input type="text" id="nickname" name="nickname" maxlength="50"
+                       value="{{ request.form.get('nickname', full_name or '') }}">
+                <small class="form-hint">不限格式，可自由填寫；空白則使用 LINE 名稱</small>
+            </div>
+            <div class="form-group">
                 <label for="email">電子郵件</label>
                 <input type="email" id="email" name="email" placeholder="請輸入電子郵件"
                        value="{{ request.form.get('email', '') }}" required autofocus>
                 <small class="form-hint">例如 example@mail.com</small>
             </div>
+            <div class="form-group">
+                <label for="password">密碼</label>
+                <div class="password-wrapper">
+                    <input type="password" id="password" name="password"
+                           pattern="(?=.*[A-Za-z])(?=.*\d)\S{9,}"
+                           title="密碼至少9碼，需同時包含英文（不分大小寫）與數字" required>
+                    <button type="button" class="password-toggle" data-target="password" aria-label="顯示密碼">顯示</button>
+                </div>
+                <small class="form-hint">此為走吧揪團的登入密碼，與 LINE 密碼無關</small>
+                <small class="form-hint">至少9碼，需同時包含英文（大小寫皆可）與數字</small>
+            </div>
+            <div class="form-group">
+                <label for="confirm_password">確認密碼</label>
+                <div class="password-wrapper">
+                    <input type="password" id="confirm_password" name="confirm_password" required>
+                    <button type="button" class="password-toggle" data-target="confirm_password" aria-label="顯示密碼">顯示</button>
+                </div>
+            </div>
             <button type="submit" class="primary-button">完成註冊並登入</button>
         </form>
     </div>
 </div>
+<script src="{{ url_for('static', filename='js/password-toggle.js') }}"></script>
 </body>
 </html>

@@ -8,6 +8,8 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/site-shell.css') }}">
+  <script src="{{ url_for('static', filename='js/google-translate.js') }}"></script>
   <style>
     :root { --purple: #4B838B; --purple-light: #57A2AC; --purple-soft: #EDF6F7; --ink: #23373A; --muted: #708284; --line: #E1EBEC; --page: #EAF8F9; }
     * { box-sizing: border-box; }
@@ -22,7 +24,7 @@
     .nav-links a:hover { color: var(--purple); background: var(--purple-soft); }
     .nav-links .nav-register { color: #fff; background: var(--purple); }
     .nav-links .nav-register:hover { color: #fff; background: #37676D; }
-    main { width: min(1180px, calc(100% - 48px)); margin: 0 auto; padding: 32px 0 70px; }
+    main { width: 100%; max-width: 1180px; margin: 0 auto; padding: 32px 36px 70px 0; }
     .breadcrumb { margin: 0 0 18px; color: var(--muted); font-size: 14px; }
     .breadcrumb a { color: var(--purple); font-weight: 600; }
     .date-strip { display: flex; align-items: stretch; gap: 2px; margin: 0 0 6px; background: #fff; border: 1px solid var(--line); border-radius: 10px; box-shadow: 0 6px 18px rgba(45, 37, 68, .05); overflow: hidden; }
@@ -76,31 +78,17 @@
     .view-button { padding: 11px 22px; color: #fff; background: var(--purple); border: 0; border-radius: 8px; cursor: pointer; font-weight: 700; font-size: 14px; white-space: nowrap; box-shadow: 0 6px 16px rgba(75, 131, 139, .32); transition: background 160ms ease, transform 160ms ease; }
     .view-button:hover { background: #37676D; transform: translateY(-1px); }
     .empty { padding: 36px; color: var(--muted); text-align: center; background: #fff; border: 1px dashed #C6DCDF; border-radius: 8px; }
-    @media (max-width: 850px) { .site-nav { align-items: flex-start; flex-direction: column; gap: 6px; padding: 8px 18px 12px; } .nav-links { width: 100%; margin-left: 0; overflow-x: auto; } main { width: min(100% - 28px, 680px); padding-top: 24px; } .flight-card { flex-direction: column; align-items: stretch; } .flight-meta { margin: 0; padding-left: 0; border-left: 0; } .flight-footer { margin-left: 0; justify-content: space-between; } .date-strip-days { overflow-x: auto; } .date-strip-day { flex: 0 0 auto; min-width: 84px; } .date-strip-chart { width: 72px; } }
+    @media (max-width: 850px) { .site-nav { align-items: flex-start; flex-direction: column; gap: 6px; padding: 8px 18px 12px; } .nav-links { width: 100%; margin-left: 0; overflow-x: auto; } main { width: min(100% - 28px, 680px); padding: 24px 0 70px; } .flight-card { flex-direction: column; align-items: stretch; } .flight-meta { margin: 0; padding-left: 0; border-left: 0; } .flight-footer { margin-left: 0; justify-content: space-between; } .date-strip-days { overflow-x: auto; } .date-strip-day { flex: 0 0 auto; min-width: 84px; } .date-strip-chart { width: 72px; } }
     @media (max-width: 560px) { .brand { width: 108px; height: 48px; } .nav-links { gap: 2px; } .nav-links a { padding: 8px; font-size: 14px; white-space: nowrap; } .section-header { align-items: stretch; flex-direction: column; } .section-header h2 { font-size: 22px; } .flight-route { flex-direction: column; align-items: stretch; } .flight-path { display: none; } }
   </style>
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/member-nav.css') }}">
+  {% if session.get('user_id') and session.get('role') == 'member' %}<link rel="stylesheet" href="{{ url_for('static', filename='css/member_notifications.css') }}">{% endif %}
 </head>
 <body>
   {% set is_member = session.get('user_id') and session.get('role') == 'member' %}
-  <header class="site-nav">
-    <a class="brand" href="{{ url_for('member.dashboard') if is_member else url_for('visitor') }}"><img src="{{ url_for('static', filename='images/logo.png') }}" alt="走吧揪團"></a>
-    <nav class="nav-links">
-      <a href="{{ url_for('member.dashboard') if is_member else url_for('visitor') }}#announcements">公告事項</a>
-      <a href="{{ url_for('member.dashboard') if is_member else url_for('visitor') }}#weather">目的地天氣</a>
-      <a href="{{ url_for('member.dashboard') if is_member else url_for('visitor') }}#trips">探索行程</a>
-      <a href="{{ url_for('member.dashboard') if is_member else url_for('visitor') }}#companions">尋找旅伴</a>
-      {% if is_member %}
-      <a href="{{ url_for('member.dashboard') }}">我的旅程</a>
-      <a href="{{ url_for('member.browse_attractions') }}">探索景點</a>
-      <a href="{{ url_for('member.profile') }}">個人資料</a>
-      <a class="nav-register" href="{{ url_for('logout') }}">登出</a>
-      {% else %}
-      <a href="/login">登入</a>
-      <a class="nav-register" href="/register">免費註冊</a>
-      {% endif %}
-    </nav>
-  </header>
-  <main>
+  <div class="member-shell">
+{% include 'partials/site_sidenav.html' %}
+  <main class="member-content">
     {% macro date_strip_link(depart, return_val) %}{% set qs = dict(request.args) %}{% set _ = qs.update({'depart': depart}) %}{% if return_val %}{% set _ = qs.update({'return': return_val}) %}{% else %}{% set _ = qs.pop('return', none) %}{% endif %}?{{ qs|urlencode }}{% endmacro %}
     <p class="breadcrumb"><a href="{{ url_for('member.dashboard') if is_member else url_for('visitor') }}">{{ '← 返回會員首頁' if is_member else '← 返回訪客首頁' }}</a></p>
 {% include 'partials/booking_search_form.html' %}
@@ -187,6 +175,7 @@
       {% endif %}
     </section>
   </main>
+  </div>
   <script>
     let toastTimer;
     function showToast(message) {
@@ -203,5 +192,7 @@
       toastTimer = setTimeout(() => toast.classList.remove('show'), 3000);
     }
   </script>
+  {% if is_member %}{% include 'member/_notification_drawer.html' %}<script src="{{ url_for('static', filename='js/member_notifications.js') }}" defer></script>{% endif %}
+  <script src="{{ url_for('static', filename='js/member-nav.js') }}" defer></script>
 </body>
 </html>

@@ -301,6 +301,6 @@
     location.href='/visitor/'+({hotel:'hotels',flight:'flights',train:'trains'}[kind])+'?'+params.toString();
   },true);
   const note=get('searchNote');
-  const noteText=()=>{if(note)note.textContent=active()==='hotel'?'住宿為資料庫資訊，空房與日期價格請向業者確認。':'班表與票價為資料庫參考資料，尚未串接即時售票或優惠報價。';};
+  const noteText=()=>{if(note)note.textContent=active()==='hotel'?'住宿為資料庫資訊，空房與日期價格請向業者確認。':active()==='train'?'高鐵／台鐵班表與票價來自交通部 TDX，座位與訂票請以官方售票系統為準。':'班表與票價為資料庫參考資料，尚未串接即時售票或優惠報價。';};
   noteText();document.querySelectorAll('.search-tab').forEach(el=>el.addEventListener('click',noteText));
 })();

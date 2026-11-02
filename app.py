@@ -41,6 +41,7 @@ from utils import google_maps_url, google_maps_embed_url, format_hm, friend_grou
 import weather  # 匯入中央氣象署天氣預報模組(訪客頁面「目的地天氣」功能用)
 import amadeus_client  # 匯入 Amadeus 機票比價 API 模組(機票搜尋的真實即時報價，備用資料來源)
 import serpapi_flights  # 匯入 SerpApi 的 Google Flights 模組(機票搜尋的真實即時報價，優先資料來源)
+import tdx_trains  # 匯入交通部 TDX 模組(高鐵／台鐵指定日期的真實班表與票價，優先資料來源)
 import flight_links  # 匯入城市->機場代碼對照表、Skyscanner 比價連結組網址工具
 import line_messaging  # 匯入 LINE 官方帳號共用工具(加好友連結、QR Code)
 import line_announcements  # 匯入公告推播到 LINE
@@ -662,14 +663,25 @@ def visitor_flight_booking_redirect_lookup():
 def visitor_train_search():
     origin = request.args.get("from", "").strip()  # 取得出發站關鍵字
     destination = request.args.get("to", "").strip()  # 取得到達站關鍵字
-    travel_date = request.args.get("date", "").strip()  # 取得查詢日期(YYYY-MM-DD)，班表為固定每日時刻，日期僅供顯示用
+    travel_date = request.args.get("date", "").strip()  # 取得查詢日期(YYYY-MM-DD)，TDX 依日期查當天班表；本地資料庫是固定每日時刻
+    return_date = request.args.get("return", "").strip()
+    is_roundtrip = request.args.get('trip_mode') == 'roundtrip' and return_date
 
     pax_raw = request.args.get("pax", "1").strip()  # 取得人數參數(字串)
     pax = int(pax_raw) if pax_raw.isdigit() and int(pax_raw) > 0 else 1  # 驗證人數為正整數，否則預設 1 人
 
     trains = []  # 預設搜尋結果為空清單
     return_trains = []
-    connection = get_db_connection()
+
+    # 優先查交通部 TDX 的真實班表與票價；沒設定金鑰、站名對不到、或 API 失敗(例如超過每分鐘次數限制)，
+    # 就自動改用本地資料庫 trains 資料表的固定班表
+    live_trains = tdx_trains.search_trains(origin, destination, travel_date)
+    using_live_data = live_trains is not None
+    if using_live_data:
+        trains = live_trains
+        if is_roundtrip:
+            return_trains = tdx_trains.search_trains(destination, origin, return_date) or []
+    connection = None if using_live_data else get_db_connection()
 
     if connection:
         cursor = connection.cursor(dictionary=True)
@@ -700,7 +712,7 @@ def visitor_train_search():
                 params
             )
             trains = cursor.fetchall()
-            if request.args.get('trip_mode') == 'roundtrip' and request.args.get('return'):
+            if is_roundtrip:
                 cursor.execute("""SELECT * FROM trains WHERE status='active' AND seats_available >= %s
                                   AND origin_station LIKE %s AND destination_station LIKE %s
                                   ORDER BY departure_time""", (pax, '%' + destination + '%', '%' + origin + '%'))
@@ -732,6 +744,7 @@ def visitor_train_search():
         train_type_facets=train_type_facets,
         car_class_facets=car_class_facets,
         depart_band_options=depart_band_options,
+        using_live_data=using_live_data,
     )
 
 
@@ -741,11 +754,11 @@ def login():  # 定義登入功能函式
         return redirect_by_role(session.get("role"))  # 直接依角色導向，不用再登入一次
 
     if request.method == "POST":  # 如果是表單送出(POST)請求
-        username = request.form.get("username", "").strip()  # 取得使用者輸入的帳號並去除頭尾空白
+        username = request.form.get("username", "").strip()  # 取得使用者輸入的帳號或電子郵件並去除頭尾空白
         password = request.form.get("password", "")  # 取得使用者輸入的密碼
 
         if not username or not password:  # 如果帳號或密碼有一個是空的
-            flash("請輸入帳號和密碼。", "error")  # 顯示錯誤提示
+            flash("請輸入帳號（或電子郵件）和密碼。", "error")  # 顯示錯誤提示
             return render_template("login.html")  # 重新顯示登入頁
 
         connection = get_db_connection()  # 嘗試建立資料庫連線
@@ -762,10 +775,11 @@ def login():  # 定義登入功能函式
                 SELECT user_id, username, password_hash,
                        full_name, nickname, role, status
                 FROM users
-                WHERE username = %s
+                WHERE username = %s OR email = %s
+                ORDER BY (username = %s) DESC
                 LIMIT 1
-                """,  # 依帳號查詢使用者資料(只取一筆)
-                (username,)  # 帶入查詢參數：使用者輸入的帳號
+                """,  # 依帳號或電子郵件查詢使用者資料(只取一筆，帳號完全相符的優先)
+                (username, username, username)  # 帶入查詢參數：使用者輸入的帳號或電子郵件
             )
 
             user = cursor.fetchone()  # 取得查詢結果的第一筆(查無資料則為 None)
@@ -1247,6 +1261,15 @@ def line_complete_profile():
         flash("請輸入正確的電子郵件格式。", "error")
         return render_template("line_complete_profile.html", full_name=full_name)
 
+    nickname = request.form.get("nickname", "").strip()[:50] or full_name  # 暱稱沒填就沿用 LINE 名稱
+    password = request.form.get("password", "")
+    if not re.fullmatch(r"(?=.*[A-Za-z])(?=.*\d)\S{9,}", password):  # 跟一般註冊一樣：9 碼以上且同時包含英文與數字
+        flash("密碼至少需要9碼，並同時包含英文與數字。", "error")
+        return render_template("line_complete_profile.html", full_name=full_name)
+    if password != request.form.get("confirm_password", ""):
+        flash("兩次輸入的密碼不一致。", "error")
+        return render_template("line_complete_profile.html", full_name=full_name)
+
     connection = get_db_connection()
     if connection is None:
         flash("資料庫連線失敗，請稍後再試。", "error")
@@ -1264,9 +1287,9 @@ def line_complete_profile():
             """
             INSERT INTO users
             (username, password_hash, full_name, nickname, email, line_sub, line_friend, role, status)
-            VALUES (%s, NULL, %s, %s, %s, %s, %s, 'member', 'active')
+            VALUES (%s, %s, %s, %s, %s, %s, %s, 'member', 'active')
             """,
-            (username, full_name, full_name, email, line_sub, session.get("pending_line_friend", 0)),
+            (username, generate_password_hash(password), full_name, nickname, email, line_sub, session.get("pending_line_friend", 0)),
         )
         new_user_id = cursor.lastrowid
         connection.commit()

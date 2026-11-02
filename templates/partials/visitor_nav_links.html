@@ -1,0 +1,12 @@
+{# 訪客（未登入）的左側導覽列連結：版面跟會員導覽列(member_nav_links.html)一樣，只是換成訪客能用的項目；
+   連到首頁區塊的連結用完整網址，這樣在住宿／機票等其他頁面點也能回到首頁對應區塊 #}
+<a class="side-link" href="{{ url_for('visitor') }}">首頁</a>
+<a class="side-link" href="{{ url_for('visitor') }}#announcements">公告事項</a>
+<a class="side-link" href="{{ url_for('visitor') }}#weather">目的地天氣</a>
+<a class="side-link" href="{{ url_for('visitor') }}#trips">探索行程</a>
+<a class="side-link" href="{{ url_for('visitor') }}#companions">尋找旅伴</a>
+<div class="side-footer">
+    {% include 'partials/language_select.html' %}
+    <a class="side-link" href="{{ url_for('login') }}">登入</a>
+    <a class="side-link side-register" href="{{ url_for('register') }}">免費註冊</a>
+</div>

@@ -1,0 +1,19 @@
+{% extends 'member/base.html' %}{% block title %}旅伴簡介｜走吧揪團{% endblock %}{% block content %}
+<div class="trip-form-page">
+  <div class="page-heading trip-form-heading"><a href="{{ url_for('friend_groups.index') }}">← 返回尋找旅伴</a></div>
+  <div class="panel">
+    <p class="eyebrow">TRAVELER PROFILE</p>
+    <h1>{{ profile.nickname or '旅伴' }}</h1>
+    {% if profile.avatar_path %}<img src="{{ profile.avatar_path if profile.avatar_path.startswith('http') else url_for('static', filename=profile.avatar_path) }}" alt="旅伴頭像" style="width:88px;height:88px;object-fit:cover;border-radius:50%;">{% endif %}
+    <p class="form-hint">只顯示本人同意公開的旅遊資料，不包含真名、電話、電子郵件或 LINE。</p>
+    <div class="attraction-detail-stats">
+      <div><span>旅遊人格</span><strong>{{ profile.traveler_type }}</strong></div>
+      <div><span>步調</span><strong>{{ pace_labels.get(profile.pace, '未填') }}</strong></div>
+      <div><span>社交風格</span><strong>{{ social_labels.get(profile.social_style, '未填') }}</strong></div>
+      <div><span>預算傾向</span><strong>{{ budget_labels.get(profile.budget_style, '未填') }}</strong></div>
+    </div>
+    {% if profile.public_intro %}<h2>自我介紹</h2><p>{{ profile.public_intro }}</p>{% endif %}
+    {% if profile.user_id == session.user_id %}<a class="member-btn outline" href="{{ url_for('friend_groups.questionnaire') }}">編輯公開資料</a>{% endif %}
+  </div>
+</div>
+{% endblock %}

@@ -36,6 +36,8 @@
                 <label>飲食偏好<select name="diet">{% for value, label in diet_labels.items() %}<option value="{{ value }}" {{ 'selected' if profile and profile.diet == value }}>{{ label }}</option>{% endfor %}</select></label>
                 <label>交通偏好<select name="transport_pref">{% for value, label in transport_labels.items() %}<option value="{{ value }}" {{ 'selected' if profile and profile.transport_pref == value }}>{{ label }}</option>{% endfor %}</select></label>
                 <label>步行接受程度<select name="walk_tolerance">{% for value, label in walk_labels.items() %}<option value="{{ value }}" {{ 'selected' if profile and profile.walk_tolerance == value }}>{{ label }}</option>{% endfor %}</select></label>
+                <label class="span-2">公開自我介紹（最多 500 字）<textarea name="public_intro" maxlength="500" rows="3" placeholder="想讓旅伴認識你的旅行風格">{{ profile.public_intro if profile else '' }}</textarea></label>
+                <label class="span-2"><input type="checkbox" name="is_public" value="1" {% if profile and profile.is_public %}checked{% endif %}> 允許其他符合資格的會員查看我的旅遊人格與自我介紹（不會公開聯絡資料）</label>
             </div>
 
             <div class="form-actions-member"><button class="member-btn primary" type="submit">{{ '更新問卷' if profile else '送出問卷' }}</button></div>

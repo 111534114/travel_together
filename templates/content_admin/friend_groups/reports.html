@@ -1,0 +1,22 @@
+{% extends 'content_admin/base.html' %}{% set active_menu = 'friend_groups' %}{% block title %}揪團檢舉｜旅遊管理後台{% endblock %}{% block page_title %}揪團與相簿檢舉{% endblock %}{% block content %}
+<div class="admin-page">
+  <h1>揪團與相簿檢舉</h1>
+  <p><a href="{{ url_for('friend_groups_admin.list_applications') }}">← 返回交友揪團管理</a></p>
+  {% for report in reports %}
+  <section class="panel" style="margin-bottom:16px;padding:20px;">
+    <h2>#{{ report.report_id }} · {{ report.title }} · {{ '相簿照片' if report.photo_id else '揪團' }}</h2>
+    <p>狀態：{{ {'pending':'待處理','resolved':'已結案','rejected':'已駁回'}[report.status] }} · 檢舉者：{{ report.reporter_name or '會員' }} · {{ report.created_at }}</p>
+    <p>原因：{{ report.reason }}</p><p>{{ report.description or '' }}</p>
+    {% if report.photo_id %}<img src="{{ url_for('friend_groups_admin.report_photo', report_id=report.report_id) }}" alt="被檢舉的照片" style="max-width:300px;max-height:200px;object-fit:cover;">{% endif %}
+    {% if report.status == 'pending' %}
+    <form method="post" action="{{ url_for('friend_groups_admin.handle_group_report', report_id=report.report_id) }}">
+      <label>處理狀態<select name="status"><option value="resolved">結案</option><option value="rejected">駁回</option></select></label>
+      <label>處置<select name="action"><option value="none">不處置內容</option><option value="close_group">暫停揪團招募</option>{% if report.photo_id %}<option value="remove_photo">移除照片</option>{% endif %}</select></label>
+      <label>處理原因<input name="result" required maxlength="1000"></label>
+      <button type="submit">儲存處理結果</button>
+    </form>
+    {% else %}<p>處理說明：{{ report.handling_result }}</p>{% endif %}
+  </section>
+  {% else %}<p>目前沒有揪團檢舉。</p>{% endfor %}
+</div>
+{% endblock %}

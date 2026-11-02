@@ -1,0 +1,82 @@
+{% extends 'member/base.html' %}
+{% block title %}AI 行程草稿｜走吧揪團{% endblock %}
+{% block content %}
+<div class="trip-form-page">
+  <div class="page-heading trip-form-heading"><a href="{{ url_for('friend_groups.index') }}">← 返回尋找旅伴</a></div>
+  <div class="panel">
+    <h1>AI 規劃行程草稿</h1>
+    <p class="form-hint">告訴 AI 你想去哪裡、偏好什麼，再檢查產生的交通、住宿與每日安排。這些只是建議，不代表即時價格、空房或已訂位。</p>
+    <form method="post" class="form-grid-member" id="aiPlanForm">
+      <label>國家 *
+        <select name="country_id" id="aiCountry" required>
+          <option value="">選擇國家</option>
+          {% for country in countries %}<option value="{{ country.country_id }}" {% if form_values.get('country_id', '')|string == country.country_id|string %}selected{% endif %}>{{ country.name }}</option>{% endfor %}
+        </select>
+      </label>
+      <label>城市 *
+        <select name="city_id" id="aiCity" required>
+          <option value="">選擇城市</option>
+          {% for city in cities %}<option value="{{ city.city_id }}" data-country="{{ city.country_id }}" {% if form_values.get('city_id', '')|string == city.city_id|string %}selected{% endif %}>{{ city.name }}</option>{% endfor %}
+        </select>
+      </label>
+      <label>出發日期 *<input type="date" name="start_date" value="{{ form_values.get('start_date', '') }}" required></label>
+      <label>結束日期（最多 7 天） *<input type="date" name="end_date" value="{{ form_values.get('end_date', '') }}" required></label>
+      <label>人數 *<input type="number" name="people_count" min="1" max="30" value="{{ form_values.get('people_count', '2') }}" required></label>
+      <label>總預算參考（TWD）<input type="number" name="budget" min="0" value="{{ form_values.get('budget', '0') }}"></label>
+      <label class="span-2">旅行需求 *<textarea name="user_request" maxlength="1000" required rows="4" placeholder="例如：想去台北三天，喜歡古蹟、夜市與大眾運輸，住宿不要太貴">{{ form_values.get('user_request', '') }}</textarea></label>
+      <div class="span-2">
+        <button class="member-btn primary" id="aiPlanSubmit" type="submit" {% if not ai_ready %}disabled aria-describedby="aiPlanStatus"{% endif %}>{{ '產生草稿' if ai_ready else 'AI 尚未啟用' }}</button>
+        <p id="aiPlanStatus" class="ai-plan-status{% if form_error %} is-error{% endif %}" role="status" aria-live="polite">
+          {% if form_error %}{{ form_error }}{% elif not ai_ready %}目前無法產生草稿：伺服器缺少 ANTHROPIC_API_KEY。請在專案 .env 設定金鑰並重新啟動網站。{% endif %}
+        </p>
+      </div>
+    </form>
+  </div>
+  {% if draft %}
+  <div class="panel">
+    <h2>AI 草稿預覽</h2>
+    <p>{{ draft.plan.summary }}</p>
+    <p class="form-hint">請先人工核對班次、住宿、價格與營業時間；儲存後仍可在行程頁逐項修改。</p>
+    <div class="timeline">{% for item in draft.plan['items'] %}<div class="timeline-item"><b>{{ item.date }}{% if item.start_time %} {{ item.start_time }}{% endif %} · {{ item.type }}</b><span>{{ item.title }}{% if item.address %} · {{ item.address }}{% endif %}{% if item.estimated_cost %} · 預估 TWD {{ item.estimated_cost }}{% endif %}{% if item.notes %}<br>{{ item.notes }}{% endif %}</span></div>{% endfor %}</div>
+    <form method="post" action="{{ url_for('friend_groups.save_ai_plan', draft_id=draft.draft_id) }}" class="form-grid-member"><label>行程名稱 *<input name="title" maxlength="150" required placeholder="我的旅遊行程"></label><button class="member-btn primary" type="submit">確認並儲存為私人行程</button></form>
+  </div>
+  {% endif %}
+</div>
+<script>
+  (function () {
+    var form = document.getElementById('aiPlanForm');
+    var country = document.getElementById('aiCountry');
+    var city = document.getElementById('aiCity');
+    var button = document.getElementById('aiPlanSubmit');
+    var status = document.getElementById('aiPlanStatus');
+    var allCities = Array.prototype.slice.call(city.options);
+
+    function filterCities() {
+      var selected = city.value;
+      city.innerHTML = '';
+      allCities.forEach(function (option) {
+        if (!country.value || !option.dataset.country || option.dataset.country === country.value) {
+          city.appendChild(option);
+        }
+      });
+      city.value = selected;
+      if (!city.value) city.selectedIndex = 0;
+    }
+
+    country.addEventListener('change', filterCities);
+    filterCities();
+    form.addEventListener('invalid', function () {
+      status.textContent = '請先填寫上方所有必填欄位，再產生草稿。';
+      status.classList.add('is-error');
+    }, true);
+    form.addEventListener('submit', function () {
+      button.disabled = true;
+      button.textContent = '正在產生草稿…';
+      status.classList.remove('is-error');
+      status.textContent = 'AI 正在規劃，可能需要約 30 秒，請勿重複點擊或關閉頁面。';
+      form.setAttribute('aria-busy', 'true');
+    });
+    {% if form_error %}status.scrollIntoView({block: 'center'});{% endif %}
+  })();
+</script>
+{% endblock %}

@@ -8,7 +8,7 @@
         <h1>{{ trip.trip_name }}</h1>
         <div class="attraction-detail-stats">
             <div><span>日期</span><strong>{{ trip.start_date }} ～ {{ trip.end_date }}（{{ trip.days_count }} 天）</strong></div>
-            <div><span>人數</span><strong>{{ trip.people_count }} 人</strong></div>
+            <div><span>人數</span><strong>{{ joined_count }} / {{ trip.people_count }} 人</strong></div>
             <div><span>預算</span><strong>{{ (trip.currency ~ ' ' ~ '{:,.0f}'.format(trip.total_budget)) if trip.total_budget is not none else '未提供預算' }}</strong></div>
         </div>
         {% if trip.introduction %}<div class="attraction-detail-intro"><h2>行程簡介</h2><p>{{ trip.introduction }}</p></div>{% endif %}
@@ -36,6 +36,8 @@
         <p class="form-hint">你已經是這個行程的成員了。</p>
         {% elif member_status == 'requested' %}
         <p class="form-hint">已送出申請，等待發起人審核。</p>
+        <form method="post" action="{{ url_for('friend_groups.leave_companion_trip', trip_id=trip.trip_id) }}"><button class="member-btn ghost small" type="submit">撤回申請</button></form>
+        {% elif is_full %}<p class="form-hint">目前已額滿。</p>
         {% elif needs_official_event %}
         <p class="form-hint">⚠️ 要先出席過一場官方活動，才能申請加入其他會員的行程，避免彼此都是完全陌生的人。<a href="{{ url_for('friend_groups.index') }}#friend-groups">前往交友揪團了解怎麼參加官方活動</a>。</p>
         {% elif can_apply %}
@@ -44,6 +46,7 @@
             <button class="member-btn primary" type="submit">送出申請</button>
         </form>
         {% endif %}
+        {% if member_status == 'accepted' %}<form method="post" action="{{ url_for('friend_groups.leave_companion_trip', trip_id=trip.trip_id) }}" onsubmit="return confirm('退出後將失去行程與聊天室權限，確定嗎？')"><button class="member-btn danger small" type="submit">退出行程</button></form>{% endif %}
     </div>
     {% endif %}
 

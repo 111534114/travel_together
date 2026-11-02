@@ -1,0 +1,9 @@
+{% extends 'member/base.html' %}{% block title %}揪團相簿｜走吧揪團{% endblock %}{% block content %}
+<div class="trip-form-page">
+  <div class="page-heading trip-form-heading"><a href="{{ url_for('friend_groups.group_detail', group_id=group.group_id) }}">← 返回揪團</a></div>
+  <div class="panel"><h1>{{ group.title }} · 團內相簿</h1><p class="form-hint">只有目前已加入的團員可以看照片；被移出或退出後連圖片網址也無法讀取。請先取得照片中人物的同意再上傳。</p>
+    <form method="post" enctype="multipart/form-data" class="form-grid-member"><label>照片（最多 5 MB）<input type="file" name="photo" accept="image/jpeg,image/png,image/webp,image/gif" required></label><label>說明<input name="caption" maxlength="300"></label><button class="member-btn primary" type="submit">上傳照片</button></form>
+  </div>
+  <div class="trip-grid">{% for photo in photos %}<article class="panel"><img src="{{ url_for('friend_groups.group_album_image', group_id=group.group_id, photo_id=photo.photo_id) }}" alt="{{ photo.caption or '旅行照片' }}" loading="lazy" style="width:100%;max-height:300px;object-fit:cover;border-radius:12px;"><p>{{ photo.caption or '' }}</p><p class="muted">{{ photo.nickname or '旅伴' }} · {{ photo.created_at }}</p><form method="post" action="{{ url_for('friend_groups.report_group_content', group_id=group.group_id) }}"><input type="hidden" name="photo_id" value="{{ photo.photo_id }}"><label>檢舉原因<input name="reason" maxlength="255" required></label><button class="member-btn ghost small" type="submit">檢舉照片</button></form></article>{% else %}<p class="muted">目前沒有照片。</p>{% endfor %}</div>
+</div>
+{% endblock %}

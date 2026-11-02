@@ -4,12 +4,12 @@
         <a href="{{ url_for('friend_groups.index') }}#friend-groups">← 返回交友揪團</a>
     </div>
     <div class="panel">
-        <p class="attraction-detail-breadcrumb">團主 {{ group.nickname or group.full_name }}（Lv.{{ host_tier.level }} {{ host_tier.label }}{% if host_tier.avg_rating is not none %} · ⭐{{ "%.1f"|format(host_tier.avg_rating) }}{% endif %}） · {{ {'open':'開放中','closed':'已關閉','cancelled':'已取消'}[group.status] }}</p>
+        <p class="attraction-detail-breadcrumb">團主 <a href="{{ url_for('friend_groups.public_profile', user_id=group.host_user_id) }}">{{ group.nickname or group.full_name }}</a>（Lv.{{ host_tier.level }} {{ host_tier.label }}{% if host_tier.avg_rating is not none %} · ⭐{{ "%.1f"|format(host_tier.avg_rating) }}{% endif %}） · {{ {'open':'開放中','closed':'已關閉','cancelled':'已取消'}[group.status] }}</p>
         <h1>{{ group.title }}</h1>
         <div class="attraction-detail-stats">
             <div><span>日期</span><strong>{{ group.event_date }}{% if group.end_date and group.end_date != group.event_date %} ～ {{ group.end_date }}{% endif %}{% if group.start_time %} {{ group.start_time }}{% endif %}</strong></div>
             <div><span>地點</span><strong>{{ group.location or '未提供' }}</strong></div>
-            <div><span>人數</span><strong>{{ members|length }}{% if group.capacity %} / {{ group.capacity }}{% endif %}</strong></div>
+            <div><span>團員（不含主揪）</span><strong>{{ total_members }}{% if group.capacity %} / {{ group.capacity }}{% endif %}</strong></div>
         </div>
         {% if group.description %}<div class="attraction-detail-intro"><h2>說明</h2><p>{{ group.description }}</p></div>{% endif %}
 
@@ -21,24 +21,45 @@
             {% if my_membership.status == 'approved' and group.trip_id %}
             <a class="member-btn primary" href="{{ url_for('member.trip_detail', trip_id=group.trip_id) }}">📋 前往行程（每日行程、聊天室、記帳）</a>
             {% endif %}
-            {% elif group.status == 'open' %}
-            <form method="post" action="{{ url_for('friend_groups.apply_group', group_id=group.group_id) }}"><button class="member-btn primary" type="submit">申請加入</button></form>
             {% endif %}
             {% if can_review %}
             <a class="member-btn outline" href="{{ url_for('friend_groups.group_reviews', group_id=group.group_id) }}">⭐ 雙向評價</a>
+            <a class="member-btn outline" href="{{ url_for('friend_groups.trip_reviews', group_id=group.group_id) }}">📝 行程心得</a>
             {% endif %}
+            {% if is_host or (my_membership and my_membership.status == 'approved') %}<a class="member-btn outline" href="{{ url_for('friend_groups.group_album', group_id=group.group_id) }}">📷 團內相簿</a>{% endif %}
         </div>
+        {% if (is_host or (my_membership and my_membership.status == 'approved')) and group.meeting_info %}
+        <div class="attraction-detail-intro"><h2>團內集合資訊</h2><p>{{ group.meeting_info }}</p></div>
+        {% endif %}
     </div>
 
+    {% if not is_host and group.status == 'open' and (not my_membership or my_membership.status in ('rejected','left')) %}
+    <div class="panel"><h2>申請加入</h2><p class="form-hint">審核通過後預設可以查看行程及參加聊天室，但不能修改正式行程；主揪可另外授權共同編輯。</p><form method="post" action="{{ url_for('friend_groups.apply_group', group_id=group.group_id) }}" class="form-grid-member">
+      <label class="span-2">簡短自我介紹（選填）<textarea name="note" maxlength="300" rows="2" placeholder="告訴主揪你想加入的原因"></textarea></label>
+      <button class="member-btn primary" type="submit" {% if group.capacity and total_members >= group.capacity %}disabled{% endif %}>{{ '已額滿' if group.capacity and total_members >= group.capacity else '送出申請' }}</button>
+    </form></div>
+    {% endif %}
+    {% if my_membership and my_membership.status in ('pending','approved') %}
     <div class="panel">
-        <h2>目前成員 <span class="count-badge">{{ members|length }}</span></h2>
+      {% if my_membership.status == 'approved' %}<form method="post" action="{{ url_for('friend_groups.set_member_visibility', group_id=group.group_id) }}"><label><input type="checkbox" name="show_profile" value="1" {% if my_membership.show_profile %}checked{% endif %}> 同意在本團顯示我的暱稱、頭像與公開簡介</label><button class="member-btn outline small" type="submit">儲存名單設定</button></form>{% endif %}
+      <form method="post" action="{{ url_for('friend_groups.leave_group', group_id=group.group_id) }}" onsubmit="return confirm('確定要{{ '撤回申請' if my_membership.status == 'pending' else '退出揪團' }}嗎？')"><button class="member-btn danger small" type="submit">{{ '撤回申請' if my_membership.status == 'pending' else '退出揪團' }}</button></form>
+    </div>
+    {% endif %}
+
+    <div class="panel"><h2>行程安排</h2>{% if itinerary %}<div class="timeline">{% for item in itinerary %}<div class="timeline-item"><b>{{ item.itinerary_date }}{% if item.start_time %} {{ item.start_time|hm }}{% endif %}</b><span>{{ item.title }}{% if item.address %} · {{ item.address }}{% endif %}</span></div>{% endfor %}</div>{% else %}<p class="muted">主揪尚未安排每日行程。</p>{% endif %}</div>
+
+    <div class="panel">
+        <h2>目前成員 <span class="count-badge">{{ total_members }}</span></h2>
+        {% if not can_view_members %}<p class="muted">主揪選擇在加入前不公開成員名單。</p>{% else %}
         <ul class="trip-member-list">
             {% for member in members %}
-            <li class="trip-member"><div class="trip-member-main"><i class="trip-member-avatar">{{ (member.nickname or member.full_name)[0] }}</i><div class="trip-member-info"><b>{{ member.nickname or member.full_name }}</b></div></div></li>
+            <li class="trip-member"><div class="trip-member-main">{% if member.avatar_path %}<img class="trip-member-avatar" src="{{ member.avatar_path if member.avatar_path.startswith('http') else url_for('static', filename=member.avatar_path) }}" alt="" style="object-fit:cover;">{% else %}<i class="trip-member-avatar">{{ (member.nickname or '旅伴')[0] }}</i>{% endif %}<div class="trip-member-info"><b>{% if member.is_public %}<a href="{{ url_for('friend_groups.public_profile', user_id=member.user_id) }}">{{ member.nickname or '旅伴' }}</a>{% else %}{{ member.nickname or '旅伴' }}{% endif %}</b></div></div></li>
             {% else %}
-            <li class="muted">還沒有成員加入。</li>
+            <li class="muted">目前沒有人選擇公開資料。</li>
             {% endfor %}
         </ul>
+        {% endif %}
     </div>
+    {% if not is_host %}<div class="panel"><h2>檢舉不當揪團</h2><form method="post" action="{{ url_for('friend_groups.report_group_content', group_id=group.group_id) }}" class="form-grid-member"><label>原因<input name="reason" maxlength="255" required placeholder="例如：不當內容、騷擾、廣告"></label><label class="span-2">補充說明<textarea name="description" maxlength="1000" rows="2"></textarea></label><button class="member-btn ghost small" type="submit">送出檢舉</button></form></div>{% endif %}
 </div>
 {% endblock %}

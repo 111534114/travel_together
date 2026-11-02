@@ -79,6 +79,7 @@ _ENDPOINT_ACTIONS = {
         "approve_application": "edit", "reject_application": "edit", "toggle_setting": "edit",
         "new_event": "edit", "edit_event": "edit", "cancel_event": "edit", "check_in_participant": "edit",
         "mark_no_show_participant": "edit", "post_event_announcement": "edit",
+        "handle_group_report": "edit",
     },
     "ai_data": {"verify_item": "edit"},
 }

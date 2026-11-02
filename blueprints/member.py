@@ -90,6 +90,11 @@ def _can_edit(trip):
     return trip["member_role"] in ("owner", "editor")
 
 
+def _linked_active_friend_group(cursor, trip_id):
+    cursor.execute("SELECT group_id FROM friend_groups WHERE trip_id=%s AND status != 'cancelled' LIMIT 1", (trip_id,))
+    return cursor.fetchone()
+
+
 def _build_trips_timeline(cursor, trip_rows, user_id, favorite_trip_ids=None, reported_trip_ids=None):
     """把一組行程資料組成給「查看行程」彈窗用的 JSON：每日明細 + 是否能複製/回報/收藏。"""
     favorite_trip_ids = favorite_trip_ids or set()
@@ -2783,6 +2788,7 @@ def invite_member(trip_id):
         trip=_member_access(cursor,trip_id,session["user_id"])
         if not trip or trip["member_role"] != "owner": flash("只有建立者可以邀請成員。", "error")
         elif role not in ("editor","viewer"): flash("請選擇有效的成員權限。", "error")
+        elif _linked_active_friend_group(cursor, trip_id): flash("這是揪團行程，請讓旅伴從揪團頁申請加入。", "error")
         else:
             cursor.execute("SELECT user_id,email FROM users WHERE username=%s AND role='member' AND status='active'", (username,)); invitee=cursor.fetchone()
             if not invitee: flash("找不到可邀請的一般會員帳號。", "error")
@@ -2818,6 +2824,8 @@ def create_invite_link(trip_id):
             flash("只有建立者可以產生邀請連結。", "error")
         elif role not in ("editor", "viewer"):
             flash("請選擇有效的成員權限。", "error")
+        elif _linked_active_friend_group(cursor, trip_id):
+            flash("這是揪團行程，不能另外產生邀請連結。", "error")
         else:
             cursor.execute("""SELECT invitation_id FROM trip_invitations
                 WHERE trip_id=%s AND invitee_id IS NULL AND status='pending'
@@ -2920,6 +2928,9 @@ def confirm_invite_link(token):
             flash("這個邀請連結已經失效，請向行程建立者索取新的連結。", "error")
             return redirect(url_for("member.dashboard"))
         trip_id = invitation["trip_id"]
+        if _linked_active_friend_group(cursor, trip_id):
+            flash("這個行程已有揪團，請改從揪團頁申請加入。", "error")
+            return redirect(url_for("friend_groups.index"))
         cursor.execute("SELECT trip_member_id, join_status FROM trip_members WHERE trip_id=%s AND user_id=%s", (trip_id, session["user_id"]))
         membership = cursor.fetchone()
         if membership and membership["join_status"] == "accepted":
@@ -2982,6 +2993,11 @@ def remove_member(trip_id, member_user_id):
                 flash("找不到這位成員。", "error")
             else:
                 cursor.execute("UPDATE trip_members SET join_status='removed' WHERE trip_id=%s AND user_id=%s", (trip_id, member_user_id))
+                cursor.execute("""
+                    UPDATE friend_group_members m JOIN friend_groups g ON g.group_id=m.group_id
+                    SET m.status='left', m.show_profile=0, m.responded_at=NOW()
+                    WHERE g.trip_id=%s AND m.user_id=%s AND m.status='approved'
+                """, (trip_id, member_user_id))
                 send_notification(cursor, member_user_id, "trip", "trip_update", "已被移出行程", f"你已被移出行程「{trip['trip_name']}」", url_for('member.dashboard'), trip_id=trip_id)
                 connection.commit()
                 flash("已移除該成員。", "success")
@@ -3002,7 +3018,15 @@ def approve_trip_request(trip_id, member_user_id):
         trip = _member_access(cursor, trip_id, session["user_id"])
         if not trip or trip["member_role"] != "owner":
             flash("只有建立者可以審核加入申請。", "error")
+        elif _linked_active_friend_group(cursor, trip_id):
+            flash("這是揪團行程，請到揪團管理頁審核申請。", "error")
         else:
+            cursor.execute("SELECT trip_id FROM trips WHERE trip_id=%s FOR UPDATE", (trip_id,))
+            cursor.fetchone()
+            cursor.execute("SELECT COUNT(*) AS c FROM trip_members WHERE trip_id=%s AND join_status='accepted'", (trip_id,))
+            if trip["people_count"] and cursor.fetchone()["c"] >= trip["people_count"]:
+                flash("行程已額滿，不能再核准新成員。", "error")
+                return redirect(url_for("member.trip_detail", trip_id=trip_id) + "#members")
             cursor.execute("SELECT trip_member_id FROM trip_members WHERE trip_id=%s AND user_id=%s AND join_status='requested'", (trip_id, member_user_id))
             if not cursor.fetchone():
                 flash("找不到這筆申請。", "error")
@@ -3088,6 +3112,8 @@ def respond_invitation(invitation_id, action):
             cursor.execute("UPDATE trip_invitations SET status='expired' WHERE invitation_id=%s",(invitation_id,)); connection.commit(); flash("這筆邀請已經過期了。", "error")
         elif action == "reject":
             cursor.execute("UPDATE trip_invitations SET status='rejected',responded_at=NOW() WHERE invitation_id=%s",(invitation_id,)); connection.commit(); flash("已拒絕邀請。", "success")
+        elif _linked_active_friend_group(cursor, invite["trip_id"]):
+            flash("這個行程已有揪團，請改從揪團頁申請加入。", "error")
         else:
             cursor.execute("UPDATE trip_invitations SET status='accepted',responded_at=NOW() WHERE invitation_id=%s",(invitation_id,))
             cursor.execute("""INSERT INTO trip_members (trip_id,user_id,member_role,join_status,joined_at)

@@ -1,4 +1,7 @@
-from flask import Blueprint, flash, redirect, render_template, request, session, url_for
+import os
+import re
+
+from flask import Blueprint, current_app, flash, redirect, render_template, request, send_file, session, url_for
 
 from activity_log import log_action
 from auth import login_required
@@ -546,3 +549,123 @@ def stats():
         cursor.close()
         connection.close()
     return render_template("content_admin/friend_groups/stats.html", type_counts=type_counts, total=total)
+
+
+@friend_groups_admin_bp.route("/reports")
+@login_required("content_admin")
+def group_reports():
+    connection = get_db_connection()
+    if connection is None:
+        flash("資料庫連線失敗", "error")
+        return redirect(url_for("friend_groups_admin.list_applications"))
+    cursor = connection.cursor(dictionary=True)
+    try:
+        cursor.execute("""
+            SELECT r.*, g.title, g.status AS group_status, u.nickname AS reporter_name
+            FROM friend_group_content_reports r
+            JOIN friend_groups g ON g.group_id=r.group_id
+            JOIN users u ON u.user_id=r.reporter_id
+            ORDER BY FIELD(r.status,'pending','resolved','rejected'), r.created_at DESC
+            LIMIT 200
+        """)
+        reports = cursor.fetchall()
+    except Exception as error:
+        print("載入揪團檢舉失敗：", error)
+        flash("無法讀取檢舉，請先套用揪團資料庫遷移檔。", "error")
+        reports = []
+    finally:
+        cursor.close(); connection.close()
+    return render_template("content_admin/friend_groups/reports.html", reports=reports)
+
+
+@friend_groups_admin_bp.route("/reports/<int:report_id>/photo")
+@login_required("content_admin")
+def report_photo(report_id):
+    connection = get_db_connection()
+    if connection is None: return ("資料庫連線失敗", 503)
+    cursor = connection.cursor(dictionary=True)
+    try:
+        cursor.execute("""
+            SELECT p.stored_name FROM friend_group_content_reports r
+            JOIN friend_group_album_photos p ON p.photo_id=r.photo_id
+            WHERE r.report_id=%s
+        """, (report_id,))
+        photo = cursor.fetchone()
+        if not photo: return ("照片不存在", 404)
+        if not re.fullmatch(r"[0-9a-f]{40}\.(?:jpg|png|webp|gif)", photo["stored_name"]):
+            return ("照片不存在", 404)
+        path = os.path.join(current_app.instance_path, "group_album", photo["stored_name"])
+        if not os.path.isfile(path): return ("照片檔案不存在", 404)
+        mime = {".jpg":"image/jpeg", ".png":"image/png", ".webp":"image/webp", ".gif":"image/gif"}.get(os.path.splitext(path)[1].lower())
+        if not mime: return ("不支援的照片", 404)
+        response = send_file(path, mimetype=mime)
+        response.headers["Cache-Control"] = "private, no-store"
+        response.headers["X-Content-Type-Options"] = "nosniff"
+        return response
+    finally:
+        cursor.close(); connection.close()
+
+
+@friend_groups_admin_bp.route("/reports/<int:report_id>/handle", methods=["POST"])
+@login_required("content_admin")
+def handle_group_report(report_id):
+    status = request.form.get("status", "")
+    action = request.form.get("action", "none")
+    result = request.form.get("result", "").strip()[:1000]
+    if status not in ("resolved", "rejected") or action not in ("none", "close_group", "remove_photo") or not result:
+        flash("請選擇處理結果並填寫原因。", "error")
+        return redirect(url_for("friend_groups_admin.group_reports"))
+    if status == "rejected" and action != "none":
+        flash("駁回時不能同時執行內容處置。", "error")
+        return redirect(url_for("friend_groups_admin.group_reports"))
+    connection = get_db_connection()
+    if connection is None: return redirect(url_for("friend_groups_admin.group_reports"))
+    cursor = connection.cursor(dictionary=True)
+    saved_path = None
+    try:
+        cursor.execute("""
+            SELECT r.*, g.host_user_id, g.title FROM friend_group_content_reports r
+            JOIN friend_groups g ON g.group_id=r.group_id
+            WHERE r.report_id=%s FOR UPDATE
+        """, (report_id,))
+        report = cursor.fetchone()
+        if not report or report["status"] != "pending":
+            flash("這筆檢舉已處理。", "error")
+            return redirect(url_for("friend_groups_admin.group_reports"))
+        if action == "remove_photo":
+            if not report["photo_id"]:
+                flash("這筆檢舉沒有照片。", "error")
+                return redirect(url_for("friend_groups_admin.group_reports"))
+            cursor.execute("SELECT stored_name, uploaded_by FROM friend_group_album_photos WHERE photo_id=%s", (report["photo_id"],))
+            photo = cursor.fetchone()
+            if photo:
+                if not re.fullmatch(r"[0-9a-f]{40}\.(?:jpg|png|webp|gif)", photo["stored_name"]):
+                    raise ValueError("照片檔名無效，已停止刪除。")
+                saved_path = os.path.join(current_app.instance_path, "group_album", photo["stored_name"])
+                cursor.execute("DELETE FROM friend_group_album_photos WHERE photo_id=%s", (report["photo_id"],))
+                send_notification(cursor, photo["uploaded_by"], "friend_group", "system", "揪團照片已移除",
+                                  f"你上傳到「{report['title']}」的照片經管理員審查後已移除。", url_for("friend_groups.index"))
+        elif action == "close_group":
+            cursor.execute("""
+                UPDATE friend_groups SET status=CASE WHEN status='open' THEN 'closed' ELSE status END,
+                    moderation_locked=1 WHERE group_id=%s AND status != 'cancelled'
+            """, (report["group_id"],))
+            send_notification(cursor, report["host_user_id"], "friend_group", "system", "揪團招募已暫停",
+                              f"「{report['title']}」經管理員審查後已暫停招募。", url_for("friend_groups.group_detail", group_id=report["group_id"]))
+        cursor.execute("""
+            UPDATE friend_group_content_reports SET status=%s, handled_by=%s, handled_at=NOW(), handling_result=%s, action_taken=%s
+            WHERE report_id=%s
+        """, (status, session["user_id"], result, action, report_id))
+        send_notification(cursor, report["reporter_id"], "friend_group", "system", "揪團檢舉處理結果",
+                          f"你的檢舉已{('結案' if status == 'resolved' else '駁回')}：{result}",
+                          url_for("friend_groups.group_detail", group_id=report["group_id"]))
+        connection.commit()
+        if saved_path and os.path.isfile(saved_path):
+            try: os.remove(saved_path)
+            except OSError as error: print("移除相簿照片檔案失敗：", error)
+        flash("檢舉已處理。", "success")
+    except Exception as error:
+        connection.rollback(); print("處理揪團檢舉失敗：", error); flash("處理失敗。", "error")
+    finally:
+        cursor.close(); connection.close()
+    return redirect(url_for("friend_groups_admin.group_reports"))

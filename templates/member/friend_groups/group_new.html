@@ -10,8 +10,9 @@
             {% if tier.avg_rating is not none %}（已開團 {{ tier.hosted_count }} 次 · 平均評價 {{ "%.1f"|format(tier.avg_rating) }} 顆星，{{ tier.review_count }} 則評價）{% else %}（已開團 {{ tier.hosted_count }} 次，還沒有收到評價）{% endif %}。
             {% if tier.level == 1 %}這個等級限開「單日」揪團，人數上限 {{ tier.max_capacity }} 人；累積開滿 {{ tier.hosted_required }} 次、平均評價達 {{ tier.rating_required }} 顆星以上即可升級成 Lv.2 資深團長，開放多天行程、人數不限。{% else %}已經是資深團長了，可以開多天行程、人數也不設限。{% endif %}
         </p>
-        <p class="form-hint">發起揪團後，系統會同步建立一個對應的行程，你可以在裡面安排每日行程、用聊天室跟團員聊天、記帳分帳。</p>
+        <p class="form-hint">可以連結自己已有的「私人、尚無其他已加入成員」的行程，也可以讓系統建立新行程。發布後會顯示在左側「參加別人的行程」清單。</p>
         <form method="post" action="{{ url_for('friend_groups.new_group') }}" class="form-grid-member">
+            <label class="span-2">使用既有行程（選填）<select id="existingTripSelect" name="existing_trip_id"><option value="">建立新行程</option>{% for trip in own_trips %}<option value="{{ trip.trip_id }}" data-title="{{ trip.trip_name }}" data-start="{{ trip.start_date }}" data-end="{{ trip.end_date }}" data-country="{{ trip.country_id }}" data-city="{{ trip.city_id }}">{{ trip.trip_name }}（{{ trip.start_date }}～{{ trip.end_date }}）</option>{% endfor %}</select></label>
             <label>揪團名稱 *<input required name="title" maxlength="150"></label>
             <label>目的地國家 *<select id="countrySelect" name="country_id" required><option value="">請選擇國家</option>{% for country in countries %}<option value="{{ country.country_id }}">{{ country.name }}</option>{% endfor %}</select></label>
             <label>目的地城市 *<select id="citySelect" name="city_id" required><option value="">請選擇城市</option>{% for city in cities %}<option value="{{ city.city_id }}" data-country="{{ city.country_id }}">{{ city.name }}</option>{% endfor %}</select></label>
@@ -22,10 +23,11 @@
             <label>開始時間<input type="time" name="start_time"></label>
             <label>結束時間<input type="time" name="end_time"></label>
             <label>地點<input name="location" maxlength="255"></label>
-            <label>人數上限{% if tier.level == 1 %}（最多 {{ tier.max_capacity }} 人）<input type="number" min="1" max="{{ tier.max_capacity }}" name="capacity" placeholder="最多 {{ tier.max_capacity }} 人"></label>{% else %}（留空不限制）<input type="number" min="1" name="capacity"></label>{% endif %}
+            <label>團員名額（不含主揪）{% if tier.level == 1 %}（最多 {{ tier.max_capacity }} 人）<input type="number" min="1" max="{{ tier.max_capacity }}" name="capacity" placeholder="最多 {{ tier.max_capacity }} 人"></label>{% else %}（留空不限制）<input type="number" min="1" name="capacity"></label>{% endif %}
             <label>希望旅伴的步調（選填）<select name="pace_filter"><option value="">不限</option>{% for value, label in pace_labels.items() %}<option value="{{ value }}">{{ label }}</option>{% endfor %}</select></label>
             <label>希望旅伴的社交傾向（選填）<select name="social_style_filter"><option value="">不限</option>{% for value, label in social_labels.items() %}<option value="{{ value }}">{{ label }}</option>{% endfor %}</select></label>
             <label class="span-2">說明<textarea name="description" rows="3" placeholder="想做什麼、想找什麼樣的旅伴"></textarea></label>
+            <label class="span-2"><input type="checkbox" name="show_member_list" value="1"> 允許其他會員在加入前看到同意公開的參加者（預設不公開）</label>
             <button class="member-btn primary" type="submit">發起揪團</button>
         </form>
     </div>
@@ -48,5 +50,20 @@
     }
     document.getElementById('countrySelect').addEventListener('change', filterCitiesByCountry);
     window.addEventListener('DOMContentLoaded', filterCitiesByCountry);
+    document.getElementById('existingTripSelect').addEventListener('change', function () {
+        var selected = this.selectedOptions[0];
+        var linked = Boolean(this.value);
+        ['countrySelect', 'citySelect'].forEach(function (id) { document.getElementById(id).required = !linked; });
+        document.querySelector('[name="event_date"]').required = !linked;
+        if (linked) {
+            document.querySelector('[name="title"]').value = selected.dataset.title;
+            document.getElementById('countrySelect').value = selected.dataset.country;
+            filterCitiesByCountry();
+            document.getElementById('citySelect').value = selected.dataset.city;
+            document.querySelector('[name="event_date"]').value = selected.dataset.start;
+            var end = document.querySelector('[name="end_date"]');
+            if (end) end.value = selected.dataset.end;
+        }
+    });
 </script>
 {% endblock %}

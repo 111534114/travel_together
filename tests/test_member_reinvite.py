@@ -50,6 +50,7 @@ class MemberReinviteTests(unittest.TestCase):
         self.login(1)
         connection = FakeConnection([
             {"trip_id": 8, "trip_name": "重新邀請測試", "join_status": "accepted", "member_role": "owner"},
+            None,  # 這個行程沒有連結正在招募的揪團
             {"user_id": 4, "email": "member@example.com"},
             {"join_status": "removed"},
             None,
@@ -70,6 +71,7 @@ class MemberReinviteTests(unittest.TestCase):
         connection = FakeConnection([
             {"invitation_id": 5, "trip_id": 8, "assigned_role": "editor", "expires_at": None},
             {"deleted_at": None},
+            None,  # 這個行程沒有連結正在招募的揪團
         ])
 
         with patch("blueprints.member.get_db_connection", return_value=connection):

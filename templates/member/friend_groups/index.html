@@ -2,7 +2,7 @@
 <div class="trip-form-page">
     <div class="page-heading trip-form-heading">
         <h1>尋找旅伴</h1>
-        <p>依行程找旅伴，或透過官方活動認識其他旅人、累積信任後加入或發起交友揪團。</p>
+        <p>先完成資格審核與官方活動，再選擇加入別人的行程，或發起自己的揪團。</p>
     </div>
 
     <div class="page-tabs">
@@ -11,6 +11,37 @@
     </div>
 
     <div class="page-tab-panel" id="tab-companions">
+        <form method="get" action="{{ url_for('friend_groups.index') }}" class="panel companion-search" aria-label="找團篩選">
+            <div class="companion-search-heading">
+                <div><h2>篩選行程</h2><p>選好想去的地方與日期，找一趟適合你的旅行。</p></div>
+            </div>
+            <div class="companion-search-fields">
+                <label class="companion-search-field">地區<input name="region" value="{{ filters.region }}" placeholder="輸入國家、城市或地點"></label>
+                <label class="companion-search-field">旅行日期<input type="date" name="date" value="{{ filters.date }}"></label>
+                <label class="companion-search-field">預算上限 <span class="companion-search-unit">TWD</span><input type="number" min="0" name="budget" value="{{ filters.budget }}" placeholder="不限"></label>
+            </div>
+            <div class="companion-search-footer">
+                <label class="companion-search-toggle"><input type="checkbox" name="available" value="1" {% if filters.available %}checked{% endif %}><span>只看尚有名額</span></label>
+                <div class="companion-search-actions">
+                    <a class="member-btn outline" href="{{ url_for('friend_groups.index') }}">清除條件</a>
+                    <button class="member-btn primary" type="submit">搜尋行程</button>
+                </div>
+            </div>
+        </form>
+        {% if browse_groups %}
+        <div class="panel"><h2>會員揪團</h2><div class="trip-grid">
+            {% for group in browse_groups %}
+            <article class="trip-card companion-panel-clickable" onclick="window.location.href='{{ url_for('friend_groups.group_detail', group_id=group.group_id) }}'">
+                <div class="trip-content">
+                    <h3>{{ group.title }}</h3>
+                    <p class="location">{{ group.event_date }}{% if group.city %} · {{ group.city }}{% elif group.location %} · {{ group.location }}{% endif %} · 主揪 {{ group.nickname or group.full_name }}</p>
+                    <div class="trip-details"><span>{{ group.member_count }}{% if group.capacity %} / {{ group.capacity }}{% endif %} 位團員</span>{% if group.my_status %}<span class="status-tag">{{ {'pending':'審核中','approved':'已加入','rejected':'未通過','left':'已退出'}[group.my_status] }}</span>{% endif %}</div>
+                </div>
+            </article>
+            {% endfor %}
+        </div></div>
+        {% elif unlocked %}<div class="panel"><p class="muted">目前沒有符合條件的會員揪團。</p></div>{% endif %}
+        <h2>公開行程</h2>
         <a class="fav-hint-btn" href="{{ url_for('member.my_trips') }}"><span class="fav-hint-star">⭐</span>收藏的行程會顯示在「我的旅程」喔</a>
         {% if companions %}
         <div class="trip-grid">
@@ -19,7 +50,7 @@
                 <h3>{{ comp.trip_name }}</h3>
                 <p>{{ comp.country or '未設定國家' }}{% if comp.city %} · {{ comp.city }}{% endif %} · {{ comp.owner_nickname or comp.owner_name or '未提供' }}</p>
                 {% if comp.introduction %}<p class="intro">{{ comp.introduction }}</p>{% endif %}
-                <p>預計 {{ comp.people_count }} 人{% if comp.joined_count is not none %} · 已加入 {{ comp.joined_count }} 人{% endif %}</p>
+                <p>{{ comp.start_date }} ～ {{ comp.end_date }} · 預計 {{ comp.people_count }} 人{% if comp.joined_count is not none %} · 已加入 {{ comp.joined_count }} 人{% endif %} · {{ comp.currency }} {{ comp.total_budget }}</p>
                 <div class="card-actions">
                     <form method="post" action="{{ url_for('member.toggle_trip_favorite', trip_id=comp.trip_id) }}" style="margin:0;" onclick="event.stopPropagation()"><input type="hidden" name="next" value="{{ url_for('friend_groups.index') }}"><button type="submit" class="member-btn ghost small">{{ '取消收藏' if comp.is_favorited else '☆ 收藏' }}</button></form>
                 </div>
@@ -27,14 +58,15 @@
             {% endfor %}
         </div>
         {% else %}
-        <div class="empty-member"><div>✦</div><h2>目前沒有公開的旅伴揪團資訊</h2><p>把你的行程設為公開，就會出現在這裡。</p></div>
+        <div class="empty-member"><div>✦</div><h2>目前沒有符合條件的公開行程</h2></div>
         {% endif %}
     </div>
 
     <div class="page-tab-panel" id="tab-friend-groups">
+    <div class="panel"><h2>用 AI 產生行程草稿</h2><p class="muted">描述目的地與偏好，取得交通、住宿、每日安排的建議；核對後可存成自己的行程，再選擇是否開團。</p><a class="member-btn outline" href="{{ url_for('friend_groups.ai_plan') }}">開始 AI 規劃</a></div>
     {% if not friend_group_on %}
     <div class="panel">
-        <h2>交友揪團</h2>
+        <h2>交友揪團尚未開放</h2>
         <p class="form-hint">這個功能目前尚未開放，請稍後再回來看看。</p>
     </div>
     {% elif not line_bound %}
@@ -112,7 +144,6 @@
         <div class="panel-title">
             <div><p class="eyebrow">MY GROUPS</p><h2>我發起的揪團</h2></div>
             <div style="display:flex; gap:8px;">
-                <a class="member-btn light" href="{{ url_for('friend_groups.browse_groups') }}">瀏覽其他會員的揪團</a>
                 <a class="member-btn primary" href="{{ url_for('friend_groups.new_group') }}">＋ 發起揪團</a>
             </div>
         </div>

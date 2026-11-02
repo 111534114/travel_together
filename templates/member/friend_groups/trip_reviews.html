@@ -1,0 +1,13 @@
+{% extends 'member/base.html' %}{% block title %}行程心得｜走吧揪團{% endblock %}{% block content %}
+<div class="trip-form-page">
+  <div class="page-heading trip-form-heading"><a href="{{ url_for('friend_groups.group_detail', group_id=group.group_id) }}">← 返回揪團</a></div>
+  <div class="panel"><h1>{{ group.title }} · 旅後心得</h1><p class="form-hint">這裡評價的是整趟行程；若要評價團員或主揪，請使用雙向評價。</p>
+    <form method="post" class="form-grid-member">
+      <label>行程評分<select name="rating" required>{% for n in range(1, 6) %}<option value="{{ n }}" {% if my_review and my_review.rating == n %}selected{% endif %}>{{ n }} 顆星</option>{% endfor %}</select></label>
+      <label class="span-2">旅行心得<textarea name="comment" maxlength="1000" rows="4">{{ my_review.comment if my_review else '' }}</textarea></label>
+      <button class="member-btn primary" type="submit">儲存心得</button>
+    </form>
+  </div>
+  <div class="panel"><h2>團員心得</h2>{% for review in reviews %}<div class="invite-row"><div><b>{{ review.nickname or '旅伴' }} · {{ review.rating }} / 5 ⭐</b><p>{{ review.comment or '沒有文字心得' }}</p></div></div>{% else %}<p class="muted">還沒有心得。</p>{% endfor %}</div>
+</div>
+{% endblock %}

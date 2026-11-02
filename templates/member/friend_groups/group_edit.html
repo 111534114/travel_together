@@ -1,0 +1,21 @@
+{% extends 'member/base.html' %}{% block title %}編輯揪團｜走吧揪團{% endblock %}{% block content %}
+<div class="trip-form-page">
+  <div class="page-heading trip-form-heading"><a href="{{ url_for('friend_groups.manage_group', group_id=group.group_id) }}">← 返回管理揪團</a></div>
+  <div class="panel">
+    <h1>編輯揪團</h1>
+    <p class="form-hint">日期變更會同步更新連結的行程，並通知已加入的團員。已取消的團不能重新開放。</p>
+    <form method="post" class="form-grid-member">
+      <label>名稱 *<input name="title" required maxlength="150" value="{{ group.title }}"></label>
+      <label>集合地點<input name="location" maxlength="255" value="{{ group.location or '' }}"></label>
+      <label>開始日期 *<input name="event_date" type="date" required value="{{ group.event_date }}"></label>
+      <label>結束日期 *<input name="end_date" type="date" required value="{{ group.end_date or group.event_date }}"></label>
+      <label>團員名額（不含主揪）<input name="capacity" type="number" min="1" value="{{ group.capacity or '' }}" placeholder="留空不限制（資深團長）"></label>
+      <label>招募狀態<select name="status"><option value="open" {% if group.status == 'open' %}selected{% endif %}>開放招募</option><option value="closed" {% if group.status == 'closed' %}selected{% endif %}>暫停招募</option></select></label>
+      <label class="span-2">說明<textarea name="description" rows="3" maxlength="2000">{{ group.description or '' }}</textarea></label>
+      <label class="span-2">集合資訊（只有已加入的人看得到）<textarea name="meeting_info" rows="2" maxlength="1000">{{ group.meeting_info or '' }}</textarea></label>
+      <label class="span-2"><input type="checkbox" name="show_member_list" value="1" {% if group.show_member_list %}checked{% endif %}> 允許其他會員在加入前查看同意公開的參加者</label>
+      <button type="submit" class="member-btn primary">儲存變更</button>
+    </form>
+  </div>
+</div>
+{% endblock %}

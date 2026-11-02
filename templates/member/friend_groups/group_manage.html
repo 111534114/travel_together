@@ -9,7 +9,9 @@
 
         {% if group.trip_id %}
         <a class="member-btn primary" href="{{ url_for('member.trip_detail', trip_id=group.trip_id) }}" style="margin-top: 12px; display: inline-flex;">📋 管理行程（每日行程、聊天室、記帳分帳、公告）</a>
+        <a class="member-btn outline" href="{{ url_for('member.trip_detail', trip_id=group.trip_id) }}#members">設定團員查看／共同編輯權限</a>
         {% endif %}
+        {% if group.status != 'cancelled' %}<a class="member-btn outline" href="{{ url_for('friend_groups.edit_group', group_id=group.group_id) }}">編輯揪團／名單隱私／集合資訊</a>{% endif %}
 
         {% if group.status != 'cancelled' %}
         <form method="post" action="{{ url_for('friend_groups.cancel_group', group_id=group.group_id) }}" onsubmit="return confirm('確定要取消這個揪團嗎？')" style="margin-top: 12px;">
@@ -22,12 +24,15 @@
         <h2>成員申請</h2>
         {% for member in members %}
         <div class="invite-row">
-            <div><b>{{ member.nickname or member.full_name }}</b><p>{{ {'pending':'待審核','approved':'已加入','rejected':'已婉拒','left':'已退出'}[member.status] }}</p></div>
+            <div><b>{{ member.nickname or member.full_name }}</b><p>{{ {'pending':'待審核','approved':'已加入','rejected':'已婉拒','left':'已退出'}[member.status] }}{% if member.application_note %} · 申請留言：{{ member.application_note }}{% endif %}</p></div>
             {% if member.status == 'pending' %}
             <div class="trip-member-actions">
                 <form method="post" action="{{ url_for('friend_groups.approve_group_member', group_id=group.group_id, member_user_id=member.user_id) }}"><button class="member-btn primary small" type="submit">通過</button></form>
                 <form method="post" action="{{ url_for('friend_groups.reject_group_member', group_id=group.group_id, member_user_id=member.user_id) }}"><button class="member-btn ghost small" type="submit">婉拒</button></form>
             </div>
+            {% endif %}
+            {% if member.status == 'approved' %}
+            <div class="trip-member-actions"><form method="post" action="{{ url_for('friend_groups.remove_group_member', group_id=group.group_id, member_user_id=member.user_id) }}" onsubmit="return confirm('移除後，此人將失去行程、聊天室及相簿權限。確定嗎？')"><button class="member-btn danger small" type="submit">移除成員</button></form></div>
             {% endif %}
         </div>
         {% else %}

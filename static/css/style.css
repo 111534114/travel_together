@@ -4023,7 +4023,7 @@ body {
 }
 
 .public-trip-stats {
-    grid-template-columns: repeat(2, minmax(220px, 340px));
+    grid-template-columns: repeat(3, minmax(0, 1fr));
 }
 
 .public-trip-filter select {

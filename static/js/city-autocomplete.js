@@ -84,18 +84,18 @@
 
     if (isAllAirports) {
       const cityLabel = airport.city_zh || airport.city;
-      primary.innerHTML = '<span class="city-suggest-pin">📍</span>' + cityLabel + '・所有機場';
+      primary.textContent = cityLabel + '・所有機場';
       secondary.textContent = airport.country;
       item.appendChild(primary);
       item.appendChild(secondary);
       item.addEventListener('mousedown', (event) => {
         event.preventDefault();
-        onPick(`${airport.city}（所有機場）`);
+        onPick(`${cityLabel}（所有機場）`);
       });
       return item;
     }
 
-    primary.innerHTML = '<span class="city-suggest-plane">✈</span>' + (airport.name_zh || airport.name);
+    primary.textContent = airport.name_zh || airport.name;
     // 有中文機場名稱時，第二行補上英文原名方便對照；沒有中文名稱時，第二行維持城市/國家/代碼
     secondary.textContent = airport.name_zh
       ? `${airport.name}・${airport.iata}`
@@ -104,7 +104,7 @@
     item.appendChild(secondary);
     item.addEventListener('mousedown', (event) => {
       event.preventDefault();
-      onPick(`${airport.city} (${airport.iata})`);
+      onPick(`${airport.name_zh || airport.name} (${airport.iata})`);
     });
     return item;
   }

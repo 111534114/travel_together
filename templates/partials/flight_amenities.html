@@ -1,0 +1,20 @@
+{% macro render_amenities(flight) %}
+{% if flight.amenities %}
+<div class="amenity-wrap" tabindex="0">
+  {% for a in flight.amenities %}
+  <span class="amenity-icon">
+    {% if a.icon == 'wifi' %}<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M5 12.55a11 11 0 0 1 14.08 0"/><path d="M1.42 9a16 16 0 0 1 21.16 0"/><path d="M8.53 16.11a6 6 0 0 1 6.95 0"/><circle cx="12" cy="20" r="1" fill="currentColor"/></svg>
+    {% elif a.icon == 'power' %}<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22v-5"/><path d="M9 8V2"/><path d="M15 8V2"/><path d="M18 8v5a6 6 0 0 1-12 0V8z"/></svg>
+    {% elif a.icon == 'screen' %}<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8"/><path d="M12 17v4"/></svg>
+    {% elif a.icon == 'legroom' %}<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 4v8a2 2 0 0 0 2 2h8"/><path d="M6 12v8"/><path d="M18 14v6"/><path d="M4 20h16"/></svg>
+    {% endif %}
+  </span>
+  {% endfor %}
+  <div class="amenity-tooltip">
+    <b>{{ flight.airline_name }}</b>
+    <span>{{ flight.cabin_class }}</span>
+    <ul>{% for a in flight.amenities %}<li>{{ a.label }}</li>{% endfor %}</ul>
+  </div>
+</div>
+{% endif %}
+{% endmacro %}

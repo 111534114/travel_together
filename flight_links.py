@@ -129,14 +129,42 @@ def airline_logo_url(airline_name):
     return f"https://www.gstatic.com/flights/airline_logos/70px/{code}.png"
 
 
+# 航空公司 -> 真正隸屬的全球航空聯盟(公開的真實資料，不是我們自己分類的)；廉價航空/獨立航空
+# (例如星宇航空、酷航、樂桃、台灣虎航這些)本來就沒有加入任何聯盟，查不到就是沒有聯盟可篩，
+# 不會因為查不到就亂塞一個聯盟給它。
+ALLIANCE_NAMES = {"skyteam": "天合聯盟", "star_alliance": "星空聯盟", "oneworld": "寰宇一家"}
+AIRLINE_ALLIANCE = {
+    # 天合聯盟 SkyTeam
+    "中華航空": "skyteam", "大韓航空": "skyteam",
+    # 星空聯盟 Star Alliance
+    "長榮航空": "star_alliance", "全日空航空": "star_alliance", "韓亞航空": "star_alliance",
+    "新加坡航空": "star_alliance", "泰國航空": "star_alliance",
+    # 寰宇一家 Oneworld
+    "國泰航空": "oneworld", "日本航空": "oneworld",
+}
+
+
 ALL_AIRPORTS_SUFFIX = "（所有機場）"  # 跟「City (IATA)」那種半形括號的單一機場格式故意用不同樣式，一眼就看得出差異
+
+
+def _broaden_to_city_siblings(code):
+    """選到單一機場代碼時，自動擴大成「這個機場所在城市的所有機場」一起查(用逗號接起來)，
+    這樣搜尋結果頁的「機場」篩選才會有其他機場的真實資料可以切換(例如搜尋「羽田機場」時，
+    也會一起把成田機場的航班撈回來，使用者可以在篩選裡選要不要連成田一起看)，不用為了
+    「順便看看其他機場」而多花一次查詢額度。只有一個機場的城市(大多數情況)就是原樣回傳。"""
+    airport = airports.get_airport(code)
+    if not airport:
+        return code
+    codes = airports.get_city_airport_codes(airport["city"], airport["country"])
+    return codes or code
 
 
 def to_iata(city_keyword):
     """把中文城市關鍵字、使用者直接輸入的三碼機場代碼、「City (IATA)」這種自動完成選單選出來的
     單一機場格式，或是「城市（所有機場）」這種選了「所有機場」的格式，轉成 IATA 代碼；
-    「所有機場」的情況會回傳用逗號接起來的好幾個代碼(SerpApi 的 departure_id/arrival_id 支援這樣傳，
-    會把這個城市底下所有機場的航班混在一起回傳)。查不到就回傳 None。
+    回傳值可能是逗號接起來的好幾個代碼(SerpApi 的 departure_id/arrival_id 支援這樣傳，
+    會把這些機場的航班混在一起回傳)——選到單一機場時也會自動擴大成同城市的所有機場，
+    詳見 _broaden_to_city_siblings()。查不到就回傳 None。
     常見中文城市名先查 CITY_IATA(約 80 個)，查不到再查 airports.py 的全球機場資料庫
     (約 6000 筆真實機場資料，含英文城市名/機場名)，這樣全世界的城市/機場都搜得到，
     不是只有手動整理的那 80 個。"""
@@ -151,18 +179,19 @@ def to_iata(city_keyword):
         city_keyword = city_name  # 全球機場資料庫查不到這個城市，退回當一般城市名字查(用 CITY_IATA)
     bracket_match = re.search(r"\(([A-Za-z]{3})\)\s*$", city_keyword)
     if bracket_match:
-        return bracket_match.group(1).upper()
+        return _broaden_to_city_siblings(bracket_match.group(1).upper())
     # 要限制只比對 ASCII 英文字母，不能只檢查長度是不是 3：Python 的 str.isalpha() 連中文字也算「字母」，
     # 像「新加坡」「洛杉磯」剛好都是 3 個中文字，之前這裡會誤判成「使用者直接輸入了機場代碼」，
     # 原樣大寫回傳中文字(根本不是合法代碼)，導致這些城市的查詢全部失敗，要繞過下面 CITY_IATA 對照表。
     if re.fullmatch(r"[A-Za-z]{3}", city_keyword):
-        return city_keyword.upper()
+        return _broaden_to_city_siblings(city_keyword.upper())
     if city_keyword in CITY_IATA:
-        return CITY_IATA[city_keyword]
+        return _broaden_to_city_siblings(CITY_IATA[city_keyword])
     for name, code in CITY_IATA.items():
         if name in city_keyword or city_keyword in name:
-            return code
-    return airports.find_iata_by_keyword(city_keyword)
+            return _broaden_to_city_siblings(code)
+    found = airports.find_iata_by_keyword(city_keyword)
+    return _broaden_to_city_siblings(found) if found else None
 
 
 def skyscanner_search_url(origin_keyword, destination_keyword, depart_date, return_date=None, pax=1):

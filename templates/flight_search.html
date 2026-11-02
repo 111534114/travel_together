@@ -1,3 +1,4 @@
+{% from 'partials/flight_amenities.html' import render_amenities %}
 <!doctype html>
 <html lang="zh-Hant">
 <head>
@@ -35,9 +36,6 @@
     .date-strip-label { color: var(--ink); }
     .date-strip-price { color: var(--purple); font-size: 12px; font-weight: 700; }
     .date-strip-day.selected .date-strip-price { color: #B23B3B; }
-    .date-strip-chart { display: flex; flex: 0 0 auto; flex-direction: column; align-items: center; justify-content: center; gap: 2px; width: 92px; color: var(--muted); background: var(--purple-soft); border: 0; border-left: 1px solid var(--line); cursor: pointer; font-size: 12px; font-weight: 700; }
-    .date-strip-chart:hover { color: var(--purple); }
-    .chart-icon { font-size: 16px; }
     .date-strip-note { margin: 0 0 20px; color: var(--muted); font-size: 12px; }
     .toast { position: fixed; z-index: 50; bottom: 30px; left: 50%; padding: 12px 22px; color: #fff; background: #293C3F; border-radius: 8px; box-shadow: 0 10px 25px rgba(0, 0, 0, .25); font-size: 14px; opacity: 0; transform: translate(-50%, 10px); transition: opacity 200ms ease, transform 200ms ease; pointer-events: none; }
     .toast.show { opacity: 1; transform: translate(-50%, 0); }
@@ -47,12 +45,8 @@
     .results-sidebar .booking-filters { flex-direction: column; align-items: stretch; gap: 16px; }
     .results-sidebar .booking-filters label { flex-direction: column; align-items: stretch; gap: 6px; white-space: normal; }
     .results-sidebar .booking-filters select { width: 100%; }
-    .results-sidebar .price-range-filter { flex-direction: column; align-items: stretch; padding-right: 0; border-right: 0; padding-bottom: 14px; border-bottom: 1px solid #e7f0f1; }
-    .results-sidebar .price-bucket-list { flex-direction: column; }
-    .results-sidebar .price-bucket { justify-content: space-between; }
     .results-sidebar .price-slider-row { flex-direction: column; align-items: stretch; gap: 6px; }
     .results-sidebar .price-slider { width: 100%; max-width: none; flex: none; }
-    .results-sidebar .booking-tools .view-button { width: 100%; }
     .results-sidebar .recommend-group { flex-direction: column; align-items: stretch; gap: 10px; padding-bottom: 14px; border-bottom: 1px solid #e7f0f1; }
     @media (max-width: 950px) { .results-layout { grid-template-columns: 1fr; } .results-sidebar { position: static; } }
     .section-header { display: flex; align-items: end; justify-content: space-between; gap: 18px; margin-bottom: 18px; }
@@ -64,13 +58,21 @@
     .flight-leg h3 { margin: 0 0 14px; padding-left: 12px; border-left: 4px solid var(--purple); font-size: 17px; }
     .flight-list { display: flex; flex-direction: column; gap: 16px; }
     .flight-card { position: relative; display: flex; flex-wrap: wrap; align-items: center; gap: 18px; padding: 22px 24px; background: #fff; border: 1px solid var(--line); border-radius: 14px; box-shadow: 0 8px 22px rgba(45, 37, 68, .06); transition: transform 160ms ease, box-shadow 160ms ease, border-color 160ms ease; }
-    .flight-card:hover { transform: translateY(-3px); box-shadow: 0 16px 34px rgba(45, 37, 68, .14); border-color: var(--purple-light); }
+    .flight-card:hover { position: relative; z-index: 5; transform: translateY(-3px); box-shadow: 0 16px 34px rgba(45, 37, 68, .14); border-color: var(--purple-light); }
     .flight-best-badge { position: absolute; top: -11px; left: 24px; padding: 3px 12px; color: #fff; background: var(--purple); border-radius: 999px; font-size: 11px; font-weight: 700; box-shadow: 0 4px 10px rgba(75, 131, 139, .35); }
     .flight-airline { display: flex; flex: 0 0 170px; align-items: center; gap: 12px; }
     .airline-logo { display: flex; flex: 0 0 auto; align-items: center; justify-content: center; width: 40px; height: 40px; color: #fff; background: linear-gradient(135deg, var(--purple), var(--purple-light)); border-radius: 50%; font-size: 16px; font-weight: 800; }
     .airline-logo-img { flex: 0 0 auto; width: 40px; height: 40px; object-fit: contain; background: #fff; border: 1px solid var(--line); border-radius: 50%; padding: 4px; }
     .flight-airline b { display: block; font-size: 14px; line-height: 1.4; }
     .flight-airline span { color: var(--muted); font-size: 12px; }
+    .amenity-wrap { position: relative; display: inline-flex; gap: 6px; margin-top: 5px; cursor: default; }
+    .amenity-icon { display: inline-flex; color: var(--muted); }
+    .amenity-wrap:hover .amenity-tooltip, .amenity-wrap:focus .amenity-tooltip { display: block; }
+    .amenity-tooltip { display: none; position: absolute; z-index: 15; top: 100%; left: 0; margin-top: 6px; width: 210px; padding: 10px 12px; background: #fff; border: 1px solid var(--line); border-radius: 8px; box-shadow: 0 10px 24px rgba(45, 37, 68, .14); font-size: 12px; color: var(--ink); }
+    .amenity-tooltip b { display: block; font-size: 13px; margin-bottom: 2px; }
+    .amenity-tooltip > span { display: block; color: var(--muted); margin-bottom: 6px; }
+    .amenity-tooltip ul { margin: 0; padding-left: 16px; }
+    .amenity-tooltip li { margin-bottom: 2px; }
     .flight-route { display: flex; flex: 1 1 320px; align-items: center; gap: 18px; }
     .flight-time { display: flex; flex-direction: column; align-items: center; gap: 2px; min-width: 76px; }
     .flight-time b { font-size: 24px; font-weight: 800; }
@@ -90,7 +92,7 @@
     .view-button { padding: 11px 22px; color: #fff; background: var(--purple); border: 0; border-radius: 8px; cursor: pointer; font-weight: 700; font-size: 14px; white-space: nowrap; box-shadow: 0 6px 16px rgba(75, 131, 139, .32); transition: background 160ms ease, transform 160ms ease; }
     .view-button:hover { background: #37676D; transform: translateY(-1px); }
     .empty { padding: 36px; color: var(--muted); text-align: center; background: #fff; border: 1px dashed #C6DCDF; border-radius: 8px; }
-    @media (max-width: 850px) { .site-nav { align-items: flex-start; flex-direction: column; gap: 6px; padding: 8px 18px 12px; } .nav-links { width: 100%; margin-left: 0; overflow-x: auto; } main { width: min(100% - 28px, 680px); padding-top: 24px; } .flight-card { flex-direction: column; align-items: stretch; } .flight-meta { margin: 0; padding-left: 0; border-left: 0; } .flight-footer { margin-left: 0; justify-content: space-between; } .date-strip-days { overflow-x: auto; } .date-strip-day { flex: 0 0 auto; min-width: 84px; } .date-strip-chart { width: 72px; } }
+    @media (max-width: 850px) { .site-nav { align-items: flex-start; flex-direction: column; gap: 6px; padding: 8px 18px 12px; } .nav-links { width: 100%; margin-left: 0; overflow-x: auto; } main { width: min(100% - 28px, 680px); padding-top: 24px; } .flight-card { flex-direction: column; align-items: stretch; } .flight-meta { margin: 0; padding-left: 0; border-left: 0; } .flight-footer { margin-left: 0; justify-content: space-between; } .date-strip-days { overflow-x: auto; } .date-strip-day { flex: 0 0 auto; min-width: 84px; } }
     @media (max-width: 560px) { .brand { width: 108px; height: 48px; } .nav-links { gap: 2px; } .nav-links a { padding: 8px; font-size: 14px; white-space: nowrap; } .section-header { align-items: stretch; flex-direction: column; } .section-header h2 { font-size: 22px; } .flight-route { flex-direction: column; align-items: stretch; } .flight-path { display: none; } }
   </style>
 </head>
@@ -130,7 +132,6 @@
         {% endfor %}
       </div>
       <a class="date-strip-arrow" href="{{ date_strip_link(strip_next.depart, strip_next['return']) }}" aria-label="往後看更晚的日期">›</a>
-      <button type="button" class="date-strip-chart" onclick="showToast('價格圖表功能開發中，敬請期待！')"><span class="chart-icon">▦</span>價格圖表</button>
     </div>
     <p class="date-strip-note">{% if using_live_data %}各日期價格為該天即時查詢結果，會隨日期浮動。{% else %}各日期為固定班表的參考最低價，實際票價以售票平台為準。{% endif %}</p>
     {% endif %}
@@ -159,7 +160,7 @@
             <article class="flight-card">
 {% if flight.is_live %}<span class="booking-heart" aria-disabled="true" title="即時報價暫不支援收藏">&#9825;</span>{% else %}{% set save_kind='flight' %}{% set save_id=flight.flight_id %}{% include 'partials/booking_favorite_button.html' %}{% endif %}
               {% if flight.price == outbound_min_price %}<span class="flight-best-badge">{{ '來回最低總價' if bundled_roundtrip else '最低價' }}</span>{% endif %}
-              <div class="flight-airline">{% if flight.airline_logo %}<img class="airline-logo-img" src="{{ flight.airline_logo }}" alt="{{ flight.airline_name }}" loading="lazy">{% else %}<span class="airline-logo">{{ flight.airline_name[:1] }}</span>{% endif %}<div><b>{{ flight.airline_name }}</b><span>{{ flight.flight_number }}・{{ flight.cabin_class }}</span></div></div>
+              <div class="flight-airline">{% if flight.airline_logo %}<img class="airline-logo-img" src="{{ flight.airline_logo }}" alt="{{ flight.airline_name }}" loading="lazy">{% else %}<span class="airline-logo">{{ flight.airline_name[:1] }}</span>{% endif %}<div><b>{{ flight.airline_name }}</b><span>{{ flight.flight_number }}・{{ flight.cabin_class }}</span>{{ render_amenities(flight) }}</div></div>
               <div class="flight-route">
                 <div class="flight-time"><b>{{ flight.departure_time|hm }}</b><span>{{ flight.origin_city }}</span></div>
                 <div class="flight-path"><span class="flight-stop-tag {{ 'direct' if not flight.stops }}">{{ '直飛' if not flight.stops else ('轉機 ' ~ flight.stops ~ ' 次') }}</span><div class="line"></div><span>{{ (flight.duration_minutes // 60) }} 小時 {{ (flight.duration_minutes % 60) }} 分</span></div>
@@ -168,7 +169,7 @@
               <div class="flight-meta">{% if flight.origin_country or flight.destination_country %}<span>{{ flight.origin_country }} → {{ flight.destination_country }}</span>{% endif %}{% if flight.seats_available is not none %}<span class="{{ 'seats-low' if flight.seats_available <= 3 }}">剩餘 {{ flight.seats_available }} 席</span>{% endif %}</div>
               <div class="flight-footer">
                 <span class="price">NT$ {{ "{:,.0f}".format(flight.price * pax) }}<small>{{ pax }} 人・{{ '來回總價估計' if bundled_roundtrip else ('NT$ ' + '{:,.0f}'.format(flight.price) + ' /人') }}</small></span>
-                {% if bundled_roundtrip and flight.departure_token %}<a class="view-button" href="{{ url_for('visitor_flight_return_options', **{'from': origin, 'to': destination, 'depart': depart_date, 'return': return_date, 'pax': pax, 'departure_token': flight.departure_token}) }}">選擇去程 →</a>{% elif flight.booking_token %}<a class="view-button" href="{{ url_for('visitor_flight_booking_redirect', **{'token': flight.booking_token, 'from': origin, 'to': destination, 'depart': depart_date, 'return': (return_date if is_roundtrip else ''), 'pax': pax, 'fallback': skyscanner_url or ''}) }}" target="_blank" rel="noopener">選擇 →</a>{% elif skyscanner_url %}<a class="view-button" href="{{ skyscanner_url }}" target="_blank" rel="noopener">選擇 →</a>{% else %}<button class="view-button" type="button" onclick="showToast('找不到這個城市的比價連結，換個關鍵字試試。')">選擇航班</button>{% endif %}
+                {% if bundled_roundtrip and flight.departure_token %}<a class="view-button" href="{{ url_for('visitor_flight_return_options', **{'from': origin, 'to': destination, 'depart': depart_date, 'return': return_date, 'pax': pax, 'departure_token': flight.departure_token, 'cabin': request.args.get('cabin', '')}) }}">選擇去程 →</a>{% elif flight.booking_token %}<a class="view-button" href="{{ url_for('visitor_flight_booking_redirect', **{'token': flight.booking_token, 'from': origin, 'to': destination, 'depart': depart_date, 'return': (return_date if is_roundtrip else ''), 'pax': pax, 'fallback': skyscanner_url or ''}) }}" target="_blank" rel="noopener">選擇 →</a>{% elif skyscanner_url %}<a class="view-button" href="{{ skyscanner_url }}" target="_blank" rel="noopener">選擇 →</a>{% else %}<button class="view-button" type="button" onclick="showToast('找不到這個城市的比價連結，換個關鍵字試試。')">選擇航班</button>{% endif %}
               </div>
             </article>
           {% else %}
@@ -185,7 +186,7 @@
             <article class="flight-card">
 {% if flight.is_live %}<span class="booking-heart" aria-disabled="true" title="即時報價暫不支援收藏">&#9825;</span>{% else %}{% set save_kind='flight' %}{% set save_id=flight.flight_id %}{% include 'partials/booking_favorite_button.html' %}{% endif %}
               {% if flight.price == return_min_price %}<span class="flight-best-badge">最低價</span>{% endif %}
-              <div class="flight-airline">{% if flight.airline_logo %}<img class="airline-logo-img" src="{{ flight.airline_logo }}" alt="{{ flight.airline_name }}" loading="lazy">{% else %}<span class="airline-logo">{{ flight.airline_name[:1] }}</span>{% endif %}<div><b>{{ flight.airline_name }}</b><span>{{ flight.flight_number }}・{{ flight.cabin_class }}</span></div></div>
+              <div class="flight-airline">{% if flight.airline_logo %}<img class="airline-logo-img" src="{{ flight.airline_logo }}" alt="{{ flight.airline_name }}" loading="lazy">{% else %}<span class="airline-logo">{{ flight.airline_name[:1] }}</span>{% endif %}<div><b>{{ flight.airline_name }}</b><span>{{ flight.flight_number }}・{{ flight.cabin_class }}</span>{{ render_amenities(flight) }}</div></div>
               <div class="flight-route">
                 <div class="flight-time"><b>{{ flight.departure_time|hm }}</b><span>{{ flight.origin_city }}</span></div>
                 <div class="flight-path"><span class="flight-stop-tag {{ 'direct' if not flight.stops }}">{{ '直飛' if not flight.stops else ('轉機 ' ~ flight.stops ~ ' 次') }}</span><div class="line"></div><span>{{ (flight.duration_minutes // 60) }} 小時 {{ (flight.duration_minutes % 60) }} 分</span></div>

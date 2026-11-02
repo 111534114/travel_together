@@ -1,3 +1,4 @@
+{% from 'partials/flight_amenities.html' import render_amenities %}
 <!doctype html>
 <html lang="zh-Hant">
 <head>
@@ -36,13 +37,21 @@
     .flight-leg-badge { display: inline-flex; align-items: center; justify-content: center; width: 24px; height: 24px; color: #fff; background: var(--purple); border-radius: 50%; font-size: 13px; font-weight: 700; }
     .flight-list { display: flex; flex-direction: column; gap: 16px; }
     .flight-card { position: relative; display: flex; flex-wrap: wrap; align-items: center; gap: 18px; padding: 22px 24px; background: #fff; border: 1px solid var(--line); border-radius: 14px; box-shadow: 0 8px 22px rgba(45, 37, 68, .06); transition: transform 160ms ease, box-shadow 160ms ease, border-color 160ms ease; }
-    .flight-card:hover { transform: translateY(-3px); box-shadow: 0 16px 34px rgba(45, 37, 68, .14); border-color: var(--purple-light); }
+    .flight-card:hover { z-index: 5; transform: translateY(-3px); box-shadow: 0 16px 34px rgba(45, 37, 68, .14); border-color: var(--purple-light); }
     .flight-best-badge { position: absolute; top: -11px; left: 24px; padding: 3px 12px; color: #fff; background: var(--purple); border-radius: 999px; font-size: 11px; font-weight: 700; box-shadow: 0 4px 10px rgba(75, 131, 139, .35); }
     .flight-airline { display: flex; flex: 0 0 170px; align-items: center; gap: 12px; }
     .airline-logo { display: flex; flex: 0 0 auto; align-items: center; justify-content: center; width: 40px; height: 40px; color: #fff; background: linear-gradient(135deg, var(--purple), var(--purple-light)); border-radius: 50%; font-size: 16px; font-weight: 800; }
     .airline-logo-img { flex: 0 0 auto; width: 40px; height: 40px; object-fit: contain; background: #fff; border: 1px solid var(--line); border-radius: 50%; padding: 4px; }
     .flight-airline b { display: block; font-size: 14px; line-height: 1.4; }
     .flight-airline span { color: var(--muted); font-size: 12px; }
+    .amenity-wrap { position: relative; display: inline-flex; gap: 6px; margin-top: 5px; cursor: default; }
+    .amenity-icon { display: inline-flex; color: var(--muted); }
+    .amenity-wrap:hover .amenity-tooltip, .amenity-wrap:focus .amenity-tooltip { display: block; }
+    .amenity-tooltip { display: none; position: absolute; z-index: 15; top: 100%; left: 0; margin-top: 6px; width: 210px; padding: 10px 12px; background: #fff; border: 1px solid var(--line); border-radius: 8px; box-shadow: 0 10px 24px rgba(45, 37, 68, .14); font-size: 12px; color: var(--ink); }
+    .amenity-tooltip b { display: block; font-size: 13px; margin-bottom: 2px; }
+    .amenity-tooltip > span { display: block; color: var(--muted); margin-bottom: 6px; }
+    .amenity-tooltip ul { margin: 0; padding-left: 16px; }
+    .amenity-tooltip li { margin-bottom: 2px; }
     .flight-route { display: flex; flex: 1 1 320px; align-items: center; gap: 18px; }
     .flight-time { display: flex; flex-direction: column; align-items: center; gap: 2px; min-width: 76px; }
     .flight-time b { font-size: 24px; font-weight: 800; }
@@ -104,7 +113,7 @@
             <article class="flight-card">
 {% if flight.is_live %}<span class="booking-heart" aria-disabled="true" title="即時報價暫不支援收藏">&#9825;</span>{% else %}{% set save_kind='flight' %}{% set save_id=flight.flight_id %}{% include 'partials/booking_favorite_button.html' %}{% endif %}
               {% if flight.price == leg_min_price %}<span class="flight-best-badge">最低價</span>{% endif %}
-              <div class="flight-airline">{% if flight.airline_logo %}<img class="airline-logo-img" src="{{ flight.airline_logo }}" alt="{{ flight.airline_name }}" loading="lazy">{% else %}<span class="airline-logo">{{ flight.airline_name[:1] }}</span>{% endif %}<div><b>{{ flight.airline_name }}</b><span>{{ flight.flight_number }}・{{ flight.cabin_class }}</span></div></div>
+              <div class="flight-airline">{% if flight.airline_logo %}<img class="airline-logo-img" src="{{ flight.airline_logo }}" alt="{{ flight.airline_name }}" loading="lazy">{% else %}<span class="airline-logo">{{ flight.airline_name[:1] }}</span>{% endif %}<div><b>{{ flight.airline_name }}</b><span>{{ flight.flight_number }}・{{ flight.cabin_class }}</span>{{ render_amenities(flight) }}</div></div>
               <div class="flight-route">
                 <div class="flight-time"><b>{{ flight.departure_time|hm }}</b><span>{{ flight.origin_city }}</span></div>
                 <div class="flight-path"><span class="flight-stop-tag {{ 'direct' if not flight.stops }}">{{ '直飛' if not flight.stops else ('轉機 ' ~ flight.stops ~ ' 次') }}</span><div class="line"></div><span>{{ (flight.duration_minutes // 60) }} 小時 {{ (flight.duration_minutes % 60) }} 分</span></div>

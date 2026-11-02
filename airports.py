@@ -34,6 +34,11 @@ def _load():
 _load()
 
 
+def get_airport(iata_code):
+    """用 IATA 代碼查單一機場的完整資料(含中文名稱)，查不到回傳 None。"""
+    return _by_iata.get((iata_code or "").strip().upper())
+
+
 def get_city_airports(english_city_name, country=None, limit=6):
     """同一個城市(依英文城市名，country 有給的話一起比對避免跟同名的其他國家城市混在一起)
     底下的所有機場，international 機場優先排。"""

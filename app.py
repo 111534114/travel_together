@@ -3,8 +3,8 @@ import re  # 匯入正規表示式模組，用來驗證註冊欄位格式
 import secrets  # 匯入 secrets 模組，用來產生忘記密碼用的隨機 token
 from urllib.parse import unquote_plus, urlsplit  # SerpApi 表單資料解碼與公開 OAuth 網址判斷
 from booking_search import (
-    TRAIN_TYPE_LABELS, apply_facets, apply_time_band, booking_bp, facet_options,
-    filter_prices, price_buckets, price_range, time_band_options,
+    TRAIN_TYPE_LABELS, apply_facets, apply_time_band, apply_value_range, booking_bp, facet_options,
+    filter_prices, price_buckets, price_range, time_band_options, value_range,
 )
 import requests  # 匯入 requests，用來呼叫 LINE 的個人資料 API
 from datetime import datetime, timedelta
@@ -464,16 +464,54 @@ def _search_flights(from_keyword, to_keyword, pax):
     return results
 
 
-def _live_flight_search(origin_keyword, destination_keyword, depart_date, return_date=None, pax=1):
+def _live_flight_search(origin_keyword, destination_keyword, depart_date, return_date=None, pax=1, cabin_class=None):
     """依序嘗試 SerpApi(Google Flights) -> Amadeus，兩個都沒設定金鑰/查不到/失敗就回傳 (None, False)，
-    呼叫端自己改用本地資料庫的固定班表資料。回傳 (flights, is_live)。"""
-    flights = serpapi_flights.search_flight_offers(origin_keyword, destination_keyword, depart_date, return_date, pax)
+    呼叫端自己改用本地資料庫的固定班表資料。回傳 (flights, is_live)。
+    cabin_class：Google Flights 預設只查經濟艙，要查商務/頭等艙要指定這個，所以使用者在「艙等」篩選
+    選了特定艙等時，呼叫端要帶這個參數重新查一次，不是拿經濟艙資料硬篩。"""
+    flights = serpapi_flights.search_flight_offers(origin_keyword, destination_keyword, depart_date, return_date, pax, cabin_class=cabin_class)
     if flights:
         return flights, True
     flights = amadeus_client.search_flight_offers(origin_keyword, destination_keyword, depart_date, pax)
     if flights:
         return flights, True
     return None, False
+
+
+def _live_airport_label(iata_code, typed_keyword):
+    """即時資料每筆航班實際起降的機場代碼(例如搜尋「東京（所有機場）」時，不同班機可能分別是
+    NRT 或 HND)，換成比較好懂的機場中文名稱，而不是整段原始搜尋關鍵字──不然同一個城市選了
+    「所有機場」時，不同機場的航班會全部顯示同一個字串，看不出班機之間落地機場的差異。
+    查不到這個代碼的資料就退回使用者原本輸入的關鍵字，不要顯示原始的機場代碼。"""
+    airport = airports.get_airport(iata_code)
+    if not airport:
+        return typed_keyword or iata_code
+    return flight_links.AIRPORT_NAME_ZH.get(iata_code) or airport.get("name_zh") or airport["city"]
+
+
+def _hm_to_minutes(hm_value):
+    """把 "HH:MM" 字串轉成從 00:00 起算的分鐘數，給出發/抵達時間篩選滑桿用；格式不對就回傳 None。"""
+    try:
+        hour, minute = str(hm_value).split(":")
+        return int(hour) * 60 + int(minute)
+    except (ValueError, AttributeError):
+        return None
+
+
+def _airport_facet_label(iata_code):
+    """「機場」篩選選項的顯示文字，格式「TSA 臺北松山機場」(代碼+機場名稱)，查不到名稱就只顯示代碼。"""
+    label = _live_airport_label(iata_code, None)
+    return f"{iata_code} {label}" if label and label != iata_code else iata_code
+
+
+def _live_layover_city_label(layovers):
+    """中停城市篩選用：多段中停時，用第一個中停站代表(絕大多數航班只中停一次)，
+    換成比較好懂的中文城市名稱，查不到就用 SerpApi 給的機場名稱原文。"""
+    if not layovers:
+        return None
+    first = layovers[0]
+    city_zh = flight_links.to_chinese_city_name(airports.get_airport(first.get("iata", "")).get("city", "")) if airports.get_airport(first.get("iata", "")) else None
+    return city_zh or first.get("name")
 
 
 def _live_cheapest_price(origin_keyword, destination_keyword, depart_date, pax=1, return_date=None):
@@ -524,11 +562,19 @@ def visitor_flight_search():
     # 優先打真實機票報價 API（SerpApi 的 Google Flights，查不到再試 Amadeus），價格會依日期浮動；
     # 兩個都沒設定金鑰、查不到這條航線、或 API 呼叫失敗，就自動改用本地資料庫裡固定班表的機票資料，
     # 兩種情況畫面都看得出差異(有沒有「即時報價」標籤)。
-    outbound_flights, using_live_data = _live_flight_search(origin, destination, depart_date, return_date if is_roundtrip else None, pax)
+    # 「艙等」篩選選了特定艙等(不是「全部艙等」)時要重新查那個艙等，Google Flights 預設只回傳經濟艙，
+    # 商務艙/頭等艙的航班不會自動出現在經濟艙的查詢結果裡。
+    selected_cabin = request.args.get("cabin", "all")
+    cabin_query = selected_cabin if selected_cabin != "all" else None
+    outbound_flights, using_live_data = _live_flight_search(origin, destination, depart_date, return_date if is_roundtrip else None, pax, cabin_class=cabin_query)
     if using_live_data:
         for row in outbound_flights:
-            row["origin_city"] = origin or row["origin_city"]
-            row["destination_city"] = destination or row["destination_city"]
+            # 「機場」篩選要用真正的機場代碼當篩選值，所以先把代碼存起來，再把顯示用的欄位換成好懂的名稱
+            row["origin_airport_code"] = row.get("origin_city")
+            row["destination_airport_code"] = row.get("destination_city")
+            row["origin_city"] = _live_airport_label(row.get("origin_city"), origin)
+            row["destination_city"] = _live_airport_label(row.get("destination_city"), destination)
+            row["layover_city"] = _live_layover_city_label(row.get("layovers"))
     else:
         outbound_flights = _search_flights(origin, destination, pax)  # 去程：出發地 -> 目的地
 
@@ -542,12 +588,42 @@ def visitor_flight_search():
         return_flights = _search_flights(destination, origin, pax)
 
     all_flights = outbound_flights + return_flights
+    # 聯盟是航空公司真正隸屬的公開資料(不是算出來的)，直接幫每筆航班標上聯盟代碼，
+    # 這樣就能沿用跟「航空公司」篩選一樣的 facet_options/apply_facets 邏輯，不用另外寫一套。
+    for row in all_flights:
+        row["alliance"] = flight_links.AIRLINE_ALLIANCE.get(row.get("airline_name"))
+        row["stops_label"] = "直飛" if not row.get("stops") else f"轉機 {row['stops']} 次"
+        row["departure_minutes"] = _hm_to_minutes(row.get("departure_time"))
+        row["arrival_minutes"] = _hm_to_minutes(row.get("arrival_time"))
     flight_price_buckets = price_buckets(all_flights, "price")
     flight_price_max = price_range(all_flights, "price")
-    airline_facets = facet_options(all_flights, "airline_name")
+    airline_facets = facet_options(all_flights, "airline_name", price_field="price")
+    alliance_facets = facet_options(all_flights, "alliance", labels=flight_links.ALLIANCE_NAMES, price_field="price")
+    stops_facets = facet_options(all_flights, "stops_label", price_field="price")
+    layover_city_facets = facet_options(all_flights, "layover_city", price_field="price")
+    aircraft_facets = facet_options(all_flights, "airplane_category", price_field="price")
+    origin_airport_labels = {code: _airport_facet_label(code) for code in {r.get("origin_airport_code") for r in all_flights if r.get("origin_airport_code")}}
+    destination_airport_labels = {code: _airport_facet_label(code) for code in {r.get("destination_airport_code") for r in all_flights if r.get("destination_airport_code")}}
+    origin_airport_facets = facet_options(all_flights, "origin_airport_code", labels=origin_airport_labels, price_field="price")
+    destination_airport_facets = facet_options(all_flights, "destination_airport_code", labels=destination_airport_labels, price_field="price")
+    duration_bounds = value_range(all_flights, "duration_minutes")
+    layover_bounds = value_range(all_flights, "layover_minutes")
     depart_band_options = time_band_options(all_flights, "departure_time")
-    outbound_flights = apply_time_band(apply_facets(outbound_flights, (("airline_name", "airline"),)), "departure_time")
-    return_flights = apply_time_band(apply_facets(return_flights, (("airline_name", "airline"),)), "departure_time")
+    facet_fields = (
+        ("airline_name", "airline"), ("alliance", "alliance"), ("stops_label", "stops_count"),
+        ("layover_city", "layover_city"), ("airplane_category", "aircraft"),
+        ("origin_airport_code", "origin_airport"), ("destination_airport_code", "destination_airport"),
+    )
+    outbound_flights = apply_facets(outbound_flights, facet_fields)
+    return_flights = apply_facets(return_flights, facet_fields)
+    for field, param_prefix in (
+        ("duration_minutes", "duration"), ("layover_minutes", "layover"),
+        ("departure_minutes", "depart_time"), ("arrival_minutes", "arrival_time"),
+    ):
+        outbound_flights = apply_value_range(outbound_flights, field, param_prefix)
+        return_flights = apply_value_range(return_flights, field, param_prefix)
+    outbound_flights = apply_time_band(outbound_flights, "departure_time")
+    return_flights = apply_time_band(return_flights, "departure_time")
 
     # 日期選擇列：即時報價時，其他 6 個日期也各自另外打一次 API 才能拿到那天真正的價格(每天浮動)，
     # cheapest_price() 內建短時間快取，同一條航線/日期不會短時間內重複打，但每次換日期組合最多還是會多花 12 次查詢額度。
@@ -602,6 +678,14 @@ def visitor_flight_search():
         price_buckets=flight_price_buckets,
         price_max=flight_price_max,
         airline_facets=airline_facets,
+        alliance_facets=alliance_facets,
+        stops_facets=stops_facets,
+        layover_city_facets=layover_city_facets,
+        aircraft_facets=aircraft_facets,
+        origin_airport_facets=origin_airport_facets,
+        destination_airport_facets=destination_airport_facets,
+        duration_bounds=duration_bounds,
+        layover_bounds=layover_bounds,
         depart_band_options=depart_band_options,
         date_strip=date_strip,
         strip_price=strip_price,
@@ -623,9 +707,10 @@ def visitor_flight_return_options():
     departure_token = request.args.get("departure_token", "").strip()
     pax_raw = request.args.get("pax", "1").strip()
     pax = int(pax_raw) if pax_raw.isdigit() and int(pax_raw) > 0 else 1
+    cabin_query = request.args.get("cabin", "").strip() or None  # 跟去程選的艙等一致，才會配到正確的回程選項
     skyscanner_url = flight_links.skyscanner_search_url(origin, destination, depart_date, return_date, pax)
 
-    return_flights = serpapi_flights.search_return_offers(origin, destination, depart_date, return_date, departure_token, pax)
+    return_flights = serpapi_flights.search_return_offers(origin, destination, depart_date, return_date, departure_token, pax, cabin_class=cabin_query)
     if return_flights is None:
         return render_template(
             "flight_return_options.html", origin=origin, destination=destination, depart_date=depart_date,
@@ -633,8 +718,8 @@ def visitor_flight_return_options():
         )
 
     for row in return_flights:
-        row["origin_city"] = destination or row["origin_city"]
-        row["destination_city"] = origin or row["destination_city"]
+        row["origin_city"] = _live_airport_label(row.get("origin_city"), destination)
+        row["destination_city"] = _live_airport_label(row.get("destination_city"), origin)
 
     return render_template(
         "flight_return_options.html",
@@ -666,8 +751,8 @@ def visitor_multi_city_flight_search():
             flights, leg_is_live = _live_flight_search(leg_origin, leg_destination, leg_date, None, pax)
         if leg_is_live:
             for row in flights:
-                row["origin_city"] = leg_origin or row["origin_city"]
-                row["destination_city"] = leg_destination or row["destination_city"]
+                row["origin_city"] = _live_airport_label(row.get("origin_city"), leg_origin)
+                row["destination_city"] = _live_airport_label(row.get("destination_city"), leg_destination)
         elif leg_origin or leg_destination:
             flights = _search_flights(leg_origin, leg_destination, pax)
         else:

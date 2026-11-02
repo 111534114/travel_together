@@ -11,17 +11,41 @@
     });
   });
 
-  // 價格滑桿：跟搜尋表單(.search-panel)無關，首頁跟三個搜尋結果頁都可能有，所以獨立成一段，
+  // 航空公司篩選的搜尋框：純前端文字篩選，不用重新送出表單查一次，輸入時即時隱藏不符合的選項。
+  document.querySelectorAll('[data-facet-search]').forEach((input) => {
+    const list = document.querySelector(`[data-facet-list="${input.dataset.facetSearch}"]`);
+    if (!list) return;
+    input.addEventListener('input', () => {
+      const keyword = input.value.trim().toLowerCase();
+      list.querySelectorAll('[data-facet-label]').forEach((row) => {
+        row.hidden = keyword !== '' && !row.dataset.facetLabel.includes(keyword);
+      });
+    });
+  });
+
+  // 雙滑桿(價格/時間/時長共用同一套邏輯)：data-range-slider 標記格式(price/time/duration)決定輸出文字怎麼組，
+  // 跟搜尋表單(.search-panel)無關，首頁跟三個搜尋結果頁都可能有，所以獨立成一段，
   // 不能放在下面那段「找不到 .search-panel 表單就整段不執行」的邏輯裡面。
-  document.querySelectorAll('[data-price-slider]').forEach((slider) => {
-    const minInput = slider.querySelector('[name="min_price"]');
-    const maxInput = slider.querySelector('[name="max_price"]');
+  const RANGE_FORMATTERS = {
+    price: (value) => 'NT$ ' + Number(value).toLocaleString('zh-TW'),
+    time: (value) => String(Math.floor(value / 60)).padStart(2, '0') + ':' + String(value % 60).padStart(2, '0'),
+    duration: (value) => {
+      const h = Math.floor(value / 60);
+      const m = value % 60;
+      return h + ' 小時' + (m ? ' ' + m + ' 分' : '');
+    },
+  };
+  document.querySelectorAll('[data-range-slider]').forEach((slider) => {
+    const inputs = slider.querySelectorAll('input[type="range"]');
+    const minInput = inputs[0];
+    const maxInput = inputs[1];
+    if (!minInput || !maxInput) return;
     const fill = slider.querySelector('[data-price-fill]');
-    const output = slider.closest('.price-slider-row')?.querySelector('[data-price-slider-output]');
+    const output = slider.closest('[data-range-row]')?.querySelector('[data-price-slider-output]');
     const sliderForm = slider.closest('form');
     const sliderMin = Number(minInput.min);
     const sliderMax = Number(minInput.max);
-    const money = (value) => 'NT$ ' + Number(value).toLocaleString('zh-TW');
+    const format = RANGE_FORMATTERS[slider.dataset.rangeSlider] || String;
     const percent = (value) => ((Number(value) - sliderMin) / (sliderMax - sliderMin)) * 100;
     function render(changed) {
       if (Number(minInput.value) > Number(maxInput.value)) {
@@ -30,7 +54,7 @@
       }
       fill.style.left = percent(minInput.value) + '%';
       fill.style.right = (100 - percent(maxInput.value)) + '%';
-      if (output) output.textContent = money(minInput.value) + ' ～ ' + money(maxInput.value);
+      if (output) output.textContent = format(minInput.value) + ' ～ ' + format(maxInput.value);
     }
     minInput.addEventListener('input', () => render(minInput));
     maxInput.addEventListener('input', () => render(maxInput));

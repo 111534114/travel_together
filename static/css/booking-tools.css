@@ -39,7 +39,6 @@
 .city-suggest-item-primary { color:#1c3236; font-size:14px; font-weight:600; }
 .city-suggest-item-secondary { color:#8a9a9d; font-size:12px; }
 .city-suggest-item--airport:hover .city-suggest-item-primary { color:#078da4; }
-.city-suggest-pin, .city-suggest-plane { display:inline-block; margin-right:6px; }
 .city-suggest-empty { padding:4px; color:#8a9a9d; font-size:13px; }
 
 .booking-tools > a { color:#087e96; font-weight:700; }
@@ -52,21 +51,8 @@
 }
 .booking-filters select:hover, .booking-mode:hover { border-color:#078da4; }
 .booking-filters select:focus, .booking-mode:focus { outline:none; border-color:#078da4; box-shadow:0 0 0 3px rgba(7,141,164,.15); }
-.price-range-filter { display:flex; flex-wrap:wrap; align-items:center; gap:10px; padding-right:14px; border-right:1px solid #e7f0f1; }
 .price-range-heading { flex:0 0 auto; font-size:13px; font-weight:700; color:#1c3236; white-space:nowrap; }
 .price-range-note { margin-top:8px; font-size:12px; }
-
-.price-bucket-list { display:flex; flex-wrap:wrap; gap:6px; }
-.price-bucket {
-  display:inline-flex; align-items:baseline; gap:4px;
-  padding:5px 10px; color:#2f4a4f; background:#f7fbfc; border:1px solid #cadfe3; border-radius:7px;
-  font-size:12px; font-weight:600; line-height:1.3; cursor:pointer; transition:border-color .15s ease,color .15s ease,background .15s ease;
-}
-.price-bucket small { color:#708284; font-weight:400; font-size:10px; }
-.price-bucket-placeholder { display:flex; align-items:center; color:#89999c; font-size:12px; }
-.price-bucket:hover { border-color:#078da4; color:#078da4; background:#fff; }
-.price-bucket.active { color:#fff; background:#078da4; border-color:#078da4; }
-.price-bucket.active small { color:#d9f2f6; }
 
 .price-slider-row { display:flex; flex:1 0 100%; align-items:center; gap:12px; margin-top:8px; }
 .price-slider-row output { flex:0 0 auto; color:#078da4; font-size:12px; font-weight:700; white-space:nowrap; }
@@ -92,6 +78,8 @@
 .recommend-check { display:flex; align-items:center; gap:7px; color:#2f4a4f; font-size:13px; font-weight:600; cursor:pointer; }
 .recommend-check input { width:16px; height:16px; margin:0; accent-color:#078da4; cursor:pointer; }
 
+.facet-section { display:flex; flex-direction:column; gap:10px; padding-bottom:14px; border-bottom:1px solid #e7f0f1; }
+.facet-section .price-slider-row { margin-top:0; }
 .facet-group { display:flex; align-items:center; gap:8px; max-width:100%; }
 .facet-title { font-size:13px; font-weight:600; color:#536970; white-space:nowrap; }
 .facet-options { display:flex; flex-wrap:wrap; gap:6px; }
@@ -105,6 +93,20 @@
 .facet-chip input { margin:0; accent-color:#078da4; }
 .facet-chip small { color:#708284; }
 .facet-chip:has(input:checked) small { color:#d9f2f6; }
+
+.facet-group-vertical { display:flex; flex-direction:column; gap:8px; max-width:100%; padding-bottom:14px; border-bottom:1px solid #e7f0f1; }
+.facet-group-vertical:last-child { border-bottom:0; padding-bottom:0; }
+.facet-search {
+  padding:7px 10px; color:#1c3236; background:#fff; border:1px solid #cadfe3; border-radius:7px;
+  font:inherit; font-size:13px; outline:none;
+}
+.facet-search:focus { border-color:#078da4; box-shadow:0 0 0 3px rgba(7,141,164,.15); }
+.facet-list { display:flex; flex-direction:column; gap:2px; max-height:260px; overflow-y:auto; }
+.facet-row { display:flex; align-items:center; justify-content:space-between; gap:10px; padding:5px 2px; cursor:pointer; }
+.facet-row[hidden] { display:none; }
+.facet-row-main { display:flex; align-items:center; gap:7px; color:#2f4a4f; font-size:13px; }
+.facet-row-main input { margin:0; accent-color:#078da4; }
+.facet-row-price { flex:0 0 auto; color:#536970; font-size:12px; white-space:nowrap; }
 
 .booking-save-form { display:inline-flex; margin:6px 0; }
 .booking-field-error, .booking-errors p { color:#b42318 !important; font-size:13px; margin:5px 0; }

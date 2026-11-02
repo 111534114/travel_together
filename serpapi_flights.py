@@ -79,6 +79,48 @@ def search_flight_offers(origin_keyword, destination_keyword, departure_date, re
         return None
 
 
+def search_return_offers(origin_keyword, destination_keyword, departure_date, return_date, departure_token, adults=1, max_results=12):
+    """來回搜尋的第二步：帶著 departure_token 再查一次，拿到「真的配這班去程」的回程選項清單，
+    每個選項的 price 已經是去程+回程的真實來回總價(不是去程跟回程分開加總估的)，
+    而且每個選項都有 booking_token，可以直接丟給 get_booking_redirect() 查真正的訂票連結。
+    查不到/沒設定金鑰/缺參數都回傳 None。"""
+    if not is_configured() or not departure_date or not return_date or not departure_token:
+        return None
+    origin = to_iata(origin_keyword)
+    destination = to_iata(destination_keyword)
+    if not origin or not destination:
+        return None
+
+    cache_key = ("return", origin, destination, departure_date, return_date, departure_token, adults)
+    cached = _cache.get(cache_key)
+    if cached and cached[0] > time.time():
+        return cached[1]
+
+    params = {
+        "engine": "google_flights",
+        "api_key": SERPAPI_API_KEY,
+        "departure_id": origin,
+        "arrival_id": destination,
+        "outbound_date": departure_date,
+        "return_date": return_date,
+        "type": "1",
+        "currency": "TWD",
+        "adults": adults,
+        "hl": "zh-tw",
+        "departure_token": departure_token,
+    }
+
+    try:
+        resp = requests.get(SEARCH_URL, params=params, timeout=20)
+        resp.raise_for_status()
+        offers = _parse_offers(resp.json(), max_results)
+        _cache[cache_key] = (time.time() + CACHE_TTL_SECONDS, offers)
+        return offers
+    except Exception as error:
+        print("SerpApi 回程選項查詢失敗：", error)
+        return None
+
+
 def cheapest_price(origin_keyword, destination_keyword, departure_date, return_date=None, adults=1):
     """只要拿最低價(給日期選擇列用)，不需要組完整的航班卡片資料。"""
     offers = search_flight_offers(origin_keyword, destination_keyword, departure_date, return_date, adults)
@@ -135,7 +177,10 @@ def get_booking_redirect(origin_keyword, destination_keyword, departure_date, bo
 
         candidates = []
         for option in booking_options:
-            leg = option.get("together") or option.get("departing")
+            # 只挑「together」：一次訂到去程+回程(或單程)的單一連結。
+            # 來回票如果最便宜的組合要跨兩家不同的航空公司分開訂(departing/returning 各自的連結)，
+            # 這裡故意跳過不選，因為沒辦法只用一個連結完成訂票，寧可退回比價網站的連結，不要給錯誤導向。
+            leg = option.get("together")
             if not leg:
                 continue
             booking_request = leg.get("booking_request")
@@ -193,6 +238,9 @@ def _parse_offers(data, max_results):
                     "destination_country": "",
                     "is_live": True,
                     "booking_token": item.get("booking_token"),
+                    # 來回搜尋第一步（選去程）時 Google 不會直接給 booking_token，而是給 departure_token，
+                    # 要帶著這個再查一次才能拿到「真的配這班去程」的回程選項和真實來回總價
+                    "departure_token": item.get("departure_token"),
                 })
             except (KeyError, IndexError, TypeError, ValueError):
                 continue

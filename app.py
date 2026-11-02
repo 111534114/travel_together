@@ -42,6 +42,7 @@ import weather  # 匯入中央氣象署天氣預報模組(訪客頁面「目的�
 import amadeus_client  # 匯入 Amadeus 機票比價 API 模組(機票搜尋的真實即時報價，備用資料來源)
 import serpapi_flights  # 匯入 SerpApi 的 Google Flights 模組(機票搜尋的真實即時報價，優先資料來源)
 import flight_links  # 匯入城市->機場代碼對照表、Skyscanner 比價連結組網址工具
+import airports  # 匯入全球機場資料庫(約 6000 筆真實機場資料)，給出發地/目的地自動完成用
 import line_messaging  # 匯入 LINE 官方帳號共用工具(加好友連結、QR Code)
 import line_announcements  # 匯入公告推播到 LINE
 import trip_reminders
@@ -453,6 +454,8 @@ def _search_flights(from_keyword, to_keyword, pax):
                 params
             )
             results = cursor.fetchall()
+            for row in results:
+                row["airline_logo"] = flight_links.airline_logo_url(row["airline_name"])
         except Exception as error:  # 如果查詢過程發生錯誤
             print("機票搜尋查詢失敗：", error)
         finally:
@@ -471,6 +474,39 @@ def _live_flight_search(origin_keyword, destination_keyword, depart_date, return
     if flights:
         return flights, True
     return None, False
+
+
+def _live_cheapest_price(origin_keyword, destination_keyword, depart_date, pax=1, return_date=None):
+    """只拿某一天最低價，給日期選擇列用；依序試 SerpApi -> Amadeus，兩個都查不到就回傳 None。
+    有給 return_date 時，SerpApi 回傳的就已經是去程+回程配好的真實來回總價(不是分開查兩段單程再加總)。"""
+    price = serpapi_flights.cheapest_price(origin_keyword, destination_keyword, depart_date, return_date, pax)
+    if price is not None:
+        return price
+    return amadeus_client.cheapest_price(origin_keyword, destination_keyword, depart_date, pax)
+
+
+@app.route("/api/city-search")  # 出發地/目的地自動完成打字時用的 AJAX 端點，查全球機場資料庫(不只是手動整理的常見城市)
+def api_city_search():
+    keyword = request.args.get("q", "").strip()
+    if len(keyword) < 1:
+        return jsonify([])
+    # 全球機場資料庫是英文資料，中文關鍵字(例如「東京」)要先轉成英文城市名(Tokyo)才查得到，
+    # 這樣才能列出一個城市底下所有真實機場(例如東京的羽田 HND、成田 NRT兩個)，不是只有一個固定代碼。
+    search_keyword = flight_links.to_english_city_name(keyword)
+    results = airports.search_airports(search_keyword, limit=10)
+    # search_airports() 回傳的是模組內共用資料的參照，這裡組新的 dict 回傳，不要直接改到原始資料上。
+    # 中文機場名稱優先用手動整理過、確認無誤的 AIRPORT_NAME_ZH；查不到的話，
+    # 用資料庫裡從維基數據(Wikidata)合併進來的 name_zh(真正的中文機場名稱，不是機器翻譯)；
+    # 兩邊都沒有(非常冷門的小機場，中文維基百科也沒有條目)才會是 None，前端會 fallback 顯示英文原名。
+    payload = [
+        dict(
+            row,
+            name_zh=flight_links.AIRPORT_NAME_ZH.get(row["iata"]) or row.get("name_zh") or None,
+            city_zh=flight_links.to_chinese_city_name(row["city"]),
+        )
+        for row in results
+    ]
+    return jsonify(payload)
 
 
 @app.route("/visitor/flights")  # 設定訪客機票搜尋結果頁路由(從訪客頁面的機票搜尋表單導入，帶入出發地/目的地/日期/人數)
@@ -496,18 +532,14 @@ def visitor_flight_search():
     else:
         outbound_flights = _search_flights(origin, destination, pax)  # 去程：出發地 -> 目的地
 
+    # 來回票：即時資料時，SerpApi 第一次查詢回傳的「去程」清單，price 其實已經是 Google 配好最便宜回程的
+    # 真實來回總價估計(不是我們自己拿兩段單程價格加起來估的)，每筆都帶 departure_token，
+    # 使用者選了某班去程之後，要再帶 departure_token 查一次才能看到「真的配這班去程」的回程選項和真實來回總價，
+    # 所以這裡不再另外查一次單程回程清單，選去程的按鈕會導去 visitor_flight_return_options 那個步驟二頁面。
+    bundled_roundtrip = is_roundtrip and using_live_data
     return_flights = []
-    if is_roundtrip:
-        if using_live_data:
-            # 來回機票的回程，用同一個 API 來源查(SerpApi 把來回包在同一次查詢結果裡回傳最佳組合，
-            # 這裡簡化成分開各查一次單程，取得兩段都可以各自篩選/排序的清單)
-            return_flights, return_is_live = _live_flight_search(destination, origin, return_date, None, pax)
-            return_flights = return_flights or []
-            for row in return_flights:
-                row["origin_city"] = destination or row["origin_city"]
-                row["destination_city"] = origin or row["destination_city"]
-        else:
-            return_flights = _search_flights(destination, origin, pax)
+    if is_roundtrip and not using_live_data:
+        return_flights = _search_flights(destination, origin, pax)
 
     all_flights = outbound_flights + return_flights
     flight_price_buckets = price_buckets(all_flights, "price")
@@ -517,8 +549,9 @@ def visitor_flight_search():
     outbound_flights = apply_time_band(apply_facets(outbound_flights, (("airline_name", "airline"),)), "departure_time")
     return_flights = apply_time_band(apply_facets(return_flights, (("airline_name", "airline"),)), "departure_time")
 
-    # 日期選擇列：即時報價只顯示當前已查詢日期的價格，避免一次請求額外呼叫 6～12 次 API。
-    # 本地班表為固定每日資料，仍顯示同一組最低參考價。
+    # 日期選擇列：即時報價時，其他 6 個日期也各自另外打一次 API 才能拿到那天真正的價格(每天浮動)，
+    # cheapest_price() 內建短時間快取，同一條航線/日期不會短時間內重複打，但每次換日期組合最多還是會多花 12 次查詢額度。
+    # 本地班表為固定每日資料，票價不分日期，所以不用另外查，直接沿用同一組最低參考價。
     date_strip = []
     strip_prev = strip_next = None
     strip_prices = [row["price"] for row in all_flights if row.get("price")]
@@ -539,7 +572,14 @@ def visitor_flight_search():
                 r = base_return + timedelta(days=offset) if base_return else None
                 entry["label"] = f"{d.month}月{d.day}日" + (f"－{r.month}月{r.day}日" if r else "")
                 entry["selected"] = offset == 0
-                entry["price"] = strip_price if not using_live_data or offset == 0 else None
+                if using_live_data:
+                    if offset == 0:
+                        entry["price"] = strip_price
+                    else:
+                        # r 有值時，SerpApi 直接回傳配好最便宜回程的真實來回總價，不用自己查兩段單程再加總。
+                        entry["price"] = _live_cheapest_price(origin, destination, d.isoformat(), pax, return_date=(r.isoformat() if r else None))
+                else:
+                    entry["price"] = strip_price
                 date_strip.append(entry)
             strip_prev = shifted(-7)
             strip_next = shifted(7)
@@ -570,6 +610,37 @@ def visitor_flight_search():
         using_live_data=using_live_data,
         skyscanner_url=skyscanner_url,
         is_roundtrip=bool(is_roundtrip),
+        bundled_roundtrip=bundled_roundtrip,
+    )
+
+
+@app.route("/visitor/flights/return-options")  # 來回機票選完去程之後的步驟二：顯示配這班去程的回程選項，每個選項都是真實來回總價
+def visitor_flight_return_options():
+    origin = request.args.get("from", "").strip()
+    destination = request.args.get("to", "").strip()
+    depart_date = request.args.get("depart", "").strip()
+    return_date = request.args.get("return", "").strip()
+    departure_token = request.args.get("departure_token", "").strip()
+    pax_raw = request.args.get("pax", "1").strip()
+    pax = int(pax_raw) if pax_raw.isdigit() and int(pax_raw) > 0 else 1
+    skyscanner_url = flight_links.skyscanner_search_url(origin, destination, depart_date, return_date, pax)
+
+    return_flights = serpapi_flights.search_return_offers(origin, destination, depart_date, return_date, departure_token, pax)
+    if return_flights is None:
+        return render_template(
+            "flight_return_options.html", origin=origin, destination=destination, depart_date=depart_date,
+            return_date=return_date, pax=pax, return_flights=[], lookup_failed=True, skyscanner_url=skyscanner_url,
+        )
+
+    for row in return_flights:
+        row["origin_city"] = destination or row["origin_city"]
+        row["destination_city"] = origin or row["destination_city"]
+
+    return render_template(
+        "flight_return_options.html",
+        origin=origin, destination=destination, depart_date=depart_date, return_date=return_date, pax=pax,
+        return_flights=filter_prices(return_flights, 'price', 'duration_minutes', 'stops', cabin_field='cabin_class'),
+        lookup_failed=False, skyscanner_url=skyscanner_url,
     )
 
 

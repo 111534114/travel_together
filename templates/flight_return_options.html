@@ -1,0 +1,101 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>選擇回程航班｜走吧揪團</title>
+  <link rel="icon" type="image/png" href="{{ url_for('static', filename='images/logo.png') }}">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <style>
+    :root { --purple: #4B838B; --purple-light: #57A2AC; --purple-soft: #EDF6F7; --ink: #23373A; --muted: #708284; --line: #E1EBEC; --page: #EAF8F9; }
+    * { box-sizing: border-box; }
+    body { margin: 0; background: var(--page); color: var(--ink); font-family: "Noto Sans TC", "Segoe UI", sans-serif; }
+    a { color: inherit; text-decoration: none; }
+    button, input { font: inherit; }
+    .site-nav { position: sticky; top: 0; z-index: 10; display: flex; align-items: center; min-height: 72px; padding: 8px max(24px, calc((100vw - 1180px) / 2)); background: #fff; border-bottom: 1px solid #E2EDEF; box-shadow: 0 2px 10px rgba(45, 37, 68, .05); }
+    .brand { display: flex; align-items: center; width: 126px; height: 56px; }
+    .brand img { display: block; width: 100%; height: 100%; object-fit: contain; }
+    main { width: min(1180px, calc(100% - 48px)); margin: 0 auto; padding: 32px 0 70px; }
+    .breadcrumb { margin: 0 0 18px; color: var(--muted); font-size: 14px; }
+    .breadcrumb a { color: var(--purple); font-weight: 600; }
+    .step-banner { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin: 0 0 20px; padding: 16px 20px; background: #fff; border: 1px solid var(--line); border-radius: 12px; box-shadow: 0 6px 18px rgba(45, 37, 68, .05); }
+    .step-badge { padding: 3px 11px; color: #fff; background: var(--purple); border-radius: 999px; font-size: 12px; font-weight: 700; }
+    .step-banner p { margin: 0; color: var(--muted); font-size: 14px; }
+    .section-header { margin-bottom: 18px; }
+    .section-header h2 { margin: 0; font-size: 26px; }
+    .section-header p { margin: 5px 0 0; color: var(--muted); font-size: 14px; }
+    .flight-list { display: flex; flex-direction: column; gap: 16px; }
+    .flight-card { position: relative; display: flex; flex-wrap: wrap; align-items: center; gap: 18px; padding: 22px 24px; background: #fff; border: 1px solid var(--line); border-radius: 14px; box-shadow: 0 8px 22px rgba(45, 37, 68, .06); transition: transform 160ms ease, box-shadow 160ms ease, border-color 160ms ease; }
+    .flight-card:hover { transform: translateY(-3px); box-shadow: 0 16px 34px rgba(45, 37, 68, .14); border-color: var(--purple-light); }
+    .flight-best-badge { position: absolute; top: -11px; left: 24px; padding: 3px 12px; color: #fff; background: var(--purple); border-radius: 999px; font-size: 11px; font-weight: 700; box-shadow: 0 4px 10px rgba(75, 131, 139, .35); }
+    .flight-airline { display: flex; flex: 0 0 170px; align-items: center; gap: 12px; }
+    .airline-logo { display: flex; flex: 0 0 auto; align-items: center; justify-content: center; width: 40px; height: 40px; color: #fff; background: linear-gradient(135deg, var(--purple), var(--purple-light)); border-radius: 50%; font-size: 16px; font-weight: 800; }
+    .airline-logo-img { flex: 0 0 auto; width: 40px; height: 40px; object-fit: contain; background: #fff; border: 1px solid var(--line); border-radius: 50%; padding: 4px; }
+    .flight-airline b { display: block; font-size: 14px; line-height: 1.4; }
+    .flight-airline span { color: var(--muted); font-size: 12px; }
+    .flight-route { display: flex; flex: 1 1 320px; align-items: center; gap: 18px; }
+    .flight-time { display: flex; flex-direction: column; align-items: center; gap: 2px; min-width: 76px; }
+    .flight-time b { font-size: 24px; font-weight: 800; }
+    .flight-time span { color: var(--muted); font-size: 12px; }
+    .flight-path { display: flex; flex: 1; flex-direction: column; align-items: center; gap: 6px; color: var(--muted); font-size: 12px; }
+    .flight-stop-tag { padding: 2px 10px; border-radius: 999px; font-size: 11px; font-weight: 700; background: #EEF3F3; color: var(--muted); }
+    .flight-stop-tag.direct { background: var(--purple-soft); color: var(--purple); }
+    .flight-path .line { position: relative; width: 100%; height: 2px; background: #D3E4E6; border-radius: 2px; }
+    .flight-path .line::before, .flight-path .line::after { content: ""; position: absolute; top: 50%; width: 6px; height: 6px; background: var(--purple-light); border-radius: 50%; transform: translateY(-50%); }
+    .flight-path .line::before { left: -2px; }
+    .flight-path .line::after { right: -2px; }
+    .flight-footer { display: flex; flex: 0 0 auto; align-items: center; gap: 16px; margin-left: auto; }
+    .price { color: var(--purple); font-size: 23px; font-weight: 800; text-align: right; }
+    .price small { display: block; color: var(--muted); font-size: 12px; font-weight: 500; }
+    .view-button { padding: 11px 22px; color: #fff; background: var(--purple); border: 0; border-radius: 8px; cursor: pointer; font-weight: 700; font-size: 14px; white-space: nowrap; box-shadow: 0 6px 16px rgba(75, 131, 139, .32); transition: background 160ms ease, transform 160ms ease; }
+    .view-button:hover { background: #37676D; transform: translateY(-1px); }
+    .empty { padding: 36px; color: var(--muted); text-align: center; background: #fff; border: 1px dashed #C6DCDF; border-radius: 8px; }
+    @media (max-width: 850px) { .flight-card { flex-direction: column; align-items: stretch; } .flight-footer { margin-left: 0; justify-content: space-between; } }
+    @media (max-width: 560px) { .flight-route { flex-direction: column; align-items: stretch; } .flight-path { display: none; } }
+  </style>
+</head>
+<body>
+  {% set is_member = session.get('user_id') and session.get('role') == 'member' %}
+  <header class="site-nav">
+    <a class="brand" href="{{ url_for('member.dashboard') if is_member else url_for('visitor') }}"><img src="{{ url_for('static', filename='images/logo.png') }}" alt="走吧揪團"></a>
+  </header>
+  <main>
+    <p class="breadcrumb"><a href="{{ url_for('visitor_flight_search', **{'from': origin, 'to': destination, 'depart': depart_date, 'return': return_date, 'pax': pax}) }}">← 重新選擇去程</a></p>
+    <div class="step-banner">
+      <span class="step-badge">步驟 2／2</span>
+      <p>去程已選定：{{ origin }} → {{ destination }}，{{ depart_date }}。請選擇配這班去程的回程航班，下面顯示的價格都是「去程＋回程」的真實來回總價。</p>
+    </div>
+    <section id="return-results">
+      <div class="section-header">
+        <h2>回程航班選項</h2>
+        <p>{{ destination }} → {{ origin }} ・ 回程 {{ return_date }} ・ {{ pax }} 人</p>
+      </div>
+      <div class="flight-list">
+        {% set return_min_price = return_flights|map(attribute='price')|min if return_flights else none %}
+        {% for flight in return_flights %}
+        <article class="flight-card">
+          {% if flight.price == return_min_price %}<span class="flight-best-badge">最低來回總價</span>{% endif %}
+          <div class="flight-airline">{% if flight.airline_logo %}<img class="airline-logo-img" src="{{ flight.airline_logo }}" alt="{{ flight.airline_name }}" loading="lazy">{% else %}<span class="airline-logo">{{ flight.airline_name[:1] }}</span>{% endif %}<div><b>{{ flight.airline_name }}</b><span>{{ flight.flight_number }}・{{ flight.cabin_class }}</span></div></div>
+          <div class="flight-route">
+            <div class="flight-time"><b>{{ flight.departure_time|hm }}</b><span>{{ flight.origin_city }}</span></div>
+            <div class="flight-path"><span class="flight-stop-tag {{ 'direct' if not flight.stops }}">{{ '直飛' if not flight.stops else ('轉機 ' ~ flight.stops ~ ' 次') }}</span><div class="line"></div><span>{{ (flight.duration_minutes // 60) }} 小時 {{ (flight.duration_minutes % 60) }} 分</span></div>
+            <div class="flight-time"><b>{{ flight.arrival_time|hm }}</b><span>{{ flight.destination_city }}</span></div>
+          </div>
+          <div class="flight-footer">
+            <span class="price">NT$ {{ "{:,.0f}".format(flight.price * pax) }}<small>{{ pax }} 人・去程＋回程來回總價</small></span>
+            {% if flight.booking_token %}<a class="view-button" href="{{ url_for('visitor_flight_booking_redirect', **{'token': flight.booking_token, 'from': destination, 'to': origin, 'depart': return_date, 'return': '', 'pax': pax, 'fallback': skyscanner_url or ''}) }}" target="_blank" rel="noopener">選擇 →</a>{% elif skyscanner_url %}<a class="view-button" href="{{ skyscanner_url }}" target="_blank" rel="noopener">選擇 →</a>{% else %}<button class="view-button" type="button" onclick="alert('找不到這個航班的訂票連結，換一個試試。')">選擇航班</button>{% endif %}
+          </div>
+        </article>
+        {% else %}
+        <div class="empty">
+          {% if lookup_failed %}查詢回程選項失敗，可能是查詢逾時或這班去程暫時沒有配套的回程資料。{% else %}找不到配這班去程的回程選項。{% endif %}
+          {% if skyscanner_url %}可以改用 <a href="{{ skyscanner_url }}" target="_blank" rel="noopener" style="color: var(--purple); font-weight: 700;">比價網站</a> 查詢。{% endif %}
+        </div>
+        {% endfor %}
+      </div>
+    </section>
+  </main>
+</body>
+</html>

@@ -1,5 +1,4 @@
 from datetime import date, datetime
-import imghdr
 import json
 import os
 import re
@@ -1542,6 +1541,18 @@ def _group_album_path(stored_name):
     return os.path.join(current_app.instance_path, "group_album", stored_name)
 
 
+def _album_image_type(raw):
+    if raw.startswith(b"\xff\xd8\xff"):
+        return "jpeg"
+    if raw.startswith(b"\x89PNG\r\n\x1a\n"):
+        return "png"
+    if raw.startswith((b"GIF87a", b"GIF89a")):
+        return "gif"
+    if raw.startswith(b"RIFF") and raw[8:12] == b"WEBP":
+        return "webp"
+    return None
+
+
 @friend_groups_bp.route("/groups/<int:group_id>/album", methods=["GET", "POST"])
 @login_required("member")
 def group_album(group_id):
@@ -1561,7 +1572,7 @@ def group_album(group_id):
             raw = upload.read(5 * 1024 * 1024 + 1)
             if len(raw) > 5 * 1024 * 1024:
                 raise ValueError("照片不能超過 5 MB。")
-            image_type = imghdr.what(None, raw)
+            image_type = _album_image_type(raw)
             if image_type not in ("jpeg", "png", "webp", "gif"):
                 raise ValueError("請上傳有效的 JPG、PNG、WEBP 或 GIF 圖片。")
             stored_name = secrets.token_hex(20) + (".jpg" if image_type == "jpeg" else "." + image_type)

@@ -5,7 +5,7 @@ from unittest.mock import MagicMock, patch
 from flask import session
 
 from app import app
-from blueprints.friend_groups import _active_group_access, ai_plan, approve_group_member, leave_group
+from blueprints.friend_groups import _active_group_access, _album_image_type, ai_plan, approve_group_member, leave_group
 from group_ai_planner import normalize_plan
 from content_admin_permissions import _ENDPOINT_ACTIONS
 
@@ -23,6 +23,14 @@ class FakeCursor:
 
 
 class GroupFeatureTests(unittest.TestCase):
+    def test_album_image_type_supports_allowed_headers(self):
+        self.assertEqual(_album_image_type(b"\xff\xd8\xff\xe0data"), "jpeg")
+        self.assertEqual(_album_image_type(b"\x89PNG\r\n\x1a\ndata"), "png")
+        self.assertEqual(_album_image_type(b"GIF89adata"), "gif")
+        self.assertEqual(_album_image_type(b"RIFF\x04\x00\x00\x00WEBPdata"), "webp")
+        self.assertIsNone(_album_image_type(b"RIFF\x04\x00\x00\x00WAVEdata"))
+        self.assertIsNone(_album_image_type(b"not an image"))
+
     def test_report_handling_requires_admin_edit_permission(self):
         self.assertEqual(_ENDPOINT_ACTIONS["friend_groups_admin"]["handle_group_report"], "edit")
 

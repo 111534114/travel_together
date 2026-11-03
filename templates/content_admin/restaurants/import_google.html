@@ -16,13 +16,14 @@
     </div>
     {% endif %}
 
-    <p class="form-hint">不知道要列哪些地點名稱嗎？可以改用<a href="{{ url_for('restaurants.search_import_restaurants') }}">依關鍵字搜尋匯入</a>，輸入「台北市 餐廳」這種泛用關鍵字，一次拿一批候選餐廳來勾選。</p>
+    <p class="form-hint">不知道要列哪些地點名稱嗎？可以改用<a href="{{ url_for('restaurants.search_import_restaurants') }}">依關鍵字搜尋匯入</a>，輸入「台北市 餐廳」這種泛用關鍵字，一次拿一批候選餐廳來勾選。兩種方式查到候選後，都會進到同一個預覽確認畫面。</p>
 
     <ul>
         <li>每一行輸入一個餐廳名稱，例如「鼎泰豐信義店」，系統會用 Google 地圖搜尋最相符的地點。</li>
         <li>一次最多 50 筆，避免一次送出過多付費 API 請求。</li>
+        <li>查完不會直接寫進資料庫，會先列出預覽畫面，可以逐筆勾選、調整分類、選擇要不要一起匯入照片，確認後才正式匯入。</li>
         <li>匯入後，資料完整（有地址、有分類）的餐廳會直接啟用；資料不齊全的會是「<strong>待確認</strong>」，請到餐廳列表逐筆確認。</li>
-        <li>料理類型、分類會用 Google 判斷的地點類型自動帶入；價位如果 Google 有提供也會自動帶入，沒有就用預設中價位。</li>
+        <li>價位如果 Google 有提供會自動帶入，沒有就用預設中價位。</li>
     </ul>
 
     <form method="POST" class="content-form" style="margin-top:10px;">
@@ -31,7 +32,7 @@
             <textarea id="place_names" name="place_names" rows="10" placeholder="鼎泰豐信義店&#10;春水堂人文茶館&#10;藍瓶咖啡" required></textarea>
         </div>
         <div class="form-actions">
-            <button type="submit" class="primary-button" {{ 'disabled' if not api_configured else '' }}>開始匯入</button>
+            <button type="submit" class="primary-button" {{ 'disabled' if not api_configured else '' }}>查詢並預覽</button>
             <a href="{{ url_for('restaurants.list_restaurants') }}" class="secondary-link">取消</a>
         </div>
     </form>

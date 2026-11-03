@@ -11,31 +11,54 @@
 </div>
 {% endif %}
 {% endmacro %}
+{% macro fmt_time(v) %}{{ '%02d:%02d'|format(v // 60, v % 60) }}{% endmacro %}
+{% macro fmt_duration(v) %}{{ v // 60 }} 小時{% if v % 60 %} {{ v % 60 }} 分{% endif %}{% endmacro %}
+{% macro range_slider(label, param_prefix, min_bound, max_bound, format_type, step=1) %}
+<div class="price-slider-row" data-range-row>
+  <span class="price-range-heading">{{ label }}</span>
+  <div class="price-slider" data-range-slider="{{ format_type }}">
+    <div class="price-slider-fill" data-price-fill></div>
+    <input type="range" name="{{ param_prefix }}_min" min="{{ min_bound }}" max="{{ max_bound }}" step="{{ step }}" value="{{ request.args.get(param_prefix ~ '_min', min_bound) }}" aria-label="最低{{ label }}">
+    <input type="range" name="{{ param_prefix }}_max" min="{{ min_bound }}" max="{{ max_bound }}" step="{{ step }}" value="{{ request.args.get(param_prefix ~ '_max', max_bound) }}" aria-label="最高{{ label }}">
+  </div>
+  <output data-price-slider-output>
+    {%- if format_type == 'time' -%}
+      {{ fmt_time(request.args.get(param_prefix ~ '_min', min_bound)|int) }} ～ {{ fmt_time(request.args.get(param_prefix ~ '_max', max_bound)|int) }}
+    {%- else -%}
+      {{ fmt_duration(request.args.get(param_prefix ~ '_min', min_bound)|int) }} ～ {{ fmt_duration(request.args.get(param_prefix ~ '_max', max_bound)|int) }}
+    {%- endif -%}
+  </output>
+</div>
+{% endmacro %}
+{% macro facet_list_priced(title, param, options, show_count=False, searchable=False) %}
+{% if options %}
+<div class="facet-group-vertical">
+  <span class="facet-title">{{ title }}</span>
+  {% if searchable %}<input type="text" class="facet-search" placeholder="所有{{ title }}" data-facet-search="{{ param }}-list">{% endif %}
+  <div class="facet-list" {% if searchable %}data-facet-list="{{ param }}-list"{% endif %}>
+    {% for opt in options %}
+    <label class="facet-row" {% if searchable %}data-facet-label="{{ opt.label|lower }}"{% endif %}>
+      <span class="facet-row-main"><input type="checkbox" name="{{ param }}" value="{{ opt.value }}" {{ 'checked' if opt.value in request.args.getlist(param) }} onchange="this.form.requestSubmit()">{{ opt.label }}{% if show_count %}（{{ opt.count }}）{% endif %}</span>
+      {% if opt.min_price is not none %}<span class="facet-row-price">TWD{{ '{:,.0f}'.format(opt.min_price) }}</span>{% endif %}
+    </label>
+    {% endfor %}
+  </div>
+</div>
+{% endif %}
+{% endmacro %}
 {% if booking_kind or search_errors %}
 <div class="booking-tools">
   {% if booking_kind %}
-  {% set base_qs = request.args.to_dict() %}
-  {% set _ = base_qs.pop('min_price', None) %}
-  {% set _ = base_qs.pop('max_price', None) %}
-  {% set own_params = ['sort','fare','cabin','stops','airline','train_type','car_class','depart_band','min_price','max_price'] %}
+  {% set own_params = ['sort','fare','cabin','stops','airline','alliance','train_type','car_class','depart_band','min_price','max_price',
+                        'stops_count','layover_city','aircraft','origin_airport','destination_airport',
+                        'duration_min','duration_max','layover_min','layover_max',
+                        'depart_time_min','depart_time_max','arrival_time_min','arrival_time_max'] %}
   <form method="get" class="booking-filters">
     {% for key, value in request.args.items(multi=True) %}{% if key not in own_params %}<input type="hidden" name="{{ key }}" value="{{ value }}">{% endif %}{% endfor %}
-    <div class="price-range-filter">
-      <span class="price-range-heading">價格範圍</span>
-      <div class="price-bucket-list">
-        <a class="price-bucket {{ 'active' if not request.args.get('min_price') and not request.args.get('max_price') }}" href="?{{ base_qs|urlencode }}">不限</a>
-        {% for b in price_buckets %}
-        {% set qs = dict(base_qs) %}
-        {% set _ = qs.update({'min_price': b.low, 'max_price': (b.high if b.high is not none else '')}) %}
-        <a class="price-bucket" href="?{{ qs|urlencode }}">NT$ {{ '{:,}'.format(b.low) }}{% if b.high is not none %} - {{ '{:,}'.format(b.high) }}{% else %}+{% endif %}<small>{{ b.count }} 筆</small></a>
-        {% endfor %}
-        {% if not price_buckets %}<span class="price-bucket-placeholder">目前資料還不夠多，暫時切不出價格區間</span>{% endif %}
-      </div>
-    </div>
     {% if price_max %}
-    <div class="price-slider-row">
+    <div class="price-slider-row" data-range-row>
       <span class="price-range-heading">自訂範圍</span>
-      <div class="price-slider" data-price-slider>
+      <div class="price-slider" data-range-slider="price">
         <div class="price-slider-fill" data-price-fill></div>
         <input type="range" name="min_price" min="0" max="{{ price_max }}" step="{{ 50 if price_max < 2000 else (100 if price_max < 10000 else 500) }}" value="{{ request.args.get('min_price', '0') }}" aria-label="最低價格">
         <input type="range" name="max_price" min="0" max="{{ price_max }}" step="{{ 50 if price_max < 2000 else (100 if price_max < 10000 else 500) }}" value="{{ request.args.get('max_price', price_max) }}" aria-label="最高價格">
@@ -43,12 +66,37 @@
       <output data-price-slider-output>NT$ {{ '{:,}'.format(request.args.get('min_price', '0')|int) }} ～ NT$ {{ '{:,}'.format(request.args.get('max_price', price_max)|int) }}</output>
     </div>
     {% endif %}
-    <label>排序<select name="sort"><option value="">預設</option>{% if booking_kind != 'hotel' %}<option value="featured" {{ 'selected' if request.args.get('sort') == 'featured' }}>精選</option>{% endif %}<option value="price_asc" {{ 'selected' if request.args.get('sort') == 'price_asc' }}>價格由低至高</option><option value="price_desc" {{ 'selected' if request.args.get('sort') == 'price_desc' }}>價格由高至低</option></select></label>
-    {% if booking_kind == 'flight' %}<label>艙等<select name="cabin">{% for key,label in cabin_options.items() %}<option value="{{ key }}" {{ 'selected' if request.args.get('cabin','all') == key }}>{{ label }}</option>{% endfor %}</select></label>{% elif booking_kind != 'hotel' %}<label>票種<select name="fare">{% for key,label in fare_options.items() %}<option value="{{ key }}" {{ 'selected' if request.args.get('fare','all') == key }}>{{ label }}</option>{% endfor %}</select></label>{% endif %}
-    {% if booking_kind == 'flight' %}<label>轉機<select name="stops"><option value="">不限</option><option value="direct" {{ 'selected' if request.args.get('stops') == 'direct' }}>直飛</option><option value="connecting" {{ 'selected' if request.args.get('stops') == 'connecting' }}>轉機</option></select></label>{% endif %}
+    {% if booking_kind == 'flight' %}
+    <div class="recommend-group">
+      <span class="facet-title">推薦</span>
+      <label class="recommend-check"><input type="checkbox" name="stops" value="direct" {{ 'checked' if request.args.get('stops') == 'direct' }} onchange="this.form.requestSubmit()">直飛</label>
+    </div>
+    {% endif %}
+    <label>排序<select name="sort" onchange="this.form.requestSubmit()"><option value="">預設</option>{% if booking_kind != 'hotel' %}<option value="featured" {{ 'selected' if request.args.get('sort') == 'featured' }}>精選</option>{% endif %}<option value="price_asc" {{ 'selected' if request.args.get('sort') == 'price_asc' }}>價格由低至高</option><option value="price_desc" {{ 'selected' if request.args.get('sort') == 'price_desc' }}>價格由高至低</option>{% if booking_kind != 'hotel' %}<option value="depart_earliest" {{ 'selected' if request.args.get('sort') == 'depart_earliest' }}>當日最早出發</option><option value="depart_latest" {{ 'selected' if request.args.get('sort') == 'depart_latest' }}>當日最晚出發</option>{% endif %}</select></label>
+    {% if booking_kind == 'flight' %}<label>艙等<select name="cabin" onchange="this.form.querySelectorAll('input[name=min_price],input[name=max_price]').forEach(i => i.disabled = true); this.form.requestSubmit()">{% for key,label in cabin_options.items() %}<option value="{{ key }}" {{ 'selected' if request.args.get('cabin','all') == key }}>{{ label }}</option>{% endfor %}</select></label>{% elif booking_kind != 'hotel' %}<label>票種<select name="fare" onchange="this.form.requestSubmit()">{% for key,label in fare_options.items() %}<option value="{{ key }}" {{ 'selected' if request.args.get('fare','all') == key }}>{{ label }}</option>{% endfor %}</select></label>{% endif %}
     {% if booking_kind == 'train' %}{{ facet_checkboxes('車種', 'train_type', train_type_facets) }}{% endif %}
     {% if booking_kind == 'train' %}{{ facet_checkboxes('車廂等級', 'car_class', car_class_facets) }}{% endif %}
-    <button type="submit" class="view-button">套用篩選</button>
+    {% if booking_kind == 'flight' %}
+    <div class="facet-section">
+      <span class="facet-title">時間</span>
+      {{ range_slider('出發時間', 'depart_time', 0, 1439, 'time', step=15) }}
+      {{ range_slider('抵達時間', 'arrival_time', 0, 1439, 'time', step=15) }}
+    </div>
+    {% if duration_bounds or layover_bounds %}
+    <div class="facet-section">
+      <span class="facet-title">時長</span>
+      {% if duration_bounds %}{{ range_slider('旅程時長', 'duration', duration_bounds[0], duration_bounds[1], 'duration', step=5) }}{% endif %}
+      {% if layover_bounds %}{{ range_slider('中停時長', 'layover', layover_bounds[0], layover_bounds[1], 'duration', step=5) }}{% endif %}
+    </div>
+    {% endif %}
+    {{ facet_list_priced('中停', 'stops_count', stops_facets) }}
+    {{ facet_list_priced('中停城市', 'layover_city', layover_city_facets) }}
+    {{ facet_list_priced('出發機場', 'origin_airport', origin_airport_facets) }}
+    {{ facet_list_priced('抵達機場', 'destination_airport', destination_airport_facets) }}
+    {{ facet_list_priced('機型', 'aircraft', aircraft_facets) }}
+    {{ facet_list_priced('聯盟', 'alliance', alliance_facets) }}
+    {{ facet_list_priced('航空公司', 'airline', airline_facets, show_count=True, searchable=True) }}
+    {% endif %}
   </form>
   <p class="price-range-note">{{ '僅供估算，實際空房與價格請洽業者確認。' if booking_kind == 'hotel' else ('即時機票報價，價格會隨日期與座位狀況浮動，實際票價與座位請以航空公司或售票平台為準。' if using_live_data else '僅供估算，為資料庫參考票價；實際票價以售票平台為準。') }}</p>
   {% endif %}

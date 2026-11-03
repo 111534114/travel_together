@@ -75,3 +75,7 @@ LIFF_ID = os.environ.get("LIFF_ID", "")
 AMADEUS_API_KEY = os.environ.get("AMADEUS_API_KEY", "")
 AMADEUS_API_SECRET = os.environ.get("AMADEUS_API_SECRET", "")
 SERPAPI_API_KEY = os.environ.get("SERPAPI_API_KEY", "")
+
+# Optional live THSR/TRA timetable and fare provider (交通部 TDX); without credentials, use local train data.
+TDX_CLIENT_ID = os.environ.get("TDX_CLIENT_ID", "")
+TDX_CLIENT_SECRET = os.environ.get("TDX_CLIENT_SECRET", "")

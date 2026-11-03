@@ -1,0 +1,7 @@
+{# 左側導覽列（會員／訪客共用版面）：放在 <div class="member-shell"> 裡面、<main class="member-content"> 前面；需要 is_member 變數 #}
+<aside class="member-sidenav">
+  <a class="brand" href="{{ url_for('member.dashboard') if is_member else url_for('visitor') }}"><img src="{{ url_for('static', filename='images/logo.png') }}" alt="走吧揪團"></a>
+  {% include 'partials/member_nav_toggle.html' %}
+  <nav id="memberNav">{% include 'partials/member_nav_links.html' if is_member else 'partials/visitor_nav_links.html' %}</nav>
+</aside>
+<div class="nav-backdrop" aria-hidden="true"></div>

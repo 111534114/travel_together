@@ -1444,7 +1444,8 @@ def trip_detail(trip_id):
                             AND (expires_at IS NULL OR expires_at > NOW())
                           ORDER BY created_at DESC LIMIT 1""", (trip_id,)); invite_link = cursor.fetchone()
         cursor.execute("""SELECT p.*,u.full_name AS proposer_name FROM proposals p JOIN users u ON u.user_id=p.proposer_id
-                          WHERE p.trip_id=%s ORDER BY p.created_at DESC""", (trip_id,)); proposals = cursor.fetchall()
+                          WHERE p.trip_id=%s AND p.is_catalog_submission=0
+                          ORDER BY p.created_at DESC""", (trip_id,)); proposals = cursor.fetchall()
         for p in proposals:
             p["before"] = json.loads(p["before_data"]) if p["before_data"] else None
             p["after"] = json.loads(p["after_data"]) if p["after_data"] else None
@@ -1744,9 +1745,22 @@ def add_itinerary(trip_id):
             for error in time_errors: flash(error, "error")
         else:
             cursor.execute("SELECT COALESCE(MAX(sort_order),0)+1 AS next_order FROM itineraries WHERE trip_id=%s AND itinerary_date=%s", (trip_id,day)); order=cursor.fetchone()["next_order"]
+            address = request.form.get("address","").strip() or None
             cursor.execute("""INSERT INTO itineraries (trip_id,created_by,itinerary_date,item_type,title,start_time,end_time,is_all_day,address,transport_method,transport_minutes,estimated_cost,notes,sort_order)
-                              VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)""", (trip_id,session["user_id"],day,item_type,title,start,end,is_all_day,request.form.get("address","").strip() or None,request.form.get("transport_method","").strip() or None,transport_minutes,request.form.get("estimated_cost") or 0,request.form.get("notes","").strip() or None,order))
-            connection.commit(); flash("已加入每日行程。", "success")
+                              VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)""", (trip_id,session["user_id"],day,item_type,title,start,end,is_all_day,address,request.form.get("transport_method","").strip() or None,transport_minutes,request.form.get("estimated_cost") or 0,request.form.get("notes","").strip() or None,order))
+
+            # 使用者勾選「這個地點不在清單中，送交管理員審核收錄」：這筆送審資料跟上面的旅伴提案投票
+            # 是分開的兩件事，用 is_catalog_submission 標記，不會出現在這趟行程的提案投票清單給旅伴看，
+            # 只會進到管理員的審核佇列，核准後才會正式收錄進對應的資料表供所有人使用
+            catalog_note = ""
+            if request.form.get("submit_for_catalog") == "on" and item_type in ("attraction", "restaurant", "accommodation"):
+                cursor.execute("""INSERT INTO proposals (trip_id,proposer_id,proposal_type,title,location,description,estimated_cost,content_review_status,is_catalog_submission)
+                                  VALUES (%s,%s,%s,%s,%s,%s,%s,'pending',1)""",
+                               (trip_id, session["user_id"], item_type, title, address,
+                                request.form.get("notes","").strip() or None, request.form.get("estimated_cost") or 0))
+                catalog_note = "，已送交管理員審核，通過後會正式收錄進資料庫"
+
+            connection.commit(); flash(f"已加入每日行程{catalog_note}。", "success")
     except Exception:
         connection.rollback(); flash("儲存行程項目失敗。", "error")
     finally:

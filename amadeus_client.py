@@ -131,7 +131,7 @@ def _parse_offers(raw_offers):
                 # 避免跟 booking_search.py 裡用 Decimal 做價格篩選/排序時 float 對 Decimal 比較直接噴錯
                 "cabin_class": "經濟艙",
                 "stops": len(segments) - 1,
-                "seats_available": int(offer.get("numberOfBookableSeats") or 9),
+                "seats_available": int(offer["numberOfBookableSeats"]) if offer.get("numberOfBookableSeats") is not None else None,
                 "origin_city": first_seg["departure"]["iataCode"],
                 "destination_city": last_seg["arrival"]["iataCode"],
                 "origin_country": "",

@@ -122,21 +122,70 @@ def price_range(rows, field):
     return int((top // step + 1) * step)
 
 
-def facet_options(rows, field, labels=None):
-    """算出目前搜尋結果裡，某個欄位(例如航空公司、車種)有哪些不同的值可以勾選篩選，
-    附帶各自的筆數與顯示用文字；只有 2 種以上的值才有篩選意義，否則回傳空清單(不顯示篩選)。"""
+def value_range(rows, field):
+    """算出目前搜尋結果裡，某個數值欄位(例如航程時長、中停時長，單位分鐘)實際的最小值跟最大值，
+    給時長篩選滑桿的左右邊界用——滑桿範圍要是這批結果真實的時長區間，不是隨便訂的。
+    資料不足 2 筆不同的值就不用篩選(全部航班時長都一樣，篩了也沒意義)。"""
+    values = [row[field] for row in rows if row.get(field) is not None]
+    if len(set(values)) < 2:
+        return None
+    return min(values), max(values)
+
+
+def facet_options(rows, field, labels=None, price_field=None):
+    """算出目前搜尋結果裡，某個欄位(例如航空公司、聯盟、車種)有哪些不同的值可以勾選篩選，
+    附帶各自的筆數、顯示用文字；只有 2 種以上的值才有篩選意義，否則回傳空清單(不顯示篩選)。
+    有給 price_field 的話，每個選項還會附上這個值底下所有結果的最低價(例如「日本航空」最便宜的那班多少錢)，
+    是從目前這批搜尋結果裡實際算出來的真實最低價，不是另外估的。"""
     counts = {}
+    min_prices = {}
     for row in rows:
         value = row.get(field)
         if not value:
             continue
         counts[value] = counts.get(value, 0) + 1
+        if price_field:
+            price = row.get(price_field)
+            if price is not None and (value not in min_prices or price < min_prices[value]):
+                min_prices[value] = price
     if len(counts) < 2:
         return []
     return sorted(
-        ({'value': value, 'label': (labels or {}).get(value, value), 'count': count} for value, count in counts.items()),
+        (
+            {
+                'value': value, 'label': (labels or {}).get(value, value), 'count': count,
+                'min_price': min_prices.get(value) if price_field else None,
+            }
+            for value, count in counts.items()
+        ),
         key=lambda opt: -opt['count']
     )
+
+
+def apply_value_range(rows, field, param_prefix):
+    """用 query string 的 {param_prefix}_min / {param_prefix}_max 篩選某個數值欄位(分鐘)在範圍內的資料，
+    例如 duration_min/duration_max 篩航程時長、layover_min/layover_max 篩中停時長。
+    沒帶這兩個參數就不篩選(顯示全部)。"""
+    min_raw = request.args.get(f"{param_prefix}_min")
+    max_raw = request.args.get(f"{param_prefix}_max")
+    if not min_raw and not max_raw:
+        return rows
+    try:
+        min_val = int(min_raw) if min_raw else None
+        max_val = int(max_raw) if max_raw else None
+    except ValueError:
+        return rows
+    result = []
+    for row in rows:
+        value = row.get(field)
+        if value is None:
+            continue
+        if min_val is not None and value < min_val:
+            continue
+        if max_val is not None and value > max_val:
+            continue
+        result.append(row)
+    return result
 
 
 def apply_facets(rows, fields):
@@ -200,6 +249,19 @@ def filter_prices(rows, field, duration_field=None, stops_field=None, cabin_fiel
     elif sort == 'featured' and duration_field:
         # 精選：同時考慮價格與耗時，概算每分鐘車程/航程約值 NT$20，取總分最低的排前面。
         result.sort(key=lambda r: (not bool(r.get(field)), (r.get(field) or 0) + (r.get(duration_field) or 0) * 20))
+    elif sort in ('depart_earliest', 'depart_latest'):
+        # 當日最早/最晚：優先用已經算好的 departure_minutes(即時資料才有)，沒有的話(本地班表)
+        # 自己把 "HH:MM" 轉成分鐘數再比較，兩種來源混在同一個排序鍵裡型別才會一致，不會排序到一半噴錯。
+        def _depart_minutes(row):
+            if row.get('departure_minutes') is not None:
+                return row['departure_minutes']
+            try:
+                hour, minute = str(row.get('departure_time') or '').split(':')
+                return int(hour) * 60 + int(minute)
+            except ValueError:
+                return 24 * 60  # 時間格式不對的(理論上不會發生)排到最後面，不要讓排序整個失敗
+
+        result.sort(key=_depart_minutes, reverse=(sort == 'depart_latest'))
     return result
 
 

@@ -3,8 +3,8 @@ import re  # 匯入正規表示式模組，用來驗證註冊欄位格式
 import secrets  # 匯入 secrets 模組，用來產生忘記密碼用的隨機 token
 from urllib.parse import unquote_plus, urlsplit  # SerpApi 表單資料解碼與公開 OAuth 網址判斷
 from booking_search import (
-    TRAIN_TYPE_LABELS, apply_facets, apply_time_band, booking_bp, facet_options,
-    filter_prices, price_buckets, price_range, time_band_options,
+    TRAIN_TYPE_LABELS, apply_facets, apply_time_band, apply_value_range, booking_bp, facet_options,
+    filter_prices, price_buckets, price_range, time_band_options, value_range,
 )
 import requests  # 匯入 requests，用來呼叫 LINE 的個人資料 API
 from datetime import datetime, timedelta
@@ -41,7 +41,9 @@ from utils import google_maps_url, google_maps_embed_url, format_hm, friend_grou
 import weather  # 匯入中央氣象署天氣預報模組(訪客頁面「目的地天氣」功能用)
 import amadeus_client  # 匯入 Amadeus 機票比價 API 模組(機票搜尋的真實即時報價，備用資料來源)
 import serpapi_flights  # 匯入 SerpApi 的 Google Flights 模組(機票搜尋的真實即時報價，優先資料來源)
+import tdx_trains  # 匯入交通部 TDX 模組(高鐵／台鐵指定日期的真實班表與票價，優先資料來源)
 import flight_links  # 匯入城市->機場代碼對照表、Skyscanner 比價連結組網址工具
+import airports  # 匯入全球機場資料庫(約 6000 筆真實機場資料)，給出發地/目的地自動完成用
 import line_messaging  # 匯入 LINE 官方帳號共用工具(加好友連結、QR Code)
 import line_announcements  # 匯入公告推播到 LINE
 import trip_reminders
@@ -453,6 +455,8 @@ def _search_flights(from_keyword, to_keyword, pax):
                 params
             )
             results = cursor.fetchall()
+            for row in results:
+                row["airline_logo"] = flight_links.airline_logo_url(row["airline_name"])
         except Exception as error:  # 如果查詢過程發生錯誤
             print("機票搜尋查詢失敗：", error)
         finally:
@@ -461,16 +465,87 @@ def _search_flights(from_keyword, to_keyword, pax):
     return results
 
 
-def _live_flight_search(origin_keyword, destination_keyword, depart_date, return_date=None, pax=1):
+def _live_flight_search(origin_keyword, destination_keyword, depart_date, return_date=None, pax=1, cabin_class=None):
     """依序嘗試 SerpApi(Google Flights) -> Amadeus，兩個都沒設定金鑰/查不到/失敗就回傳 (None, False)，
-    呼叫端自己改用本地資料庫的固定班表資料。回傳 (flights, is_live)。"""
-    flights = serpapi_flights.search_flight_offers(origin_keyword, destination_keyword, depart_date, return_date, pax)
+    呼叫端自己改用本地資料庫的固定班表資料。回傳 (flights, is_live)。
+    cabin_class：Google Flights 預設只查經濟艙，要查商務/頭等艙要指定這個，所以使用者在「艙等」篩選
+    選了特定艙等時，呼叫端要帶這個參數重新查一次，不是拿經濟艙資料硬篩。"""
+    flights = serpapi_flights.search_flight_offers(origin_keyword, destination_keyword, depart_date, return_date, pax, cabin_class=cabin_class)
     if flights:
         return flights, True
     flights = amadeus_client.search_flight_offers(origin_keyword, destination_keyword, depart_date, pax)
     if flights:
         return flights, True
     return None, False
+
+
+def _live_airport_label(iata_code, typed_keyword):
+    """即時資料每筆航班實際起降的機場代碼(例如搜尋「東京（所有機場）」時，不同班機可能分別是
+    NRT 或 HND)，換成比較好懂的機場中文名稱，而不是整段原始搜尋關鍵字──不然同一個城市選了
+    「所有機場」時，不同機場的航班會全部顯示同一個字串，看不出班機之間落地機場的差異。
+    查不到這個代碼的資料就退回使用者原本輸入的關鍵字，不要顯示原始的機場代碼。"""
+    airport = airports.get_airport(iata_code)
+    if not airport:
+        return typed_keyword or iata_code
+    return flight_links.AIRPORT_NAME_ZH.get(iata_code) or airport.get("name_zh") or airport["city"]
+
+
+def _hm_to_minutes(hm_value):
+    """把 "HH:MM" 字串轉成從 00:00 起算的分鐘數，給出發/抵達時間篩選滑桿用；格式不對就回傳 None。"""
+    try:
+        hour, minute = str(hm_value).split(":")
+        return int(hour) * 60 + int(minute)
+    except (ValueError, AttributeError):
+        return None
+
+
+def _airport_facet_label(iata_code):
+    """「機場」篩選選項的顯示文字，格式「TSA 臺北松山機場」(代碼+機場名稱)，查不到名稱就只顯示代碼。"""
+    label = _live_airport_label(iata_code, None)
+    return f"{iata_code} {label}" if label and label != iata_code else iata_code
+
+
+def _live_layover_city_label(layovers):
+    """中停城市篩選用：多段中停時，用第一個中停站代表(絕大多數航班只中停一次)，
+    換成比較好懂的中文城市名稱，查不到就用 SerpApi 給的機場名稱原文。"""
+    if not layovers:
+        return None
+    first = layovers[0]
+    city_zh = flight_links.to_chinese_city_name(airports.get_airport(first.get("iata", "")).get("city", "")) if airports.get_airport(first.get("iata", "")) else None
+    return city_zh or first.get("name")
+
+
+def _live_cheapest_price(origin_keyword, destination_keyword, depart_date, pax=1, return_date=None):
+    """只拿某一天最低價，給日期選擇列用；依序試 SerpApi -> Amadeus，兩個都查不到就回傳 None。
+    有給 return_date 時，SerpApi 回傳的就已經是去程+回程配好的真實來回總價(不是分開查兩段單程再加總)。"""
+    price = serpapi_flights.cheapest_price(origin_keyword, destination_keyword, depart_date, return_date, pax)
+    if price is not None:
+        return price
+    return amadeus_client.cheapest_price(origin_keyword, destination_keyword, depart_date, pax)
+
+
+@app.route("/api/city-search")  # 出發地/目的地自動完成打字時用的 AJAX 端點，查全球機場資料庫(不只是手動整理的常見城市)
+def api_city_search():
+    keyword = request.args.get("q", "").strip()
+    if len(keyword) < 1:
+        return jsonify([])
+    # 全球機場資料庫是英文資料，中文關鍵字(例如「東京」)要先轉成英文城市名(Tokyo)才查得到，
+    # 這樣才能列出一個城市底下所有真實機場(例如東京的羽田 HND、成田 NRT兩個)，不是只有一個固定代碼。
+    search_keyword = flight_links.to_english_city_name(keyword)
+    results = airports.search_airports(search_keyword, limit=10)
+    # search_airports() 回傳的是模組內共用資料的參照，這裡組新的 dict 回傳，不要直接改到原始資料上。
+    # 中文機場名稱優先用手動整理過、確認無誤的 AIRPORT_NAME_ZH；查不到的話，
+    # 用資料庫裡從維基數據(Wikidata)合併進來的 name_zh(真正的中文機場名稱，不是機器翻譯)；
+    # 兩邊都沒有(非常冷門的小機場，中文維基百科也沒有條目)才會是 None，前端會 fallback 顯示英文原名。
+    payload = [
+        dict(
+            row,
+            name_zh=flight_links.AIRPORT_NAME_ZH.get(row["iata"]) or row.get("name_zh") or None,
+            city_zh=flight_links.to_chinese_city_name(row["city"]),
+        )
+        for row in results
+    ]
+    return jsonify(payload)
 
 
 @app.route("/visitor/flights")  # 設定訪客機票搜尋結果頁路由(從訪客頁面的機票搜尋表單導入，帶入出發地/目的地/日期/人數)
@@ -488,37 +563,72 @@ def visitor_flight_search():
     # 優先打真實機票報價 API（SerpApi 的 Google Flights，查不到再試 Amadeus），價格會依日期浮動；
     # 兩個都沒設定金鑰、查不到這條航線、或 API 呼叫失敗，就自動改用本地資料庫裡固定班表的機票資料，
     # 兩種情況畫面都看得出差異(有沒有「即時報價」標籤)。
-    outbound_flights, using_live_data = _live_flight_search(origin, destination, depart_date, return_date if is_roundtrip else None, pax)
+    # 「艙等」篩選選了特定艙等(不是「全部艙等」)時要重新查那個艙等，Google Flights 預設只回傳經濟艙，
+    # 商務艙/頭等艙的航班不會自動出現在經濟艙的查詢結果裡。
+    selected_cabin = request.args.get("cabin", "all")
+    cabin_query = selected_cabin if selected_cabin != "all" else None
+    outbound_flights, using_live_data = _live_flight_search(origin, destination, depart_date, return_date if is_roundtrip else None, pax, cabin_class=cabin_query)
     if using_live_data:
         for row in outbound_flights:
-            row["origin_city"] = origin or row["origin_city"]
-            row["destination_city"] = destination or row["destination_city"]
+            # 「機場」篩選要用真正的機場代碼當篩選值，所以先把代碼存起來，再把顯示用的欄位換成好懂的名稱
+            row["origin_airport_code"] = row.get("origin_city")
+            row["destination_airport_code"] = row.get("destination_city")
+            row["origin_city"] = _live_airport_label(row.get("origin_city"), origin)
+            row["destination_city"] = _live_airport_label(row.get("destination_city"), destination)
+            row["layover_city"] = _live_layover_city_label(row.get("layovers"))
     else:
         outbound_flights = _search_flights(origin, destination, pax)  # 去程：出發地 -> 目的地
 
+    # 來回票：即時資料時，SerpApi 第一次查詢回傳的「去程」清單，price 其實已經是 Google 配好最便宜回程的
+    # 真實來回總價估計(不是我們自己拿兩段單程價格加起來估的)，每筆都帶 departure_token，
+    # 使用者選了某班去程之後，要再帶 departure_token 查一次才能看到「真的配這班去程」的回程選項和真實來回總價，
+    # 所以這裡不再另外查一次單程回程清單，選去程的按鈕會導去 visitor_flight_return_options 那個步驟二頁面。
+    bundled_roundtrip = is_roundtrip and using_live_data
     return_flights = []
-    if is_roundtrip:
-        if using_live_data:
-            # 來回機票的回程，用同一個 API 來源查(SerpApi 把來回包在同一次查詢結果裡回傳最佳組合，
-            # 這裡簡化成分開各查一次單程，取得兩段都可以各自篩選/排序的清單)
-            return_flights, return_is_live = _live_flight_search(destination, origin, return_date, None, pax)
-            return_flights = return_flights or []
-            for row in return_flights:
-                row["origin_city"] = destination or row["origin_city"]
-                row["destination_city"] = origin or row["destination_city"]
-        else:
-            return_flights = _search_flights(destination, origin, pax)
+    if is_roundtrip and not using_live_data:
+        return_flights = _search_flights(destination, origin, pax)
 
     all_flights = outbound_flights + return_flights
+    # 聯盟是航空公司真正隸屬的公開資料(不是算出來的)，直接幫每筆航班標上聯盟代碼，
+    # 這樣就能沿用跟「航空公司」篩選一樣的 facet_options/apply_facets 邏輯，不用另外寫一套。
+    for row in all_flights:
+        row["alliance"] = flight_links.AIRLINE_ALLIANCE.get(row.get("airline_name"))
+        row["stops_label"] = "直飛" if not row.get("stops") else f"轉機 {row['stops']} 次"
+        row["departure_minutes"] = _hm_to_minutes(row.get("departure_time"))
+        row["arrival_minutes"] = _hm_to_minutes(row.get("arrival_time"))
     flight_price_buckets = price_buckets(all_flights, "price")
     flight_price_max = price_range(all_flights, "price")
-    airline_facets = facet_options(all_flights, "airline_name")
+    airline_facets = facet_options(all_flights, "airline_name", price_field="price")
+    alliance_facets = facet_options(all_flights, "alliance", labels=flight_links.ALLIANCE_NAMES, price_field="price")
+    stops_facets = facet_options(all_flights, "stops_label", price_field="price")
+    layover_city_facets = facet_options(all_flights, "layover_city", price_field="price")
+    aircraft_facets = facet_options(all_flights, "airplane_category", price_field="price")
+    origin_airport_labels = {code: _airport_facet_label(code) for code in {r.get("origin_airport_code") for r in all_flights if r.get("origin_airport_code")}}
+    destination_airport_labels = {code: _airport_facet_label(code) for code in {r.get("destination_airport_code") for r in all_flights if r.get("destination_airport_code")}}
+    origin_airport_facets = facet_options(all_flights, "origin_airport_code", labels=origin_airport_labels, price_field="price")
+    destination_airport_facets = facet_options(all_flights, "destination_airport_code", labels=destination_airport_labels, price_field="price")
+    duration_bounds = value_range(all_flights, "duration_minutes")
+    layover_bounds = value_range(all_flights, "layover_minutes")
     depart_band_options = time_band_options(all_flights, "departure_time")
-    outbound_flights = apply_time_band(apply_facets(outbound_flights, (("airline_name", "airline"),)), "departure_time")
-    return_flights = apply_time_band(apply_facets(return_flights, (("airline_name", "airline"),)), "departure_time")
+    facet_fields = (
+        ("airline_name", "airline"), ("alliance", "alliance"), ("stops_label", "stops_count"),
+        ("layover_city", "layover_city"), ("airplane_category", "aircraft"),
+        ("origin_airport_code", "origin_airport"), ("destination_airport_code", "destination_airport"),
+    )
+    outbound_flights = apply_facets(outbound_flights, facet_fields)
+    return_flights = apply_facets(return_flights, facet_fields)
+    for field, param_prefix in (
+        ("duration_minutes", "duration"), ("layover_minutes", "layover"),
+        ("departure_minutes", "depart_time"), ("arrival_minutes", "arrival_time"),
+    ):
+        outbound_flights = apply_value_range(outbound_flights, field, param_prefix)
+        return_flights = apply_value_range(return_flights, field, param_prefix)
+    outbound_flights = apply_time_band(outbound_flights, "departure_time")
+    return_flights = apply_time_band(return_flights, "departure_time")
 
-    # 日期選擇列：即時報價只顯示當前已查詢日期的價格，避免一次請求額外呼叫 6～12 次 API。
-    # 本地班表為固定每日資料，仍顯示同一組最低參考價。
+    # 日期選擇列：即時報價時，其他 6 個日期也各自另外打一次 API 才能拿到那天真正的價格(每天浮動)，
+    # cheapest_price() 內建短時間快取，同一條航線/日期不會短時間內重複打，但每次換日期組合最多還是會多花 12 次查詢額度。
+    # 本地班表為固定每日資料，票價不分日期，所以不用另外查，直接沿用同一組最低參考價。
     date_strip = []
     strip_prev = strip_next = None
     strip_prices = [row["price"] for row in all_flights if row.get("price")]
@@ -539,7 +649,14 @@ def visitor_flight_search():
                 r = base_return + timedelta(days=offset) if base_return else None
                 entry["label"] = f"{d.month}月{d.day}日" + (f"－{r.month}月{r.day}日" if r else "")
                 entry["selected"] = offset == 0
-                entry["price"] = strip_price if not using_live_data or offset == 0 else None
+                if using_live_data:
+                    if offset == 0:
+                        entry["price"] = strip_price
+                    else:
+                        # r 有值時，SerpApi 直接回傳配好最便宜回程的真實來回總價，不用自己查兩段單程再加總。
+                        entry["price"] = _live_cheapest_price(origin, destination, d.isoformat(), pax, return_date=(r.isoformat() if r else None))
+                else:
+                    entry["price"] = strip_price
                 date_strip.append(entry)
             strip_prev = shifted(-7)
             strip_next = shifted(7)
@@ -562,6 +679,14 @@ def visitor_flight_search():
         price_buckets=flight_price_buckets,
         price_max=flight_price_max,
         airline_facets=airline_facets,
+        alliance_facets=alliance_facets,
+        stops_facets=stops_facets,
+        layover_city_facets=layover_city_facets,
+        aircraft_facets=aircraft_facets,
+        origin_airport_facets=origin_airport_facets,
+        destination_airport_facets=destination_airport_facets,
+        duration_bounds=duration_bounds,
+        layover_bounds=layover_bounds,
         depart_band_options=depart_band_options,
         date_strip=date_strip,
         strip_price=strip_price,
@@ -570,6 +695,38 @@ def visitor_flight_search():
         using_live_data=using_live_data,
         skyscanner_url=skyscanner_url,
         is_roundtrip=bool(is_roundtrip),
+        bundled_roundtrip=bundled_roundtrip,
+    )
+
+
+@app.route("/visitor/flights/return-options")  # 來回機票選完去程之後的步驟二：顯示配這班去程的回程選項，每個選項都是真實來回總價
+def visitor_flight_return_options():
+    origin = request.args.get("from", "").strip()
+    destination = request.args.get("to", "").strip()
+    depart_date = request.args.get("depart", "").strip()
+    return_date = request.args.get("return", "").strip()
+    departure_token = request.args.get("departure_token", "").strip()
+    pax_raw = request.args.get("pax", "1").strip()
+    pax = int(pax_raw) if pax_raw.isdigit() and int(pax_raw) > 0 else 1
+    cabin_query = request.args.get("cabin", "").strip() or None  # 跟去程選的艙等一致，才會配到正確的回程選項
+    skyscanner_url = flight_links.skyscanner_search_url(origin, destination, depart_date, return_date, pax)
+
+    return_flights = serpapi_flights.search_return_offers(origin, destination, depart_date, return_date, departure_token, pax, cabin_class=cabin_query)
+    if return_flights is None:
+        return render_template(
+            "flight_return_options.html", origin=origin, destination=destination, depart_date=depart_date,
+            return_date=return_date, pax=pax, return_flights=[], lookup_failed=True, skyscanner_url=skyscanner_url,
+        )
+
+    for row in return_flights:
+        row["origin_city"] = _live_airport_label(row.get("origin_city"), destination)
+        row["destination_city"] = _live_airport_label(row.get("destination_city"), origin)
+
+    return render_template(
+        "flight_return_options.html",
+        origin=origin, destination=destination, depart_date=depart_date, return_date=return_date, pax=pax,
+        return_flights=filter_prices(return_flights, 'price', 'duration_minutes', 'stops', cabin_field='cabin_class'),
+        lookup_failed=False, skyscanner_url=skyscanner_url,
     )
 
 
@@ -595,8 +752,8 @@ def visitor_multi_city_flight_search():
             flights, leg_is_live = _live_flight_search(leg_origin, leg_destination, leg_date, None, pax)
         if leg_is_live:
             for row in flights:
-                row["origin_city"] = leg_origin or row["origin_city"]
-                row["destination_city"] = leg_destination or row["destination_city"]
+                row["origin_city"] = _live_airport_label(row.get("origin_city"), leg_origin)
+                row["destination_city"] = _live_airport_label(row.get("destination_city"), leg_destination)
         elif leg_origin or leg_destination:
             flights = _search_flights(leg_origin, leg_destination, pax)
         else:
@@ -662,14 +819,25 @@ def visitor_flight_booking_redirect_lookup():
 def visitor_train_search():
     origin = request.args.get("from", "").strip()  # 取得出發站關鍵字
     destination = request.args.get("to", "").strip()  # 取得到達站關鍵字
-    travel_date = request.args.get("date", "").strip()  # 取得查詢日期(YYYY-MM-DD)，班表為固定每日時刻，日期僅供顯示用
+    travel_date = request.args.get("date", "").strip()  # 取得查詢日期(YYYY-MM-DD)，TDX 依日期查當天班表；本地資料庫是固定每日時刻
+    return_date = request.args.get("return", "").strip()
+    is_roundtrip = request.args.get('trip_mode') == 'roundtrip' and return_date
 
     pax_raw = request.args.get("pax", "1").strip()  # 取得人數參數(字串)
     pax = int(pax_raw) if pax_raw.isdigit() and int(pax_raw) > 0 else 1  # 驗證人數為正整數，否則預設 1 人
 
     trains = []  # 預設搜尋結果為空清單
     return_trains = []
-    connection = get_db_connection()
+
+    # 優先查交通部 TDX 的真實班表與票價；沒設定金鑰、站名對不到、或 API 失敗(例如超過每分鐘次數限制)，
+    # 就自動改用本地資料庫 trains 資料表的固定班表
+    live_trains = tdx_trains.search_trains(origin, destination, travel_date)
+    using_live_data = live_trains is not None
+    if using_live_data:
+        trains = live_trains
+        if is_roundtrip:
+            return_trains = tdx_trains.search_trains(destination, origin, return_date) or []
+    connection = None if using_live_data else get_db_connection()
 
     if connection:
         cursor = connection.cursor(dictionary=True)
@@ -700,7 +868,7 @@ def visitor_train_search():
                 params
             )
             trains = cursor.fetchall()
-            if request.args.get('trip_mode') == 'roundtrip' and request.args.get('return'):
+            if is_roundtrip:
                 cursor.execute("""SELECT * FROM trains WHERE status='active' AND seats_available >= %s
                                   AND origin_station LIKE %s AND destination_station LIKE %s
                                   ORDER BY departure_time""", (pax, '%' + destination + '%', '%' + origin + '%'))
@@ -732,6 +900,7 @@ def visitor_train_search():
         train_type_facets=train_type_facets,
         car_class_facets=car_class_facets,
         depart_band_options=depart_band_options,
+        using_live_data=using_live_data,
     )
 
 
@@ -741,11 +910,11 @@ def login():  # 定義登入功能函式
         return redirect_by_role(session.get("role"))  # 直接依角色導向，不用再登入一次
 
     if request.method == "POST":  # 如果是表單送出(POST)請求
-        username = request.form.get("username", "").strip()  # 取得使用者輸入的帳號並去除頭尾空白
+        username = request.form.get("username", "").strip()  # 取得使用者輸入的帳號或電子郵件並去除頭尾空白
         password = request.form.get("password", "")  # 取得使用者輸入的密碼
 
         if not username or not password:  # 如果帳號或密碼有一個是空的
-            flash("請輸入帳號和密碼。", "error")  # 顯示錯誤提示
+            flash("請輸入帳號（或電子郵件）和密碼。", "error")  # 顯示錯誤提示
             return render_template("login.html")  # 重新顯示登入頁
 
         connection = get_db_connection()  # 嘗試建立資料庫連線
@@ -762,10 +931,11 @@ def login():  # 定義登入功能函式
                 SELECT user_id, username, password_hash,
                        full_name, nickname, role, status
                 FROM users
-                WHERE username = %s
+                WHERE username = %s OR email = %s
+                ORDER BY (username = %s) DESC
                 LIMIT 1
-                """,  # 依帳號查詢使用者資料(只取一筆)
-                (username,)  # 帶入查詢參數：使用者輸入的帳號
+                """,  # 依帳號或電子郵件查詢使用者資料(只取一筆，帳號完全相符的優先)
+                (username, username, username)  # 帶入查詢參數：使用者輸入的帳號或電子郵件
             )
 
             user = cursor.fetchone()  # 取得查詢結果的第一筆(查無資料則為 None)
@@ -1247,6 +1417,15 @@ def line_complete_profile():
         flash("請輸入正確的電子郵件格式。", "error")
         return render_template("line_complete_profile.html", full_name=full_name)
 
+    nickname = request.form.get("nickname", "").strip()[:50] or full_name  # 暱稱沒填就沿用 LINE 名稱
+    password = request.form.get("password", "")
+    if not re.fullmatch(r"(?=.*[A-Za-z])(?=.*\d)\S{9,}", password):  # 跟一般註冊一樣：9 碼以上且同時包含英文與數字
+        flash("密碼至少需要9碼，並同時包含英文與數字。", "error")
+        return render_template("line_complete_profile.html", full_name=full_name)
+    if password != request.form.get("confirm_password", ""):
+        flash("兩次輸入的密碼不一致。", "error")
+        return render_template("line_complete_profile.html", full_name=full_name)
+
     connection = get_db_connection()
     if connection is None:
         flash("資料庫連線失敗，請稍後再試。", "error")
@@ -1264,9 +1443,9 @@ def line_complete_profile():
             """
             INSERT INTO users
             (username, password_hash, full_name, nickname, email, line_sub, line_friend, role, status)
-            VALUES (%s, NULL, %s, %s, %s, %s, %s, 'member', 'active')
+            VALUES (%s, %s, %s, %s, %s, %s, %s, 'member', 'active')
             """,
-            (username, full_name, full_name, email, line_sub, session.get("pending_line_friend", 0)),
+            (username, generate_password_hash(password), full_name, nickname, email, line_sub, session.get("pending_line_friend", 0)),
         )
         new_user_id = cursor.lastrowid
         connection.commit()

@@ -755,9 +755,9 @@ def geocode_restaurant():  # 定義查詢函式：不直接存檔，只回傳資
     )
 
 
-@restaurants_bp.route("/import/google", methods=["GET", "POST"])  # 設定用 Google 地圖批次匯入餐廳的路由
+@restaurants_bp.route("/import/google", methods=["GET", "POST"])  # 設定用 Google 地圖批次匯入餐廳的路由(貼地點名稱清單；查到的候選一樣會先進預覽確認，跟依關鍵字搜尋共用同一套審核畫面，不會直接寫入資料庫)
 @login_required("content_admin")  # 限制只有內容管理員登入後才能存取
-def import_from_google():  # 定義 Google 地圖批次匯入餐廳函式
+def import_from_google():  # 定義 Google 地圖批次匯入餐廳函式：輸入是一行一個精確名稱，跟「依關鍵字搜尋」只是候選來源不同，後面審核流程共用
     if request.method == "GET":  # 如果是進頁面(還沒送出地點清單)
         return render_template(  # 顯示上傳表單頁面，並告知目前 API 金鑰是否已設定
             "content_admin/restaurants/import_google.html",
@@ -779,91 +779,46 @@ def import_from_google():  # 定義 Google 地圖批次匯入餐廳函式
         flash(f"一次最多只能匯入 {MAX_GOOGLE_IMPORT_ROWS} 筆，請分批處理", "error")  # 顯示錯誤提示
         return redirect(url_for("restaurants.import_from_google"))  # 導回匯入頁面
 
-    connection = get_db_connection()  # 建立資料庫連線
+    candidates = []  # 逐一查詢每個名稱，查到的地點整理成跟「依關鍵字搜尋」一樣的候選格式
+    not_found = []  # 記錄查無結果的名稱，查完一次性提示，不中斷其他筆
+    for query in queries:  # 每一行各自呼叫一次單筆查詢(跟關鍵字搜尋一次拿多筆候選不同)
+        try:
+            place = search_place(query)  # 用文字搜尋這個名稱，取相關性最高的第一筆
+        except PlacesApiError as error:  # 如果呼叫 Google Places API 時發生錯誤(例如金鑰無效、超過用量)
+            flash(f"Google API 錯誤：{error}", "error")
+            return redirect(url_for("restaurants.import_from_google"))
+        if place is None:  # 如果 Google 地圖上找不到符合的地點
+            not_found.append(query)
+            continue
+        fields = extract_place_fields(place)  # 把 Google 回傳的資料整理成我們需要的欄位
+        fields["name"] = fields["name"] or query  # 取得地點名稱，找不到就用原本輸入的查詢字串
+        candidates.append(fields)
 
-    if connection is None:  # 如果連線失敗
-        flash("資料庫連線失敗", "error")  # 顯示錯誤提示
-        return redirect(url_for("restaurants.import_from_google"))  # 導回匯入頁面
+    if not_found:  # 如果有名稱查無結果，提示使用者但不影響其他查到的候選
+        flash(f"以下 {len(not_found)} 個名稱 Google 地圖查無結果，已略過：{'、'.join(not_found)}", "error")
 
-    cursor = connection.cursor()  # 建立一般游標(方便搭配 get_or_create 系列函式)
-    results = []  # 建立每一列的處理結果清單，元素為 (列號, 查詢字串或地點名稱, 是否成功, 說明)
-    success_count = 0  # 建立成功筆數計數器
+    if not candidates:  # 如果一筆候選都沒查到
+        flash("沒有任何地點可以匯入，請確認名稱是否正確", "error")
+        return redirect(url_for("restaurants.import_from_google"))
 
-    try:  # 開始逐一處理每個地點名稱
-        for row_number, query in enumerate(queries, start=1):  # 從第 1 個開始編號
-            try:  # 嘗試呼叫 Google API 並寫入資料庫
-                place = search_place(query)  # 用文字搜尋這個地點名稱
+    connection = get_db_connection()  # 開一個連線取我們系統現有的分類清單，讓預覽頁可以直接選用
+    categories = []
+    if connection is not None:
+        cursor = connection.cursor(dictionary=True)
+        try:
+            categories = get_categories(cursor, "restaurant")
+        finally:
+            cursor.close()
+            connection.close()
 
-                if place is None:  # 如果 Google 地圖上找不到符合的地點
-                    results.append((row_number, query, False, "Google 地圖查無此地點"))  # 記錄失敗原因
-                    continue  # 跳過這一筆，繼續處理下一個
+    category_lookup = {cat["category_name"].strip().lower(): cat["category_id"] for cat in categories}
+    for candidate in candidates:  # 嘗試用 Google 判斷的類型文字去比對我們現有的分類，比對到就先幫忙選起來
+        guess_name = (candidate.get("category_name") or "").strip().lower()
+        candidate["suggested_category_id"] = category_lookup.get(guess_name)
 
-                fields = extract_place_fields(place)  # 把 Google 回傳的資料整理成我們需要的欄位
-                name = fields["name"] or query  # 取得地點名稱，找不到就用原本輸入的查詢字串
-                country_name = fields["country_name"]  # 取得解析出來的國家名稱
-                city_name = fields["city_name"]  # 取得解析出來的城市名稱
-
-                if not country_name or not city_name:  # 如果無法判斷國家或城市
-                    results.append((row_number, name, False, "無法從 Google 資料判斷國家或城市，請改用手動新增或修改後再匯入"))  # 記錄失敗原因
-                    continue  # 跳過這一筆，繼續處理下一個
-
-                address = fields["address"]  # 取得完整地址
-                latitude = fields["latitude"]  # 取得緯度
-                longitude = fields["longitude"]  # 取得經度
-                opening_hours_text = fields["opening_hours"]  # 取得整理好的開放時間文字
-                website_url = fields["website_url"]  # 取得官方網站(或 Google 地圖連結)
-                price_level = fields["price_level"] or "medium"  # 取得 Google 判斷的價位，沒有就用預設中價位
-
-                country_id = get_or_create_country(cursor, country_name)  # 取得(或新增)國家 ID
-                city_id = get_or_create_city(cursor, country_id, city_name)  # 取得(或新增)城市 ID
-                category_id = get_or_create_category(cursor, "restaurant", fields["category_name"])  # 用 Google 判斷的地點類型取得(或新增)分類 ID
-                cuisine_type = fields["category_name"]  # 料理類型也直接沿用 Google 判斷的地點類型文字(例如「日式料理」)
-
-                description = fields["description"] or build_place_description(  # 優先用 Google 官方簡介，沒有就自動組一段
-                    name, fields["category_name"], country_name, city_name
-                )
-
-                is_data_complete = bool(address and category_id)  # 判斷資料是否完整(有地址、分類)
-                status = "active" if is_data_complete else "pending"  # 資料完整就直接啟用，不完整才留待人工確認
-
-                cursor.execute(  # 執行新增餐廳的 SQL
-                    """
-                    INSERT INTO restaurants
-                    (category_id, name, country_id, city_id, address, latitude, longitude, cuisine_type,
-                     price_level, opening_hours, description, website_url, status, created_by)
-                    VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
-                    """,
-                    (
-                        category_id, name, country_id, city_id, address, latitude, longitude, cuisine_type,  # 分類、名稱、國家、城市、地址、經緯度、料理類型
-                        price_level, opening_hours_text, description, website_url,  # 價位、開放時間、描述、網站
-                        status, session["user_id"]  # 狀態、建立者
-                    )
-                )
-                success_count += 1  # 成功筆數加一
-                category_note = f"，分類：{fields['category_name']}" if fields["category_name"] else ""  # 如果有抓到分類名稱，附註在結果說明裡
-                status_note = "已直接啟用" if is_data_complete else "狀態為「待確認」，請人工複核後改為啟用"  # 依資料完整度給不同的結果說明
-                results.append((row_number, name, True, f"已從 Google 地圖匯入，{status_note}{category_note}"))  # 記錄這一列匯入成功
-
-            except PlacesApiError as error:  # 如果呼叫 Google Places API 時發生錯誤(例如金鑰無效、超過用量)
-                results.append((row_number, query, False, f"Google API 錯誤：{error}"))  # 記錄失敗原因
-            except Exception as error:  # 如果處理過程發生其他例外(不中斷整批匯入)
-                results.append((row_number, query, False, str(error)))  # 記錄失敗原因
-
-        log_action(  # 把這次批次匯入寫入操作紀錄
-            cursor, "import_restaurants_google", "restaurant", None,
-            f"從 Google 地圖匯入餐廳，成功 {success_count} 筆，失敗 {len(results) - success_count} 筆"
-        )
-        connection.commit()  # 提交交易，正式寫入這次匯入成功的所有餐廳與操作紀錄
-
-    finally:  # 不論成功或失敗都要執行
-        cursor.close()  # 關閉游標
-        connection.close()  # 關閉資料庫連線
-
-    return render_template(  # 渲染匯入結果頁面
-        "content_admin/restaurants/import_google_result.html",
-        results=results,  # 每一列的處理結果
-        success_count=success_count,  # 成功筆數
-        fail_count=len(results) - success_count,  # 失敗筆數
+    return render_template(  # 跟「依關鍵字搜尋匯入」共用同一套預覽確認畫面與確認匯入路由，審核規則完全一致，不再直接寫入資料庫
+        "content_admin/restaurants/import_google_search_preview.html",
+        keyword=f"貼上的 {len(queries)} 個地點名稱", candidates=list(enumerate(candidates)), categories=categories,
     )
 
 

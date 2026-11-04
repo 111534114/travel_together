@@ -6,10 +6,11 @@ import re
 
 import requests
 
-from config import ANTHROPIC_API_KEY
+from config import ANTHROPIC_API_KEY, GEMINI_API_KEY
 
 
 MODEL = "claude-haiku-4-5-20251001"
+GEMINI_MODEL = "gemini-3.5-flash-lite"
 ITEM_TYPES = {"attraction", "restaurant", "accommodation", "transport", "shopping", "meeting", "free_time", "other"}
 
 
@@ -51,10 +52,10 @@ def normalize_plan(payload, start_date, end_date):
 
 
 def generate_plan(user_request, country, city, start_date, end_date, people_count, budget):
-    if not ANTHROPIC_API_KEY:
-        raise RuntimeError("尚未設定 ANTHROPIC_API_KEY，暫時無法使用 AI 規劃。")
+    if not (GEMINI_API_KEY or ANTHROPIC_API_KEY):
+        raise RuntimeError("尚未設定 GEMINI_API_KEY 或 ANTHROPIC_API_KEY，暫時無法使用 AI 規劃。")
     prompt = (
-        "你是旅遊行程草稿助手。只回傳 JSON 物件，不要 Markdown。"
+        "你是旅遊行程草稿助手。所有顯示給旅客的內容請使用繁體中文。只回傳 JSON 物件，不要 Markdown。"
         "格式：{\"summary\":\"...\",\"items\":[{\"date\":\"YYYY-MM-DD\","
         "\"type\":\"attraction|restaurant|accommodation|transport|shopping|meeting|free_time|other\","
         "\"title\":\"...\",\"start_time\":\"HH:MM 或空字串\",\"address\":\"...\","
@@ -64,15 +65,28 @@ def generate_plan(user_request, country, city, start_date, end_date, people_coun
         f"目的地：{country} {city}。日期：{start_date} 到 {end_date}。人數：{people_count}。"
         f"總預算參考：{budget} TWD。旅客需求：{user_request}"
     )
-    response = requests.post(
-        "https://api.anthropic.com/v1/messages",
-        headers={"x-api-key": ANTHROPIC_API_KEY, "anthropic-version": "2023-06-01", "content-type": "application/json"},
-        json={"model": MODEL, "max_tokens": 3500, "messages": [{"role": "user", "content": prompt}]},
-        timeout=35,
-    )
-    response.raise_for_status()
-    body = response.json()
-    content = "".join(block.get("text", "") for block in body.get("content", []) if block.get("type") == "text").strip()
+    if GEMINI_API_KEY:
+        response = requests.post(
+            f"https://generativelanguage.googleapis.com/v1beta/models/{GEMINI_MODEL}:generateContent",
+            headers={"x-goog-api-key": GEMINI_API_KEY, "Content-Type": "application/json"},
+            json={"contents": [{"role": "user", "parts": [{"text": prompt}]}],
+                  "generationConfig": {"responseMimeType": "application/json", "maxOutputTokens": 8192}},
+            timeout=35,
+        )
+        response.raise_for_status()
+        candidates = response.json().get("candidates", [])
+        parts = candidates[0].get("content", {}).get("parts", []) if candidates else []
+        content = "".join(part.get("text", "") for part in parts).strip()
+    else:
+        response = requests.post(
+            "https://api.anthropic.com/v1/messages",
+            headers={"x-api-key": ANTHROPIC_API_KEY, "anthropic-version": "2023-06-01", "content-type": "application/json"},
+            json={"model": MODEL, "max_tokens": 3500, "messages": [{"role": "user", "content": prompt}]},
+            timeout=35,
+        )
+        response.raise_for_status()
+        body = response.json()
+        content = "".join(block.get("text", "") for block in body.get("content", []) if block.get("type") == "text").strip()
     if content.startswith("```"):
         content = re.sub(r"^```(?:json)?\s*|\s*```$", "", content, flags=re.IGNORECASE).strip()
     try:

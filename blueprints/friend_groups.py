@@ -12,7 +12,7 @@ from db import get_db_connection
 from notification_preferences import send_notification
 from utils import get_cities, get_countries
 from group_ai_planner import generate_plan, normalize_plan
-from config import ANTHROPIC_API_KEY
+from config import ANTHROPIC_API_KEY, GEMINI_API_KEY
 
 friend_groups_bp = Blueprint("friend_groups", __name__, url_prefix="/member/friend-groups")
 
@@ -1683,8 +1683,8 @@ def ai_plan():
         countries = get_countries(cursor)
         cities = get_cities(cursor)
         if request.method == "POST":
-            if not ANTHROPIC_API_KEY:
-                raise ValueError("尚未設定 AI 服務金鑰，請先在伺服器設定 ANTHROPIC_API_KEY。")
+            if not (GEMINI_API_KEY or ANTHROPIC_API_KEY):
+                raise ValueError("尚未設定 AI 服務金鑰，請先在伺服器設定 GEMINI_API_KEY 或 ANTHROPIC_API_KEY。")
             country_raw = request.form.get("country_id", "")
             city_raw = request.form.get("city_id", "")
             user_request = request.form.get("user_request", "").strip()[:1000]
@@ -1733,7 +1733,7 @@ def ai_plan():
             if draft:
                 draft["plan"] = json.loads(draft["draft_json"])
         return render_template("member/friend_groups/ai_plan.html", countries=countries, cities=cities,
-                               draft=draft, ai_ready=bool(ANTHROPIC_API_KEY), form_values=form_values,
+                               draft=draft, ai_ready=bool(GEMINI_API_KEY or ANTHROPIC_API_KEY), form_values=form_values,
                                form_error=None)
     except ValueError as error:
         connection.rollback()
@@ -1745,7 +1745,7 @@ def ai_plan():
         cursor.close(); connection.close()
     if request.method == "POST":
         return render_template("member/friend_groups/ai_plan.html", countries=countries, cities=cities,
-                               draft=None, ai_ready=bool(ANTHROPIC_API_KEY), form_values=form_values,
+                               draft=None, ai_ready=bool(GEMINI_API_KEY or ANTHROPIC_API_KEY), form_values=form_values,
                                form_error=message), 400
     flash(message, "error")
     return redirect(url_for("friend_groups.ai_plan"))
@@ -1791,7 +1791,7 @@ def save_ai_plan(draft_id):
                   item["start_time"], item["address"], item["estimated_cost"], item["notes"], sort_order))
         cursor.execute("UPDATE friend_group_ai_drafts SET consumed_at=NOW() WHERE draft_id=%s", (draft_id,))
         connection.commit()
-        flash("AI 草稿已存成私人行程。請逐項確認交通、住宿、價格與時間；需要時再從開團頁選擇這個行程。", "success")
+        flash("行程已存為私人行程。請逐項確認交通、住宿、價格與時間。", "success")
         return redirect(url_for("member.trip_detail", trip_id=trip_id))
     except ValueError as error:
         connection.rollback(); flash(str(error), "error")

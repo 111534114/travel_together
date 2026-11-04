@@ -1,3 +1,4 @@
+import json
 import unittest
 from datetime import date
 from unittest.mock import MagicMock, patch
@@ -5,8 +6,8 @@ from unittest.mock import MagicMock, patch
 from flask import session
 
 from app import app
-from blueprints.friend_groups import _active_group_access, _album_image_type, ai_plan, approve_group_member, leave_group
-from group_ai_planner import normalize_plan
+from blueprints.friend_groups import _active_group_access, _album_image_type, ai_plan, approve_group_member, leave_group, save_ai_plan
+from group_ai_planner import generate_plan, normalize_plan
 from content_admin_permissions import _ENDPOINT_ACTIONS
 
 
@@ -66,10 +67,11 @@ class GroupFeatureTests(unittest.TestCase):
             with patch("blueprints.friend_groups._connection_or_home", return_value=connection), \
                  patch("blueprints.friend_groups.get_countries", return_value=[]), \
                  patch("blueprints.friend_groups.get_cities", return_value=[]), \
-                 patch("blueprints.friend_groups.ANTHROPIC_API_KEY", ""):
+                 patch("blueprints.friend_groups.ANTHROPIC_API_KEY", ""), \
+                 patch("blueprints.friend_groups.GEMINI_API_KEY", ""):
                 html = ai_plan()
-        self.assertIn("AI 尚未啟用", html)
-        self.assertIn("伺服器缺少 ANTHROPIC_API_KEY", html)
+        self.assertIn("智慧規劃尚未啟用", html)
+        self.assertIn("伺服器尚未設定智慧規劃服務金鑰", html)
         self.assertIn('disabled aria-describedby="aiPlanStatus"', html)
 
     def test_ai_plan_checks_draft_table_before_calling_external_ai(self):
@@ -93,6 +95,41 @@ class GroupFeatureTests(unittest.TestCase):
         self.assertIn("AI 草稿資料表尚未建立", response)
         self.assertIn("景點與美食", response)
         generate.assert_not_called()
+
+    def test_gemini_plan_uses_key_header_and_normalizes_response(self):
+        item = {"date": "2026-12-01", "type": "attraction", "title": "台北101"}
+        response = MagicMock()
+        response.json.return_value = {"candidates": [{"content": {"parts": [{"text": '{"items": ['},
+                                                                       {"text": json.dumps(item) + "]}"}]}}]}
+        with patch("group_ai_planner.GEMINI_API_KEY", "test-gemini"), \
+             patch("group_ai_planner.ANTHROPIC_API_KEY", "test-anthropic"), \
+             patch("group_ai_planner.requests.post", return_value=response) as post:
+            plan = generate_plan("景點", "台灣", "台北", date(2026, 12, 1), date(2026, 12, 2), 2, 1000)
+        self.assertEqual(plan["items"][0]["title"], "台北101")
+        self.assertIn("/models/gemini-3.5-flash-lite:generateContent", post.call_args.args[0])
+        self.assertEqual(post.call_args.kwargs["headers"]["x-goog-api-key"], "test-gemini")
+        self.assertNotIn("test-gemini", post.call_args.args[0])
+
+    def test_saving_ai_draft_is_private_even_if_public_is_submitted(self):
+        cursor = MagicMock()
+        cursor.fetchone.return_value = {
+            "draft_json": json.dumps({"items": [{"date": "2026-12-01", "type": "attraction", "title": "台北101"}]}),
+            "start_date": date(2026, 12, 1), "end_date": date(2026, 12, 2),
+            "country_id": 1, "city_id": 2, "people_count": 2, "budget": 1000,
+            "user_request": "景點",
+        }
+        cursor.lastrowid = 17
+        connection = MagicMock()
+        connection.cursor.return_value = cursor
+        with app.test_request_context("/member/friend-groups/ai-plan/3/save", method="POST", data={"title": "台北兩日遊", "visibility": "public"}):
+            session.update(user_id=2, role="member")
+            with patch("blueprints.friend_groups._connection_or_home", return_value=connection):
+                response = save_ai_plan(3)
+        self.assertEqual(response.status_code, 302)
+        inserts = [call.args[0] for call in cursor.execute.call_args_list if "INSERT INTO trips" in call.args[0]]
+        self.assertEqual(len(inserts), 1)
+        self.assertIn("'private','planning'", inserts[0])
+        connection.commit.assert_called_once()
 
     def test_approval_adds_viewer_to_linked_trip(self):
         cursor = MagicMock()

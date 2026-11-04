@@ -5,16 +5,20 @@ TDX 免費會員的金鑰每分鐘只能呼叫 5 次 API，所以每次查到的
 
 沒有設定 TDX_CLIENT_ID / TDX_CLIENT_SECRET、站名對不到、或 API 查詢失敗(例如超過次數限制)時，
 search_trains 回傳 None，呼叫端（app.py）就改用本地資料庫的 trains 資料表，不會讓網站整個掛掉。
-TDX 不提供台鐵剩餘座位，也沒有訂票 API，所以 seats_available 一律是 None，訂票改連到官方售票網站。
+TDX 不提供台鐵剩餘座位，也沒有訂票 API，所以 seats_available 一律是 None，訂票改連到官網的時刻查詢頁
+(已帶入起訖站與日期)。
 """
 from datetime import datetime, timedelta, timezone
 from decimal import Decimal
+from urllib.parse import urlencode
 import hashlib
 import json
 import os
 import time
 
 import requests
+import truststore  # 改用作業系統原生憑證庫驗證 SSL，修正 Python 3.13 誤判高鐵官網(TWCA憑證)憑證無效的已知問題
+truststore.inject_into_ssl()
 
 from config import TDX_CLIENT_ID, TDX_CLIENT_SECRET
 
@@ -26,8 +30,11 @@ FARE_TTL_SECONDS = 7 * 86400
 STATION_TTL_SECONDS = 7 * 86400
 TAIPEI_TZ = timezone(timedelta(hours=8))
 
-THSR_BOOKING_URL = "https://irs.thsrc.com.tw/IMINT/"
-TRA_BOOKING_URL = "https://tip.railway.gov.tw/tra-tip-web/tip"
+# 官網時刻查詢頁：台鐵可以直接用網址參數帶入起訖站與日期；高鐵要先把條件送到官網的
+# /TimeTable/Encrypt 加密(高鐵官網首頁的搜尋按鈕也是這樣做)，再帶 ?search=<密文> 打開時刻表頁
+TRA_TIMETABLE_URL = "https://tip.railway.gov.tw/tra-tip-web/tip/tip001/tip112/querybytime"
+THSR_TIMETABLE_URL = "https://www.thsrc.com.tw/ArticleContent/a3b630bb-1066-4352-a1ef-58c7b4e8ef7c"
+THSR_ENCRYPT_URL = "https://www.thsrc.com.tw/TimeTable/Encrypt"
 
 # 高鐵只有 12 站而且幾乎不會變動，直接寫死，省下一次 API 呼叫
 THSR_STATIONS = {
@@ -35,6 +42,11 @@ THSR_STATIONS = {
     "台中": "1040", "彰化": "1043", "雲林": "1047", "嘉義": "1050", "台南": "1060", "左營": "1070",
 }
 THSR_ALIASES = {"高雄": "左營", "新左營": "左營"}  # 使用者輸入「高雄」時，高鐵要查左營站
+# 高鐵官網時刻表頁用的站名代碼
+THSR_WEB_CODES = {
+    "0990": "NanGang", "1000": "TaiPei", "1010": "BanQiao", "1020": "TaoYuan", "1030": "XinZhu", "1035": "MiaoLi",
+    "1040": "TaiZhong", "1043": "ZhangHua", "1047": "YunLin", "1050": "JiaYi", "1060": "TaiNan", "1070": "ZuoYing",
+}
 
 # 高鐵票價的 CabinClass：1=標準車廂 2=商務車廂 3=自由座(這裡只列跟本地資料表一致的兩種)
 THSR_CABIN_LABELS = {1: "標準車廂", 2: "商務車廂"}
@@ -47,6 +59,7 @@ TRA_TYPE_LABELS = {
 
 _memory_cache = {}  # {api_path: (expires_at, data)}
 _token = {"value": None, "expires_at": 0}
+_thsr_url_cache = {}  # {加密前的查詢條件: 官網時刻表網址}
 
 
 def is_configured():
@@ -108,12 +121,14 @@ def _search_thsr(origin_keyword, destination_keyword, travel_date):
             train_no = item["DailyTrainInfo"]["TrainNo"]
             departure = item["OriginStopTime"]["DepartureTime"]
             arrival = item["DestinationStopTime"]["ArrivalTime"]
+            # 高鐵官網網址要呼叫官網加密，等使用者按下按鈕才產生，這裡只先記下查詢條件
+            official_query = {"from": origin, "to": destination, "date": travel_date, "time": departure}
             for cabin, label in THSR_CABIN_LABELS.items():
                 if prices.get(cabin) is None:
                     continue
                 rows.append(_row("thsr", train_no, label, item["OriginStopTime"]["StationName"]["Zh_tw"],
                                  item["DestinationStopTime"]["StationName"]["Zh_tw"], departure, arrival,
-                                 prices[cabin], THSR_BOOKING_URL, cabin))
+                                 prices[cabin], None, cabin, official_query))
         except (KeyError, TypeError):
             continue
     return rows
@@ -147,9 +162,12 @@ def _search_tra(origin_keyword, destination_keyword, travel_date):
             if price is None:
                 continue
             label = TRA_TYPE_LABELS.get(type_code) or info["TrainTypeName"]["Zh_tw"].split("(")[0]
+            booking_url = tra_timetable_url(first_stop["StationID"], first_stop["StationName"]["Zh_tw"],
+                                            last_stop["StationID"], last_stop["StationName"]["Zh_tw"],
+                                            travel_date, first_stop["DepartureTime"])
             rows.append(_row("tra", info["TrainNo"], label, first_stop["StationName"]["Zh_tw"],
                              last_stop["StationName"]["Zh_tw"], first_stop["DepartureTime"],
-                             last_stop["ArrivalTime"], price, TRA_BOOKING_URL))
+                             last_stop["ArrivalTime"], price, booking_url))
         except (KeyError, IndexError, TypeError):
             continue
     return rows
@@ -179,7 +197,47 @@ def _tra_prices(origin, destination):
     return prices
 
 
-def _row(train_type, train_no, car_class, origin_station, destination_station, departure, arrival, price, booking_url, cabin=""):
+def tra_timetable_url(origin_id, origin_name, destination_id, destination_name, travel_date, start_time="00:00"):
+    """台鐵官網時刻查詢結果頁網址，從這班車的出發時間開始列，使用者一打開就看到這班車。"""
+    return TRA_TIMETABLE_URL + "?" + urlencode({
+        "startStation": f"{origin_id}-{origin_name}",
+        "endStation": f"{destination_id}-{destination_name}",
+        "transfer": "ONE",
+        "rideDate": travel_date.replace("-", "/"),
+        "startOrEndTime": "true",
+        "startTime": start_time,
+        "endTime": "23:59",
+        "trainTypeList": "ALL",
+        "queryClassification": "NORMAL",
+    })
+
+
+def thsr_timetable_url(origin_id, destination_id, travel_date, start_time):
+    """高鐵官網時刻表頁網址(已帶入起訖站、日期、時間)。官網加密失敗時，回傳沒有帶條件的時刻表頁。"""
+    origin_code = THSR_WEB_CODES.get(origin_id)
+    destination_code = THSR_WEB_CODES.get(destination_id)
+    if not origin_code or not destination_code:
+        return THSR_TIMETABLE_URL
+    # 格式跟高鐵官網首頁搜尋按鈕組出來的字串一模一樣，官網時刻表頁才解得開
+    plain_text = (f"?startStation={origin_code}&endStation={destination_code}&typesofticket=tot-1"
+                  f"&outWardDate={travel_date.replace('-', '/')}&outWardTime={start_time}&returnDate=&returnTime=&offer=")
+    if plain_text in _thsr_url_cache:
+        return _thsr_url_cache[plain_text]
+    try:
+        resp = requests.post(THSR_ENCRYPT_URL, data={"plainText": plain_text}, timeout=10)
+        resp.raise_for_status()
+        result = resp.json()
+        if not result.get("success") or not result.get("cipherText"):
+            return THSR_TIMETABLE_URL
+        url = THSR_TIMETABLE_URL + "?" + urlencode({"search": result["cipherText"]})
+    except (requests.RequestException, ValueError) as error:
+        print("高鐵官網時刻表網址加密失敗：", error)
+        return THSR_TIMETABLE_URL
+    _thsr_url_cache[plain_text] = url
+    return url
+
+
+def _row(train_type, train_no, car_class, origin_station, destination_station, departure, arrival, price, booking_url, cabin="", official_query=None):
     depart_at = datetime.strptime(departure, "%H:%M")
     arrive_at = datetime.strptime(arrival, "%H:%M")
     duration = int((arrive_at - depart_at).total_seconds() // 60)
@@ -199,6 +257,7 @@ def _row(train_type, train_no, car_class, origin_station, destination_station, d
         "seats_available": None,  # TDX 不提供台鐵剩餘座位，不要顯示假數字
         "is_live": True,
         "booking_url": booking_url,
+        "official_query": official_query,
     }
 
 

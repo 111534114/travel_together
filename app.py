@@ -880,6 +880,9 @@ def visitor_train_search():
             connection.close()
 
     all_trains = trains + return_trains
+    for row in all_trains:  # 高鐵即時車次的官網連結先指到下面的轉址路由，使用者按下才去高鐵官網加密查詢條件
+        if row.get("official_query"):
+            row["booking_url"] = url_for("thsr_timetable_redirect", **row["official_query"])
     train_price_buckets = price_buckets(all_trains, "price")
     train_price_max = price_range(all_trains, "price")
     train_type_facets = facet_options(all_trains, "train_type", TRAIN_TYPE_LABELS)
@@ -902,6 +905,17 @@ def visitor_train_search():
         depart_band_options=depart_band_options,
         using_live_data=using_live_data,
     )
+
+
+@app.route("/visitor/trains/thsr-timetable")  # 轉址到高鐵官網時刻表頁，並帶入這班車的起訖站、日期、時間
+def thsr_timetable_redirect():
+    origin_id = request.args.get("from", "")
+    destination_id = request.args.get("to", "")
+    travel_date = request.args.get("date", "")
+    start_time = request.args.get("time", "")
+    if not re.fullmatch(r"\d{4}-\d{2}-\d{2}", travel_date) or not re.fullmatch(r"\d{2}:\d{2}", start_time):
+        return redirect(tdx_trains.THSR_TIMETABLE_URL)
+    return redirect(tdx_trains.thsr_timetable_url(origin_id, destination_id, travel_date, start_time))
 
 
 @app.route("/login", methods=["GET", "POST"])  # 設定登入頁路由，允許 GET(顯示表單) 與 POST(送出表單)

@@ -9,6 +9,7 @@
 .member-content { flex: 1; min-width: 0; }
 .side-link { display: block; width: 100%; padding: 11px 14px; color: #426064; text-decoration: none; border-radius: 6px; font-weight: 600; white-space: nowrap; }
 .side-link:hover { color: #4B838B; background: #EDF6F7; }
+.side-link.side-login { text-align: center; }
 .side-link.side-register { margin-top: 4px; color: #fff; background: #4B838B; text-align: center; }
 .side-link.side-register:hover { color: #fff; background: #37676D; }
 .side-footer { margin-top: auto; display: flex; flex-direction: column; gap: 2px; padding-top: 10px; border-top: 1px solid #E2EDEF; }

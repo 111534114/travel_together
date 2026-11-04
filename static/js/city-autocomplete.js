@@ -17,14 +17,47 @@
     '歐洲': ['倫敦', '巴黎', '法蘭克福', '羅馬', '阿姆斯特丹', '蘇黎世', '維也納', '馬德里'],
     '中東': ['伊斯坦堡', '莫斯科', '杜拜', '多哈'],
   };
-  const ALL_CITIES = Array.from(new Set(Object.values(CITY_REGIONS).flat()));
-  const RECENT_KEY = 'flightSearch.recentCities';
   const RECENT_MAX = 5;
   const SEARCH_DEBOUNCE_MS = 250;
+  const AUTOCOMPLETE_SELECTOR = '[data-city-autocomplete], [data-station-autocomplete]';
 
-  function readRecent() {
+  // 高鐵／火車票的出發站/到達站輸入框(data-station-autocomplete)用同一套面板，只是清單換成車站：
+  // 沒打字時列常用車站，打字時再打 /api/station-search 查高鐵 12 站＋台鐵全部車站(交通部 TDX 車站資料)。
+  const MODES = {
+    city: {
+      recentKey: 'flightSearch.recentCities',
+      popularTitle: '熱門城市',
+      popular: POPULAR_CITIES,
+      regions: CITY_REGIONS,
+      matchTitle: '常見城市',
+      searchUrl: '/api/city-search?q=',
+      renderResults: (results, onPick) => buildAirportList('全球機場', results, onPick),
+      emptyText: '沒有符合的城市或機場。',
+    },
+    station: {
+      recentKey: 'trainSearch.recentStations',
+      popularTitle: '熱門車站',
+      popular: ['台北', '板橋', '桃園', '新竹', '台中', '台南', '左營', '高雄', '花蓮'],
+      regions: {
+        '高鐵': ['南港', '台北', '板橋', '桃園', '新竹', '苗栗', '台中', '彰化', '雲林', '嘉義', '台南', '左營'],
+        '台鐵・北部': ['基隆', '南港', '松山', '台北', '萬華', '板橋', '樹林', '桃園', '中壢', '新竹'],
+        '台鐵・中部': ['苗栗', '豐原', '台中', '新烏日', '彰化', '員林', '斗六'],
+        '台鐵・南部': ['嘉義', '新營', '台南', '新左營', '高雄', '屏東', '潮州'],
+        '台鐵・東部': ['宜蘭', '羅東', '蘇澳新', '花蓮', '玉里', '池上', '台東', '知本'],
+      },
+      matchTitle: '常用車站',
+      searchUrl: '/api/station-search?q=',
+      renderResults: (results, onPick) => buildStationList('全部車站', results, onPick),
+      emptyText: '沒有符合的車站。',
+    },
+  };
+  Object.values(MODES).forEach((mode) => {
+    mode.all = Array.from(new Set(Object.values(mode.regions).flat()));
+  });
+
+  function readRecent(key) {
     try {
-      const raw = localStorage.getItem(RECENT_KEY);
+      const raw = localStorage.getItem(key);
       const list = raw ? JSON.parse(raw) : [];
       return Array.isArray(list) ? list : [];
     } catch (error) {
@@ -32,11 +65,11 @@
     }
   }
 
-  function saveRecent(label) {
+  function saveRecent(key, label) {
     try {
-      const list = readRecent().filter((item) => item !== label);
+      const list = readRecent(key).filter((item) => item !== label);
       list.unshift(label);
-      localStorage.setItem(RECENT_KEY, JSON.stringify(list.slice(0, RECENT_MAX)));
+      localStorage.setItem(key, JSON.stringify(list.slice(0, RECENT_MAX)));
     } catch (error) {
       // 無痕視窗或封鎖網站資料時 localStorage 會噴錯，忽略即可，不影響搜尋功能本身
     }
@@ -142,40 +175,73 @@
     return section;
   }
 
-  function renderStaticPanel(panel, keyword, onPick) {
+  // 車站結果跟機場一樣用一欄直式清單：第一行站名，第二行標示是高鐵站、台鐵站還是兩者都有
+  function buildStationList(title, stations, onPick) {
+    if (!stations.length) return null;
+    const section = document.createElement('div');
+    section.className = 'city-suggest-section';
+    const heading = document.createElement('span');
+    heading.className = 'city-suggest-title';
+    heading.textContent = title;
+    section.appendChild(heading);
+    const list = document.createElement('div');
+    list.className = 'city-suggest-list';
+    stations.forEach((station) => {
+      const item = document.createElement('button');
+      item.type = 'button';
+      item.className = 'city-suggest-item city-suggest-item--airport';
+      const primary = document.createElement('span');
+      primary.className = 'city-suggest-item-primary';
+      primary.textContent = station.name;
+      const secondary = document.createElement('span');
+      secondary.className = 'city-suggest-item-secondary';
+      secondary.textContent = station.systems.join('・');
+      item.appendChild(primary);
+      item.appendChild(secondary);
+      item.addEventListener('mousedown', (event) => {
+        event.preventDefault();
+        onPick(station.name);
+      });
+      list.appendChild(item);
+    });
+    section.appendChild(list);
+    return section;
+  }
+
+  function renderStaticPanel(panel, keyword, onPick, mode) {
     panel.innerHTML = '';
     if (!keyword) {
-      const recentSection = buildSection('最近搜尋', toPlainItems(readRecent()), onPick);
+      const recentSection = buildSection('最近搜尋', toPlainItems(readRecent(mode.recentKey)), onPick);
       if (recentSection) panel.appendChild(recentSection);
-      const popularSection = buildSection('熱門城市', toPlainItems(POPULAR_CITIES), onPick);
+      const popularSection = buildSection(mode.popularTitle, toPlainItems(mode.popular), onPick);
       if (popularSection) panel.appendChild(popularSection);
-      Object.entries(CITY_REGIONS).forEach(([region, cities]) => {
+      Object.entries(mode.regions).forEach(([region, cities]) => {
         const section = buildSection(region, toPlainItems(cities), onPick);
         if (section) panel.appendChild(section);
       });
       return;
     }
-    const matches = ALL_CITIES.filter((city) => city.includes(keyword));
-    const section = buildSection('常見城市', toPlainItems(matches), onPick);
+    const matches = mode.all.filter((city) => city.includes(keyword));
+    const section = buildSection(mode.matchTitle, toPlainItems(matches), onPick);
     if (section) panel.appendChild(section);
   }
 
-  function appendWorldwideSection(panel, airports, onPick) {
+  function appendWorldwideSection(panel, results, onPick, mode) {
     const existingEmpty = panel.querySelector('.city-suggest-empty');
     if (existingEmpty) existingEmpty.remove();
     const existingWorld = panel.querySelector('[data-world-section]');
     if (existingWorld) existingWorld.remove();
 
-    if (!airports.length) {
+    if (!results.length) {
       if (!panel.children.length) {
         const empty = document.createElement('p');
         empty.className = 'city-suggest-empty';
-        empty.textContent = '沒有符合的城市或機場。';
+        empty.textContent = mode.emptyText;
         panel.appendChild(empty);
       }
       return;
     }
-    const section = buildAirportList('全球機場', airports, onPick);
+    const section = mode.renderResults(results, onPick);
     if (section) {
       section.setAttribute('data-world-section', '1');
       panel.appendChild(section);
@@ -201,12 +267,13 @@
   function openPanel(input) {
     const panel = getOrCreatePanel(input);
     const keyword = input.value.trim();
+    const mode = input.matches('[data-station-autocomplete]') ? MODES.station : MODES.city;
     const onPick = (value) => {
       input.value = value;
-      saveRecent(value);
+      saveRecent(mode.recentKey, value);
       panel.hidden = true;
     };
-    renderStaticPanel(panel, keyword, onPick);
+    renderStaticPanel(panel, keyword, onPick, mode);
     panel.hidden = false;
 
     const existingTimer = debounceTimers.get(input);
@@ -214,11 +281,11 @@
     if (!keyword) return;
 
     const timer = setTimeout(() => {
-      fetch('/api/city-search?q=' + encodeURIComponent(keyword))
+      fetch(mode.searchUrl + encodeURIComponent(keyword))
         .then((resp) => (resp.ok ? resp.json() : []))
         .then((results) => {
           if (input.value.trim() !== keyword) return; // 使用者已經改打別的字，這批結果過時了，不要顯示
-          appendWorldwideSection(panel, results, onPick);
+          appendWorldwideSection(panel, results, onPick, mode);
         })
         .catch(() => {});
     }, SEARCH_DEBOUNCE_MS);
@@ -227,19 +294,19 @@
 
   document.addEventListener('focus', (event) => {
     const input = event.target;
-    if (!(input instanceof HTMLElement) || !input.matches('[data-city-autocomplete]')) return;
+    if (!(input instanceof HTMLElement) || !input.matches(AUTOCOMPLETE_SELECTOR)) return;
     openPanel(input);
   }, true);
 
   document.addEventListener('input', (event) => {
     const input = event.target;
-    if (!(input instanceof HTMLElement) || !input.matches('[data-city-autocomplete]')) return;
+    if (!(input instanceof HTMLElement) || !input.matches(AUTOCOMPLETE_SELECTOR)) return;
     openPanel(input);
   });
 
   document.addEventListener('blur', (event) => {
     const input = event.target;
-    if (!(input instanceof HTMLElement) || !input.matches('[data-city-autocomplete]')) return;
+    if (!(input instanceof HTMLElement) || !input.matches(AUTOCOMPLETE_SELECTOR)) return;
     const panel = input.nextElementSibling;
     if (panel && panel.classList.contains('city-suggest-panel')) panel.hidden = true;
   }, true);

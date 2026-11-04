@@ -524,6 +524,11 @@ def _live_cheapest_price(origin_keyword, destination_keyword, depart_date, pax=1
     return amadeus_client.cheapest_price(origin_keyword, destination_keyword, depart_date, pax)
 
 
+@app.route("/api/station-search")  # 出發站/到達站自動完成打字時用的 AJAX 端點，查高鐵 12 站＋台鐵全部車站
+def api_station_search():
+    return jsonify(tdx_trains.search_stations(request.args.get("q", "")))
+
+
 @app.route("/api/city-search")  # 出發地/目的地自動完成打字時用的 AJAX 端點，查全球機場資料庫(不只是手動整理的常見城市)
 def api_city_search():
     keyword = request.args.get("q", "").strip()

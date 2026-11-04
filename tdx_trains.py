@@ -87,6 +87,30 @@ def search_trains(origin_keyword, destination_keyword, travel_date=None):
     return results
 
 
+def search_stations(keyword, limit=12):
+    """給車站輸入框自動完成用：回傳 [{"name": "台北", "systems": ["高鐵", "台鐵"]}, ...]，
+    完全相同的站名排最前面、開頭相同的其次、包含關鍵字的最後。台鐵車站清單查不到時只回傳高鐵車站。"""
+    keyword = _normalize_station(keyword)
+    if not keyword:
+        return []
+    try:
+        tra_names = set(_tra_stations()) if is_configured() else set()
+    except Exception as error:
+        print("TDX 台鐵車站清單查詢失敗：", error)
+        tra_names = set()
+    matches = []
+    for name in set(THSR_STATIONS) | set(THSR_ALIASES) | tra_names:
+        if keyword not in name or "-" in name:  # 「台北-環島」這類是環島列車專用的虛擬站名，不給使用者選
+            continue
+        systems = [label for label, names in (("高鐵", THSR_STATIONS), ("台鐵", tra_names)) if name in names]
+        if name in THSR_ALIASES:  # 例如搜尋「高雄」，高鐵會查左營站，提示使用者
+            systems.insert(0, f"高鐵{THSR_ALIASES[name]}站")
+        rank = 0 if name == keyword else 1 if name.startswith(keyword) else 2
+        matches.append((rank, len(name), name, systems))
+    matches.sort()
+    return [{"name": name, "systems": systems} for _, _, name, systems in matches[:limit]]
+
+
 def _normalize_station(name):
     name = name.strip().replace("臺", "台")
     for prefix in ("高鐵", "台鐵"):

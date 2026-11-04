@@ -10,8 +10,9 @@
 
   <section class="profile-card">
     <div class="profile-card-top">
+      {# 上傳檔只存在當初上傳的那台電腦（static/uploads 不進 git），其他機器開會 404，所以載入失敗就改顯示名字第一個字 #}
       {% set avatar_url = (user.avatar_path if user.avatar_path.startswith('http') else url_for('static', filename=user.avatar_path)) if user.avatar_path else '' %}
-      <div class="profile-avatar">{% if avatar_url %}<img src="{{ avatar_url }}" alt="頭像">{% else %}{{ (user.nickname or user.full_name)[0] }}{% endif %}</div>
+      <div class="profile-avatar">{% if avatar_url %}<img src="{{ avatar_url }}" alt="頭像" onerror="this.replaceWith(document.createTextNode({{ (user.nickname or user.full_name)[0]|tojson|forceescape }}))">{% else %}{{ (user.nickname or user.full_name)[0] }}{% endif %}</div>
       <div>
         <p class="profile-kicker">TRAVEL TOGETHER MEMBER</p>
         <h2>{{ user.nickname or user.full_name }}</h2>
@@ -23,7 +24,7 @@
     <form method="post" class="profile-form" enctype="multipart/form-data">
       <div class="profile-section-title"><div><h3>基本資料</h3><p>更新其他旅伴看到的個人資訊。</p></div></div>
       <div class="avatar-upload">
-        <div class="avatar-upload-preview" id="avatarPreview" data-initial="{{ (user.nickname or user.full_name)[0] }}">{% if avatar_url %}<img src="{{ avatar_url }}" alt="頭像預覽">{% else %}{{ (user.nickname or user.full_name)[0] }}{% endif %}</div>
+        <div class="avatar-upload-preview" id="avatarPreview" data-initial="{{ (user.nickname or user.full_name)[0] }}">{% if avatar_url %}<img src="{{ avatar_url }}" alt="頭像預覽" onerror="this.replaceWith(document.createTextNode({{ (user.nickname or user.full_name)[0]|tojson|forceescape }}))">{% else %}{{ (user.nickname or user.full_name)[0] }}{% endif %}</div>
         <div class="avatar-upload-body">
           <strong>頭像</strong>
           <p>支援 png、jpg、gif、webp（5MB 以內），選好圖片後可拖曳、縮放選擇要顯示的區塊，按「儲存變更」才會套用。</p>

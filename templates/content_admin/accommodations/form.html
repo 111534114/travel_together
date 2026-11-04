@@ -115,6 +115,8 @@
 
                 <p style="margin:10px 0 6px; color:#777; font-size:14px;">或直接貼圖片網址，系統會自動下載（如果同時選了檔案，以上傳檔案為準）</p>
                 <input type="url" id="image_url" name="image_url" placeholder="https://example.com/photo.jpg" value="{{ accommodation.image_url or '' }}">
+                <input type="hidden" id="google_photo_name" name="google_photo_name" value="{{ accommodation.google_photo_name or '' }}">
+                <span id="googlePhotoStatus" class="form-hint"></span>
             </div>
 
             <div class="form-group">
@@ -185,6 +187,12 @@
                     if (data.website_url) document.getElementById('website_url').value = data.website_url;
                     var descInput = document.getElementById('description');
                     if (data.description && !descInput.value.trim()) descInput.value = data.description;
+
+                    var photoStatus = document.getElementById('googlePhotoStatus');
+                    document.getElementById('google_photo_name').value = data.photo_name || '';  // 每次查詢都重設，避免殘留上一次查到的照片
+                    photoStatus.textContent = data.photo_name
+                        ? '📷 已找到 Google 代表照，按「儲存」時會自動帶入（若有另外上傳檔案或貼圖片網址，以那個為準）'
+                        : '';
 
                     function selectOrInsertOption(select, id, label, groupSelector) {
                         if (!id) return;

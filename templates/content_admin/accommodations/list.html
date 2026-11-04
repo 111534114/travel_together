@@ -12,17 +12,17 @@
 
         <input type="text" name="keyword" placeholder="搜尋住宿名稱或地址" value="{{ keyword or '' }}">
 
-        <select name="country_id">
+        <select name="country_id" id="filterCountrySelect">
             <option value="">全部國家</option>
             {% for country in countries %}
                 <option value="{{ country.country_id }}" {{ 'selected' if country_id|string == country.country_id|string else '' }}>{{ country.name }}</option>
             {% endfor %}
         </select>
 
-        <select name="city_id">
+        <select name="city_id" id="filterCitySelect">
             <option value="">全部城市</option>
             {% for city in cities %}
-                <option value="{{ city.city_id }}" {{ 'selected' if city_id|string == city.city_id|string else '' }}>{{ city.name }}</option>
+                <option value="{{ city.city_id }}" data-country="{{ city.country_id }}" {{ 'selected' if city_id|string == city.city_id|string else '' }}>{{ city.name }}</option>
             {% endfor %}
         </select>
 
@@ -58,10 +58,6 @@
             <a href="{{ url_for('accommodations.search_import_accommodations') }}" class="small-button">🔎 關鍵字搜尋匯入</a>
             <a href="{{ url_for('accommodations.import_accommodations') }}" class="small-button">⬆ 匯入 CSV</a>
             <a href="{{ url_for('accommodations.create_accommodation') }}" class="small-button">＋ 新增住宿</a>
-            <form method="POST" action="{{ url_for('accommodations.backfill_descriptions') }}" class="inline-form"
-                  onsubmit="return confirm('確定要幫所有還沒有描述、或描述太單調的住宿重新自動產生一段描述嗎？');">
-                <button type="submit" class="small-button">🖊 補上/更新描述</button>
-            </form>
         </div>
     </div>
 
@@ -123,6 +119,7 @@
                         <span class="status-active">啟用</span>
                     {% elif accommodation.status == 'pending' %}
                         <span class="status-pending">待確認</span>
+                        {% if accommodation.pending_reason %}<br><a href="{{ url_for('accommodations.edit_accommodation', accommodation_id=accommodation.accommodation_id) }}" class="form-hint">⚠️ {{ accommodation.pending_reason }}</a>{% endif %}
                     {% else %}
                         <span class="status-hidden">隱藏</span>
                     {% endif %}
@@ -185,6 +182,22 @@
     }
 
     document.addEventListener('DOMContentLoaded', updateBulkSelection);
+
+    // 篩選列：選了國家後，城市下拉只留下屬於該國家的選項，避免要在一長串全部城市裡找
+    function filterCitiesBySelectedCountry() {
+        var countryId = document.getElementById('filterCountrySelect').value;
+        var citySelect = document.getElementById('filterCitySelect');
+        if (!citySelect._allCityNodes) citySelect._allCityNodes = Array.prototype.slice.call(citySelect.children);
+        var currentValue = citySelect.value;
+        citySelect.innerHTML = '';
+        citySelect._allCityNodes.forEach(function (node) {
+            if (!countryId || !node.dataset.country || node.dataset.country === countryId) citySelect.appendChild(node);
+        });
+        var stillThere = Array.prototype.some.call(citySelect.querySelectorAll('option'), function (o) { return o.value === currentValue; });
+        citySelect.value = stillThere ? currentValue : '';
+    }
+    document.getElementById('filterCountrySelect').addEventListener('change', filterCitiesBySelectedCountry);
+    document.addEventListener('DOMContentLoaded', filterCitiesBySelectedCountry);
 </script>
 
 {% endblock %}

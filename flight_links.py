@@ -39,6 +39,8 @@ CITY_NAME_EN = {
     "台北": "Taipei", "台北市": "Taipei", "桃園": "Taipei",
     "東京": "Tokyo", "東京都": "Tokyo", "大阪": "Osaka", "大阪市": "Osaka", "名古屋": "Nagoya",
     "福岡": "Fukuoka", "札幌": "Sapporo", "沖繩": "Okinawa", "京都": "Kyoto",
+    "函館": "Hakodate", "仙台": "Sendai", "廣島": "Hiroshima", "広島": "Hiroshima", "新潟": "Niigata",
+    "熊本": "Kumamoto", "鹿兒島": "Kagoshima", "長崎": "Nagasaki", "松山": "Matsuyama", "小松": "Komatsu",
     "首爾": "Seoul", "首爾特別市": "Seoul", "釜山": "Busan",
     "香港": "Hong Kong", "澳門": "Macau", "上海": "Shanghai", "北京": "Beijing", "廣州": "Guangzhou", "深圳": "Shenzhen",
     "曼谷": "Bangkok", "新加坡": "Singapore", "吉隆坡": "Kuala Lumpur", "雅加達": "Jakarta", "馬尼拉": "Manila",
@@ -56,32 +58,34 @@ CITY_NAME_EN = {
 # 主要機場的正式中文名稱(IATA 代碼 -> 中文機場名稱)，只整理使用者實際搜尋得到的 ~50 個城市底下的機場，
 # 沒有列在這裡的機場(全球機場資料庫裡其他幾千個)就顯示原始的英文名稱，不會亂翻譯成不正確的中文。
 AIRPORT_NAME_ZH = {
-    "TPE": "桃園國際機場", "TSA": "台北松山機場",
-    "NRT": "東京成田機場", "HND": "東京羽田機場",
-    "KIX": "大阪關西機場", "ITM": "大阪伊丹機場",
-    "NGO": "名古屋中部國際機場", "FUK": "福岡機場", "CTS": "札幌新千歲機場", "OKA": "沖繩那霸機場",
-    "ICN": "首爾仁川機場", "GMP": "首爾金浦機場", "PUS": "釜山金海機場",
+    # 機場本身有專屬名稱(不是只有「城市+國際機場」這種泛稱)的，把城市名拿掉，避免跟搜尋目的地重複顯示
+    # (例如搜尋「札幌」，航班卡片上的機場名稱不用再顯示一次「札幌」)。
+    "TPE": "桃園國際機場", "TSA": "松山機場",
+    "NRT": "成田機場", "HND": "羽田機場",
+    "KIX": "關西機場", "ITM": "伊丹機場",
+    "NGO": "中部國際機場", "FUK": "福岡機場", "CTS": "新千歲機場", "OKA": "那霸機場",
+    "ICN": "仁川機場", "GMP": "金浦機場", "PUS": "金海機場",
     "HKG": "香港國際機場", "MFM": "澳門國際機場",
-    "PVG": "上海浦東機場", "SHA": "上海虹橋機場",
-    "PEK": "北京首都機場", "PKX": "北京大興機場",
-    "CAN": "廣州白雲機場", "SZX": "深圳寶安機場",
-    "BKK": "曼谷素萬那普機場", "DMK": "曼谷廊曼機場",
-    "SIN": "新加坡樟宜機場", "KUL": "吉隆坡國際機場", "CGK": "雅加達蘇卡諾哈達機場", "MNL": "馬尼拉尼諾伊艾奎諾機場",
-    "SGN": "胡志明市新山一機場", "HAN": "河內內排機場", "DPS": "峇里島伍拉賴機場", "CNX": "清邁機場",
-    "DEL": "德里英迪拉甘地機場", "BOM": "孟買賈特拉帕蒂希瓦吉機場",
-    "SYD": "雪梨金斯福史密斯機場", "MEL": "墨爾本機場", "AKL": "奧克蘭機場", "BNE": "布里斯本機場",
-    "JFK": "紐約甘迺迪機場", "LGA": "紐約拉瓜地亞機場", "EWR": "紐約紐華克機場",
+    "PVG": "浦東機場", "SHA": "虹橋機場",
+    "PEK": "首都機場", "PKX": "大興機場",
+    "CAN": "白雲機場", "SZX": "寶安機場",
+    "BKK": "素萬那普機場", "DMK": "廊曼機場",
+    "SIN": "樟宜機場", "KUL": "吉隆坡國際機場", "CGK": "蘇卡諾哈達機場", "MNL": "尼諾伊艾奎諾機場",
+    "SGN": "新山一機場", "HAN": "內排機場", "DPS": "伍拉賴機場", "CNX": "清邁機場",
+    "DEL": "英迪拉甘地機場", "BOM": "賈特拉帕蒂希瓦吉機場",
+    "SYD": "金斯福史密斯機場", "MEL": "墨爾本機場", "AKL": "奧克蘭機場", "BNE": "布里斯本機場",
+    "JFK": "甘迺迪機場", "LGA": "拉瓜地亞機場", "EWR": "紐華克機場",
     "LAX": "洛杉磯國際機場", "SFO": "舊金山國際機場",
-    "ORD": "芝加哥歐海爾機場", "MDW": "芝加哥中途機場",
-    "SEA": "西雅圖塔科馬機場", "YVR": "溫哥華國際機場", "YYZ": "多倫多皮爾森機場",
-    "LAS": "拉斯維加斯哈瑞瑞德機場", "HNL": "檀香山國際機場",
-    "LHR": "倫敦希斯洛機場", "LGW": "倫敦蓋威克機場", "STN": "倫敦史坦斯特機場",
-    "LTN": "倫敦盧頓機場", "LCY": "倫敦城市機場",
-    "CDG": "巴黎戴高樂機場", "ORY": "巴黎奧利機場",
-    "FRA": "法蘭克福機場", "FCO": "羅馬菲烏米奇諾機場", "AMS": "阿姆斯特丹史基浦機場",
+    "ORD": "歐海爾機場", "MDW": "中途機場",
+    "SEA": "塔科馬機場", "YVR": "溫哥華國際機場", "YYZ": "皮爾森機場",
+    "LAS": "哈瑞瑞德機場", "HNL": "檀香山國際機場",
+    "LHR": "希斯洛機場", "LGW": "蓋威克機場", "STN": "史坦斯特機場",
+    "LTN": "盧頓機場", "LCY": "倫敦城市機場",
+    "CDG": "戴高樂機場", "ORY": "奧利機場",
+    "FRA": "法蘭克福機場", "FCO": "菲烏米奇諾機場", "AMS": "史基浦機場",
     "ZRH": "蘇黎世機場", "VIE": "維也納機場", "MAD": "馬德里機場",
-    "IST": "伊斯坦堡機場", "SVO": "莫斯科謝列梅捷沃機場",
-    "DXB": "杜拜國際機場", "DOH": "多哈哈馬德機場",
+    "IST": "伊斯坦堡機場", "SVO": "謝列梅捷沃機場",
+    "DXB": "杜拜國際機場", "DOH": "哈馬德機場",
 }
 
 
@@ -147,6 +151,29 @@ AIRLINE_ALLIANCE = {
 ALL_AIRPORTS_SUFFIX = "（所有機場）"  # 跟「City (IATA)」那種半形括號的單一機場格式故意用不同樣式，一眼就看得出差異
 
 
+# 「北海道」「九州」這種是涵蓋好幾個城市的「地區」，不是單一城市的別名——之前把它們當成札幌/福岡的
+# 別名處理，搜尋「北海道」卻查不到函館、旭川這些北海道其他城市的航班，就是因為這個誤判。
+# 每個地區對應底下主要城市的英文名稱(對照全球機場資料庫真實查過，不是用猜的)，
+# 查詢時會把這些城市的機場全部聯集起來一起查。
+REGION_CITIES = {
+    "北海道": ["Sapporo", "Hakodate", "Asahikawa", "Kushiro", "Obihiro", "Wakkanai", "Memanbetsu"],
+    "九州": ["Fukuoka", "Kitakyushu", "Kagoshima", "Kumamoto", "Nagasaki", "Oita", "Miyazaki", "Saga"],
+}
+
+
+def region_airport_codes(region_name):
+    """地區名稱(例如「北海道」) -> 底下所有城市機場代碼聯集的逗號字串；不是地區名稱就回傳 None。"""
+    cities = REGION_CITIES.get((region_name or "").strip())
+    if not cities:
+        return None
+    codes = []
+    for city in cities:
+        city_codes = airports.get_city_airport_codes(city, "Japan")
+        if city_codes:
+            codes.extend(city_codes.split(","))
+    return ",".join(codes) if codes else None
+
+
 def _broaden_to_city_siblings(code):
     """選到單一機場代碼時，自動擴大成「這個機場所在城市的所有機場」一起查(用逗號接起來)，
     這樣搜尋結果頁的「機場」篩選才會有其他機場的真實資料可以切換(例如搜尋「羽田機場」時，
@@ -173,10 +200,13 @@ def to_iata(city_keyword):
         return None
     if city_keyword.endswith(ALL_AIRPORTS_SUFFIX):
         city_name = city_keyword[: -len(ALL_AIRPORTS_SUFFIX)].strip()
-        codes = airports.get_city_airport_codes(to_english_city_name(city_name))
+        codes = region_airport_codes(city_name) or airports.get_city_airport_codes(to_english_city_name(city_name))
         if codes:
             return codes
         city_keyword = city_name  # 全球機場資料庫查不到這個城市，退回當一般城市名字查(用 CITY_IATA)
+    region_codes = region_airport_codes(city_keyword)
+    if region_codes:
+        return region_codes
     bracket_match = re.search(r"\(([A-Za-z]{3})\)\s*$", city_keyword)
     if bracket_match:
         return _broaden_to_city_siblings(bracket_match.group(1).upper())
@@ -190,7 +220,12 @@ def to_iata(city_keyword):
     for name, code in CITY_IATA.items():
         if name in city_keyword or city_keyword in name:
             return _broaden_to_city_siblings(code)
-    found = airports.find_iata_by_keyword(city_keyword)
+    # 全球機場資料庫是英文資料，中文關鍵字要先查 CITY_NAME_EN 轉成英文城市名才查得到——
+    # 不然像「函館」這種沒有手動整理進 CITY_IATA 的城市，就算 CITY_NAME_EN 裡有對照也永遠查不到，
+    # 因為直接拿中文字去比對英文資料庫本來就不會比中。
+    found = airports.find_iata_by_keyword(to_english_city_name(city_keyword))
+    if not found:
+        found = airports.find_iata_by_keyword(city_keyword)  # 保險：萬一本來就是英文關鍵字
     return _broaden_to_city_siblings(found) if found else None
 
 

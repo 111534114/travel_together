@@ -11,6 +11,7 @@
 
     <form method="POST" action="{{ url_for('attractions.confirm_search_import_attractions') }}" class="content-form">
         <p class="form-hint">勾選「同時匯入照片」會額外呼叫 Google 的照片下載功能，一樣會計入付費 API 用量，筆數多時確認匯入會需要多等一下。</p>
+        <p class="form-hint">標示「已匯入過」的地點是跟系統現有景點同名，已預設取消勾選避免重複匯入；確定要重新匯入的話可以自己勾起來。</p>
 
         <div class="form-actions" style="margin-bottom: 14px;">
             <button type="button" class="secondary-link" onclick="document.querySelectorAll('.search-preview-check').forEach(function(c){c.checked=true;})">全選</button>
@@ -32,9 +33,10 @@
                 <tbody>
                 {% for index, c in candidates %}
                 <tr>
-                    <td><input type="checkbox" class="search-preview-check" name="selected" value="{{ index }}" checked></td>
+                    <td><input type="checkbox" class="search-preview-check" name="selected" value="{{ index }}" {{ '' if c.already_imported else 'checked' }}></td>
                     <td>
                         {{ c.name or '（Google 未提供名稱）' }}
+                        {% if c.already_imported %}<br><span class="status-returned">⚠️ 已匯入過</span>{% endif %}
                         <input type="hidden" name="name_{{ index }}" value="{{ c.name or '' }}">
                         <input type="hidden" name="country_name_{{ index }}" value="{{ c.country_name or '' }}">
                         <input type="hidden" name="city_name_{{ index }}" value="{{ c.city_name or '' }}">
@@ -49,7 +51,7 @@
                     </td>
                     <td>{{ c.address or '—' }}</td>
                     <td>
-                        <select name="category_id_{{ index }}">
+                        <select name="category_id_{{ index }}" style="min-width: 140px;">
                             <option value="">未分類</option>
                             {% for category in categories %}
                                 <option value="{{ category.category_id }}" {{ 'selected' if c.suggested_category_id == category.category_id else '' }}>{{ category.category_name }}</option>

@@ -341,6 +341,51 @@ def visitor():
     )
 
 
+@app.route("/api/hotel-place-search")  # 住宿目的地自動完成打字時用的 AJAX 端點，只查台灣的住宿資料
+def api_hotel_place_search():
+    keyword = request.args.get("q", "").strip().replace("台", "臺")
+    if not keyword:
+        return jsonify([])
+    connection = get_db_connection()
+    if not connection:
+        return jsonify([])
+    cursor = connection.cursor(dictionary=True)
+    try:
+        like = "%" + keyword + "%"
+        cursor.execute(
+            """
+            SELECT ac.name, ac.address
+            FROM accommodations ac
+            JOIN countries co ON co.country_id = ac.country_id
+            JOIN cities ci ON ci.city_id = ac.city_id
+            WHERE ac.status = 'active' AND ac.deleted_at IS NULL AND co.name IN ('台灣', '臺灣')
+              AND (REPLACE(ac.name,'台','臺') LIKE %s OR REPLACE(ci.name,'台','臺') LIKE %s OR REPLACE(ac.address,'台','臺') LIKE %s)
+            """,
+            (like, like, like),
+        )
+        rows = cursor.fetchall()
+    except Exception as error:
+        print("住宿目的地建議查詢失敗：", error)
+        rows = []
+    finally:
+        cursor.close()
+        connection.close()
+
+    # 從地址抓出「縣市＋鄉鎮市區」(例如 臺北市信義區)，統計每個地區有幾間住宿；
+    # 回傳「台北市 信義區」這種用空白隔開的字串，住宿搜尋會拆成兩個關鍵字分別比對，一定查得到
+    areas = {}
+    for row in rows:
+        match = re.search(r"([一-鿿]{2}[市縣])([一-鿿]{1,3}?[區鄉鎮市])", (row["address"] or "").replace("臺", "台"))
+        if match and keyword.replace("臺", "台") in match.group(1) + match.group(2):
+            area = f"{match.group(1)} {match.group(2)}"
+            areas[area] = areas.get(area, 0) + 1
+    hotel_names = [row["name"] for row in rows if keyword in row["name"].replace("台", "臺")]
+    results = [{"label": area, "sub": f"{count} 間住宿", "value": area}
+               for area, count in sorted(areas.items(), key=lambda item: -item[1])[:8]]
+    results += [{"label": name, "sub": "住宿", "value": name} for name in hotel_names[:6]]
+    return jsonify(results)
+
+
 @app.route("/visitor/hotels")  # 設定訪客住宿搜尋結果頁路由(從訪客頁面的住宿搜尋表單導入，帶入目的地/日期/人數)
 def visitor_hotel_search():
     destination = request.args.get("destination", "").strip()  # 取得使用者輸入的目的地關鍵字
@@ -524,15 +569,30 @@ def _live_cheapest_price(origin_keyword, destination_keyword, depart_date, pax=1
     return amadeus_client.cheapest_price(origin_keyword, destination_keyword, depart_date, pax)
 
 
+@app.route("/api/station-search")  # 出發站/到達站自動完成打字時用的 AJAX 端點，查高鐵 12 站＋台鐵全部車站
+def api_station_search():
+    return jsonify(tdx_trains.search_stations(request.args.get("q", "")))
+
+
 @app.route("/api/city-search")  # 出發地/目的地自動完成打字時用的 AJAX 端點，查全球機場資料庫(不只是手動整理的常見城市)
 def api_city_search():
     keyword = request.args.get("q", "").strip()
     if len(keyword) < 1:
         return jsonify([])
-    # 全球機場資料庫是英文資料，中文關鍵字(例如「東京」)要先轉成英文城市名(Tokyo)才查得到，
-    # 這樣才能列出一個城市底下所有真實機場(例如東京的羽田 HND、成田 NRT兩個)，不是只有一個固定代碼。
-    search_keyword = flight_links.to_english_city_name(keyword)
-    results = airports.search_airports(search_keyword, limit=10)
+    # 北海道、九州等地區涵蓋多個城市，合併查詢各城市機場。
+    region_cities = flight_links.REGION_CITIES.get(keyword)
+    if region_cities:
+        results = []
+        seen_iata = set()
+        for city in region_cities:
+            for airport in airports.get_city_airports(city, "Japan"):
+                if airport["iata"] not in seen_iata:
+                    seen_iata.add(airport["iata"])
+                    results.append(airport)
+    else:
+        # 全球機場資料庫是英文資料，中文關鍵字先轉成英文城市名。
+        search_keyword = flight_links.to_english_city_name(keyword)
+        results = airports.search_airports(search_keyword, limit=10)
     # search_airports() 回傳的是模組內共用資料的參照，這裡組新的 dict 回傳，不要直接改到原始資料上。
     # 中文機場名稱優先用手動整理過、確認無誤的 AIRPORT_NAME_ZH；查不到的話，
     # 用資料庫裡從維基數據(Wikidata)合併進來的 name_zh(真正的中文機場名稱，不是機器翻譯)；
@@ -542,6 +602,7 @@ def api_city_search():
             row,
             name_zh=flight_links.AIRPORT_NAME_ZH.get(row["iata"]) or row.get("name_zh") or None,
             city_zh=flight_links.to_chinese_city_name(row["city"]),
+            region=keyword if region_cities else None,
         )
         for row in results
     ]
@@ -880,6 +941,9 @@ def visitor_train_search():
             connection.close()
 
     all_trains = trains + return_trains
+    for row in all_trains:  # 高鐵即時車次的官網連結先指到下面的轉址路由，使用者按下才去高鐵官網加密查詢條件
+        if row.get("official_query"):
+            row["booking_url"] = url_for("thsr_timetable_redirect", **row["official_query"])
     train_price_buckets = price_buckets(all_trains, "price")
     train_price_max = price_range(all_trains, "price")
     train_type_facets = facet_options(all_trains, "train_type", TRAIN_TYPE_LABELS)
@@ -902,6 +966,17 @@ def visitor_train_search():
         depart_band_options=depart_band_options,
         using_live_data=using_live_data,
     )
+
+
+@app.route("/visitor/trains/thsr-timetable")  # 轉址到高鐵官網時刻表頁，並帶入這班車的起訖站、日期、時間
+def thsr_timetable_redirect():
+    origin_id = request.args.get("from", "")
+    destination_id = request.args.get("to", "")
+    travel_date = request.args.get("date", "")
+    start_time = request.args.get("time", "")
+    if not re.fullmatch(r"\d{4}-\d{2}-\d{2}", travel_date) or not re.fullmatch(r"\d{2}:\d{2}", start_time):
+        return redirect(tdx_trains.THSR_TIMETABLE_URL)
+    return redirect(tdx_trains.thsr_timetable_url(origin_id, destination_id, travel_date, start_time))
 
 
 @app.route("/login", methods=["GET", "POST"])  # 設定登入頁路由，允許 GET(顯示表單) 與 POST(送出表單)

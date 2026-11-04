@@ -295,7 +295,7 @@
       </div>
       <form>
         <div class="search-fields-row" data-tab-fields="hotel">
-          <div class="field"><label for="hotelDest">目的地</label><input id="hotelDest" type="text" placeholder="城市、飯店名稱"></div>
+          <div class="field"><label for="hotelDest">目的地</label><input id="hotelDest" type="text" placeholder="城市、飯店名稱" autocomplete="off" data-hotel-autocomplete></div>
           <div class="field date-range-field">
             <label for="hotelDateRange">入住・退房</label>
             <div class="date-range-box" id="hotelDateBox">
@@ -362,9 +362,9 @@
             <label class="option-radio"><input type="radio" name="trainMode" value="roundtrip">來回</label>
           </div>
           <div class="search-fields-row">
-            <div class="field"><label for="trainFrom">出發站</label><input id="trainFrom" type="text" placeholder="台北"></div>
+            <div class="field"><label for="trainFrom">出發站</label><input id="trainFrom" type="text" placeholder="台北" autocomplete="off" data-station-autocomplete></div>
             <button type="button" class="field-swap" data-swap-a="trainFrom" data-swap-b="trainTo" aria-label="交換出發站與到達站">⇄</button>
-            <div class="field"><label for="trainTo">到達站</label><input id="trainTo" type="text" placeholder="高雄"></div>
+            <div class="field"><label for="trainTo">到達站</label><input id="trainTo" type="text" placeholder="高雄" autocomplete="off" data-station-autocomplete></div>
             <div class="field date-range-field">
               <label for="trainDateRange">出發・回程</label>
               <div class="date-range-box" id="trainDateBox">

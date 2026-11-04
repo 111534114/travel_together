@@ -109,6 +109,25 @@
     return item;
   }
 
+  function makeRegionAllItem(regionName, country, onPick) {
+    const item = document.createElement('button');
+    item.type = 'button';
+    item.className = 'city-suggest-item city-suggest-item--airport';
+    const primary = document.createElement('span');
+    primary.className = 'city-suggest-item-primary';
+    primary.textContent = regionName + '・所有機場';
+    const secondary = document.createElement('span');
+    secondary.className = 'city-suggest-item-secondary';
+    secondary.textContent = country;
+    item.appendChild(primary);
+    item.appendChild(secondary);
+    item.addEventListener('mousedown', (event) => {
+      event.preventDefault();
+      onPick(`${regionName}（所有機場）`);
+    });
+    return item;
+  }
+
   function buildAirportList(title, airports, onPick) {
     if (!airports.length) return null;
     const section = document.createElement('div');
@@ -119,6 +138,12 @@
     section.appendChild(heading);
     const list = document.createElement('div');
     list.className = 'city-suggest-list';
+
+    // 整批結果都屬於同一個「地區」(例如搜「北海道」查到函館、旭川等好幾個城市)時，
+    // 最前面先插一個「地區・所有機場」的選項，選了會把整個地區底下所有機場一起查。
+    if (airports[0].region && airports.every((a) => a.region === airports[0].region)) {
+      list.appendChild(makeRegionAllItem(airports[0].region, airports[0].country, onPick));
+    }
 
     // 後端已經把同一個城市的機場排在一起了，這裡偵測連續幾筆是不是同一個城市，
     // 是的話(表示這個城市不只一個機場)在最前面插一個「城市・所有機場」的選項。

@@ -529,10 +529,23 @@ def api_city_search():
     keyword = request.args.get("q", "").strip()
     if len(keyword) < 1:
         return jsonify([])
-    # 全球機場資料庫是英文資料，中文關鍵字(例如「東京」)要先轉成英文城市名(Tokyo)才查得到，
-    # 這樣才能列出一個城市底下所有真實機場(例如東京的羽田 HND、成田 NRT兩個)，不是只有一個固定代碼。
-    search_keyword = flight_links.to_english_city_name(keyword)
-    results = airports.search_airports(search_keyword, limit=10)
+    # 「北海道」「九州」這種地區名稱涵蓋好幾個城市，不能只查到地區裡的第一個城市就結束
+    # (不然搜「北海道」只會看到札幌的機場，看不到函館、旭川這些北海道其他城市)，
+    # 直接把地區底下每個城市的機場都撈出來。
+    region_cities = flight_links.REGION_CITIES.get(keyword)
+    if region_cities:
+        results = []
+        seen_iata = set()
+        for city in region_cities:
+            for airport in airports.get_city_airports(city, "Japan"):
+                if airport["iata"] not in seen_iata:
+                    seen_iata.add(airport["iata"])
+                    results.append(airport)
+    else:
+        # 全球機場資料庫是英文資料，中文關鍵字(例如「東京」)要先轉成英文城市名(Tokyo)才查得到，
+        # 這樣才能列出一個城市底下所有真實機場(例如東京的羽田 HND、成田 NRT兩個)，不是只有一個固定代碼。
+        search_keyword = flight_links.to_english_city_name(keyword)
+        results = airports.search_airports(search_keyword, limit=10)
     # search_airports() 回傳的是模組內共用資料的參照，這裡組新的 dict 回傳，不要直接改到原始資料上。
     # 中文機場名稱優先用手動整理過、確認無誤的 AIRPORT_NAME_ZH；查不到的話，
     # 用資料庫裡從維基數據(Wikidata)合併進來的 name_zh(真正的中文機場名稱，不是機器翻譯)；
@@ -542,6 +555,7 @@ def api_city_search():
             row,
             name_zh=flight_links.AIRPORT_NAME_ZH.get(row["iata"]) or row.get("name_zh") or None,
             city_zh=flight_links.to_chinese_city_name(row["city"]),
+            region=keyword if region_cities else None,  # 有值代表這批結果屬於同一個地區，前端可以顯示「地區・所有機場」的快速選項
         )
         for row in results
     ]

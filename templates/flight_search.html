@@ -28,7 +28,7 @@
     main { width: 100%; max-width: 1180px; margin: 0 auto; padding: 32px 36px 70px 0; }
     .breadcrumb { margin: 0 0 18px; color: var(--muted); font-size: 14px; }
     .breadcrumb a { color: var(--purple); font-weight: 600; }
-    .date-strip { display: flex; align-items: stretch; gap: 2px; margin: 0 0 6px; background: #fff; border: 1px solid var(--line); border-radius: 10px; box-shadow: 0 6px 18px rgba(45, 37, 68, .05); overflow: hidden; }
+    .date-strip { display: flex; align-items: stretch; gap: 2px; margin: 0 0 24px; background: #fff; border: 1px solid var(--line); border-radius: 10px; box-shadow: 0 6px 18px rgba(45, 37, 68, .05); overflow: hidden; }
     .date-strip-arrow { display: flex; flex: 0 0 auto; align-items: center; justify-content: center; width: 36px; color: var(--muted); font-size: 18px; }
     .date-strip-arrow:hover { color: var(--purple); background: var(--purple-soft); }
     .date-strip-days { display: flex; flex: 1; min-width: 0; }
@@ -53,7 +53,6 @@
     @media (max-width: 950px) { .results-layout { grid-template-columns: 1fr; } .results-sidebar { position: static; } }
     .section-header { display: flex; align-items: end; justify-content: space-between; gap: 18px; margin-bottom: 18px; }
     .section-header h2 { margin: 0; font-size: 26px; }
-    .live-badge { display: inline-block; vertical-align: middle; margin-left: 10px; padding: 3px 11px; color: #1E7A4C; background: #E6F6EC; border-radius: 999px; font-size: 12px; font-weight: 700; }
     .section-header p { margin: 5px 0 0; color: var(--muted); font-size: 14px; }
     .flight-leg { margin-bottom: 32px; }
     .flight-leg:last-child { margin-bottom: 0; }
@@ -82,6 +81,7 @@
     .flight-path { display: flex; flex: 1; flex-direction: column; align-items: center; gap: 6px; color: var(--muted); font-size: 12px; }
     .flight-stop-tag { padding: 2px 10px; border-radius: 999px; font-size: 11px; font-weight: 700; background: #EEF3F3; color: var(--muted); }
     .flight-stop-tag.direct { background: var(--purple-soft); color: var(--purple); }
+    .flight-stop-tag.connecting { background: #FBE7E7; color: #B23B3B; }
     .flight-path .line { position: relative; width: 100%; height: 2px; background: #D3E4E6; border-radius: 2px; }
     .flight-path .line::before, .flight-path .line::after { content: ""; position: absolute; top: 50%; width: 6px; height: 6px; background: var(--purple-light); border-radius: 50%; transform: translateY(-50%); }
     .flight-path .line::before { left: -2px; }
@@ -121,7 +121,6 @@
       </div>
       <a class="date-strip-arrow" href="{{ date_strip_link(strip_next.depart, strip_next['return']) }}" aria-label="往後看更晚的日期">›</a>
     </div>
-    <p class="date-strip-note">{% if using_live_data %}各日期價格為該天即時查詢結果，會隨日期浮動。{% else %}各日期為固定班表的參考最低價，實際票價以售票平台為準。{% endif %}</p>
     {% endif %}
     <div class="results-layout">
       <aside class="results-sidebar">
@@ -131,13 +130,7 @@
     <section id="flight-results">
       <div class="section-header">
         <div>
-          <h2>機票搜尋結果{% if using_live_data %}<span class="live-badge">即時報價</span>{% endif %}</h2>
-          <p>
-            {% if origin or destination %}{{ origin or '任何出發地' }} → {{ destination or '任何目的地' }}{% else %}顯示全部航點{% endif %}
-            {% if depart_date %} ・ 去程 {{ depart_date }}{% endif %}
-            {% if return_date %} ・ 回程 {{ return_date }}{% endif %}
-            ・ {{ pax }} 人
-          </p>
+          <h2>機票搜尋結果</h2>
         </div>
       </div>
       <div class="flight-leg">
@@ -151,7 +144,7 @@
               <div class="flight-airline">{% if flight.airline_logo %}<img class="airline-logo-img" src="{{ flight.airline_logo }}" alt="{{ flight.airline_name }}" loading="lazy">{% else %}<span class="airline-logo">{{ flight.airline_name[:1] }}</span>{% endif %}<div><b>{{ flight.airline_name }}</b><span>{{ flight.flight_number }}・{{ flight.cabin_class }}</span>{{ render_amenities(flight) }}</div></div>
               <div class="flight-route">
                 <div class="flight-time"><b>{{ flight.departure_time|hm }}</b><span>{{ flight.origin_city }}</span></div>
-                <div class="flight-path"><span class="flight-stop-tag {{ 'direct' if not flight.stops }}">{{ '直飛' if not flight.stops else ('轉機 ' ~ flight.stops ~ ' 次') }}</span><div class="line"></div><span>{{ (flight.duration_minutes // 60) }} 小時 {{ (flight.duration_minutes % 60) }} 分</span></div>
+                <div class="flight-path"><span class="flight-stop-tag {{ 'direct' if not flight.stops else 'connecting' }}">{{ '直飛' if not flight.stops else ('轉機 ' ~ flight.stops ~ ' 次') }}</span><div class="line"></div><span>{{ (flight.duration_minutes // 60) }} 小時 {{ (flight.duration_minutes % 60) }} 分</span></div>
                 <div class="flight-time"><b>{{ flight.arrival_time|hm }}</b><span>{{ flight.destination_city }}</span></div>
               </div>
               <div class="flight-meta">{% if flight.origin_country or flight.destination_country %}<span>{{ flight.origin_country }} → {{ flight.destination_country }}</span>{% endif %}{% if flight.seats_available is not none %}<span class="{{ 'seats-low' if flight.seats_available <= 3 }}">剩餘 {{ flight.seats_available }} 席</span>{% endif %}</div>
@@ -177,7 +170,7 @@
               <div class="flight-airline">{% if flight.airline_logo %}<img class="airline-logo-img" src="{{ flight.airline_logo }}" alt="{{ flight.airline_name }}" loading="lazy">{% else %}<span class="airline-logo">{{ flight.airline_name[:1] }}</span>{% endif %}<div><b>{{ flight.airline_name }}</b><span>{{ flight.flight_number }}・{{ flight.cabin_class }}</span>{{ render_amenities(flight) }}</div></div>
               <div class="flight-route">
                 <div class="flight-time"><b>{{ flight.departure_time|hm }}</b><span>{{ flight.origin_city }}</span></div>
-                <div class="flight-path"><span class="flight-stop-tag {{ 'direct' if not flight.stops }}">{{ '直飛' if not flight.stops else ('轉機 ' ~ flight.stops ~ ' 次') }}</span><div class="line"></div><span>{{ (flight.duration_minutes // 60) }} 小時 {{ (flight.duration_minutes % 60) }} 分</span></div>
+                <div class="flight-path"><span class="flight-stop-tag {{ 'direct' if not flight.stops else 'connecting' }}">{{ '直飛' if not flight.stops else ('轉機 ' ~ flight.stops ~ ' 次') }}</span><div class="line"></div><span>{{ (flight.duration_minutes // 60) }} 小時 {{ (flight.duration_minutes % 60) }} 分</span></div>
                 <div class="flight-time"><b>{{ flight.arrival_time|hm }}</b><span>{{ flight.destination_city }}</span></div>
               </div>
               <div class="flight-meta">{% if flight.origin_country or flight.destination_country %}<span>{{ flight.origin_country }} → {{ flight.destination_country }}</span>{% endif %}{% if flight.seats_available is not none %}<span class="{{ 'seats-low' if flight.seats_available <= 3 }}">剩餘 {{ flight.seats_available }} 席</span>{% endif %}</div>

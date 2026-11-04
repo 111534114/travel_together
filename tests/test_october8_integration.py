@@ -86,7 +86,8 @@ class October8IntegrationTests(unittest.TestCase):
                     voter_ids=[1], options=[], my_approval_choice='disagree', my_reason='時間不合',
                     disagree_reasons=[dict(full_name='Owner', nickname='', reason='時間不合')])
         member = dict(user_id=1, full_name='Owner', nickname='', member_role='owner')
-        viewer = dict(user_id=2, full_name='Viewer', nickname='', member_role='viewer')
+        viewer = dict(user_id=2, full_name='Viewer', nickname='', member_role='viewer',
+                      avatar_path='uploads/avatars/updated.webp')
         attraction = dict(attraction_id=3, name='測試景點', city='台北', city_id=1, ticket_price=0)
         expense = dict(expense_name='午餐', expense_date=today, payer_name='Owner',
                        scope='personal', amount=120, note='', splits=[],
@@ -111,6 +112,7 @@ class October8IntegrationTests(unittest.TestCase):
                     self.assertEqual(html.count('id="'+section+'"'), 1)
                 for text in ('09:00', '景點詳細介紹', '時間不合', '發票明細', 'split_user_ids', 'Viewer', 'trip-chat.js', 'expense-invoice.js', 'id="itineraryMap"', 'item-comment-thread'):
                     self.assertIn(text, html)
+                self.assertIn('/static/uploads/avatars/updated.webp', html)
                 if can_edit:
                     self.assertIn('data-attraction-preview="attraction-preview-3"', html)
                     self.assertIn('time-mode-select', html)

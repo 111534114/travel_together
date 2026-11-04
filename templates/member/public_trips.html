@@ -1,0 +1,48 @@
+{% extends 'member/base.html' %}
+{% block title %}公開行程｜走吧揪團{% endblock %}
+{% block content %}
+<div class="trip-form-page">
+    <div class="page-heading trip-form-heading">
+        <h1>公開行程</h1>
+        <p>瀏覽會員分享的行程，查看內容或收藏喜歡的旅程。</p>
+    </div>
+
+    <form method="get" action="{{ url_for('member.public_trips') }}" class="panel companion-search" aria-label="公開行程篩選">
+        <div class="companion-search-heading">
+            <div><h2>篩選公開行程</h2><p>依地區、日期與預算找到想看的旅程。</p></div>
+        </div>
+        <div class="companion-search-fields">
+            <label class="companion-search-field">地區<input name="region" value="{{ filters.region }}" placeholder="輸入國家或城市"></label>
+            <label class="companion-search-field">旅行日期<input type="date" name="date" value="{{ filters.date }}"></label>
+            <label class="companion-search-field">預算上限<input type="number" min="0" name="budget" value="{{ filters.budget }}" placeholder="不限"></label>
+        </div>
+        <div class="companion-search-footer">
+            <label class="companion-search-toggle"><input type="checkbox" name="available" value="1" {% if filters.available %}checked{% endif %}><span>只看尚有名額</span></label>
+            <div class="companion-search-actions">
+                <a class="member-btn outline" href="{{ url_for('member.public_trips') }}">清除條件</a>
+                <button class="member-btn primary" type="submit">搜尋行程</button>
+            </div>
+        </div>
+    </form>
+
+    <a class="fav-hint-btn" href="{{ url_for('member.my_trips') }}"><span class="fav-hint-star">⭐</span>收藏的行程會顯示在「我的旅程」喔</a>
+    {% if trips %}
+    <div class="trip-grid">
+        {% for trip in trips %}
+        <article class="panel companion-panel">
+            <h3><a href="{{ url_for('friend_groups.companion_trip_detail', trip_id=trip.trip_id) }}">{{ trip.trip_name }}</a></h3>
+            <p>{{ trip.country or '未設定國家' }}{% if trip.city %} · {{ trip.city }}{% endif %} · {{ trip.owner_nickname or trip.owner_name or '未提供' }}</p>
+            {% if trip.introduction %}<p class="intro">{{ trip.introduction }}</p>{% endif %}
+            <p>{{ trip.start_date }} ～ {{ trip.end_date }} · 預計 {{ trip.people_count }} 人{% if trip.joined_count is not none %} · 已加入 {{ trip.joined_count }} 人{% endif %} · {{ trip.currency }} {{ trip.total_budget }}</p>
+            <div class="card-actions">
+                <a class="member-btn outline small" href="{{ url_for('friend_groups.companion_trip_detail', trip_id=trip.trip_id) }}">查看行程</a>
+                <form method="post" action="{{ url_for('member.toggle_trip_favorite', trip_id=trip.trip_id) }}" style="margin:0;"><input type="hidden" name="next" value="{{ request.full_path }}"><button type="submit" class="member-btn ghost small">{{ '取消收藏' if trip.is_favorited else '☆ 收藏' }}</button></form>
+            </div>
+        </article>
+        {% endfor %}
+    </div>
+    {% else %}
+    <div class="empty-member"><div>✦</div><h2>目前沒有符合條件的公開行程</h2></div>
+    {% endif %}
+</div>
+{% endblock %}

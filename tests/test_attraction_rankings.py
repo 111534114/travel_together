@@ -46,7 +46,7 @@ class AttractionRankingTests(unittest.TestCase):
         html = response.get_data(as_text=True)
         self.assertIn("收藏景點前五名", html)
         self.assertIn("景點排行篩選", html)
-        self.assertNotIn('>留言檢舉</a>', html)
+        self.assertIn('>留言檢舉</a>', html)
         self.assertNotIn("近六個月系統成長", html)
         self.assertNotIn('id="growthLines"', html)
         self.assertNotIn("熱門旅遊目的地前五名", html)

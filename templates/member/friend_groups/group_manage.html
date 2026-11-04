@@ -3,22 +3,34 @@
     <div class="page-heading trip-form-heading">
         <a href="{{ url_for('friend_groups.index') }}#friend-groups">← 返回交友揪團</a>
     </div>
-    <div class="panel">
-        <div class="panel-title"><div><p class="eyebrow">MANAGE</p><h1>{{ group.title }}</h1></div></div>
-        <p class="form-hint">{{ group.event_date }}{% if group.location %} · {{ group.location }}{% endif %} · {{ {'open':'開放中','closed':'已關閉','cancelled':'已取消'}[group.status] }}</p>
+    <section class="panel group-manage-overview">
+        <div class="group-manage-heading">
+            <p class="eyebrow">管理揪團</p>
+            <h1>{{ group.title }}</h1>
+            <div class="group-manage-meta">
+                <span>📅 {{ group.event_date }}</span>
+                {% if group.location %}<span>📍 {{ group.location }}</span>{% endif %}
+                <span class="status-tag">{{ {'open':'開放中','closed':'已關閉','cancelled':'已取消'}[group.status] }}</span>
+            </div>
+        </div>
 
-        {% if group.trip_id %}
-        <a class="member-btn primary" href="{{ url_for('member.trip_detail', trip_id=group.trip_id) }}" style="margin-top: 12px; display: inline-flex;">📋 管理行程（每日行程、聊天室、記帳分帳、公告）</a>
-        <a class="member-btn outline" href="{{ url_for('member.trip_detail', trip_id=group.trip_id) }}#members">設定團員查看／共同編輯權限</a>
-        {% endif %}
-        {% if group.status != 'cancelled' %}<a class="member-btn outline" href="{{ url_for('friend_groups.edit_group', group_id=group.group_id) }}">編輯揪團／名單隱私／集合資訊</a>{% endif %}
+        <div class="group-manage-actions">
+            {% if group.trip_id %}
+            <a class="member-btn primary group-manage-action-main" href="{{ url_for('member.trip_detail', trip_id=group.trip_id, from_group=group.group_id) }}"><strong>📋 管理行程</strong><small>每日行程、聊天室、記帳分帳與公告</small></a>
+            <a class="member-btn outline" href="{{ url_for('friend_groups.group_permissions', group_id=group.group_id) }}">團員查看／共同編輯權限</a>
+            {% endif %}
+            {% if group.status != 'cancelled' %}<a class="member-btn outline" href="{{ url_for('friend_groups.edit_group', group_id=group.group_id) }}">編輯揪團與名單隱私</a>{% endif %}
+        </div>
 
         {% if group.status != 'cancelled' %}
-        <form method="post" action="{{ url_for('friend_groups.cancel_group', group_id=group.group_id) }}" onsubmit="return confirm('確定要取消這個揪團嗎？')" style="margin-top: 12px;">
-            <button class="member-btn danger small" type="submit">取消這個揪團</button>
-        </form>
+        <div class="group-manage-danger">
+            <p>不再舉辦這個揪團？取消後會通知已加入的團員。</p>
+            <form method="post" action="{{ url_for('friend_groups.cancel_group', group_id=group.group_id) }}" onsubmit="return confirm('確定要取消這個揪團嗎？')">
+                <button class="member-btn danger small" type="submit">取消揪團</button>
+            </form>
+        </div>
         {% endif %}
-    </div>
+    </section>
 
     <div class="panel">
         <h2>成員申請</h2>

@@ -13,10 +13,10 @@
     <div class="page-tab-panel" id="tab-companions">
         <form method="get" action="{{ url_for('friend_groups.index') }}" class="panel companion-search" aria-label="找團篩選">
             <div class="companion-search-heading">
-                <div><h2>篩選行程</h2><p>選好想去的地方與日期，找一趟適合你的旅行。</p></div>
+                <div><h2>篩選揪團</h2><p>選好想去的地方與日期，找一團適合你的旅行。</p></div>
             </div>
             <div class="companion-search-fields">
-                <label class="companion-search-field">地區<input name="region" value="{{ filters.region }}" placeholder="輸入國家、城市或地點"></label>
+                <label class="companion-search-field">地區或團名<input name="region" value="{{ filters.region }}" placeholder="輸入國家、城市、地點或團名"></label>
                 <label class="companion-search-field">旅行日期<input type="date" name="date" value="{{ filters.date }}"></label>
                 <label class="companion-search-field">預算上限 <span class="companion-search-unit">TWD</span><input type="number" min="0" name="budget" value="{{ filters.budget }}" placeholder="不限"></label>
             </div>
@@ -31,35 +31,17 @@
         {% if browse_groups %}
         <div class="panel"><h2>會員揪團</h2><div class="trip-grid">
             {% for group in browse_groups %}
-            <article class="trip-card companion-panel-clickable" onclick="window.location.href='{{ url_for('friend_groups.group_detail', group_id=group.group_id) }}'">
+            <a class="trip-card companion-panel-clickable group-search-result" href="{{ url_for('friend_groups.group_detail', group_id=group.group_id) }}">
                 <div class="trip-content">
                     <h3>{{ group.title }}</h3>
                     <p class="location">{{ group.event_date }}{% if group.city %} · {{ group.city }}{% elif group.location %} · {{ group.location }}{% endif %} · 主揪 {{ group.nickname or group.full_name }}</p>
                     <div class="trip-details"><span>{{ group.member_count }}{% if group.capacity %} / {{ group.capacity }}{% endif %} 位團員</span>{% if group.my_status %}<span class="status-tag">{{ {'pending':'審核中','approved':'已加入','rejected':'未通過','left':'已退出'}[group.my_status] }}</span>{% endif %}</div>
+                    <span class="group-search-detail">查看內容與申請加入 →</span>
                 </div>
-            </article>
+            </a>
             {% endfor %}
         </div></div>
-        {% elif unlocked %}<div class="panel"><p class="muted">目前沒有符合條件的會員揪團。</p></div>{% endif %}
-        <h2>公開行程</h2>
-        <a class="fav-hint-btn" href="{{ url_for('member.my_trips') }}"><span class="fav-hint-star">⭐</span>收藏的行程會顯示在「我的旅程」喔</a>
-        {% if companions %}
-        <div class="trip-grid">
-            {% for comp in companions %}
-            <div class="panel companion-panel companion-panel-clickable" onclick="window.location.href='{{ url_for('friend_groups.companion_trip_detail', trip_id=comp.trip_id) }}'">
-                <h3>{{ comp.trip_name }}</h3>
-                <p>{{ comp.country or '未設定國家' }}{% if comp.city %} · {{ comp.city }}{% endif %} · {{ comp.owner_nickname or comp.owner_name or '未提供' }}</p>
-                {% if comp.introduction %}<p class="intro">{{ comp.introduction }}</p>{% endif %}
-                <p>{{ comp.start_date }} ～ {{ comp.end_date }} · 預計 {{ comp.people_count }} 人{% if comp.joined_count is not none %} · 已加入 {{ comp.joined_count }} 人{% endif %} · {{ comp.currency }} {{ comp.total_budget }}</p>
-                <div class="card-actions">
-                    <form method="post" action="{{ url_for('member.toggle_trip_favorite', trip_id=comp.trip_id) }}" style="margin:0;" onclick="event.stopPropagation()"><input type="hidden" name="next" value="{{ url_for('friend_groups.index') }}"><button type="submit" class="member-btn ghost small">{{ '取消收藏' if comp.is_favorited else '☆ 收藏' }}</button></form>
-                </div>
-            </div>
-            {% endfor %}
-        </div>
-        {% else %}
-        <div class="empty-member"><div>✦</div><h2>目前沒有符合條件的公開行程</h2></div>
-        {% endif %}
+        {% elif friend_group_on %}<div class="panel"><p class="muted">目前沒有符合條件的會員揪團。</p></div>{% endif %}
     </div>
 
     <div class="page-tab-panel" id="tab-friend-groups">
@@ -114,22 +96,26 @@
         <div class="panel-title"><div><p class="eyebrow">EVENTS</p><h2>官方活動</h2></div></div>
         {% if not unlocked %}<p class="form-hint">⚠️ 你還沒出席過官方活動，先報名一場參加，出席後才能加入或發起會員揪團。</p>{% endif %}
         {% if events %}
-        <div class="trip-grid">
+        <div class="official-events-list">
             {% for event in events %}
-            <article class="trip-card companion-panel-clickable" onclick="window.location.href='{{ url_for('friend_groups.event_detail', event_id=event.event_id) }}'">
-                <div class="trip-content">
-                    <h3>{{ event.title }}</h3>
-                    <p class="location">{{ event.event_date }}{% if event.start_time %} {{ event.start_time|hm }}{% endif %}{% if event.location %} · {{ event.location }}{% endif %}</p>
-                    {% if event.description %}<p>{{ event.description }}</p>{% endif %}
-                    <div class="trip-details"><span>{{ event.registered_count }}{% if event.capacity %} / {{ event.capacity }}{% endif %} 人報名</span>{% if event.schedule %}<span>查看完整時間軸 →</span>{% endif %}</div>
-                    <div class="trip-footer" onclick="event.stopPropagation()">
-                        {% if event.my_status in ('registered','attended') %}
-                        <span class="status-tag">{{ '已報到' if event.my_status == 'attended' else '已報名' }}</span>
-                        {% if event.my_status == 'registered' %}<form method="post" action="{{ url_for('friend_groups.cancel_event', event_id=event.event_id) }}"><button class="view-button" type="submit">取消報名</button></form>{% endif %}
-                        {% else %}
-                        <form method="post" action="{{ url_for('friend_groups.register_event', event_id=event.event_id) }}"><button class="view-button" type="submit">報名參加</button></form>
-                        {% endif %}
-                    </div>
+            <article class="official-event-card">
+                <div class="official-event-heading">
+                    <h3><a href="{{ url_for('friend_groups.event_detail', event_id=event.event_id) }}">{{ event.title }}</a></h3>
+                    {% if event.my_status in ('registered','attended') %}<span class="status-tag">{{ '已報到' if event.my_status == 'attended' else '已報名' }}</span>{% endif %}
+                </div>
+                <div class="official-event-meta">
+                    <span>📅 {{ event.event_date }}{% if event.start_time %} {{ event.start_time|hm }}{% endif %}</span>
+                    {% if event.location %}<span>📍 {{ event.location }}</span>{% endif %}
+                    <span>👥 {{ event.registered_count }}{% if event.capacity %} / {{ event.capacity }}{% endif %} 人報名</span>
+                </div>
+                {% if event.description %}<p class="official-event-description">{{ event.description }}</p>{% endif %}
+                <div class="official-event-footer">
+                    <a class="official-event-detail" href="{{ url_for('friend_groups.event_detail', event_id=event.event_id) }}">查看活動詳情{% if event.schedule %}與時間軸{% endif %} →</a>
+                    {% if event.my_status == 'registered' %}
+                    <form method="post" action="{{ url_for('friend_groups.cancel_event', event_id=event.event_id) }}"><button class="member-btn outline" type="submit">取消報名</button></form>
+                    {% elif event.my_status != 'attended' %}
+                    <form method="post" action="{{ url_for('friend_groups.register_event', event_id=event.event_id) }}"><button class="member-btn primary" type="submit">報名參加</button></form>
+                    {% endif %}
                 </div>
             </article>
             {% endfor %}

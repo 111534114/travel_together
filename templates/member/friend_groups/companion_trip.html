@@ -1,7 +1,7 @@
 {% extends 'member/base.html' %}{% block title %}{{ trip.trip_name }}｜走吧揪團{% endblock %}{% block content %}
 <div class="trip-form-page">
     <div class="page-heading trip-form-heading">
-        <a href="{{ url_for('friend_groups.index') }}">← 返回尋找旅伴</a>
+        <a href="{{ url_for('member.public_trips') }}">← 返回公開行程</a>
     </div>
     <div class="panel">
         <p class="attraction-detail-breadcrumb">{{ trip.country or '未設定國家' }}{% if trip.city %} · {{ trip.city }}{% endif %} · 發起者 {{ trip.owner_nickname or trip.owner_name or '未提供' }}</p>
@@ -28,27 +28,6 @@
             {% endif %}
         </div>
     </div>
-
-    {% if not is_owner %}
-    <div class="panel">
-        <h2>申請加入</h2>
-        {% if member_status == 'accepted' %}
-        <p class="form-hint">你已經是這個行程的成員了。</p>
-        {% elif member_status == 'requested' %}
-        <p class="form-hint">已送出申請，等待發起人審核。</p>
-        <form method="post" action="{{ url_for('friend_groups.leave_companion_trip', trip_id=trip.trip_id) }}"><button class="member-btn ghost small" type="submit">撤回申請</button></form>
-        {% elif is_full %}<p class="form-hint">目前已額滿。</p>
-        {% elif needs_official_event %}
-        <p class="form-hint">⚠️ 要先出席過一場官方活動，才能申請加入其他會員的行程，避免彼此都是完全陌生的人。<a href="{{ url_for('friend_groups.index') }}#friend-groups">前往交友揪團了解怎麼參加官方活動</a>。</p>
-        {% elif can_apply %}
-        <form method="post" action="{{ url_for('friend_groups.apply_companion_trip', trip_id=trip.trip_id) }}" class="form-grid-member">
-            <label class="span-2">想說的話（選填）<textarea name="note" rows="2" maxlength="300" placeholder="簡單自我介紹，或說明想加入的原因"></textarea></label>
-            <button class="member-btn primary" type="submit">送出申請</button>
-        </form>
-        {% endif %}
-        {% if member_status == 'accepted' %}<form method="post" action="{{ url_for('friend_groups.leave_companion_trip', trip_id=trip.trip_id) }}" onsubmit="return confirm('退出後將失去行程與聊天室權限，確定嗎？')"><button class="member-btn danger small" type="submit">退出行程</button></form>{% endif %}
-    </div>
-    {% endif %}
 
     <div class="panel">
         <h2>行程明細</h2>

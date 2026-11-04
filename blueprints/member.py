@@ -613,6 +613,59 @@ def companions_page():
     return redirect(url_for("friend_groups.index") + "#companions")
 
 
+@member_bp.route("/public-trips")
+@login_required("member")
+def public_trips():
+    connection = _connection_or_home()
+    if connection is None:
+        return redirect(url_for("member.dashboard"))
+    cursor = connection.cursor(dictionary=True)
+    try:
+        cursor.execute("""
+            SELECT t.trip_id, t.owner_id, t.trip_name, co.name AS country, ci.name AS city,
+                   t.people_count, t.total_budget, t.currency, t.introduction, t.start_date, t.end_date,
+                   u.full_name AS owner_name, u.nickname AS owner_nickname,
+                   COUNT(tm.user_id) AS joined_count
+            FROM trips t
+            JOIN users u ON u.user_id = t.owner_id
+            JOIN countries co ON co.country_id = t.country_id
+            JOIN cities ci ON ci.city_id = t.city_id
+            LEFT JOIN trip_members tm ON tm.trip_id = t.trip_id AND tm.join_status = 'accepted'
+            WHERE t.visibility = 'public'
+              AND t.moderation_status = 'visible' AND t.deleted_at IS NULL
+            GROUP BY t.trip_id, t.owner_id, t.trip_name, co.name, ci.name, t.start_date, t.end_date,
+                     t.people_count, t.total_budget, t.currency, t.introduction, u.full_name, u.nickname
+            ORDER BY t.trip_id DESC
+        """)
+        trips = cursor.fetchall()
+        cursor.execute("SELECT trip_id FROM favorites WHERE user_id=%s AND target_type='trip'", (session["user_id"],))
+        favorite_ids = {row["trip_id"] for row in cursor.fetchall()}
+    finally:
+        cursor.close()
+        connection.close()
+
+    filters = {
+        "region": request.args.get("region", "").strip()[:80],
+        "date": request.args.get("date", "").strip(),
+        "budget": request.args.get("budget", "").strip(),
+        "available": request.args.get("available") == "1",
+    }
+    max_budget = float(filters["budget"]) if filters["budget"].isdigit() else None
+    visible_trips = []
+    for trip in trips:
+        if filters["region"] and filters["region"].casefold() not in f"{trip.get('country') or ''} {trip.get('city') or ''}".casefold():
+            continue
+        if filters["date"] and not (str(trip.get("start_date") or "") <= filters["date"] <= str(trip.get("end_date") or "")):
+            continue
+        if max_budget is not None and float(trip.get("total_budget") or 0) > max_budget:
+            continue
+        if filters["available"] and trip.get("people_count") and trip.get("joined_count", 0) >= trip["people_count"]:
+            continue
+        trip["is_favorited"] = trip["trip_id"] in favorite_ids
+        visible_trips.append(trip)
+    return render_template("member/public_trips.html", trips=visible_trips, filters=filters)
+
+
 @member_bp.route("/announcements")
 @login_required("member")
 def announcements_page():
@@ -1409,6 +1462,15 @@ def trip_detail(trip_id):
         trip = _member_access(cursor, trip_id, session["user_id"])
         if not trip:
             flash("你沒有查看此行程的權限。", "error"); return redirect(url_for("member.dashboard"))
+        return_group_id = None
+        source_group = request.args.get("from_group", "")
+        if trip["member_role"] == "owner" and re.fullmatch(r"[1-9][0-9]{0,17}", source_group):
+            cursor.execute(
+                "SELECT group_id FROM friend_groups WHERE group_id=%s AND trip_id=%s AND host_user_id=%s",
+                (int(source_group), trip_id, session["user_id"]),
+            )
+            if cursor.fetchone():
+                return_group_id = int(source_group)
         cursor.execute("""SELECT i.*, u.nickname, u.full_name,
                                  a.attraction_id AS detail_attraction_id, a.image_path AS attraction_image,
                                  a.description AS attraction_description, a.opening_hours AS attraction_hours,
@@ -1432,12 +1494,12 @@ def trip_detail(trip_id):
         city_weather = weather.get_weather_by_cities([trip["city"]]) if trip.get("city") else {}
         if trip.get("city") in city_weather:
             city_weather_days = {day["date"]: day for day in city_weather[trip["city"]]["days"]}
-        cursor.execute("""SELECT tm.*, u.full_name,u.nickname,u.username FROM trip_members tm JOIN users u ON u.user_id=tm.user_id
+        cursor.execute("""SELECT tm.*, u.full_name,u.nickname,u.username,u.avatar_path FROM trip_members tm JOIN users u ON u.user_id=tm.user_id
                           WHERE tm.trip_id=%s AND tm.join_status='accepted' ORDER BY FIELD(tm.member_role,'owner','editor','viewer'),u.full_name""", (trip_id,)); members = cursor.fetchall()
-        cursor.execute("""SELECT ti.*, u.full_name AS invitee_name, u.nickname AS invitee_nickname
+        cursor.execute("""SELECT ti.*, u.full_name AS invitee_name, u.nickname AS invitee_nickname, u.avatar_path
                           FROM trip_invitations ti JOIN users u ON u.user_id=ti.invitee_id
                           WHERE ti.trip_id=%s AND ti.status='pending' ORDER BY ti.created_at DESC""", (trip_id,)); pending_invitations = cursor.fetchall()
-        cursor.execute("""SELECT tm.*, u.full_name,u.nickname FROM trip_members tm JOIN users u ON u.user_id=tm.user_id
+        cursor.execute("""SELECT tm.*, u.full_name,u.nickname,u.avatar_path FROM trip_members tm JOIN users u ON u.user_id=tm.user_id
                           WHERE tm.trip_id=%s AND tm.join_status='requested' ORDER BY tm.created_at""", (trip_id,)); pending_requests = cursor.fetchall()
         cursor.execute("""SELECT invitation_id, invite_token, assigned_role, expires_at FROM trip_invitations
                           WHERE trip_id=%s AND invitee_id IS NULL AND status='pending'
@@ -1475,7 +1537,7 @@ def trip_detail(trip_id):
         my_preference, my_preference_source = trip_preferences.my_form_values(cursor, preference_rows, session["user_id"])
     finally:
         cursor.close(); connection.close()
-    return render_template("member/trip_detail.html", trip=trip, itinerary=itinerary, place_options=place_options, popular_attractions=popular_attractions, addable_trips=[trip], day_last_coords=day_last_coords, city_weather_days=city_weather_days, members=members, mention_members=[{"name": m["nickname"] or m["full_name"], "full_name": m["full_name"], "is_me": m["user_id"] == session["user_id"]} for m in members], pending_invitations=pending_invitations, pending_requests=pending_requests, invite_link=invite_link, proposals=proposals, votes=votes, comments=comments, itinerary_comments=itinerary_comments, proposal_comments=proposal_comments, reported_comment_ids=reported_comment_ids, comment_report_reasons=COMMENT_REPORT_REASONS, expenses=expenses, balance_summary=balance_summary, attachments=attachments, actual=actual, can_edit=_can_edit(trip), is_owner=trip["member_role"] == "owner", now=datetime.now(), item_type_labels=ITEM_TYPE_LABELS, itinerary_change_field_labels=ITINERARY_CHANGE_FIELD_LABELS, disney_parks=theme_parks.get_disney_parks(), transport_summary=transport_summary, preferences_ready=preference_rows is not None, my_preference=my_preference, my_preference_source=my_preference_source, preference_summary=trip_preferences.summarize(preference_rows), preference_options=trip_preferences)
+    return render_template("member/trip_detail.html", trip=trip, itinerary=itinerary, place_options=place_options, popular_attractions=popular_attractions, addable_trips=[trip], day_last_coords=day_last_coords, city_weather_days=city_weather_days, members=members, mention_members=[{"name": m["nickname"] or m["full_name"], "full_name": m["full_name"], "is_me": m["user_id"] == session["user_id"]} for m in members], pending_invitations=pending_invitations, pending_requests=pending_requests, invite_link=invite_link, proposals=proposals, votes=votes, comments=comments, itinerary_comments=itinerary_comments, proposal_comments=proposal_comments, reported_comment_ids=reported_comment_ids, comment_report_reasons=COMMENT_REPORT_REASONS, expenses=expenses, balance_summary=balance_summary, attachments=attachments, actual=actual, can_edit=_can_edit(trip), is_owner=trip["member_role"] == "owner", now=datetime.now(), item_type_labels=ITEM_TYPE_LABELS, itinerary_change_field_labels=ITINERARY_CHANGE_FIELD_LABELS, disney_parks=theme_parks.get_disney_parks(), transport_summary=transport_summary, preferences_ready=preference_rows is not None, my_preference=my_preference, my_preference_source=my_preference_source, preference_summary=trip_preferences.summarize(preference_rows), preference_options=trip_preferences, return_group_id=return_group_id)
 
 
 @member_bp.route("/trips/<int:trip_id>/preferences", methods=["POST"])

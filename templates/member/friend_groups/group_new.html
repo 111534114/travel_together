@@ -27,8 +27,11 @@
             <label>希望旅伴的步調（選填）<select name="pace_filter"><option value="">不限</option>{% for value, label in pace_labels.items() %}<option value="{{ value }}">{{ label }}</option>{% endfor %}</select></label>
             <label>希望旅伴的社交傾向（選填）<select name="social_style_filter"><option value="">不限</option>{% for value, label in social_labels.items() %}<option value="{{ value }}">{{ label }}</option>{% endfor %}</select></label>
             <label class="span-2">說明<textarea name="description" rows="3" placeholder="想做什麼、想找什麼樣的旅伴"></textarea></label>
-            <label class="span-2"><input type="checkbox" name="show_member_list" value="1"> 允許其他會員在加入前看到同意公開的參加者（預設不公開）</label>
-            <button class="member-btn primary" type="submit">發起揪團</button>
+            <label class="span-2 group-member-visibility">
+                <input type="checkbox" name="show_member_list" value="1">
+                <span class="group-member-visibility-copy"><strong>公開參加者名單</strong><small>允許其他會員在加入前查看同意公開的參加者；預設不公開。</small></span>
+            </label>
+            <div class="span-2 group-form-actions"><button class="member-btn primary" type="submit">發起揪團</button></div>
         </form>
     </div>
 </div>

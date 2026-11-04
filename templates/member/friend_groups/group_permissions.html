@@ -1,0 +1,47 @@
+{% extends 'member/base.html' %}
+{% block title %}團員權限｜走吧揪團{% endblock %}
+{% block content %}
+<div class="trip-form-page group-permissions-page">
+    <div class="page-heading trip-form-heading">
+        <a href="{{ url_for('friend_groups.manage_group', group_id=group.group_id) }}">← 返回管理揪團</a>
+        <h1>團員權限</h1>
+        <p>{{ group.title }} · 設定已加入團員的行程操作權限</p>
+    </div>
+
+    <section class="panel">
+        <h2>權限說明</h2>
+        <div class="group-permission-guide">
+            <div><strong>查看者</strong><p>可以查看行程、參與聊天室；不能修改正式行程。</p></div>
+            <div><strong>共同編輯者</strong><p>可以協助編輯行程；團員審核及權限設定仍由主揪管理。</p></div>
+        </div>
+    </section>
+
+    <section class="panel">
+        <h2>已加入的團員{% if members %} <span class="count-badge">{{ members|length }}</span>{% endif %}</h2>
+        {% if not group.trip_id %}
+        <p class="muted">這個揪團尚未連結行程，無法設定行程權限。</p>
+        {% elif not members %}
+        <p class="muted">目前沒有已加入的團員。請先回到揪團管理頁審核加入申請。</p>
+        {% else %}
+        <div class="group-permission-list">
+            {% for member in members %}
+            <div class="group-permission-row">
+                <div class="group-permission-person">
+                    <span class="group-permission-avatar" aria-hidden="true">{% if member.avatar_path %}<img src="{{ member.avatar_path if member.avatar_path.startswith('http') else url_for('static', filename=member.avatar_path) }}" alt="" onerror="this.remove()">{% endif %}{{ (member.nickname or member.full_name or '旅')[0] }}</span>
+                    <div><strong>{{ member.nickname or member.full_name or '旅伴' }}</strong><span>目前：{{ '共同編輯者' if member.member_role == 'editor' else '查看者' }}</span></div>
+                </div>
+                <form method="post" action="{{ url_for('friend_groups.save_group_permission', group_id=group.group_id, member_user_id=member.user_id) }}" class="group-permission-form">
+                    <label for="member-role-{{ member.user_id }}">設定權限</label>
+                    <select id="member-role-{{ member.user_id }}" name="member_role">
+                        <option value="viewer" {% if member.member_role == 'viewer' %}selected{% endif %}>查看者</option>
+                        <option value="editor" {% if member.member_role == 'editor' %}selected{% endif %}>共同編輯者</option>
+                    </select>
+                    <button class="member-btn primary small" type="submit">儲存權限</button>
+                </form>
+            </div>
+            {% endfor %}
+        </div>
+        {% endif %}
+    </section>
+</div>
+{% endblock %}

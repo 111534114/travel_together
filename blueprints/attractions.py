@@ -55,6 +55,7 @@ def _parse_form(form_data):  # 定義內部函式：把表單資料解析成乾�
         "status": form_data.get("status", "active").strip(),  # 狀態，預設 active
         "remove_image": form_data.get("remove_image") == "on",  # 是否要移除目前圖片(編輯時使用)
         "image_url": form_data.get("image_url", "").strip(),  # 圖片網址(選填，用來從網路下載圖片)
+        "google_photo_name": form_data.get("google_photo_name", "").strip() or None,  # 按「查詢 Google」帶回的代表照資源名稱，沒上傳檔案也沒填圖片網址時，存檔時改用這張
     }
 
     errors = []  # 建立錯誤訊息清單
@@ -185,6 +186,17 @@ def list_attractions():  # 定義景點列表頁函式
         )
         attractions = cursor.fetchall()  # 取出當頁景點清單
 
+        for attraction in attractions:  # 「待確認」的景點通常是 Google 匯入時資料不齊全，直接列出缺什麼，不用自己一筆一筆點進編輯頁找
+            if attraction["status"] == "pending":
+                missing = []
+                if not attraction["address"]:
+                    missing.append("地址")
+                if attraction["latitude"] is None or attraction["longitude"] is None:
+                    missing.append("經緯度")
+                if not attraction["category_name"]:
+                    missing.append("分類")
+                attraction["pending_reason"] = "缺" + "、".join(missing) if missing else None
+
         options = _load_options(cursor)  # 取得下拉選單需要的國家/城市/分類清單
 
     finally:  # 不論成功或失敗都要執行
@@ -281,6 +293,9 @@ def create_attraction():  # 定義新增景點函式
 
                     if image_path is None:  # 如果沒有上傳檔案
                         image_path = save_image_from_url(form["image_url"], "attractions")  # 改嘗試從圖片網址下載
+
+                    if image_path is None and form["google_photo_name"]:  # 如果也沒填圖片網址，改用查詢 Google 時帶回的代表照
+                        image_path = save_image_from_url(build_photo_url(form["google_photo_name"]), "attractions")
                 except ValueError as error:  # 如果圖片格式不符合規定、下載失敗等
                     errors.append(str(error))  # 把錯誤訊息加入錯誤清單
                     image_path = None  # 圖片路徑設為 None
@@ -377,6 +392,14 @@ def edit_attraction(attraction_id):  # 定義編輯景點函式
                         delete_uploaded_image(existing["image_path"])  # 刪除舊圖片檔案
                         image_path = downloaded_path  # 更新要存進資料庫的圖片路徑
                 except ValueError as error:  # 如果下載失敗、格式不符合規定
+                    errors.append(str(error))
+            elif form["google_photo_name"]:  # 如果也沒填圖片網址，改用查詢 Google 時帶回的代表照
+                try:
+                    downloaded_path = save_image_from_url(build_photo_url(form["google_photo_name"]), "attractions")
+                    if downloaded_path:
+                        delete_uploaded_image(existing["image_path"])
+                        image_path = downloaded_path
+                except ValueError as error:
                     errors.append(str(error))  # 加入錯誤訊息
 
             if errors:  # 如果有任何驗證錯誤
@@ -677,60 +700,6 @@ def permanently_delete_attraction(attraction_id):  # 定義永久刪除景點函
     return redirect(url_for("attractions.list_trash"))  # 導回回收桶頁面
 
 
-@attractions_bp.route("/backfill-descriptions", methods=["POST"])  # 設定批次補上缺少景點描述的路由
-@login_required("content_admin")  # 限制只有內容管理員登入後才能存取
-def backfill_descriptions():  # 定義批次補上景點描述函式
-    connection = get_db_connection()  # 建立資料庫連線
-
-    if connection is None:  # 如果連線失敗
-        flash("資料庫連線失敗", "error")  # 顯示錯誤提示
-        return redirect(url_for("attractions.list_attractions"))  # 導回景點列表頁
-
-    cursor = connection.cursor(dictionary=True)  # 建立字典格式游標
-
-    try:  # 開始批次補上描述
-        cursor.execute(  # 查出還沒有描述、或描述是舊版單一句型自動產生的景點(重新換一種句型)，並關聯出分類、國家、城市名稱(組描述要用)
-            """
-            SELECT a.attraction_id, a.name, cat.category_name,
-                   co.name AS country_name, ci.name AS city_name
-            FROM attractions a
-            LEFT JOIN categories cat ON cat.category_id = a.category_id
-            JOIN countries co ON co.country_id = a.country_id
-            JOIN cities ci ON ci.city_id = a.city_id
-            WHERE a.deleted_at IS NULL
-              AND (a.description IS NULL
-               OR a.description = ''
-               OR a.description LIKE '%，是當地值得一遊的景點。')
-            """
-        )
-        rows = cursor.fetchall()  # 取出所有缺少描述、或描述太單調要重新產生的景點
-
-        for row in rows:  # 逐一補上(或換一種句型重新產生)描述
-            description = build_place_description(  # 用已知的名稱、分類、國家、城市隨機組一段描述
-                row["name"], row["category_name"], row["country_name"], row["city_name"]
-            )
-            cursor.execute(  # 執行更新描述的 SQL
-                "UPDATE attractions SET description = %s WHERE attraction_id = %s",
-                (description, row["attraction_id"])
-            )
-
-        log_action(  # 把這次批次補描述寫入操作紀錄
-            cursor, "backfill_attraction_descriptions", "attraction", None,
-            f"批次補上 {len(rows)} 筆景點描述"
-        )
-        connection.commit()  # 提交交易(所有描述更新與操作紀錄一起寫入)
-        flash(f"已補上 {len(rows)} 筆景點的描述", "success")  # 顯示成功訊息
-    except Exception as error:  # 如果過程發生例外
-        connection.rollback()  # 回復交易
-        print("批次補上景點描述失敗：", error)  # 在伺服器端印出錯誤內容
-        flash("批次補上景點描述失敗", "error")  # 顯示錯誤提示
-    finally:  # 不論成功或失敗都要執行
-        cursor.close()  # 關閉游標
-        connection.close()  # 關閉資料庫連線
-
-    return redirect(url_for("attractions.list_attractions"))  # 導回景點列表頁
-
-
 IMPORT_HEADER = [  # 定義景點 CSV 匯入需要的欄位順序，範本下載與匯入解析都用這份清單
     "name", "country", "city", "category", "address", "opening_hours",
     "ticket_price", "suggested_duration_minutes", "description", "website_url",
@@ -901,7 +870,8 @@ def geocode_attraction():  # 定義查詢函式：不直接存檔，只回傳資
         cursor.close()
         connection.close()
 
-    return jsonify(  # 回傳整理好的資料給前端，由 JS 填入表單欄位
+    return jsonify(  # 回傳整理好的資料給前端，由 JS 填入表單欄位；photo_name 只是 Google 的照片資源代稱、不含金鑰，
+        # 真正的下載網址等實際存檔時才在後端組出來，避免把 API 金鑰外洩到瀏覽器
         address=fields["address"],
         opening_hours=fields["opening_hours"],
         website_url=fields["website_url"],
@@ -910,6 +880,7 @@ def geocode_attraction():  # 定義查詢函式：不直接存檔，只回傳資
         country_name=fields["country_name"],
         city_id=city_id,
         city_name=fields["city_name"],
+        photo_name=fields["photo_name"],
     )
 
 
@@ -961,10 +932,13 @@ def import_from_google():  # 定義 Google 地圖批次匯入函式：輸入是�
 
     connection = get_db_connection()  # 開一個連線取我們系統現有的分類清單，讓預覽頁可以直接選用
     categories = []
+    existing_names = set()
     if connection is not None:
         cursor = connection.cursor(dictionary=True)
         try:
             categories = get_categories(cursor, "attraction")
+            cursor.execute("SELECT name FROM attractions WHERE deleted_at IS NULL")  # 查出系統現有景點名稱，等一下標記候選地點是否已經匯入過
+            existing_names = {row["name"].strip().lower() for row in cursor.fetchall() if row["name"]}
         finally:
             cursor.close()
             connection.close()
@@ -973,6 +947,7 @@ def import_from_google():  # 定義 Google 地圖批次匯入函式：輸入是�
     for candidate in candidates:  # 嘗試用 Google 判斷的類型文字去比對我們現有的分類，比對到就先幫忙選起來
         guess_name = (candidate.get("category_name") or "").strip().lower()
         candidate["suggested_category_id"] = category_lookup.get(guess_name)
+        candidate["already_imported"] = bool(candidate.get("name")) and candidate["name"].strip().lower() in existing_names  # 名稱跟系統現有景點完全相同就標記已匯入過，避免重複匯入
 
     return render_template(  # 跟「依關鍵字搜尋匯入」共用同一套預覽確認畫面與確認匯入路由，審核規則完全一致，不再直接寫入資料庫
         "content_admin/attractions/import_google_search_preview.html",
@@ -1016,10 +991,13 @@ def search_import_attractions():  # 定義搜尋函式：不是輸入精確地�
 
     connection = get_db_connection()  # 開一個連線取我們系統現有的分類清單，讓預覽頁可以直接選用
     categories = []
+    existing_names = set()
     if connection is not None:
         cursor = connection.cursor(dictionary=True)
         try:
             categories = get_categories(cursor, "attraction")
+            cursor.execute("SELECT name FROM attractions WHERE deleted_at IS NULL")  # 查出系統現有景點名稱，等一下標記候選地點是否已經匯入過
+            existing_names = {row["name"].strip().lower() for row in cursor.fetchall() if row["name"]}
         finally:
             cursor.close()
             connection.close()
@@ -1028,6 +1006,7 @@ def search_import_attractions():  # 定義搜尋函式：不是輸入精確地�
     for candidate in candidates:  # 嘗試用 Google 判斷的類型文字去比對我們現有的分類，比對到就先幫忙選起來
         guess_name = (candidate.get("category_name") or "").strip().lower()
         candidate["suggested_category_id"] = category_lookup.get(guess_name)
+        candidate["already_imported"] = bool(candidate.get("name")) and candidate["name"].strip().lower() in existing_names  # 名稱跟系統現有景點完全相同就標記已匯入過，避免重複匯入
 
     return render_template(
         "content_admin/attractions/import_google_search_preview.html",

@@ -42,7 +42,7 @@ _ENDPOINT_ACTIONS = {
         "confirm_search_import_attractions": "create", "edit_attraction": "edit",
         "geocode_attraction": "create",
         "bulk_activate_attractions": "edit", "restore_attraction": "edit",
-        "backfill_descriptions": "edit", "delete_attraction": "delete",
+        "delete_attraction": "delete",
         "bulk_delete_attractions": "delete", "permanently_delete_attraction": "delete",
     },
     "restaurants": {
@@ -51,7 +51,7 @@ _ENDPOINT_ACTIONS = {
         "confirm_search_import_restaurants": "create", "edit_restaurant": "edit",
         "geocode_restaurant": "create",
         "bulk_activate_restaurants": "edit", "restore_restaurant": "edit",
-        "backfill_descriptions": "edit", "delete_restaurant": "delete",
+        "delete_restaurant": "delete",
         "bulk_delete_restaurants": "delete", "permanently_delete_restaurant": "delete",
     },
     "accommodations": {
@@ -60,7 +60,7 @@ _ENDPOINT_ACTIONS = {
         "confirm_search_import_accommodations": "create", "edit_accommodation": "edit",
         "geocode_accommodation": "create",
         "bulk_activate_accommodations": "edit", "restore_accommodation": "edit",
-        "backfill_descriptions": "edit", "delete_accommodation": "delete",
+        "delete_accommodation": "delete",
         "bulk_delete_accommodations": "delete", "permanently_delete_accommodation": "delete",
     },
     "locations": {

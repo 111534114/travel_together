@@ -341,6 +341,51 @@ def visitor():
     )
 
 
+@app.route("/api/hotel-place-search")  # 住宿目的地自動完成打字時用的 AJAX 端點，只查台灣的住宿資料
+def api_hotel_place_search():
+    keyword = request.args.get("q", "").strip().replace("台", "臺")
+    if not keyword:
+        return jsonify([])
+    connection = get_db_connection()
+    if not connection:
+        return jsonify([])
+    cursor = connection.cursor(dictionary=True)
+    try:
+        like = "%" + keyword + "%"
+        cursor.execute(
+            """
+            SELECT ac.name, ac.address
+            FROM accommodations ac
+            JOIN countries co ON co.country_id = ac.country_id
+            JOIN cities ci ON ci.city_id = ac.city_id
+            WHERE ac.status = 'active' AND ac.deleted_at IS NULL AND co.name IN ('台灣', '臺灣')
+              AND (REPLACE(ac.name,'台','臺') LIKE %s OR REPLACE(ci.name,'台','臺') LIKE %s OR REPLACE(ac.address,'台','臺') LIKE %s)
+            """,
+            (like, like, like),
+        )
+        rows = cursor.fetchall()
+    except Exception as error:
+        print("住宿目的地建議查詢失敗：", error)
+        rows = []
+    finally:
+        cursor.close()
+        connection.close()
+
+    # 從地址抓出「縣市＋鄉鎮市區」(例如 臺北市信義區)，統計每個地區有幾間住宿；
+    # 回傳「台北市 信義區」這種用空白隔開的字串，住宿搜尋會拆成兩個關鍵字分別比對，一定查得到
+    areas = {}
+    for row in rows:
+        match = re.search(r"([一-鿿]{2}[市縣])([一-鿿]{1,3}?[區鄉鎮市])", (row["address"] or "").replace("臺", "台"))
+        if match and keyword.replace("臺", "台") in match.group(1) + match.group(2):
+            area = f"{match.group(1)} {match.group(2)}"
+            areas[area] = areas.get(area, 0) + 1
+    hotel_names = [row["name"] for row in rows if keyword in row["name"].replace("台", "臺")]
+    results = [{"label": area, "sub": f"{count} 間住宿", "value": area}
+               for area, count in sorted(areas.items(), key=lambda item: -item[1])[:8]]
+    results += [{"label": name, "sub": "住宿", "value": name} for name in hotel_names[:6]]
+    return jsonify(results)
+
+
 @app.route("/visitor/hotels")  # 設定訪客住宿搜尋結果頁路由(從訪客頁面的住宿搜尋表單導入，帶入目的地/日期/人數)
 def visitor_hotel_search():
     destination = request.args.get("destination", "").strip()  # 取得使用者輸入的目的地關鍵字

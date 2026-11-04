@@ -2,7 +2,7 @@
 <div class="booking-search-card">
   <form method="get" class="booking-search-form">
     {% if booking_kind == 'hotel' %}
-    <div class="field"><label for="searchDestination">目的地</label><input id="searchDestination" name="destination" type="text" value="{{ destination or '' }}" placeholder="城市、飯店名稱"></div>
+    <div class="field"><label for="searchDestination">目的地</label><input id="searchDestination" name="destination" type="text" value="{{ destination or '' }}" placeholder="城市、飯店名稱" autocomplete="off" data-hotel-autocomplete></div>
     <div class="field"><label for="searchCheckin">入住</label><input id="searchCheckin" name="checkin" type="date" value="{{ checkin or '' }}"></div>
     <div class="field"><label for="searchCheckout">退房</label><input id="searchCheckout" name="checkout" type="date" value="{{ checkout or '' }}"></div>
     <div class="field"><label for="searchGuests">人數</label><input id="searchGuests" name="guests" type="number" min="1" max="99" value="{{ guests or 2 }}"></div>

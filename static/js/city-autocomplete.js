@@ -19,7 +19,7 @@
   };
   const RECENT_MAX = 5;
   const SEARCH_DEBOUNCE_MS = 250;
-  const AUTOCOMPLETE_SELECTOR = '[data-city-autocomplete], [data-station-autocomplete]';
+  const AUTOCOMPLETE_SELECTOR = '[data-city-autocomplete], [data-station-autocomplete], [data-hotel-autocomplete]';
 
   // 高鐵／火車票的出發站/到達站輸入框(data-station-autocomplete)用同一套面板，只是清單換成車站：
   // 沒打字時列常用車站，打字時再打 /api/station-search 查高鐵 12 站＋台鐵全部車站(交通部 TDX 車站資料)。
@@ -47,8 +47,26 @@
       },
       matchTitle: '常用車站',
       searchUrl: '/api/station-search?q=',
-      renderResults: (results, onPick) => buildStationList('全部車站', results, onPick),
+      renderResults: (results, onPick) => buildDetailList('全部車站', results.map((station) => (
+        { label: station.name, sub: station.systems.join('・'), value: station.name })), onPick),
       emptyText: '沒有符合的車站。',
+    },
+    // 住宿目的地(data-hotel-autocomplete)目前只有台灣：沒打字時列台灣縣市，打字時查資料庫裡住宿的地區與名稱
+    hotel: {
+      recentKey: 'hotelSearch.recentPlaces',
+      popularTitle: '熱門地區',
+      popular: ['台北市', '新北市', '台中市', '台南市', '高雄市', '花蓮縣', '宜蘭縣', '屏東縣', '南投縣'],
+      regions: {
+        '北部': ['台北市', '新北市', '基隆市', '桃園市', '新竹市', '新竹縣', '宜蘭縣'],
+        '中部': ['苗栗縣', '台中市', '彰化縣', '南投縣', '雲林縣'],
+        '南部': ['嘉義市', '嘉義縣', '台南市', '高雄市', '屏東縣'],
+        '東部': ['花蓮縣', '台東縣'],
+        '離島': ['澎湖縣', '金門縣', '連江縣'],
+      },
+      matchTitle: '台灣縣市',
+      searchUrl: '/api/hotel-place-search?q=',
+      renderResults: (results, onPick) => buildDetailList('地區與住宿', results, onPick),
+      emptyText: '沒有符合的地區或住宿。',
     },
   };
   Object.values(MODES).forEach((mode) => {
@@ -175,9 +193,9 @@
     return section;
   }
 
-  // 車站結果跟機場一樣用一欄直式清單：第一行站名，第二行標示是高鐵站、台鐵站還是兩者都有
-  function buildStationList(title, stations, onPick) {
-    if (!stations.length) return null;
+  // 車站、住宿地區的結果跟機場一樣用一欄直式清單：第一行名稱，第二行補充說明(高鐵/台鐵、幾間住宿)
+  function buildDetailList(title, items, onPick) {
+    if (!items.length) return null;
     const section = document.createElement('div');
     section.className = 'city-suggest-section';
     const heading = document.createElement('span');
@@ -186,21 +204,21 @@
     section.appendChild(heading);
     const list = document.createElement('div');
     list.className = 'city-suggest-list';
-    stations.forEach((station) => {
+    items.forEach(({ label, sub, value }) => {
       const item = document.createElement('button');
       item.type = 'button';
       item.className = 'city-suggest-item city-suggest-item--airport';
       const primary = document.createElement('span');
       primary.className = 'city-suggest-item-primary';
-      primary.textContent = station.name;
+      primary.textContent = label;
       const secondary = document.createElement('span');
       secondary.className = 'city-suggest-item-secondary';
-      secondary.textContent = station.systems.join('・');
+      secondary.textContent = sub;
       item.appendChild(primary);
       item.appendChild(secondary);
       item.addEventListener('mousedown', (event) => {
         event.preventDefault();
-        onPick(station.name);
+        onPick(value);
       });
       list.appendChild(item);
     });
@@ -267,7 +285,8 @@
   function openPanel(input) {
     const panel = getOrCreatePanel(input);
     const keyword = input.value.trim();
-    const mode = input.matches('[data-station-autocomplete]') ? MODES.station : MODES.city;
+    const mode = input.matches('[data-station-autocomplete]') ? MODES.station
+      : input.matches('[data-hotel-autocomplete]') ? MODES.hotel : MODES.city;
     const onPick = (value) => {
       input.value = value;
       saveRecent(mode.recentKey, value);

@@ -64,6 +64,7 @@
     @media (max-width: 850px) { .flight-card { flex-direction: column; align-items: stretch; } .flight-footer { margin-left: 0; justify-content: space-between; } }
     @media (max-width: 560px) { .flight-route { flex-direction: column; align-items: stretch; } .flight-path { display: none; } }
   </style>
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/flight-card-mobile.css') }}">
 </head>
 <body>
   {% set is_member = session.get('user_id') and session.get('role') == 'member' %}

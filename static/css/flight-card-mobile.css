@@ -1,0 +1,81 @@
+/* 機票卡片的手機版排版（flight_search / multi_city_flight_search / flight_return_options 共用）
+   必須在各頁 <style> 之後載入，才能覆蓋桌機版的 flex 設定。
+   原本手機版把卡片改成直向 flex，flex-basis（170px、320px）變成「高度」，造成大片空白；這裡改用 grid 排版。 */
+@media (max-width: 850px) {
+  .flight-card {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-areas:
+      "airline heart"
+      "route   route"
+      "meta    meta"
+      "footer  footer";
+    align-items: center;
+    gap: 14px 12px;
+    padding: 22px 16px 16px;
+    border-radius: 16px;
+  }
+  .flight-card:hover { transform: none; }
+
+  .flight-card > .booking-save-form,
+  .flight-card > .booking-heart { grid-area: heart; justify-self: end; }
+  .flight-card .booking-heart { width: 36px; height: 36px; font-size: 22px; }
+
+  .flight-best-badge { left: 16px; }
+
+  .flight-airline { grid-area: airline; flex: none; min-width: 0; }
+  .flight-airline b { font-size: 15px; }
+
+  /* 起飛 —— 航程線 —— 抵達 橫向一列 */
+  .flight-route {
+    grid-area: route;
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    gap: 10px;
+    padding: 14px 12px;
+    background: var(--purple-soft, #EDF6F7);
+    border-radius: 12px;
+  }
+  .flight-time { min-width: 0; flex: 0 0 auto; }
+  .flight-time:first-child { align-items: flex-start; }
+  .flight-time:last-child { align-items: flex-end; }
+  .flight-time b { font-size: 22px; line-height: 1.2; }
+  .flight-time span { max-width: 88px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .flight-path { display: flex; flex: 1 1 auto; min-width: 0; gap: 5px; font-size: 11px; text-align: center; }
+  .flight-path .line { background: #BFD8DB; }
+  .flight-stop-tag { background: #fff; }
+
+  /* 國家、剩餘座位改成小標籤 */
+  .flight-meta {
+    grid-area: meta;
+    flex-direction: row;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin: 0;
+    padding: 0;
+    border-left: 0;
+  }
+  .flight-meta:empty { display: none; }
+  .flight-meta span { padding: 3px 10px; background: #F3F7F7; border-radius: 999px; }
+  .flight-meta .seats-low { background: #FCEDED; }
+
+  .flight-footer {
+    grid-area: footer;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    margin: 0;
+    padding-top: 14px;
+    border-top: 1px dashed var(--line, #E1EBEC);
+  }
+  .flight-footer .price { font-size: 22px; text-align: left; line-height: 1.2; }
+  .flight-footer .view-button { padding: 11px 18px; }
+}
+
+@media (max-width: 380px) {
+  .flight-time b { font-size: 19px; }
+  .flight-footer .price { font-size: 19px; }
+  .flight-footer .view-button { padding: 10px 14px; }
+}

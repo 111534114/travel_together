@@ -100,6 +100,19 @@ def list_restaurants():  # 定義餐廳列表頁函式
     page = request.args.get("page", "1")  # 取得頁碼參數(字串)
     page = int(page) if page.isdigit() and int(page) > 0 else 1  # 驗證頁碼為正整數，否則預設第 1 頁
 
+    SORT_OPTIONS = {  # 排序下拉選單的白名單，鍵是下拉選單的 value(欄位+方向)、值是(實際排序用的 SQL 欄位, 方向)，不直接把使用者輸入接進 SQL，避免注入風險
+        "name-asc": ("r.name", "ASC"), "name-desc": ("r.name", "DESC"),
+        "category-asc": ("cat.category_name", "ASC"), "category-desc": ("cat.category_name", "DESC"),
+        "location-asc": ("co.name, ci.name", "ASC"), "location-desc": ("co.name, ci.name", "DESC"),
+        "cuisine_type-asc": ("r.cuisine_type", "ASC"), "cuisine_type-desc": ("r.cuisine_type", "DESC"),
+        "price_level-asc": ("r.price_level", "ASC"), "price_level-desc": ("r.price_level", "DESC"),
+        "status-asc": ("r.status", "ASC"), "status-desc": ("r.status", "DESC"),
+        "ai_verified_at-asc": ("r.ai_verified_at", "ASC"), "ai_verified_at-desc": ("r.ai_verified_at", "DESC"),
+    }
+    sort = request.args.get("sort", "").strip()  # 取得排序方式參數
+    if sort not in SORT_OPTIONS:  # 不在白名單內就當作沒有排序(用預設的新增時間排序)
+        sort = ""
+
     connection = get_db_connection()  # 建立資料庫連線
 
     if connection is None:  # 如果連線失敗
@@ -108,7 +121,8 @@ def list_restaurants():  # 定義餐廳列表頁函式
             "content_admin/restaurants/list.html",
             restaurants=[], countries=[], cities=[], categories=[],
             keyword=keyword, country_id=country_id, city_id=city_id,
-            category_id=category_id, status=status, page=1, total_pages=1, total=0
+            category_id=category_id, status=status, page=1, total_pages=1, total=0,
+            sort=sort
         )
 
     cursor = connection.cursor(dictionary=True)  # 建立字典格式游標
@@ -149,6 +163,12 @@ def list_restaurants():  # 定義餐廳列表頁函式
         page = min(page, total_pages)  # 如果頁碼超過總頁數，修正為最後一頁
         offset = (page - 1) * PAGE_SIZE  # 計算 SQL 要跳過的筆數
 
+        if sort:  # 如果有指定排序方式，用該欄位排序，同值時再用 ID 新到舊排序(穩定排序，避免同分時順序亂跳)
+            sort_column, sort_direction = SORT_OPTIONS[sort]
+            order_clause = f"ORDER BY {sort_column} {sort_direction}, r.restaurant_id DESC"
+        else:  # 沒有指定就維持預設的新增時間排序
+            order_clause = "ORDER BY r.restaurant_id DESC"
+
         cursor.execute(  # 查詢當頁的餐廳資料，並關聯分類、國家、城市名稱
             f"""
             SELECT r.restaurant_id, r.name, r.address, r.cuisine_type, r.price_level,
@@ -159,7 +179,7 @@ def list_restaurants():  # 定義餐廳列表頁函式
             JOIN countries co ON co.country_id = r.country_id
             JOIN cities ci ON ci.city_id = r.city_id
             {where_clause}
-            ORDER BY r.restaurant_id DESC
+            {order_clause}
             LIMIT %s OFFSET %s
             """,
             params + [PAGE_SIZE, offset]  # 加上分頁用的 LIMIT、OFFSET 參數
@@ -195,6 +215,7 @@ def list_restaurants():  # 定義餐廳列表頁函式
         page=page,  # 目前頁碼
         total_pages=total_pages,  # 總頁數
         total=total,  # 符合條件的總筆數
+        sort=sort,  # 目前排序方式(回填排序下拉選單)
     )
 
 

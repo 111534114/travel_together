@@ -100,6 +100,19 @@ def list_restaurants():  # 定義餐廳列表頁函式
     page = request.args.get("page", "1")  # 取得頁碼參數(字串)
     page = int(page) if page.isdigit() and int(page) > 0 else 1  # 驗證頁碼為正整數，否則預設第 1 頁
 
+    sort_options = {
+        "name-asc": "r.name ASC", "name-desc": "r.name DESC",
+        "category-asc": "cat.category_name ASC", "category-desc": "cat.category_name DESC",
+        "location-asc": "co.name ASC, ci.name ASC", "location-desc": "co.name DESC, ci.name DESC",
+        "cuisine_type-asc": "r.cuisine_type ASC", "cuisine_type-desc": "r.cuisine_type DESC",
+        "price_level-asc": "r.price_level ASC", "price_level-desc": "r.price_level DESC",
+        "status-asc": "r.status ASC", "status-desc": "r.status DESC",
+        "ai_verified_at-asc": "r.ai_verified_at ASC", "ai_verified_at-desc": "r.ai_verified_at DESC",
+    }
+    sort = request.args.get("sort", "").strip()
+    if sort not in sort_options:
+        sort = ""
+
     connection = get_db_connection()  # 建立資料庫連線
 
     if connection is None:  # 如果連線失敗
@@ -108,7 +121,7 @@ def list_restaurants():  # 定義餐廳列表頁函式
             "content_admin/restaurants/list.html",
             restaurants=[], countries=[], cities=[], categories=[],
             keyword=keyword, country_id=country_id, city_id=city_id,
-            category_id=category_id, status=status, page=1, total_pages=1, total=0
+            category_id=category_id, status=status, sort=sort, page=1, total_pages=1, total=0
         )
 
     cursor = connection.cursor(dictionary=True)  # 建立字典格式游標
@@ -148,6 +161,7 @@ def list_restaurants():  # 定義餐廳列表頁函式
         total_pages = max(1, (total + PAGE_SIZE - 1) // PAGE_SIZE)  # 計算總頁數(無條件進位，至少 1 頁)
         page = min(page, total_pages)  # 如果頁碼超過總頁數，修正為最後一頁
         offset = (page - 1) * PAGE_SIZE  # 計算 SQL 要跳過的筆數
+        order_clause = f"ORDER BY {sort_options[sort]}, r.restaurant_id DESC" if sort else "ORDER BY r.restaurant_id DESC"
 
         cursor.execute(  # 查詢當頁的餐廳資料，並關聯分類、國家、城市名稱
             f"""
@@ -159,7 +173,7 @@ def list_restaurants():  # 定義餐廳列表頁函式
             JOIN countries co ON co.country_id = r.country_id
             JOIN cities ci ON ci.city_id = r.city_id
             {where_clause}
-            ORDER BY r.restaurant_id DESC
+            {order_clause}
             LIMIT %s OFFSET %s
             """,
             params + [PAGE_SIZE, offset]  # 加上分頁用的 LIMIT、OFFSET 參數
@@ -192,6 +206,7 @@ def list_restaurants():  # 定義餐廳列表頁函式
         city_id=city_id,  # 城市篩選值(回填下拉選單)
         category_id=category_id,  # 分類篩選值(回填下拉選單)
         status=status,  # 狀態篩選值(回填下拉選單)
+        sort=sort,  # 排序方式(回填下拉選單並保留分頁條件)
         page=page,  # 目前頁碼
         total_pages=total_pages,  # 總頁數
         total=total,  # 符合條件的總筆數

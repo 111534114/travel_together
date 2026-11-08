@@ -40,6 +40,24 @@
             <option value="hidden" {{ 'selected' if status == 'hidden' else '' }}>隱藏</option>
         </select>
 
+        <select name="sort" aria-label="排序方式">
+            <option value="">排序：最新建立</option>
+            <option value="name-asc" {{ 'selected' if sort == 'name-asc' else '' }}>名稱 A→Z</option>
+            <option value="name-desc" {{ 'selected' if sort == 'name-desc' else '' }}>名稱 Z→A</option>
+            <option value="category-asc" {{ 'selected' if sort == 'category-asc' else '' }}>分類 A→Z</option>
+            <option value="category-desc" {{ 'selected' if sort == 'category-desc' else '' }}>分類 Z→A</option>
+            <option value="location-asc" {{ 'selected' if sort == 'location-asc' else '' }}>國家／城市 A→Z</option>
+            <option value="location-desc" {{ 'selected' if sort == 'location-desc' else '' }}>國家／城市 Z→A</option>
+            <option value="ticket_price-asc" {{ 'selected' if sort == 'ticket_price-asc' else '' }}>票價 低→高</option>
+            <option value="ticket_price-desc" {{ 'selected' if sort == 'ticket_price-desc' else '' }}>票價 高→低</option>
+            <option value="suggested_duration-asc" {{ 'selected' if sort == 'suggested_duration-asc' else '' }}>建議停留 短→長</option>
+            <option value="suggested_duration-desc" {{ 'selected' if sort == 'suggested_duration-desc' else '' }}>建議停留 長→短</option>
+            <option value="status-asc" {{ 'selected' if sort == 'status-asc' else '' }}>狀態 A→Z</option>
+            <option value="status-desc" {{ 'selected' if sort == 'status-desc' else '' }}>狀態 Z→A</option>
+            <option value="ai_verified_at-desc" {{ 'selected' if sort == 'ai_verified_at-desc' else '' }}>AI 確認日期 新→舊</option>
+            <option value="ai_verified_at-asc" {{ 'selected' if sort == 'ai_verified_at-asc' else '' }}>AI 確認日期 舊→新</option>
+        </select>
+
         <button type="submit">🔍 搜尋</button>
         <a href="{{ url_for('attractions.list_attractions') }}">清除篩選</a>
 
@@ -148,7 +166,7 @@
             {% if p == page %}
                 <span class="current">{{ p }}</span>
             {% else %}
-                <a href="{{ url_for('attractions.list_attractions', keyword=keyword, country_id=country_id, city_id=city_id, category_id=category_id, status=status, page=p) }}">{{ p }}</a>
+                <a href="{{ url_for('attractions.list_attractions', keyword=keyword, country_id=country_id, city_id=city_id, category_id=category_id, status=status, sort=sort, page=p) }}">{{ p }}</a>
             {% endif %}
         {% endfor %}
     </div>

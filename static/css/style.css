@@ -581,6 +581,8 @@ body {
     background: #EEF6F7;
 
     color: #40696F;
+
+    white-space: nowrap;
 }
 
 

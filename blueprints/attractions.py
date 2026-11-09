@@ -1,5 +1,6 @@
 import csv  # 匯入 csv，用來解析上傳的 CSV 檔案內容
 import io  # 匯入 io，用來把上傳的檔案內容包裝成可供 csv 模組讀取的物件
+import os  # 匯入 os，用來從上傳檔名拆出不含副檔名的檔名(批次上傳圖片比對用)
 
 from flask import Blueprint, flash, jsonify, redirect, render_template, request, session, url_for  # 匯入 Flask 藍圖與常用功能
 
@@ -1124,5 +1125,83 @@ def confirm_search_import_attractions():  # 定義確認匯入函式：把預覽
 
     return render_template(
         "content_admin/attractions/import_google_result.html",
+        results=results, success_count=success_count, fail_count=len(results) - success_count,
+    )
+
+
+@attractions_bp.route("/bulk-upload-images", methods=["GET", "POST"])  # 設定批次上傳圖片的路由：一次選多張照片，依檔名自動比對要更新哪一筆景點的圖片
+@login_required("content_admin")  # 限制只有內容管理員登入後才能存取
+def bulk_upload_images():  # 定義批次上傳圖片函式：不用一筆一筆進編輯頁上傳，適合同學那邊已經有一批照片檔案、檔名就是景點名稱的情境
+    if request.method == "GET":  # 如果是進頁面(還沒選擇檔案)
+        return render_template("content_admin/attractions/bulk_upload_images.html")
+
+    files = [f for f in request.files.getlist("images") if f and f.filename]  # 取得這次選擇的所有圖片檔案，過濾掉空的欄位
+    if not files:  # 如果一張都沒選
+        flash("請至少選擇一張圖片", "error")
+        return redirect(url_for("attractions.bulk_upload_images"))
+
+    connection = get_db_connection()
+    if connection is None:
+        flash("資料庫連線失敗", "error")
+        return redirect(url_for("attractions.bulk_upload_images"))
+
+    cursor = connection.cursor(dictionary=True)
+    results = []  # 每一張照片的比對/上傳結果，格式跟其他匯入功能一致：(編號, 檔名, 是否成功, 說明)
+    success_count = 0
+
+    try:
+        cursor.execute("SELECT attraction_id, name, image_path FROM attractions WHERE deleted_at IS NULL")
+        candidates = cursor.fetchall()  # 先一次把現有景點名稱都抓出來，在 Python 裡比對，不用每張照片各查一次資料庫
+
+        for row_number, file in enumerate(files, start=1):
+            original_name = file.filename
+            stem = os.path.splitext(original_name)[0].strip().lower()  # 去掉副檔名、轉小寫，準備拿來跟景點名稱比對
+
+            matches = [c for c in candidates if c["name"] and c["name"].strip().lower() == stem]  # 先試完全相符(檔名跟景點名稱一字不差，忽略大小寫)
+            match_type = "檔名完全相符"
+
+            if not matches:  # 沒有完全相符，改試部分相符(檔名可能多打了日期、編號等)
+                matches = [
+                    c for c in candidates
+                    if c["name"] and (c["name"].strip().lower() in stem or stem in c["name"].strip().lower())
+                ]
+                match_type = "檔名部分相符"
+
+            if not matches:  # 完全比對不到，列入失敗清單，交給人工處理
+                results.append((row_number, original_name, False, "找不到名稱相符的景點，請確認檔名是否包含景點名稱，或改到編輯頁手動上傳"))
+                continue
+
+            if len(matches) > 1:  # 同時比對到多筆，無法自動判斷要對應哪一筆，避免誤改
+                names = "、".join(m["name"] for m in matches[:5])
+                results.append((row_number, original_name, False, f"檔名同時符合多筆景點（{names}⋯），無法自動判斷，請改到編輯頁手動上傳"))
+                continue
+
+            target = matches[0]
+            try:
+                image_path = save_uploaded_image(file, "attractions")
+            except ValueError as error:  # 圖片格式不符合規定、檔案太大等
+                results.append((row_number, original_name, False, str(error)))
+                continue
+
+            delete_uploaded_image(target["image_path"])  # 刪除原本的舊圖片，避免留下孤兒檔案
+            cursor.execute(
+                "UPDATE attractions SET image_path = %s WHERE attraction_id = %s",
+                (image_path, target["attraction_id"])
+            )
+            target["image_path"] = image_path  # 同步更新這次比對用的清單，避免後面的照片又比對到同一筆時用到舊路徑
+            success_count += 1
+            results.append((row_number, original_name, True, f"已比對到「{target['name']}」（{match_type}），圖片已更新"))
+
+        log_action(
+            cursor, "bulk_upload_attraction_images", "attraction", None,
+            f"批次上傳景點圖片，成功 {success_count} 筆，失敗 {len(results) - success_count} 筆"
+        )
+        connection.commit()
+    finally:
+        cursor.close()
+        connection.close()
+
+    return render_template(
+        "content_admin/attractions/bulk_upload_images_result.html",
         results=results, success_count=success_count, fail_count=len(results) - success_count,
     )

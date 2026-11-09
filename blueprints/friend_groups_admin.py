@@ -7,6 +7,7 @@ from activity_log import log_action
 from auth import login_required
 from db import get_db_connection
 from notification_preferences import send_notification
+from chat_moderation import REMOVED_CHAT_CONTENT, SETTING_KEY, parse_terms, remove_trip_message
 
 friend_groups_admin_bp = Blueprint("friend_groups_admin", __name__, url_prefix="/content-admin/friend-groups")
 
@@ -88,6 +89,9 @@ def list_applications():
     cursor = connection.cursor(dictionary=True)
     try:
         feature_enabled = _feature_enabled(cursor)
+        cursor.execute("SELECT setting_value FROM app_settings WHERE setting_key=%s", (SETTING_KEY,))
+        terms_row = cursor.fetchone()
+        blocked_terms = terms_row["setting_value"] if terms_row else ""
 
         params = []
         where_clause = ""
@@ -122,7 +126,86 @@ def list_applications():
         "content_admin/friend_groups/applications.html",
         applications=applications, status=status, status_labels=APPLICATION_STATUS_LABELS,
         page=page, total_pages=total_pages, total=total, feature_enabled=feature_enabled,
+        blocked_terms=blocked_terms,
     )
+
+
+@friend_groups_admin_bp.route("/settings/chat-terms", methods=["POST"])
+@login_required("content_admin")
+def save_chat_terms():
+    terms = parse_terms(request.form.get("blocked_terms", ""))
+    value = ",".join(terms)
+    if len(value) > 255 or any(len(term) > 40 for term in terms):
+        flash("敏感詞總長最多 255 字，每個詞最多 40 字。", "error")
+        return redirect(url_for("friend_groups_admin.list_applications"))
+    connection = get_db_connection()
+    if connection is None:
+        flash("資料庫連線失敗", "error")
+        return redirect(url_for("friend_groups_admin.list_applications"))
+    cursor = connection.cursor(dictionary=True)
+    try:
+        cursor.execute("""INSERT INTO app_settings (setting_key, setting_value, updated_by) VALUES (%s,%s,%s)
+                          ON DUPLICATE KEY UPDATE setting_value=VALUES(setting_value), updated_by=VALUES(updated_by)""",
+                       (SETTING_KEY, value, session["user_id"]))
+        log_action(cursor, "update_chat_terms", "app_setting", None, "更新聊天室敏感詞")
+        connection.commit()
+        flash("聊天室敏感詞已更新。", "success")
+    except Exception:
+        connection.rollback()
+        flash("設定失敗，請再試一次。", "error")
+    finally:
+        cursor.close()
+        connection.close()
+    return redirect(url_for("friend_groups_admin.list_applications"))
+
+
+@friend_groups_admin_bp.route("/chat")
+@login_required("content_admin")
+def group_chat_messages():
+    connection = get_db_connection()
+    if connection is None:
+        flash("資料庫連線失敗", "error")
+        return redirect(url_for("friend_groups_admin.list_applications"))
+    cursor = connection.cursor(dictionary=True)
+    try:
+        cursor.execute("""SELECT m.message_id, m.trip_id, m.content, m.created_at,
+                                 g.title AS group_title, u.nickname, u.full_name
+                          FROM trip_chat_messages m
+                          JOIN friend_groups g ON g.trip_id=m.trip_id AND g.status != 'cancelled'
+                          JOIN users u ON u.user_id=m.user_id
+                          ORDER BY m.message_id DESC LIMIT 100""")
+        messages = cursor.fetchall()
+    finally:
+        cursor.close()
+        connection.close()
+    return render_template("content_admin/friend_groups/chat.html", messages=messages,
+                           removed_marker=REMOVED_CHAT_CONTENT)
+
+
+@friend_groups_admin_bp.route("/chat/<int:trip_id>/<int:message_id>/remove", methods=["POST"])
+@login_required("content_admin")
+def remove_group_chat_message(trip_id, message_id):
+    connection = get_db_connection()
+    if connection is None:
+        flash("資料庫連線失敗", "error")
+        return redirect(url_for("friend_groups_admin.group_chat_messages"))
+    cursor = connection.cursor(dictionary=True)
+    try:
+        cursor.execute("SELECT 1 FROM friend_groups WHERE trip_id=%s AND status != 'cancelled' LIMIT 1", (trip_id,))
+        if not cursor.fetchone():
+            flash("找不到這個揪團聊天室。", "error")
+        elif remove_trip_message(cursor, trip_id, message_id, session["user_id"]):
+            connection.commit()
+            flash("訊息已移除，原文保留在編輯紀錄。", "success")
+        else:
+            flash("找不到可移除的訊息。", "error")
+    except Exception:
+        connection.rollback()
+        flash("移除失敗，請再試一次。", "error")
+    finally:
+        cursor.close()
+        connection.close()
+    return redirect(url_for("friend_groups_admin.group_chat_messages"))
 
 
 @friend_groups_admin_bp.route("/applications/<int:application_id>/approve", methods=["POST"])

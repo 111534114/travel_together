@@ -17,11 +17,12 @@
             <label>目的地國家 *<select id="countrySelect" name="country_id" required><option value="">請選擇國家</option>{% for country in countries %}<option value="{{ country.country_id }}">{{ country.name }}</option>{% endfor %}</select></label>
             <label>目的地城市 *<select id="citySelect" name="city_id" required><option value="">請選擇城市</option>{% for city in cities %}<option value="{{ city.city_id }}" data-country="{{ city.country_id }}">{{ city.name }}</option>{% endfor %}</select></label>
             <label>開始日期 *<input required type="date" name="event_date"></label>
+            <label>報名截止 *<select name="registration_lead_days" required><option value="2">行程開始前 2 天</option><option value="3">行程開始前 3 天</option></select></label>
             {% if tier.allow_multi_day %}
             <label>結束日期（選填，不填代表單日）<input type="date" name="end_date"></label>
             {% endif %}
-            <label>開始時間<input type="time" name="start_time"></label>
-            <label>結束時間<input type="time" name="end_time"></label>
+            <label>活動開始時間（非報名截止）<input type="time" name="start_time"></label>
+            <label>活動結束時間<input type="time" name="end_time"></label>
             <label>地點<input name="location" maxlength="255"></label>
             <label>團員名額（不含主揪）{% if tier.level == 1 %}（最多 {{ tier.max_capacity }} 人）<input type="number" min="1" max="{{ tier.max_capacity }}" name="capacity" placeholder="最多 {{ tier.max_capacity }} 人"></label>{% else %}（留空不限制）<input type="number" min="1" name="capacity"></label>{% endif %}
             <label>希望旅伴的步調（選填）<select name="pace_filter"><option value="">不限</option>{% for value, label in pace_labels.items() %}<option value="{{ value }}">{{ label }}</option>{% endfor %}</select></label>

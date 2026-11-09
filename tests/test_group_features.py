@@ -1,13 +1,15 @@
 import json
 import unittest
-from datetime import date
+from datetime import date, timedelta
 from unittest.mock import MagicMock, patch
 
 from flask import session
 
 from app import app
-from blueprints.friend_groups import _active_group_access, _album_image_type, ai_plan, approve_group_member, leave_group, save_ai_plan
+from blueprints.friend_groups import _active_group_access, _album_image_type, _registration_deadline, ai_plan, approve_group_member, leave_group, save_ai_plan
+from blueprints.member import chat_feed, chat_remove, chat_send
 from group_ai_planner import generate_plan, normalize_plan
+from chat_moderation import blocked_term, parse_terms
 from content_admin_permissions import _ENDPOINT_ACTIONS
 
 
@@ -24,6 +26,22 @@ class FakeCursor:
 
 
 class GroupFeatureTests(unittest.TestCase):
+    def test_chat_feed_returns_json_for_trip_owner(self):
+        cursor = MagicMock()
+        cursor.fetchall.side_effect = [[], []]
+        cursor.fetchone.return_value = {"latest": 0}
+        connection = MagicMock()
+        connection.cursor.return_value = cursor
+        with app.test_request_context("/member/trips/8/chat?after=1"):
+            session.update(user_id=2, role="member")
+            with patch("blueprints.member.get_db_connection", return_value=connection), \
+                 patch("blueprints.member._member_access", return_value={"member_role": "owner"}), \
+                 patch("blueprints.member._chat_members", return_value=[]), \
+                 patch("blueprints.member._open_vote_progress", return_value=[]):
+                response = chat_feed(8)
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(response.get_json()["can_moderate"])
+
     def test_album_image_type_supports_allowed_headers(self):
         self.assertEqual(_album_image_type(b"\xff\xd8\xff\xe0data"), "jpeg")
         self.assertEqual(_album_image_type(b"\x89PNG\r\n\x1a\ndata"), "png")
@@ -148,6 +166,52 @@ class GroupFeatureTests(unittest.TestCase):
         statements = "\n".join(call.args[0] for call in cursor.execute.call_args_list)
         self.assertIn("member_role='viewer'", statements)
         self.assertIn("join_status='accepted'", statements)
+
+    def test_chat_terms_normalize_spacing_and_fullwidth(self):
+        cursor = MagicMock()
+        cursor.fetchone.return_value = {"setting_value": "保證獲利,色情服務"}
+        self.assertEqual(blocked_term(cursor, "保 證 獲 利"), "保證獲利")
+        self.assertEqual(blocked_term(cursor, "色情 服務"), "色情服務")
+        self.assertIsNone(blocked_term(cursor, "集合時間是早上九點"))
+        self.assertEqual(parse_terms("詐騙，匯款\n詐騙"), ["詐騙", "匯款"])
+
+    def test_group_registration_deadline_uses_selected_lead_days(self):
+        cursor = MagicMock()
+        cursor.fetchone.return_value = {"setting_value": "3"}
+        group = {"group_id": 9, "event_date": date(2026, 12, 10)}
+        self.assertEqual(_registration_deadline(cursor, group), date(2026, 12, 7))
+        self.assertEqual(group["registration_lead_days"], 3)
+
+    def test_trip_chat_rejects_blocked_content_before_insert(self):
+        cursor = MagicMock()
+        cursor.fetchone.return_value = {"setting_value": "保證獲利"}
+        connection = MagicMock()
+        connection.cursor.return_value = cursor
+        with app.test_request_context("/member/trips/8/chat", method="POST", json={"content": "保證獲利，請匯款"}):
+            session.update(user_id=2, role="member")
+            with patch("blueprints.member.get_db_connection", return_value=connection), \
+                 patch("blueprints.member._member_access", return_value={"member_role": "viewer"}):
+                response, status = chat_send(8)
+        self.assertEqual(status, 400)
+        self.assertIn("禁止內容", response.get_json()["error"])
+        connection.commit.assert_not_called()
+
+    def test_trip_owner_can_remove_chat_message_with_audit_log(self):
+        cursor = MagicMock()
+        cursor.fetchone.return_value = {"content": "不當訊息"}
+        cursor.rowcount = 1
+        connection = MagicMock()
+        connection.cursor.return_value = cursor
+        with app.test_request_context("/member/trips/8/chat/4/remove", method="POST"):
+            session.update(user_id=2, role="member")
+            with patch("blueprints.member.get_db_connection", return_value=connection), \
+                 patch("blueprints.member._member_access", return_value={"member_role": "owner"}):
+                response = chat_remove(8, 4)
+        self.assertTrue(response.get_json()["ok"])
+        statements = "\n".join(call.args[0] for call in cursor.execute.call_args_list)
+        self.assertIn("INSERT INTO edit_logs", statements)
+        self.assertIn("UPDATE trip_chat_messages", statements)
+        connection.commit.assert_called_once()
 
     def test_leaving_group_revokes_trip_membership(self):
         cursor = MagicMock()

@@ -18,6 +18,7 @@ import trip_preferences
 from db import get_db_connection
 from utils import delete_uploaded_image, format_hm, get_cities, get_countries, save_uploaded_attachment, save_uploaded_image
 from content_moderation import is_image_explicit
+from chat_moderation import REMOVED_CHAT_CONTENT, blocked_term, remove_trip_message
 import theme_parks
 import weather
 
@@ -2583,7 +2584,8 @@ def chat_feed(trip_id):
     if connection is None: return jsonify(error="目前無法連線資料庫。"), 503
     cursor = connection.cursor(dictionary=True)
     try:
-        if not _member_access(cursor, trip_id, session["user_id"]):
+        trip = _member_access(cursor, trip_id, session["user_id"])
+        if not trip:
             return jsonify(error="你沒有查看此行程的權限。"), 403
         after = request.args.get("after", 0, type=int)
         if after > 0:
@@ -2601,13 +2603,18 @@ def chat_feed(trip_id):
         members = _chat_members(cursor, trip_id)
         cursor.execute("SELECT COALESCE(MAX(message_id),0) AS latest FROM trip_chat_messages WHERE trip_id=%s", (trip_id,))
         latest_id = int(cursor.fetchone()["latest"])
+        cursor.execute("SELECT message_id FROM trip_chat_messages WHERE trip_id=%s AND content=%s", (trip_id, REMOVED_CHAT_CONTENT))
+        removed_ids = [row["message_id"] for row in cursor.fetchall()]
         payload = {
             "me": session["user_id"],
             "latest_id": latest_id,
             "messages": [{
                 "id": r["message_id"], "user_id": r["user_id"], "name": _display_name(r),
-                "content": r["content"], "time": r["created_at"].strftime("%m/%d %H:%M"),
+                "content": "訊息已由團長移除" if r["content"] == REMOVED_CHAT_CONTENT else r["content"],
+                "removed": r["content"] == REMOVED_CHAT_CONTENT, "time": r["created_at"].strftime("%m/%d %H:%M"),
             } for r in rows],
+            "can_moderate": trip["member_role"] == "owner",
+            "removed_ids": removed_ids,
             "members": [{
                 "user_id": m["user_id"], "name": _display_name(m), "role": m["member_role"],
                 "last_read": int(m["last_read_message_id"]),
@@ -2624,7 +2631,7 @@ def chat_feed(trip_id):
 @login_required("member")
 def chat_send(trip_id):
     content = ((request.get_json(silent=True) or {}).get("content") or "").strip()
-    if not content: return jsonify(error="訊息不能是空的。"), 400
+    if not content or content == REMOVED_CHAT_CONTENT: return jsonify(error="訊息不能是空的或使用系統保留文字。"), 400
     if len(content) > CHAT_MAX_LENGTH: return jsonify(error=f"訊息最多 {CHAT_MAX_LENGTH} 字。"), 400
     connection = get_db_connection()
     if connection is None: return jsonify(error="目前無法連線資料庫。"), 503
@@ -2633,6 +2640,8 @@ def chat_send(trip_id):
         trip = _member_access(cursor, trip_id, session["user_id"])
         if not trip:
             return jsonify(error="你沒有這個行程的聊天權限。"), 403
+        if blocked_term(cursor, content):
+            return jsonify(error="訊息包含禁止內容，請修改後再送出。"), 400
         message_id = _post_chat_message(cursor, trip_id, session["user_id"], content)
         _notify_mentions(cursor, trip, _load_mention_members(cursor, trip_id), content, "#chat", session["user_id"], place="聊天室")
         connection.commit()
@@ -2641,6 +2650,28 @@ def chat_send(trip_id):
     finally:
         cursor.close(); connection.close()
     return jsonify(ok=True, message_id=message_id)
+
+
+@member_bp.route("/trips/<int:trip_id>/chat/<int:message_id>/remove", methods=["POST"])
+@login_required("member")
+def chat_remove(trip_id, message_id):
+    connection = get_db_connection()
+    if connection is None: return jsonify(error="目前無法連線資料庫。"), 503
+    cursor = connection.cursor(dictionary=True)
+    try:
+        trip = _member_access(cursor, trip_id, session["user_id"])
+        if not trip or trip["member_role"] != "owner":
+            return jsonify(error="只有行程發起人可以移除訊息。"), 403
+        if not remove_trip_message(cursor, trip_id, message_id, session["user_id"]):
+            return jsonify(error="找不到可移除的訊息。"), 404
+        connection.commit()
+    except Exception:
+        connection.rollback()
+        return jsonify(error="移除失敗，請再試一次。"), 500
+    finally:
+        cursor.close()
+        connection.close()
+    return jsonify(ok=True)
 
 
 @member_bp.route("/trips/<int:trip_id>/chat/read", methods=["POST"])

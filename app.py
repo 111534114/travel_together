@@ -35,6 +35,7 @@ from blueprints.friend_groups_admin import friend_groups_admin_bp  # 匯入交�
 from content_admin_permissions import CONTENT_ADMIN_ACTIONS, content_admin_can
 from blueprints.member import COMMENT_REPORT_PREFIX, ISSUE_PREFIX, member_bp  # 匯入會員功能的藍圖
 from blueprints.line_webhook import line_webhook_bp  # 匯入 LINE 官方帳號 webhook 的藍圖
+from blueprints.home_banners import fetch_active_banners, home_banners_bp  # 匯入首頁輪播圖(跑馬燈)後台與首頁查詢
 from activity_log import ACTION_LABELS, log_action
 from mailer import send_password_reset_email  # 匯入忘記密碼重設信的寄送函式
 from utils import google_maps_url, google_maps_embed_url, format_hm, friend_group_feature_enabled  # 匯入組 Google 地圖連結/嵌入縮圖地圖、格式化 TIME 欄位、查交友揪團總開關的共用函式，註冊成樣板全域函式讓所有頁面都能直接呼叫
@@ -118,6 +119,7 @@ app.register_blueprint(logs_bp)  # 註冊操作紀錄路由
 app.register_blueprint(ai_chat_bp)  # 註冊 AI 助理對話路由
 app.register_blueprint(content_admin_accounts_bp)
 app.register_blueprint(attraction_posts_admin_bp)
+app.register_blueprint(home_banners_bp)  # 註冊首頁輪播圖管理路由
 app.register_blueprint(friend_groups_bp)  # 註冊交友揪團(會員端)路由
 app.register_blueprint(friend_groups_admin_bp)  # 註冊交友揪團(後台審核)路由
 app.register_blueprint(member_bp)  # 註冊會員功能路由
@@ -196,9 +198,11 @@ def visitor():
     trips_timeline_json = {}
     city_weather = {}
     recent_album_posts = []
+    home_banners = []
 
     if connection:
         cursor = connection.cursor(dictionary=True)
+        home_banners = fetch_active_banners(cursor)  # 0. 首頁圖片跑馬燈(後台可修改)，獨立查詢，失敗不影響其他區塊
         try:
             # 1. 查詢真實統計數據
             cursor.execute("SELECT COUNT(*) AS total FROM trips WHERE deleted_at IS NULL")
@@ -338,6 +342,7 @@ def visitor():
         trips_timeline_json=trips_timeline_json,
         city_weather=city_weather,
         recent_album_posts=recent_album_posts,
+        home_banners=home_banners,
     )
 
 
@@ -2469,7 +2474,7 @@ def admin_issues():
                        u.full_name AS reporter_name
                 FROM reports r
                 LEFT JOIN trips t ON t.trip_id = r.target_id
-                JOIN users u ON u.user_id = r.reporter_id
+                LEFT JOIN users u ON u.user_id = r.reporter_id  -- 檢舉人帳號被刪除時仍要顯示這筆回報，否則會出現「待處理(1)」卻查不到資料
                 WHERE r.target_type = 'trip' AND r.reason LIKE %s
                   AND (%s = '' OR r.status = %s)
                 ORDER BY FIELD(r.status, 'pending', 'processing', 'resolved', 'rejected'),
@@ -2506,9 +2511,11 @@ def handle_admin_issue(issue_id):
     try:
         cursor.execute("""
             SELECT r.report_id, r.reporter_id, r.status, r.handling_result, r.target_id AS trip_id,
-                   t.owner_id, t.trip_name, t.visibility, t.moderation_status
+                   t.owner_id, t.trip_name, t.visibility, t.moderation_status,
+                   ru.user_id IS NOT NULL AS reporter_exists
             FROM reports r
             JOIN trips t ON t.trip_id = r.target_id
+            LEFT JOIN users ru ON ru.user_id = r.reporter_id
             WHERE r.report_id = %s AND r.target_type = 'trip' AND r.reason LIKE %s
         """, (issue_id, ISSUE_PREFIX + "%"))
         issue = cursor.fetchone()
@@ -2561,14 +2568,17 @@ def handle_admin_issue(issue_id):
                     f"處理結果：{result}"
                 )
                 target_url = url_for("member.dashboard") + "#trips"
-            cursor.execute("""
-                INSERT INTO notifications
-                    (user_id, trip_id, notification_type, title, message, target_url)
-                VALUES (%s, %s, 'system', %s, %s, %s)
-            """, (
-                notification_user_id, issue["trip_id"], title, message, target_url,
-            ))
-            if status in {"processing", "resolved"} and issue["reporter_id"] != notification_user_id:
+            # 回報人帳號已不存在時不寫通知給他(避免寫入失敗導致整筆處理失敗)
+            if notification_user_id != issue["reporter_id"] or issue.get("reporter_exists", True):
+                cursor.execute("""
+                    INSERT INTO notifications
+                        (user_id, trip_id, notification_type, title, message, target_url)
+                    VALUES (%s, %s, 'system', %s, %s, %s)
+                """, (
+                    notification_user_id, issue["trip_id"], title, message, target_url,
+                ))
+            if (status in {"processing", "resolved"} and issue["reporter_id"] != notification_user_id
+                    and issue.get("reporter_exists", True)):
                 reporter_message = (
                     f"你對公開行程「{issue['trip_name']}」提出的問題回報{status_text}。"
                     + (f"處理結果：{result}" if result else "")
@@ -2632,7 +2642,7 @@ def admin_comment_reports():
                 LEFT JOIN comments c ON c.comment_id = r.target_id
                 LEFT JOIN trips t ON t.trip_id = c.trip_id
                 LEFT JOIN users au ON au.user_id = c.user_id
-                JOIN users u ON u.user_id = r.reporter_id
+                LEFT JOIN users u ON u.user_id = r.reporter_id  -- 檢舉人帳號被刪除時仍要顯示這筆回報，否則會出現「待處理(1)」卻查不到資料
                 WHERE r.target_type = 'comment' AND r.reason LIKE %s
                   AND (%s = '' OR r.status = %s)
                 ORDER BY FIELD(r.status, 'pending', 'processing', 'resolved', 'rejected'),
@@ -2951,7 +2961,9 @@ def admin_logs():
             connection.close()
     labels = dict(ACTION_LABELS)
     labels.update({"handle_issue": "處理問題回報", "create_announcement": "新增公告",
-                   "update_announcement": "更新公告"})
+                   "update_announcement": "更新公告",
+                   "create_home_banner": "新增首頁輪播圖", "update_home_banner": "更新首頁輪播圖",
+                   "delete_home_banner": "刪除首頁輪播圖"})
     return render_template("admin_logs.html", logs=logs, actions=actions,
                            labels=labels, keyword=keyword, selected_action=action,
                            admin_id=admin_id, filtered_admin=filtered_admin)

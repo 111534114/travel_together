@@ -1,0 +1,303 @@
+{% extends "system_admin_base.html" %}
+{% set active_page = "home_banners" %}
+{% block title %}首頁輪播圖{% endblock %}
+{% block page_title %}首頁輪播圖{% endblock %}
+{% block page_description %}管理首頁上方的圖片跑馬燈：上傳、排序、選擇顯示位置、更換圖片或暫時隱藏{% endblock %}
+{% block content %}
+<style>
+    .banner-list { display: grid; gap: 14px; }
+    .banner-item { display: grid; grid-template-columns: 340px minmax(0, 1fr); gap: 20px; padding: 16px; border: 1px solid #E7F0F1; border-radius: 12px; }
+    .banner-item.is-hidden { background: #FAFAFA; }
+    .banner-item.is-hidden .banner-crop-result img { opacity: .45; }
+    .banner-thumb { display: grid; gap: 8px; align-content: start; }
+    .banner-crop-picker { position: relative; overflow: hidden; border-radius: 10px; background: #2B4245; cursor: grab; touch-action: none; user-select: none; }
+    .banner-crop-picker.dragging { cursor: grabbing; }
+    .banner-crop-picker img { display: block; width: 100%; max-height: 260px; object-fit: contain; pointer-events: none; }
+    .banner-crop-frame { position: absolute; border: 2px solid #fff; border-radius: 4px; box-shadow: 0 0 0 9999px rgba(0,0,0,.55); pointer-events: none; }
+    .banner-crop-frame::after { content: "拖曳選擇顯示位置"; position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); padding: 2px 8px; font-size: 12px; color: #fff; white-space: nowrap; background: rgba(0,0,0,.45); border-radius: 999px; }
+    .banner-crop-picker:not(.ready) .banner-crop-frame { display: none; }
+    .banner-crop-label { font-size: 13px; color: #40696F; font-weight: 700; display: flex; justify-content: space-between; align-items: center; }
+    .banner-crop-label button { padding: 2px 8px; font-size: 12px; border: 1px solid #D6E4E6; border-radius: 6px; background: #fff; color: #40696F; cursor: pointer; }
+    .banner-crop-result { position: relative; aspect-ratio: 5.5 / 1; overflow: hidden; border-radius: 8px; background: #EEF5F6; }
+    .banner-crop-result img { width: 100%; height: 100%; object-fit: cover; display: block; }
+    .banner-badge { position: absolute; top: 8px; left: 8px; padding: 3px 9px; font-size: 12px; font-weight: 700; color: #fff; border-radius: 999px; background: #5897A0; }
+    .banner-badge.off { background: #999; }
+    .banner-edit { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px 14px; align-content: start; }
+    .banner-edit label { display: grid; gap: 4px; font-size: 14px; }
+    .banner-edit .form-wide { grid-column: 1 / -1; }
+    .banner-edit input[type=text], .banner-edit input[type=number] { padding: 8px 10px; border: 1px solid #D6E4E6; border-radius: 8px; font: inherit; }
+    .banner-edit .checkbox-label { display: flex; align-items: center; gap: 6px; padding: 0; }
+    .banner-actions { grid-column: 1 / -1; display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
+    .banner-actions small { color: #777; margin-left: auto; }
+    .banner-delete-button { background: #C0504D !important; }
+    .banner-preview { display: flex; flex-wrap: wrap; gap: 10px; align-items: flex-start; }
+    .banner-preview figure { margin: 0; width: 150px; }
+    .banner-preview img { width: 150px; aspect-ratio: 16 / 6; object-fit: cover; border-radius: 8px; display: block; background: #EEF5F6; }
+    .banner-preview figcaption { margin-top: 4px; font-size: 12px; color: #777; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .banner-preview figure.is-error figcaption { color: #C0504D; white-space: normal; }
+    .banner-preview figure.is-done figcaption { color: #3C8D5A; }
+    .banner-upload-status { width: 100%; font-weight: 700; color: #40696F; }
+    .banner-bulk-bar { position: sticky; top: 0; z-index: 5; display: flex; flex-wrap: wrap; align-items: center; gap: 14px; margin-bottom: 14px; padding: 10px 14px; border: 1px solid #E7F0F1; border-radius: 10px; background: #F6FBFB; }
+    .banner-bulk-bar [data-bulk-count] { color: #40696F; font-weight: 700; }
+    .banner-bulk-bar button:disabled { opacity: .45; cursor: not-allowed; }
+    .banner-bulk-all, .banner-select { display: inline-flex; align-items: center; gap: 6px; font-size: 14px; cursor: pointer; }
+    .banner-item.is-selected { border-color: #C0504D; background: #FFF7F6; }
+    .banner-save-hint { color: #C0504D !important; font-weight: 700; margin-left: 0 !important; }
+    @media (max-width: 760px) { .banner-item, .banner-edit { grid-template-columns: 1fr; } }
+</style>
+
+<section class="admin-section">
+    <div class="section-title"><h2>新增輪播圖</h2></div>
+    <form method="post" action="{{ url_for('home_banners.create_banner') }}" enctype="multipart/form-data" class="admin-form-grid" data-banner-create>
+        <label>圖片（可一次選多張；png / jpg / gif / webp，每張 5MB 內）<input type="file" name="image" accept="image/png,image/jpeg,image/gif,image/webp" multiple required></label>
+        <label>標題（選填，顯示在圖片上；選多張時每一張都會套用）<input name="title" maxlength="100"></label>
+        <label>點擊連結（選填）<input name="link_url" maxlength="500" placeholder="例如 /visitor#public-trips 或 https://..."></label>
+        <label>排序（數字越小越前面）<input type="number" name="sort_order" value="{{ (banners|map(attribute='sort_order')|max + 1) if banners else 0 }}"></label>
+        <label class="checkbox-label"><input type="checkbox" name="is_active" checked> 立即在首頁顯示</label>
+        <div><button class="small-button" type="submit">上傳輪播圖</button></div>
+        <div class="form-wide banner-preview" data-banner-preview hidden></div>
+    </form>
+    <p class="form-hint">可按住 Ctrl 或 Shift 一次選取多張圖片，排序會從上面填的數字開始依序往後排；上傳後可以在下方列表個別修改標題、連結和排序。<br>首頁第 1 頁固定是歡迎橫幅，這裡上傳的圖片會接在它後面輪播，高度跟歡迎橫幅一樣。建議用寬 1920px × 高 340px 左右的扁長橫向圖片，主要內容放在中間，圖片會以裁切方式填滿。</p>
+</section>
+
+<section class="admin-section">
+    <div class="section-title"><h2>輪播圖列表</h2><span>共 {{ banners|length }} 張，顯示中 {{ banners|selectattr('is_active')|list|length }} 張</span></div>
+    {% if banners %}
+    <form method="post" action="{{ url_for('home_banners.bulk_delete_banners') }}" id="banner-bulk-form" class="banner-bulk-bar"
+          onsubmit="return confirm('確定要刪除勾選的 ' + document.querySelectorAll('[data-bulk-check]:checked').length + ' 張輪播圖嗎？圖片檔也會一併刪除，無法復原。');">
+        <label class="banner-bulk-all"><input type="checkbox" data-bulk-all> 全選</label>
+        <span data-bulk-count>已選取 0 張</span>
+        <button class="small-button banner-delete-button" type="submit" data-bulk-submit disabled>刪除已選取</button>
+    </form>
+    {% endif %}
+    <div class="banner-list">
+    {% for item in banners %}
+        <article class="banner-item {{ '' if item.is_active else 'is-hidden' }}">
+            <div class="banner-thumb" data-crop data-ratio="5.5">
+                <label class="banner-select"><input type="checkbox" name="banner_ids" value="{{ item.banner_id }}" form="banner-bulk-form" data-bulk-check> 選取這張</label>
+                <div class="banner-crop-label"><span>顯示位置（拖曳白框）</span><button type="button" data-crop-reset>置中</button></div>
+                <div class="banner-crop-picker" data-crop-picker>
+                    <img src="{{ url_for('static', filename=item.image_path) }}" alt="{{ item.title or '輪播圖' }}">
+                    <div class="banner-crop-frame" data-crop-frame></div>
+                </div>
+                <div class="banner-crop-label"><span>首頁預覽</span></div>
+                <div class="banner-crop-result">
+                    <img src="{{ url_for('static', filename=item.image_path) }}" alt="" data-crop-result style="object-position: {{ item.focus_x }}% {{ item.focus_y }}%;">
+                    <span class="banner-badge {{ '' if item.is_active else 'off' }}">{{ '顯示中' if item.is_active else '已隱藏' }}</span>
+                </div>
+            </div>
+            <form method="post" action="{{ url_for('home_banners.update_banner', banner_id=item.banner_id) }}" enctype="multipart/form-data" class="banner-edit">
+                <label>標題<input type="text" name="title" maxlength="100" value="{{ item.title or '' }}"></label>
+                <label>排序<input type="number" name="sort_order" value="{{ item.sort_order }}"></label>
+                <label class="form-wide">點擊連結<input type="text" name="link_url" maxlength="500" value="{{ item.link_url or '' }}" placeholder="留空則不可點擊"></label>
+                <label class="form-wide">更換圖片（不選則保留原圖）<input type="file" name="image" accept="image/png,image/jpeg,image/gif,image/webp"></label>
+                <label class="checkbox-label"><input type="checkbox" name="is_active" {{ 'checked' if item.is_active }}> 在首頁顯示</label>
+                <input type="hidden" name="focus_x" value="{{ item.focus_x }}" data-focus-x>
+                <input type="hidden" name="focus_y" value="{{ item.focus_y }}" data-focus-y>
+                <div class="banner-actions">
+                    <button class="small-button" type="submit">儲存</button>
+                    <button class="small-button banner-delete-button" type="submit"
+                            formaction="{{ url_for('home_banners.delete_banner', banner_id=item.banner_id) }}"
+                            formnovalidate onclick="return confirm('確定要刪除這張輪播圖嗎？圖片檔也會一併刪除。');">刪除</button>
+                    <small>上傳者：{{ item.creator_name or '—' }} ｜ 更新：{{ item.updated_at }}</small>
+                </div>
+            </form>
+        </article>
+    {% else %}<p class="empty-data">目前尚無輪播圖，首頁不會顯示跑馬燈區塊。</p>{% endfor %}
+    </div>
+</section>
+<script>
+(function () {  // 批量上傳：預覽選取的圖片，並逐張送出（每次請求只帶一張，不會超過伺服器的上傳大小限制）
+    var form = document.querySelector('[data-banner-create]');
+    if (!form || !window.fetch || !window.FormData) return;
+    var input = form.querySelector('input[type=file]');
+    var preview = form.querySelector('[data-banner-preview]');
+    var button = form.querySelector('button[type=submit]');
+    var MAX = 5 * 1024 * 1024;
+    var urls = [], figures = [], status = null;
+
+    input.addEventListener('change', function () {
+        urls.forEach(function (u) { URL.revokeObjectURL(u); });
+        urls = []; figures = [];
+        preview.innerHTML = '';
+        var files = Array.prototype.slice.call(input.files);
+        preview.hidden = files.length === 0;
+        status = document.createElement('div');
+        status.className = 'banner-upload-status';
+        status.textContent = '已選擇 ' + files.length + ' 張圖片';
+        preview.appendChild(status);
+        files.forEach(function (file) {
+            var url = URL.createObjectURL(file); urls.push(url);
+            var fig = document.createElement('figure');
+            var img = document.createElement('img'); img.src = url; img.alt = '';
+            var cap = document.createElement('figcaption');
+            cap.textContent = file.name;
+            if (file.size > MAX) { fig.className = 'is-error'; cap.textContent = '超過 5MB：' + file.name; }
+            fig.appendChild(img); fig.appendChild(cap); preview.appendChild(fig);
+            figures.push(fig);
+        });
+    });
+
+    form.addEventListener('submit', function (event) {
+        event.preventDefault();
+        var files = Array.prototype.slice.call(input.files);
+        if (!files.length) return;
+        var startOrder = parseInt(form.elements.sort_order.value, 10) || 0;
+        var index = 0, ok = 0, errors = [];
+        button.disabled = true;
+        input.disabled = true;
+
+        function mark(i, cls, text) {
+            var fig = figures[i];
+            if (!fig) return;
+            fig.className = cls;
+            fig.querySelector('figcaption').textContent = text;
+        }
+        function finish() {
+            button.disabled = false;
+            input.disabled = false;
+            if (!errors.length) {
+                status.textContent = '全部上傳完成（' + ok + ' 張），正在重新整理…';
+                window.location.reload();
+                return;
+            }
+            status.innerHTML = '';
+            status.appendChild(document.createTextNode('上傳完成：成功 ' + ok + ' 張，失敗 ' + errors.length + ' 張（失敗原因標示在圖片下方）。'));
+            var reload = document.createElement('a');
+            reload.href = window.location.pathname;
+            reload.textContent = '重新整理列表';
+            reload.style.marginLeft = '8px';
+            status.appendChild(reload);
+        }
+        function next() {
+            if (index >= files.length) return finish();
+            var i = index, file = files[i];
+            var data = new FormData(form);
+            data.delete('image');
+            data.append('image', file);
+            data.set('sort_order', String(startOrder + i));
+            data.set('ajax', '1');
+            status.textContent = '上傳中… ' + (i + 1) + ' / ' + files.length;
+            fetch(form.action, { method: 'POST', body: data, credentials: 'same-origin', headers: { 'Accept': 'application/json' } })
+                .then(function (res) {
+                    if (res.status === 413) throw new Error('檔案太大');
+                    if (!res.ok) throw new Error('伺服器錯誤 ' + res.status);
+                    var type = res.headers.get('Content-Type') || '';
+                    if (type.indexOf('application/json') === -1) throw new Error('登入可能已逾時，請重新登入');
+                    return res.json();
+                })
+                .then(function (result) {
+                    if (result.created) { ok += result.created; mark(i, 'is-done', '✓ ' + file.name); }
+                    else { var msg = (result.failed && result.failed[0]) || '上傳失敗'; errors.push(msg); mark(i, 'is-error', '✗ ' + msg); }
+                })
+                .catch(function (err) { var msg = file.name + '（' + err.message + '）'; errors.push(msg); mark(i, 'is-error', '✗ ' + msg); })
+                .then(function () { index++; next(); });
+        }
+        next();
+    });
+})();
+</script>
+<script>
+(function () {  // 輪播圖顯示位置：在原圖上拖曳白框(首頁會看到的範圍)，換算成 CSS object-position 百分比
+    document.querySelectorAll('.banner-item').forEach(function (item) {
+        var box = item.querySelector('[data-crop]');
+        var picker = item.querySelector('[data-crop-picker]');
+        var img = picker.querySelector('img');
+        var frame = item.querySelector('[data-crop-frame]');
+        var result = item.querySelector('[data-crop-result]');
+        var inputX = item.querySelector('[data-focus-x]');
+        var inputY = item.querySelector('[data-focus-y]');
+        var fileInput = item.querySelector('.banner-edit input[type=file]');
+        var actions = item.querySelector('.banner-actions');
+        var ratio = parseFloat(box.dataset.ratio) || 5.5;  // 首頁橫幅寬高比(約 5.5 : 1)
+        var fx = parseInt(inputX.value, 10), fy = parseInt(inputY.value, 10);
+        var fw = 1, fh = 1;  // 白框佔原圖的寬、高比例
+        var original = { x: fx, y: fy };
+        var hint = null;
+
+        function rect() {  // 圖片實際畫在 picker 裡的範圍(object-fit: contain 可能左右或上下留黑邊)
+            var bw = picker.clientWidth, bh = picker.clientHeight;
+            var a = img.naturalWidth / img.naturalHeight;
+            var w = bw, h = bw / a;
+            if (h > bh) { h = bh; w = bh * a; }
+            return { left: (bw - w) / 2, top: (bh - h) / 2, width: w, height: h };
+        }
+        function render() {
+            if (!img.naturalWidth) return;
+            var a = img.naturalWidth / img.naturalHeight;
+            if (a >= ratio) { fw = ratio / a; fh = 1; } else { fw = 1; fh = a / ratio; }
+            var r = rect();
+            var left = (1 - fw) * fx / 100, top = (1 - fh) * fy / 100;
+            frame.style.left = (r.left + left * r.width) + 'px';
+            frame.style.top = (r.top + top * r.height) + 'px';
+            frame.style.width = (fw * r.width) + 'px';
+            frame.style.height = (fh * r.height) + 'px';
+            result.style.objectPosition = fx + '% ' + fy + '%';
+            inputX.value = fx; inputY.value = fy;
+            picker.classList.add('ready');
+            var changed = fx !== original.x || fy !== original.y;
+            if (changed && !hint) {
+                hint = document.createElement('small');
+                hint.className = 'banner-save-hint';
+                hint.textContent = '顯示位置已變更，記得按「儲存」';
+                actions.insertBefore(hint, actions.querySelector('small'));
+            } else if (!changed && hint) { hint.remove(); hint = null; }
+        }
+        function moveTo(clientX, clientY) {  // 讓白框中心對準滑鼠/手指位置
+            var r = rect(), b = picker.getBoundingClientRect();
+            var cx = (clientX - b.left - r.left) / r.width;
+            var cy = (clientY - b.top - r.top) / r.height;
+            var left = Math.min(Math.max(cx - fw / 2, 0), 1 - fw);
+            var top = Math.min(Math.max(cy - fh / 2, 0), 1 - fh);
+            fx = fw < 1 ? Math.round(left / (1 - fw) * 100) : 50;
+            fy = fh < 1 ? Math.round(top / (1 - fh) * 100) : 50;
+            render();
+        }
+        picker.addEventListener('pointerdown', function (e) {
+            if (!img.naturalWidth) return;
+            picker.setPointerCapture(e.pointerId);
+            picker.classList.add('dragging');
+            moveTo(e.clientX, e.clientY);
+        });
+        picker.addEventListener('pointermove', function (e) {
+            if (picker.classList.contains('dragging')) moveTo(e.clientX, e.clientY);
+        });
+        ['pointerup', 'pointercancel'].forEach(function (t) {
+            picker.addEventListener(t, function () { picker.classList.remove('dragging'); });
+        });
+        item.querySelector('[data-crop-reset]').addEventListener('click', function () { fx = 50; fy = 50; render(); });
+        fileInput.addEventListener('change', function () {  // 選了新圖片就直接拿新圖片來調整位置
+            if (!fileInput.files.length) return;
+            var url = URL.createObjectURL(fileInput.files[0]);
+            img.src = url; result.src = url;
+            fx = 50; fy = 50;
+            original = { x: -1, y: -1 };
+        });
+        img.addEventListener('load', render);
+        if (img.complete) render();
+        window.addEventListener('resize', render);
+    });
+})();
+</script>
+<script>
+(function () {  // 批量刪除：勾選、全選、顯示已選取數量
+    var all = document.querySelector('[data-bulk-all]');
+    if (!all) return;
+    var checks = Array.prototype.slice.call(document.querySelectorAll('[data-bulk-check]'));
+    var count = document.querySelector('[data-bulk-count]');
+    var submit = document.querySelector('[data-bulk-submit]');
+    function update() {
+        var n = checks.filter(function (c) { return c.checked; }).length;
+        count.textContent = '已選取 ' + n + ' 張';
+        submit.disabled = n === 0;
+        submit.textContent = n ? '刪除已選取（' + n + '）' : '刪除已選取';
+        all.checked = n > 0 && n === checks.length;
+        all.indeterminate = n > 0 && n < checks.length;
+        checks.forEach(function (c) { c.closest('.banner-item').classList.toggle('is-selected', c.checked); });
+    }
+    all.addEventListener('change', function () { checks.forEach(function (c) { c.checked = all.checked; }); update(); });
+    checks.forEach(function (c) { c.addEventListener('change', update); });
+    update();
+})();
+</script>
+{% endblock %}

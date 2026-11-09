@@ -11,6 +11,7 @@ from markupsafe import Markup, escape
 from werkzeug.security import check_password_hash, generate_password_hash
 
 from auth import login_required
+from blueprints.home_banners import fetch_active_banners  # 首頁圖片跑馬燈(後台可修改)
 from attraction_rankings import TAIWAN_COUNTIES, count_attraction_rankings, fetch_attraction_rankings
 from nearby_attractions import find_nearby_attractions
 from notification_preferences import NOTIFICATION_CATEGORIES, get_preferences, save_preferences, send_notification
@@ -505,11 +506,13 @@ def dashboard():
         # LINE 官方帳號好友狀態：用來決定首頁要不要顯示「加入官方帳號」提示
         cursor.execute("SELECT line_sub IS NOT NULL AS linked, line_friend FROM users WHERE user_id=%s", (user_id,))
         line_status = cursor.fetchone()
+        home_banners = fetch_active_banners(cursor)
     finally:
         cursor.close(); connection.close()
     return render_template(
         "visitor.html", is_member=True, line_status=line_status,
         trips_timeline_json={}, city_weather={}, issue_reasons=ISSUE_REASONS,
+        home_banners=home_banners,
     )
 
 

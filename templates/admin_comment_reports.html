@@ -26,7 +26,7 @@
             <tr>
                 <td>{% if report.comment_content %}<span class="issue-description">「{{ report.comment_content }}」</span><br><small>{{ '留言已隱藏' if report.comment_status == 'hidden' else ('留言已刪除' if report.comment_status == 'deleted' else '') }} · 行程：{{ report.trip_name or '已不存在' }}</small>{% else %}<small>留言已不存在</small>{% endif %}</td>
                 <td>{{ report.comment_author_name or '未知' }}{% if report.comment_author_username %}<br><small>@{{ report.comment_author_username }}</small>{% endif %}</td>
-                <td>{{ report.reporter_name }}<br><small>@{{ report.reporter_username }}</small></td>
+                <td>{% if report.reporter_username %}{{ report.reporter_name }}<br><small>@{{ report.reporter_username }}</small>{% else %}<span class="empty-data">（帳號已不存在）</span>{% endif %}</td>
                 <td><strong>{{ report.reason }}</strong><br><span class="issue-description">{{ report.description or '未填寫描述' }}</span>
                     {% if report.handling_result %}<div class="result-note">處理結果：{{ report.handling_result }}</div>{% endif %}</td>
                 <td><span class="status-badge status-{{ report.status }}">{{ {'pending':'待處理','processing':'處理中','resolved':'已結案','rejected':'已駁回'}[report.status] }}</span></td>

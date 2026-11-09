@@ -26,7 +26,7 @@
             <tr>
                 <td><strong>{{ issue.trip_name or '行程已不存在' }}</strong><br><small>#{{ issue.trip_id }}{% if issue.visibility %} · {{ '公開' if issue.visibility == 'public' else '非公開' }}{% endif %}</small>
                     {% if issue.visibility == 'public' %}<br><a href="{{ url_for('admin_public_trips', keyword=issue.trip_name) }}">查看行程</a>{% endif %}</td>
-                <td>{{ issue.reporter_name }}<br><small>@{{ issue.reporter_username }}</small></td>
+                <td>{% if issue.reporter_username %}{{ issue.reporter_name }}<br><small>@{{ issue.reporter_username }}</small>{% else %}<span class="empty-data">（帳號已不存在）</span>{% endif %}</td>
                 <td><strong>{{ issue.reason }}</strong><br><span class="issue-description">{{ issue.description or '未填寫描述' }}</span>
                     {% if issue.handling_result %}<div class="result-note">處理結果：{{ issue.handling_result }}</div>{% endif %}</td>
                 <td><span class="status-badge status-{{ issue.status }}">{{ {'pending':'待處理','processing':'處理中','resolved':'已結案','rejected':'已駁回'}[issue.status] }}</span></td>

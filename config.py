@@ -60,7 +60,7 @@ except ValueError:
     SMTP_PORT = 587
 SMTP_USERNAME = os.environ.get("SMTP_USERNAME", "")
 SMTP_PASSWORD = os.environ.get("SMTP_PASSWORD", "")
-SMTP_FROM_EMAIL = os.environ.get("SMTP_FROM_EMAIL", SMTP_USERNAME)
+SMTP_FROM_EMAIL = os.environ.get("SMTP_FROM_EMAIL") or SMTP_USERNAME  # 留空時改用 SMTP_USERNAME
 
 try:
     TRIP_REMINDER_HOUR = max(0, min(23, int(os.environ.get("TRIP_REMINDER_HOUR", "9"))))

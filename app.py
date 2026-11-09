@@ -1,7 +1,8 @@
+import json  # 匯入 json 模組，解析來回票第二步帶回來的去程資料
 import os  # 匯入作業系統功能，用來判斷 Flask 開發伺服器是哪一個行程
 import re  # 匯入正規表示式模組，用來驗證註冊欄位格式
 import secrets  # 匯入 secrets 模組，用來產生忘記密碼用的隨機 token
-from urllib.parse import unquote_plus, urlsplit  # SerpApi 表單資料解碼與公開 OAuth 網址判斷
+from urllib.parse import quote, unquote_plus, urlsplit # SerpApi 表單資料解碼與公開 OAuth 網址判斷
 from booking_search import (
     TRAIN_TYPE_LABELS, apply_facets, apply_time_band, apply_value_range, booking_bp, facet_options,
     filter_prices, price_buckets, price_range, time_band_options, value_range,
@@ -41,6 +42,7 @@ from utils import google_maps_url, google_maps_embed_url, format_hm, friend_grou
 import weather  # 匯入中央氣象署天氣預報模組(訪客頁面「目的地天氣」功能用)
 import amadeus_client  # 匯入 Amadeus 機票比價 API 模組(機票搜尋的真實即時報價，備用資料來源)
 import serpapi_flights  # 匯入 SerpApi 的 Google Flights 模組(機票搜尋的真實即時報價，優先資料來源)
+import serpapi_hotels  # 匯入 SerpApi 的 Google Hotels 模組(住宿搜尋的真實即時報價與圖片，優先資料來源)
 import tdx_trains  # 匯入交通部 TDX 模組(高鐵／台鐵指定日期的真實班表與票價，優先資料來源)
 import flight_links  # 匯入城市->機場代碼對照表、Skyscanner 比價連結組網址工具
 import airports  # 匯入全球機場資料庫(約 6000 筆真實機場資料)，給出發地/目的地自動完成用
@@ -76,7 +78,50 @@ def oauth_callback_url(endpoint):
     return url_for(endpoint, _external=True)
 
 
+def flight_trip_item(flight, date_value, pax=1, cost=None, bundled=False):
+    # 給「我已訂票，加入旅程」用：把一班機票整理成一筆行程項目(交通)需要的資料，由前端確認視窗送到後端
+    stops = flight.get("stops") or 0
+    price = flight.get("price") or 0
+    notes = [flight.get("cabin_class") or "", "直飛" if not stops else f"轉機 {stops} 次", f"{pax} 人"]
+    if bundled:
+        notes.append("價格為來回總價")
+    notes.append("使用者自行確認已訂票")
+    origin = flight.get("origin_airport_code") or flight.get("origin_city") or ""
+    destination = flight.get("destination_airport_code") or flight.get("destination_city") or ""
+    return {
+        "date": date_value or "",
+        "title": f"{flight.get('airline_name', '')} {flight.get('flight_number', '')}｜{origin} → {destination}".strip(),
+        "start_time": format_hm(flight.get("departure_time")),
+        "end_time": format_hm(flight.get("arrival_time")),
+        "cost": float(price) * pax if cost is None else cost,
+        "notes": "・".join(part for part in notes if part),
+    }
+
+
+def _parse_outbound_item(raw):
+    # 來回票第二步(選回程)頁面帶回來的去程資料；來自網址，只收預期的欄位並限制長度，壞掉就當沒有
+    try:
+        data = json.loads(raw or "")
+    except ValueError:
+        return None
+    if not isinstance(data, dict):
+        return None
+    try:
+        cost = float(data.get("cost") or 0)
+    except (TypeError, ValueError):
+        cost = 0
+    return {
+        "date": str(data.get("date", ""))[:10],
+        "title": str(data.get("title", ""))[:150],
+        "start_time": str(data.get("start_time", ""))[:5],
+        "end_time": str(data.get("end_time", ""))[:5],
+        "cost": max(cost, 0),
+        "notes": str(data.get("notes", ""))[:500],
+    }
+
+
 app.jinja_env.globals["public_url"] = public_url
+app.jinja_env.globals["flight_trip_item"] = flight_trip_item
 app.jinja_env.globals["line_add_friend_url"] = line_messaging.add_friend_url()  # LINE 官方帳號加好友連結，會員首頁與個人資料頁共用
 app.jinja_env.globals["line_qr_code_url"] = line_messaging.qr_code_url()  # LINE 官方帳號加好友 QR Code 圖片網址
 app.jinja_env.filters["hm"] = format_hm  # 註冊成樣板過濾器，任何頁面都能直接用 {{ 值 | hm }} 把 TIME 欄位格式化成 HH:MM
@@ -386,6 +431,26 @@ def api_hotel_place_search():
     return jsonify(results)
 
 
+@app.route("/api/hotel-offers")  # 住宿詳情視窗「查看各訂房網站價格」用的 AJAX 端點，使用者按了才查(每次用 1 次 SerpApi 額度)
+def api_hotel_offers():
+    token = request.args.get("token", "").strip()
+    destination = request.args.get("destination", "").strip()[:100]
+    checkin = request.args.get("checkin", "").strip()
+    checkout = request.args.get("checkout", "").strip()
+    guests_raw = request.args.get("guests", "2").strip()
+    guests = int(guests_raw) if guests_raw.isdigit() and 0 < int(guests_raw) <= 20 else 2
+    try:
+        datetime.strptime(checkin, "%Y-%m-%d"); datetime.strptime(checkout, "%Y-%m-%d")
+    except ValueError:
+        return jsonify(error="日期格式不正確"), 400
+    if not re.fullmatch(r"[A-Za-z0-9_\-]{10,300}", token):
+        return jsonify(error="飯店資料不正確"), 400
+    offers = serpapi_hotels.get_offers(token, destination, checkin, checkout, guests)
+    if offers is None:
+        return jsonify(error="暫時查不到各訂房網站的價格，請稍後再試。"), 502
+    return jsonify(offers=offers)
+
+
 @app.route("/visitor/hotels")  # 設定訪客住宿搜尋結果頁路由(從訪客頁面的住宿搜尋表單導入，帶入目的地/日期/人數)
 def visitor_hotel_search():
     destination = request.args.get("destination", "").strip()  # 取得使用者輸入的目的地關鍵字
@@ -405,8 +470,19 @@ def visitor_hotel_search():
         except ValueError:  # 如果日期格式不正確
             nights = None
 
+    live_hotels = None  # 即時住宿資料(Google Hotels)；沒金鑰、沒填日期或查詢失敗時維持 None，退回資料庫的住宿
+    next_page_token = None
+    live_failed = False
+    page_token = request.args.get("page_token", "").strip() or None
+    if destination and nights and serpapi_hotels.is_configured():
+        live = serpapi_hotels.search_hotels(destination, checkin, checkout, guests, page_token)
+        if live and live["hotels"]:
+            live_hotels, next_page_token = live["hotels"], live["next_page_token"]
+        else:
+            live_failed = True
+
     accommodations = []  # 預設搜尋結果為空清單
-    connection = get_db_connection()
+    connection = get_db_connection() if live_hotels is None else None
 
     if connection:
         cursor = connection.cursor(dictionary=True)
@@ -444,6 +520,9 @@ def visitor_hotel_search():
             cursor.close()
             connection.close()
 
+    if live_hotels is not None:
+        return _render_live_hotels(live_hotels, destination, checkin, checkout, guests, nights, next_page_token)
+
     hotel_price_buckets = price_buckets(accommodations, "price_per_night")
     hotel_price_max = price_range(accommodations, "price_per_night")
     accommodations = filter_prices(accommodations, 'price_per_night')
@@ -457,6 +536,79 @@ def visitor_hotel_search():
         accommodations=accommodations,
         price_buckets=hotel_price_buckets,
         price_max=hotel_price_max,
+        live_failed=live_failed,
+    )
+
+
+def _hotel_facet(rows, key, label_of, sort_key=None):
+    # 住宿篩選的選項：算出每個值有幾間、最低價多少(都是從這批即時結果實際算出來的)；只有一種值就沒有篩選意義
+    groups = {}
+    for row in rows:
+        value = row.get(key)
+        if value is None or value == "":
+            continue
+        group = groups.setdefault(value, {"count": 0, "min_price": None})
+        group["count"] += 1
+        if group["min_price"] is None or row["price"] < group["min_price"]:
+            group["min_price"] = row["price"]
+    if len(groups) < 2:
+        return []
+    options = [{"value": str(value), "label": label_of(value), "count": g["count"], "min_price": g["min_price"]} for value, g in groups.items()]
+    return sorted(options, key=sort_key or (lambda o: -o["count"]))
+
+
+def _render_live_hotels(hotels, destination, checkin, checkout, guests, nights, next_page_token):
+    star_facets = _hotel_facet(hotels, "star", lambda v: f"{v} 星級", sort_key=lambda o: -int(o["value"]))
+    # 側邊欄不列「度假租屋」，只留「飯店」一個選項(結果裡有混到租屋時才有篩選意義)
+    type_facets = [f for f in _hotel_facet(hotels, "property_type", lambda v: v) if f["value"] == "飯店"]
+
+    amenity_counts = {}
+    for hotel in hotels:
+        for label in hotel["amenities"]:
+            amenity_counts[label] = amenity_counts.get(label, 0) + 1
+    amenity_facets = [{"value": label, "label": label, "count": count, "min_price": None}
+                      for label, count in sorted(amenity_counts.items(), key=lambda item: -item[1])[:20]
+                      if count < len(hotels)]
+
+    # 熱門篩選條件：只列這批結果裡真的有符合的項目(沒有任何一間符合就不顯示，不放點了沒結果的選項)
+    popular_labels = {"parking": "設有停車位", "breakfast": "包含早餐", "pets": "可攜帶寵物"}
+    popular_facets = [{"value": key, "label": label, "count": sum(1 for h in hotels if key in h["flags"])}
+                      for key, label in popular_labels.items()]
+    popular_facets = [f for f in popular_facets if f["count"]]
+    rating_facets = [{"value": str(score), "label": f"{name} {score}+", "count": sum(1 for h in hotels if (h["rating_10"] or 0) >= score)}
+                     for score, name in ((9, "極佳"), (8, "很好"))]
+    rating_facets = [f for f in rating_facets if f["count"]]
+
+    rows = hotels
+    selected_stars = request.args.getlist("star")
+    if selected_stars:
+        rows = [h for h in rows if str(h["star"]) in selected_stars]
+    selected_types = request.args.getlist("property_type")
+    if selected_types:
+        rows = [h for h in rows if h["property_type"] in selected_types]
+    for label in request.args.getlist("amenity"):
+        rows = [h for h in rows if label in h["amenities"]]
+    for key in request.args.getlist("popular"):
+        rows = [h for h in rows if key in h["flags"]]
+    rating_values = [float(v) for v in request.args.getlist("rating_min") if v.replace(".", "", 1).isdigit()]
+    if rating_values:
+        rows = [h for h in rows if (h["rating_10"] or 0) >= max(rating_values)]
+
+    price_max = price_range(hotels, "price")
+    rows = filter_prices(rows, "price")
+    sort = request.args.get("sort", "")
+    if sort == "rating":
+        rows = sorted(rows, key=lambda h: -(h["rating_10"] or 0))
+    elif sort == "star":
+        rows = sorted(rows, key=lambda h: -(h["star"] or 0))
+
+    return render_template(
+        "hotel_search.html", destination=destination, checkin=checkin, checkout=checkout, guests=guests, nights=nights,
+        using_live_data=True, hotels=rows, hotel_total=len(hotels), price_max=price_max, price_buckets=[],
+        star_facets=star_facets, type_facets=type_facets, amenity_facets=amenity_facets,
+        popular_facets=popular_facets, rating_facets=rating_facets,
+        map_url="https://www.google.com/maps/search/?api=1&query=" + quote(f"{destination} 飯店"),
+        next_page_token=next_page_token, accommodations=[],
     )
 
 
@@ -771,12 +923,14 @@ def visitor_flight_return_options():
     pax = int(pax_raw) if pax_raw.isdigit() and int(pax_raw) > 0 else 1
     cabin_query = request.args.get("cabin", "").strip() or None  # 跟去程選的艙等一致，才會配到正確的回程選項
     skyscanner_url = flight_links.skyscanner_search_url(origin, destination, depart_date, return_date, pax)
+    outbound_item = _parse_outbound_item(request.args.get("ob"))
 
     return_flights = serpapi_flights.search_return_offers(origin, destination, depart_date, return_date, departure_token, pax, cabin_class=cabin_query)
     if return_flights is None:
         return render_template(
             "flight_return_options.html", origin=origin, destination=destination, depart_date=depart_date,
             return_date=return_date, pax=pax, return_flights=[], lookup_failed=True, skyscanner_url=skyscanner_url,
+            outbound_item=outbound_item,
         )
 
     for row in return_flights:
@@ -787,7 +941,7 @@ def visitor_flight_return_options():
         "flight_return_options.html",
         origin=origin, destination=destination, depart_date=depart_date, return_date=return_date, pax=pax,
         return_flights=filter_prices(return_flights, 'price', 'duration_minutes', 'stops', cabin_field='cabin_class'),
-        lookup_failed=False, skyscanner_url=skyscanner_url,
+        lookup_failed=False, skyscanner_url=skyscanner_url, outbound_item=outbound_item,
     )
 
 

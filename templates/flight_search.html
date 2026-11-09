@@ -159,7 +159,7 @@
               <div class="flight-meta">{% if flight.origin_country or flight.destination_country %}<span>{{ flight.origin_country }} → {{ flight.destination_country }}</span>{% endif %}{% if flight.seats_available is not none %}<span class="{{ 'seats-low' if flight.seats_available <= 3 }}">剩餘 {{ flight.seats_available }} 席</span>{% endif %}</div>
               <div class="flight-footer">
                 <span class="price">NT$ {{ "{:,.0f}".format(flight.price * pax) }}<small>{{ pax }} 人・{{ '來回總價估計' if bundled_roundtrip else ('NT$ ' + '{:,.0f}'.format(flight.price) + ' /人') }}</small></span>
-                {% if bundled_roundtrip and flight.departure_token %}<a class="view-button" href="{{ url_for('visitor_flight_return_options', **{'from': origin, 'to': destination, 'depart': depart_date, 'return': return_date, 'pax': pax, 'departure_token': flight.departure_token, 'cabin': request.args.get('cabin', '')}) }}">選擇去程 →</a>{% elif flight.booking_token %}<a class="view-button" href="{{ url_for('visitor_flight_booking_redirect', **{'token': flight.booking_token, 'from': origin, 'to': destination, 'depart': depart_date, 'return': (return_date if is_roundtrip else ''), 'pax': pax, 'fallback': skyscanner_url or ''}) }}" target="_blank" rel="noopener">選擇 →</a>{% elif skyscanner_url %}<a class="view-button" href="{{ skyscanner_url }}" target="_blank" rel="noopener">選擇 →</a>{% else %}<button class="view-button" type="button" onclick="showToast('找不到這個城市的比價連結，換個關鍵字試試。')">選擇航班</button>{% endif %}
+                {% if bundled_roundtrip and flight.departure_token %}<a class="view-button" href="{{ url_for('visitor_flight_return_options', **{'from': origin, 'to': destination, 'depart': depart_date, 'return': return_date, 'pax': pax, 'departure_token': flight.departure_token, 'cabin': request.args.get('cabin', ''), 'ob': flight_trip_item(flight, depart_date, pax, 0)|tojson}) }}">選擇去程 →</a>{% elif flight.booking_token %}<a class="view-button" href="{{ url_for('visitor_flight_booking_redirect', **{'token': flight.booking_token, 'from': origin, 'to': destination, 'depart': depart_date, 'return': (return_date if is_roundtrip else ''), 'pax': pax, 'fallback': skyscanner_url or ''}) }}" target="_blank" rel="noopener" data-flights='{{ [flight_trip_item(flight, depart_date, pax)]|tojson }}'>選擇 →</a>{% elif skyscanner_url %}<a class="view-button" href="{{ skyscanner_url }}" target="_blank" rel="noopener">選擇 →</a>{% else %}<button class="view-button" type="button" onclick="showToast('找不到這個城市的比價連結，換個關鍵字試試。')">選擇航班</button>{% endif %}
               </div>
             </article>
           {% else %}
@@ -185,7 +185,7 @@
               <div class="flight-meta">{% if flight.origin_country or flight.destination_country %}<span>{{ flight.origin_country }} → {{ flight.destination_country }}</span>{% endif %}{% if flight.seats_available is not none %}<span class="{{ 'seats-low' if flight.seats_available <= 3 }}">剩餘 {{ flight.seats_available }} 席</span>{% endif %}</div>
               <div class="flight-footer">
                 <span class="price">NT$ {{ "{:,.0f}".format(flight.price * pax) }}<small>{{ pax }} 人・NT$ {{ "{:,.0f}".format(flight.price) }} /人</small></span>
-                {% if flight.booking_token %}<a class="view-button" href="{{ url_for('visitor_flight_booking_redirect', **{'token': flight.booking_token, 'from': destination, 'to': origin, 'depart': return_date, 'return': '', 'pax': pax, 'fallback': skyscanner_url or ''}) }}" target="_blank" rel="noopener">選擇 →</a>{% elif skyscanner_url %}<a class="view-button" href="{{ skyscanner_url }}" target="_blank" rel="noopener">選擇 →</a>{% else %}<button class="view-button" type="button" onclick="showToast('找不到這個城市的比價連結，換個關鍵字試試。')">選擇航班</button>{% endif %}
+                {% if flight.booking_token %}<a class="view-button" href="{{ url_for('visitor_flight_booking_redirect', **{'token': flight.booking_token, 'from': destination, 'to': origin, 'depart': return_date, 'return': '', 'pax': pax, 'fallback': skyscanner_url or ''}) }}" target="_blank" rel="noopener" data-flights='{{ [flight_trip_item(flight, return_date, pax)]|tojson }}'>選擇 →</a>{% elif skyscanner_url %}<a class="view-button" href="{{ skyscanner_url }}" target="_blank" rel="noopener">選擇 →</a>{% else %}<button class="view-button" type="button" onclick="showToast('找不到這個城市的比價連結，換個關鍵字試試。')">選擇航班</button>{% endif %}
               </div>
             </article>
           {% else %}
@@ -217,5 +217,7 @@
   </script>
   {% if is_member %}{% include 'member/_notification_drawer.html' %}<script src="{{ url_for('static', filename='js/member_notifications.js') }}" defer></script>{% endif %}
   <script src="{{ url_for('static', filename='js/member-nav.js') }}" defer></script>
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/flight-trip-confirm.css') }}">
+  <script src="{{ url_for('static', filename='js/flight-trip-confirm.js') }}" defer></script>
 </body>
 </html>

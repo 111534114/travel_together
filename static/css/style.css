@@ -1,5 +1,7 @@
 @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;600;700;800&display=swap');
 
+html, body { overscroll-behavior-y: none; }  /* 捲到最上面或最下面再繼續拉，整個畫面不會被拉動彈跳 */
+
 :root {
     --ocean-primary: #00A9C0;
     --ocean-primary-dark: #087E96;

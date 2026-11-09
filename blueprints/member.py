@@ -1355,6 +1355,118 @@ def add_attraction_to_trip(attraction_id):
     return redirect(next_url)
 
 
+def _parse_iso_date(value):
+    try:
+        return date.fromisoformat(str(value or "").strip())
+    except ValueError:
+        return None
+
+
+@member_bp.route("/api/flight-trips")
+def api_flight_trips():
+    # 機票頁「我已訂票，加入旅程」用：列出這位會員能編輯的旅程，並標示每段航班日期是否落在旅程期間內
+    user_id = session.get("user_id") if session.get("role") == "member" else None
+    if not user_id:
+        return jsonify(error="login_required"), 401
+    flight_dates = [d for d in (_parse_iso_date(x) for x in request.args.get("dates", "").split(",")) if d]
+    connection = get_db_connection()
+    if connection is None:
+        return jsonify(error="db_unavailable"), 503
+    cursor = connection.cursor(dictionary=True)
+    try:
+        cursor.execute("""
+            SELECT t.trip_id, t.trip_name, t.start_date, t.end_date
+            FROM trips t JOIN trip_members tm ON tm.trip_id = t.trip_id
+            WHERE tm.user_id = %s AND tm.join_status = 'accepted' AND tm.member_role IN ('owner', 'editor')
+              AND t.deleted_at IS NULL
+            ORDER BY t.start_date DESC
+        """, (user_id,))
+        trips = [{
+            "trip_id": row["trip_id"], "trip_name": row["trip_name"],
+            "start_date": row["start_date"].isoformat(), "end_date": row["end_date"].isoformat(),
+            "fits": all(row["start_date"] <= d <= row["end_date"] for d in flight_dates),
+        } for row in cursor.fetchall()]
+    finally:
+        cursor.close(); connection.close()
+    return jsonify(trips=trips)
+
+
+@member_bp.route("/api/flights/add-to-trip", methods=["POST"])
+def api_add_flights_to_trip():
+    user_id = session.get("user_id") if session.get("role") == "member" else None
+    if not user_id:
+        return jsonify(error="login_required"), 401
+    payload = request.get_json(silent=True) or {}
+    flights = payload.get("flights")
+    trip_id = payload.get("trip_id")
+    if not isinstance(trip_id, int) or not isinstance(flights, list) or not 1 <= len(flights) <= 4:
+        return jsonify(error="資料格式不正確，請重新操作。"), 400
+
+    items = []
+    for flight in flights:
+        if not isinstance(flight, dict):
+            return jsonify(error="資料格式不正確，請重新操作。"), 400
+        day = _parse_iso_date(flight.get("date"))
+        title = str(flight.get("title") or "").strip()[:150]
+        if not day or not title:
+            return jsonify(error="航班缺少日期或名稱，無法加入旅程。"), 400
+        times = []
+        for key in ("start_time", "end_time"):
+            value = str(flight.get(key) or "").strip()
+            if value and not re.fullmatch(r"([01]\d|2[0-3]):[0-5]\d", value):
+                return jsonify(error="航班時間格式不正確。"), 400
+            times.append(value + ":00" if value else None)
+        try:
+            cost = Decimal(str(flight.get("cost") or 0))
+        except InvalidOperation:
+            return jsonify(error="航班價格格式不正確。"), 400
+        if not Decimal(0) <= cost <= Decimal(10_000_000):
+            return jsonify(error="航班價格格式不正確。"), 400
+        items.append((day, title, times[0], times[1], cost, str(flight.get("notes") or "").strip()[:500] or None))
+
+    connection = get_db_connection()
+    if connection is None:
+        return jsonify(error="目前無法連線資料庫，請稍後再試。"), 503
+    cursor = connection.cursor(dictionary=True)
+    try:
+        trip = _member_access(cursor, trip_id, user_id)
+        if not trip or not _can_edit(trip):
+            return jsonify(error="你沒有編輯這個行程的權限。"), 403
+        for day, *_ in items:
+            if not trip["start_date"] <= day <= trip["end_date"]:
+                return jsonify(error=f"航班日期 {day} 不在旅程期間（{trip['start_date']} ～ {trip['end_date']}）內。"), 400
+        added = skipped = 0
+        for day, title, start, end, cost, notes in items:
+            cursor.execute("""SELECT itinerary_id FROM itineraries
+                              WHERE trip_id=%s AND itinerary_date=%s AND item_type='transport' AND title=%s""",
+                           (trip_id, day, title))
+            if cursor.fetchone():
+                skipped += 1
+                continue
+            if day == trip["start_date"]:  # 去程當天排在最前面，其他天排在最後面
+                cursor.execute("UPDATE itineraries SET sort_order = sort_order + 1 WHERE trip_id=%s AND itinerary_date=%s",
+                               (trip_id, day))
+                order = 1
+            else:
+                cursor.execute("SELECT COALESCE(MAX(sort_order),0)+1 AS next_order FROM itineraries WHERE trip_id=%s AND itinerary_date=%s",
+                               (trip_id, day))
+                order = cursor.fetchone()["next_order"]
+            cursor.execute("""INSERT INTO itineraries (trip_id,created_by,itinerary_date,item_type,title,start_time,end_time,is_all_day,
+                                                       transport_method,transport_minutes,estimated_cost,notes,sort_order)
+                              VALUES (%s,%s,%s,'transport',%s,%s,%s,0,'飛機',0,%s,%s,%s)""",
+                           (trip_id, user_id, day, title, start, end, cost, notes, order))
+            added += 1
+        connection.commit()
+    except Exception:
+        current_app.logger.exception("機票加入旅程失敗 user_id=%s", user_id)
+        connection.rollback()
+        return jsonify(error="加入旅程失敗，請再試一次。"), 500
+    finally:
+        cursor.close(); connection.close()
+    return jsonify(added=added, skipped=skipped, trip_id=trip_id, trip_name=trip["trip_name"],
+                   trip_url=url_for("member.trip_detail", trip_id=trip_id))
+
+
 @member_bp.route("/attractions/<int:attraction_id>/favorite", methods=["POST"])
 @login_required("member")
 def toggle_favorite(attraction_id):
@@ -2878,7 +2990,7 @@ def invite_member(trip_id):
                     else:
                         code=secrets.token_urlsafe(8)
                         cursor.execute("INSERT INTO trip_invitations (trip_id,inviter_id,invitee_id,invitee_email,invite_code,assigned_role,expires_at) VALUES (%s,%s,%s,%s,%s,%s,%s)",(trip_id,session["user_id"],invitee["user_id"],invitee["email"],code,role,expires_at))
-                        send_notification(cursor, invitee["user_id"], "trip", "invitation", "收到旅程邀請", f"你被邀請加入「{trip['trip_name']}」", url_for('member.dashboard'), trip_id=trip_id)
+                        send_notification(cursor, invitee["user_id"], "trip", "invitation", "收到旅程邀請", f"你被邀請加入「{trip['trip_name']}」", url_for('member.my_trips') + "#invitations", trip_id=trip_id)
                         connection.commit(); flash("邀請已送出。", "success")
     except Exception:
         connection.rollback(); flash("送出邀請失敗。", "error")

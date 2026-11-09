@@ -7,7 +7,7 @@
     <div><b>{{ member_stats.completed or 0 }}</b><span>已完成</span></div>
 </section>
 {% if invitations %}
-<section class="panel">
+<section class="panel" id="invitations">
     <div class="panel-title"><h2>等待你的回覆</h2></div>
     {% for invitation in invitations %}
     <div class="invite-row">

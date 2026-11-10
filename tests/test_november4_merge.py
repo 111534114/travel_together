@@ -52,7 +52,7 @@ class November4MergeTests(unittest.TestCase):
         response.json.return_value = {"success": True, "cipherText": "ab+/="}
         with patch.object(tdx_trains, "_thsr_url_cache", {}), patch("tdx_trains.requests.post", return_value=response) as post:
             result = tdx_trains.thsr_timetable_url("1000", "1040", "2026-12-01", "09:30")
-        self.assertIn("search=ab%2B%2F%3D", result)
+        self.assertIn("search=ab+/=", result)
         self.assertEqual(post.call_args.args[0], tdx_trains.THSR_ENCRYPT_URL)
 
 

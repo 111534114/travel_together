@@ -253,7 +253,9 @@ def thsr_timetable_url(origin_id, destination_id, travel_date, start_time):
         result = resp.json()
         if not result.get("success") or not result.get("cipherText"):
             return THSR_TIMETABLE_URL
-        url = THSR_TIMETABLE_URL + "?" + urlencode({"search": result["cipherText"]})
+        # 密文要原封不動接在網址後面(跟高鐵官網首頁一樣)：官網時刻表頁直接拿網址字串去解密、不會先解碼，
+        # 把 + / = 編碼成 %2B %2F %3D 的話官網會解密失敗，只顯示預設的南港→左營
+        url = THSR_TIMETABLE_URL + "?search=" + result["cipherText"]
     except (requests.RequestException, ValueError) as error:
         print("高鐵官網時刻表網址加密失敗：", error)
         return THSR_TIMETABLE_URL

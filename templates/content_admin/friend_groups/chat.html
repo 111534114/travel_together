@@ -1,0 +1,22 @@
+{% extends "content_admin/base.html" %}
+{% set active_menu = "friend_groups" %}
+{% block title %}聊天室管理｜走吧揪團{% endblock %}
+{% block page_title %}聊天室管理{% endblock %}
+{% block page_subtitle %}檢查揪團聊天室近期訊息{% endblock %}
+{% block content %}
+<div class="type-tabs"><a href="{{ url_for('friend_groups_admin.list_applications') }}">返回交友揪團管理</a></div>
+<div class="admin-section">
+  <div class="section-title"><h2>近期訊息</h2><span>最近 100 則</span></div>
+  <div class="table-container"><table class="admin-table">
+    <thead><tr><th>揪團</th><th>發言者</th><th>內容</th><th>時間</th><th>處理</th></tr></thead>
+    <tbody>{% for message in messages %}<tr>
+      <td>{{ message.group_title }}</td><td>{{ message.nickname or message.full_name }}</td>
+      <td>{{ '訊息已移除' if message.content == removed_marker else message.content }}</td>
+      <td>{{ message.created_at.strftime('%Y/%m/%d %H:%M') }}</td>
+      <td>{% if message.content != removed_marker and content_admin_can('friend_groups_admin', 'edit') %}
+        <form method="post" action="{{ url_for('friend_groups_admin.remove_group_chat_message', trip_id=message.trip_id, message_id=message.message_id) }}" onsubmit="return confirm('確定移除這則訊息？')"><button class="small-button danger" type="submit">移除</button></form>
+      {% endif %}</td>
+    </tr>{% else %}<tr><td colspan="5">目前沒有訊息。</td></tr>{% endfor %}</tbody>
+  </table></div>
+</div>
+{% endblock %}

@@ -1,4 +1,4 @@
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 import json
 import os
 import re
@@ -12,6 +12,7 @@ from db import get_db_connection
 from notification_preferences import send_notification
 from utils import get_cities, get_countries
 from group_ai_planner import generate_plan, normalize_plan
+from chat_moderation import blocked_term
 from config import ANTHROPIC_API_KEY, GEMINI_API_KEY
 
 friend_groups_bp = Blueprint("friend_groups", __name__, url_prefix="/member/friend-groups")
@@ -100,6 +101,14 @@ def _has_line_bound(cursor, user_id):
     cursor.execute("SELECT line_sub FROM users WHERE user_id=%s", (user_id,))
     row = cursor.fetchone()
     return bool(row and row["line_sub"])
+
+
+def _registration_deadline(cursor, group):
+    cursor.execute("SELECT setting_value FROM app_settings WHERE setting_key=%s",
+                   (f"friend_group_deadline_{group['group_id']}",))
+    row = cursor.fetchone()
+    group["registration_lead_days"] = int(row["setting_value"]) if row and row["setting_value"] in ("2", "3") else 2
+    return group["event_date"] - timedelta(days=group["registration_lead_days"])
 
 
 def _latest_application(cursor, user_id):
@@ -661,6 +670,8 @@ def event_chat_send(event_id):
         content = content.strip() if isinstance(content, str) else ""
         if not content or len(content) > 1000:
             return jsonify(error="訊息不能是空的，且不能超過 1000 字。"), 400
+        if blocked_term(cursor, content):
+            return jsonify(error="訊息包含禁止內容，請修改後再送出。"), 400
         cursor.execute("INSERT INTO friend_group_event_chat_messages (event_id, user_id, content) VALUES (%s,%s,%s)", (event_id, user_id, content))
         connection.commit()
     finally:
@@ -772,6 +783,7 @@ def new_group():
             start_time = request.form.get("start_time") or None
             end_time = request.form.get("end_time") or None
             capacity_raw = request.form.get("capacity", "").strip()
+            lead_raw = request.form.get("registration_lead_days", "2")
             description = request.form.get("description", "").strip() or None
             pace_filter = request.form.get("pace_filter") or None
             social_style_filter = request.form.get("social_style_filter") or None
@@ -811,6 +823,12 @@ def new_group():
                 return redirect(url_for("friend_groups.new_group"))
             if start_day < date.today() or finish_day < start_day:
                 flash("揪團日期不能是過去，結束日期也不能早於開始日期。", "error")
+                return redirect(url_for("friend_groups.new_group"))
+            if lead_raw not in ("2", "3"):
+                flash("請選擇提前 2 天或 3 天截止報名。", "error")
+                return redirect(url_for("friend_groups.new_group"))
+            if start_day - timedelta(days=int(lead_raw)) < date.today():
+                flash("報名截止日不能早於今天，請選擇較晚的開始日期。", "error")
                 return redirect(url_for("friend_groups.new_group"))
             if not country_id or not city_id:
                 flash("請選擇目的地國家與城市，系統會同步建立一個對應的行程給這個揪團使用。", "error")
@@ -870,9 +888,11 @@ def new_group():
                 INSERT INTO friend_groups
                     (trip_id, host_user_id, title, description, location, event_date, end_date, start_time, end_time,
                      capacity, pace_filter, social_style_filter, show_member_list)
-                VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
+                VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
             """, (trip_id, user_id, title, description, location or None, event_date, end_date, start_time, end_time,
                   capacity, pace_filter, social_style_filter, show_member_list))
+            cursor.execute("""INSERT INTO app_settings (setting_key,setting_value,updated_by) VALUES (%s,%s,%s)""",
+                           (f"friend_group_deadline_{cursor.lastrowid}", lead_raw, user_id))
             connection.commit()
             flash("揪團已發起，其他會員可在「參加別人的行程」看到；行程頁可排每日行程及使用聊天室。", "success")
             return redirect(url_for("friend_groups.index") + "#friend-groups")
@@ -912,7 +932,9 @@ def group_detail(group_id):
         if group["status"] != "open" and not is_host and not (my_membership and my_membership["status"] == "approved"):
             flash("這個揪團目前沒有開放瀏覽。", "error")
             return redirect(url_for("friend_groups.index") + "#companions")
-        can_apply = not is_host and _has_line_bound(cursor, user_id) and _can_use_groups(cursor, user_id)
+        registration_deadline = _registration_deadline(cursor, group)
+        can_apply = (not is_host and group["status"] == "open" and date.today() <= registration_deadline
+                     and _has_line_bound(cursor, user_id) and _can_use_groups(cursor, user_id))
 
         cursor.execute("""
             SELECT m.*, u.nickname, u.avatar_path, p.is_public
@@ -945,7 +967,7 @@ def group_detail(group_id):
         group=group, is_host=is_host, my_membership=my_membership, members=members,
         total_members=total_members, can_view_members=can_view_members, itinerary=itinerary,
         host_tier=host_tier, can_review=can_review, event_finished=event_finished,
-        can_apply=can_apply,
+        can_apply=can_apply, registration_deadline=registration_deadline, today=date.today(),
     )
 
 
@@ -1048,6 +1070,9 @@ def apply_group(group_id):
         if not group:
             flash("找不到這個揪團，或已關閉。", "error")
             return redirect(url_for("friend_groups.index") + "#friend-groups")
+        if date.today() > _registration_deadline(cursor, group):
+            flash("這個揪團已截止報名。", "error")
+            return redirect(url_for("friend_groups.group_detail", group_id=group_id))
         if group["host_user_id"] == user_id:
             flash("你是這個揪團的團主。", "error")
             return redirect(url_for("friend_groups.group_detail", group_id=group_id))
@@ -1215,7 +1240,6 @@ def approve_group_member(group_id, member_user_id):
         if group["status"] != "open":
             flash("這個揪團目前沒有開放招募。", "error")
             return redirect(url_for("friend_groups.manage_group", group_id=group_id))
-
         cursor.execute("SELECT status FROM friend_group_members WHERE group_id=%s AND user_id=%s", (group_id, member_user_id))
         applicant = cursor.fetchone()
         if not applicant or applicant["status"] != "pending":
@@ -1325,6 +1349,7 @@ def edit_group(group_id):
             flash("只有團主可以修改揪團。", "error")
             return redirect(url_for("friend_groups.index") + "#friend-groups")
         if request.method == "GET":
+            _registration_deadline(cursor, group)
             return render_template("member/friend_groups/group_edit.html", group=group)
         if group["status"] == "cancelled":
             flash("已取消的揪團不能修改。", "error")
@@ -1336,6 +1361,7 @@ def edit_group(group_id):
         start_raw = request.form.get("event_date", "").strip()
         end_raw = request.form.get("end_date", "").strip() or start_raw
         capacity_raw = request.form.get("capacity", "").strip()
+        lead_raw = request.form.get("registration_lead_days", "2")
         status = request.form.get("status", "open")
         if group["moderation_locked"] and status == "open":
             raise ValueError("此揪團已由管理員暫停招募，不能自行重新開放。")
@@ -1348,6 +1374,10 @@ def edit_group(group_id):
             raise ValueError("請填寫有效日期。") from error
         if end_date < start_date:
             raise ValueError("結束日期不能早於開始日期。")
+        if lead_raw not in ("2", "3"):
+            raise ValueError("請選擇提前 2 天或 3 天截止報名。")
+        if status == "open" and start_date - timedelta(days=int(lead_raw)) < date.today():
+            raise ValueError("報名截止日已過，請選擇較晚的開始日期或暫停招募。")
         tier = _host_tier(cursor, session["user_id"])
         if not tier["allow_multi_day"] and end_date != start_date:
             raise ValueError("新手團長只能開單日揪團。")
@@ -1365,15 +1395,20 @@ def edit_group(group_id):
             """, (group["trip_id"], start_date, end_date))
             if cursor.fetchone():
                 raise ValueError("行程中有日期超出新範圍的項目，請先調整每日行程。")
+        _registration_deadline(cursor, group)
         changed = (title != group["title"] or location != (group["location"] or "")
                    or start_date != group["event_date"] or end_date != (group["end_date"] or group["event_date"])
-                   or status != group["status"] or meeting_info != (group["meeting_info"] or ""))
+                   or status != group["status"] or meeting_info != (group["meeting_info"] or "")
+                   or int(lead_raw) != (group.get("registration_lead_days") or 2))
         cursor.execute("""
             UPDATE friend_groups SET title=%s, description=%s, location=%s, meeting_info=%s,
               event_date=%s, end_date=%s, capacity=%s, status=%s, show_member_list=%s
             WHERE group_id=%s
         """, (title, description or None, location or None, meeting_info or None,
               start_date, end_date, capacity, status, 1 if request.form.get("show_member_list") == "1" else 0, group_id))
+        cursor.execute("""INSERT INTO app_settings (setting_key,setting_value,updated_by) VALUES (%s,%s,%s)
+                          ON DUPLICATE KEY UPDATE setting_value=VALUES(setting_value), updated_by=VALUES(updated_by)""",
+                       (f"friend_group_deadline_{group_id}", lead_raw, session["user_id"]))
         if group["trip_id"]:
             cursor.execute("""
                 UPDATE trips SET trip_name=%s, start_date=%s, end_date=%s, people_count=%s

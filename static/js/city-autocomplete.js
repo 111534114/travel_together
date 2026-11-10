@@ -50,6 +50,7 @@
       renderResults: (results, onPick) => buildDetailList('全部車站', results.map((station) => (
         { label: station.name, sub: station.systems.join('・'), value: station.name })), onPick),
       emptyText: '沒有符合的車站。',
+      resultsCoverStatic: true,
     },
     // 住宿目的地(data-hotel-autocomplete)目前只有台灣：沒打字時列台灣縣市，打字時查資料庫裡住宿的地區與名稱
     hotel: {
@@ -282,6 +283,8 @@
       }
       return;
     }
+    // 「全部車站」已經包含上面的常用車站，結果回來後就把常用車站那區拿掉，避免同一站出現兩次
+    if (mode.resultsCoverStatic) panel.querySelectorAll('.city-suggest-section').forEach((el) => el.remove());
     const section = mode.renderResults(results, onPick);
     if (section) {
       section.setAttribute('data-world-section', '1');
@@ -305,9 +308,11 @@
 
   const debounceTimers = new WeakMap();
 
-  function openPanel(input) {
+  // showAll：剛點進輸入框時，就算裡面已經有字(例如搜尋結果頁帶回來的「台北」)也列出完整清單，
+  // 不然只會看到跟原本那個字相符的一兩筆；使用者開始打字才依輸入內容篩選。
+  function openPanel(input, showAll = false) {
     const panel = getOrCreatePanel(input);
-    const keyword = input.value.trim();
+    const keyword = showAll ? '' : input.value.trim();
     const mode = input.matches('[data-station-autocomplete]') ? MODES.station
       : input.matches('[data-hotel-autocomplete]') ? MODES.hotel : MODES.city;
     const onPick = (value) => {
@@ -337,7 +342,7 @@
   document.addEventListener('focus', (event) => {
     const input = event.target;
     if (!(input instanceof HTMLElement) || !input.matches(AUTOCOMPLETE_SELECTOR)) return;
-    openPanel(input);
+    openPanel(input, true);
   }, true);
 
   document.addEventListener('input', (event) => {

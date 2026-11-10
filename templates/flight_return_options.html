@@ -96,7 +96,7 @@
           </div>
           <div class="flight-footer">
             <span class="price">NT$ {{ "{:,.0f}".format(flight.price * pax) }}<small>{{ pax }} 人・去程＋回程來回總價</small></span>
-            {% if flight.booking_token %}<a class="view-button" href="{{ url_for('visitor_flight_booking_redirect', **{'token': flight.booking_token, 'from': destination, 'to': origin, 'depart': return_date, 'return': '', 'pax': pax, 'fallback': skyscanner_url or ''}) }}" target="_blank" rel="noopener">選擇 →</a>{% elif skyscanner_url %}<a class="view-button" href="{{ skyscanner_url }}" target="_blank" rel="noopener">選擇 →</a>{% else %}<button class="view-button" type="button" onclick="alert('找不到這個航班的訂票連結，換一個試試。')">選擇航班</button>{% endif %}
+            {% if flight.booking_token %}<a class="view-button" href="{{ url_for('visitor_flight_booking_redirect', **{'token': flight.booking_token, 'from': destination, 'to': origin, 'depart': return_date, 'return': '', 'pax': pax, 'fallback': skyscanner_url or ''}) }}" target="_blank" rel="noopener" data-flights='{{ (([outbound_item] if outbound_item else []) + [flight_trip_item(flight, return_date, pax, bundled=true)])|tojson }}'>選擇 →</a>{% elif skyscanner_url %}<a class="view-button" href="{{ skyscanner_url }}" target="_blank" rel="noopener">選擇 →</a>{% else %}<button class="view-button" type="button" onclick="alert('找不到這個航班的訂票連結，換一個試試。')">選擇航班</button>{% endif %}
           </div>
         </article>
         {% else %}
@@ -108,5 +108,7 @@
       </div>
     </section>
   </main>
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/flight-trip-confirm.css') }}">
+  <script src="{{ url_for('static', filename='js/flight-trip-confirm.js') }}" defer></script>
 </body>
 </html>

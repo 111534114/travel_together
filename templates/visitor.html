@@ -253,6 +253,22 @@
     @media (max-width: 850px) { .site-nav { align-items: flex-start; flex-direction: column; gap: 6px; padding: 8px 18px 12px; } .nav-links { width: 100%; margin-left: 0; overflow-x: auto; } main { width: 100%; max-width: 680px; padding: 24px 16px 56px; } .top-marquee { height: 34px; margin: 0 0 16px; padding: 0 4px; background: #fff; border: 1px solid #DCEDEF; border-radius: 999px; -webkit-mask-image: linear-gradient(90deg, transparent, #000 16px, #000 calc(100% - 16px), transparent); mask-image: linear-gradient(90deg, transparent, #000 16px, #000 calc(100% - 16px), transparent); } .top-marquee-track { gap: 40px; padding-right: 40px; } .top-marquee-track span { font-size: 13px; } .member-shell { flex-direction: column; } .member-shell::before { display: none; } .member-sidenav { position: static; width: 100%; height: auto; max-height: none; overflow-y: visible; flex-direction: row; flex-wrap: wrap; padding: 8px 12px; } .member-sidenav .brand { margin: 4px 10px 4px 2px; } .member-sidenav nav { flex-direction: row; flex-wrap: wrap; } .side-footer { margin-top: 0; flex-direction: row; flex-wrap: wrap; padding-top: 0; border-top: 0; } .search-panel { padding: 16px 18px 20px; } .trip-grid, .companion-grid, .weather-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
     @media (max-width: 850px) { .search-tabs { flex-wrap: nowrap; overflow-x: auto; } .search-tab, .tab-badge { flex: 0 0 auto; } .tab-badge { margin-left: 10px; } }
     @media (max-width: 560px) { .brand { width: 108px; height: 48px; } .nav-links { gap: 2px; } .nav-links a { padding: 8px; font-size: 14px; white-space: nowrap; } .hero-intro h1 { font-size: 26px; } .search-bar, .section-header, .member-unlock { align-items: stretch; flex-direction: column; } .search-tabs { overflow-x: auto; } .search-tab { flex: 0 0 auto; } .search-submit { width: 100%; } .trip-grid, .companion-grid, .weather-grid, .quick-link-grid { grid-template-columns: 1fr; } .announcement-card { grid-template-columns: auto minmax(0, 1fr); } .announcement-meta { grid-column: 2; } .member-unlock { padding: 24px; } .member-unlock-actions { flex-wrap: wrap; } .section-header h2 { font-size: 24px; } }
+    /* 首頁圖片跑馬燈(輪播圖)：圖片由系統管理員在後台「首頁輪播圖」維護 */
+    .home-carousel { position: relative; margin: 0 0 44px; overflow: hidden; border-radius: 14px; }
+    .home-carousel-track { display: flex; align-items: stretch; transition: transform .6s ease; will-change: transform; }
+    .home-carousel-slide { position: relative; flex: 0 0 100%; min-width: 0; display: block; color: #fff; text-decoration: none; }
+    .home-carousel .hero-intro { margin: 0; border-radius: 0; }
+    .home-carousel-image { background: #EEF5F6; }
+    .home-carousel-image img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; display: block; }
+    .home-carousel-caption { position: absolute; left: 0; right: 0; bottom: 0; padding: 40px 44px 30px; font-size: 24px; font-weight: 800; line-height: 1.4; background: linear-gradient(to top, rgba(0,0,0,.55), transparent); text-shadow: 0 1px 3px rgba(0,0,0,.35); }
+    .home-carousel-arrow { position: absolute; top: 50%; z-index: 3; width: 34px; height: 34px; margin-top: -17px; display: grid; place-items: center; border: 0; border-radius: 50%; color: #40696F; background: rgba(255,255,255,.85); font-size: 22px; line-height: 1; cursor: pointer; opacity: 0; transition: opacity .2s; }
+    .home-carousel:hover .home-carousel-arrow, .home-carousel-arrow:focus-visible { opacity: 1; }
+    .home-carousel-arrow.prev { left: 8px; } .home-carousel-arrow.next { right: 8px; }
+    .home-carousel-dots { position: absolute; z-index: 3; left: 50%; bottom: 12px; transform: translateX(-50%); display: flex; gap: 8px; }
+    .home-carousel-dots button { width: 9px; height: 9px; padding: 0; border: 0; border-radius: 999px; background: rgba(255,255,255,.6); cursor: pointer; transition: width .25s, background .25s; }
+    .home-carousel-dots button.active { width: 24px; background: #fff; }
+    @media (max-width: 560px) { .home-carousel-caption { font-size: 18px; padding: 30px 20px 30px; } .home-carousel-arrow { opacity: 1; width: 28px; height: 28px; margin-top: -14px; font-size: 18px; } }
+    @media (prefers-reduced-motion: reduce) { .home-carousel-track { transition: none; } }
   </style>
 </head>
 <body>
@@ -273,19 +289,38 @@
       </div>
     {% with messages = get_flashed_messages(with_categories=true) %}{% if messages %}<div class="flash-stack" role="status">{% for category, message in messages %}<div class="flash-message {{ category }}">{{ message }}</div>{% endfor %}</div>{% endif %}{% endwith %}
 {% include 'partials/booking_tools.html' %}
-    <section class="hero-intro">
-      <div class="hero-cloud" style="left:34px;top:16px;width:66px;height:28px;"><span style="left:0;top:9px;width:32px;height:18px;"></span><span style="left:16px;top:0;width:32px;height:26px;"></span><span style="left:34px;top:8px;width:28px;height:18px;"></span></div>
-      <div class="hero-cloud" style="right:190px;top:10px;width:46px;height:18px;animation-delay:.5s;"><span style="left:0;top:6px;width:20px;height:12px;"></span><span style="left:10px;top:0;width:22px;height:17px;"></span></div>
-      <svg class="hero-sparkle" style="left:30px;bottom:56px;animation-delay:.3s;" width="14" height="14" viewBox="0 0 24 24" fill="#ffffff"><path d="M12 2 L14 10 L22 12 L14 14 L12 22 L10 14 L2 12 L10 10 Z"/></svg>
-      <svg class="hero-sparkle" style="left:320px;top:26px;animation-delay:.9s;" width="10" height="10" viewBox="0 0 24 24" fill="#ffffff"><path d="M12 2 L14 10 L22 12 L14 14 L12 22 L10 14 L2 12 L10 10 Z"/></svg>
-      <p class="eyebrow">TRAVEL TOGETHER</p>
-      <h1>{% if is_member %}嗨，{{ session.get('nickname') or session.get('full_name') }}！一起規劃下一趟旅程{% else %}揪伴同行，一起規劃下一趟旅程{% endif %}</h1>
-      <p>{% if is_member %}探索公開行程與旅伴揪團，也可以直接建立並管理自己的旅行。{% else %}探索大家分享的公開行程與旅伴揪團，找到志同道合的旅伴一起出發。{% endif %}</p>
-      <div class="member-hero-mascots">
-        <img src="{{ url_for('static', filename='images/mascot_chick.png') }}" alt="黃色小雞吉祥物">
-        <img src="{{ url_for('static', filename='images/mascot_bear.png') }}" alt="白色小熊吉祥物">
-        <img src="{{ url_for('static', filename='images/mascot_frog.png') }}" alt="綠色青蛙吉祥物">
+    <section class="home-carousel" aria-roledescription="carousel" aria-label="首頁輪播" data-home-carousel>
+      <div class="home-carousel-track">
+        {# 第 1 頁固定是歡迎橫幅，後台上傳的圖片接在後面 #}
+        <section class="hero-intro home-carousel-slide" aria-roledescription="slide" aria-label="第 1 / {{ (home_banners|length) + 1 }} 頁">
+          <div class="hero-cloud" style="left:34px;top:16px;width:66px;height:28px;"><span style="left:0;top:9px;width:32px;height:18px;"></span><span style="left:16px;top:0;width:32px;height:26px;"></span><span style="left:34px;top:8px;width:28px;height:18px;"></span></div>
+          <div class="hero-cloud" style="right:190px;top:10px;width:46px;height:18px;animation-delay:.5s;"><span style="left:0;top:6px;width:20px;height:12px;"></span><span style="left:10px;top:0;width:22px;height:17px;"></span></div>
+          <svg class="hero-sparkle" style="left:30px;bottom:56px;animation-delay:.3s;" width="14" height="14" viewBox="0 0 24 24" fill="#ffffff"><path d="M12 2 L14 10 L22 12 L14 14 L12 22 L10 14 L2 12 L10 10 Z"/></svg>
+          <svg class="hero-sparkle" style="left:320px;top:26px;animation-delay:.9s;" width="10" height="10" viewBox="0 0 24 24" fill="#ffffff"><path d="M12 2 L14 10 L22 12 L14 14 L12 22 L10 14 L2 12 L10 10 Z"/></svg>
+          <p class="eyebrow">TRAVEL TOGETHER</p>
+          <h1>{% if is_member %}嗨，{{ session.get('nickname') or session.get('full_name') }}！一起規劃下一趟旅程{% else %}揪伴同行，一起規劃下一趟旅程{% endif %}</h1>
+          <p>{% if is_member %}探索公開行程與旅伴揪團，也可以直接建立並管理自己的旅行。{% else %}探索大家分享的公開行程與旅伴揪團，找到志同道合的旅伴一起出發。{% endif %}</p>
+          <div class="member-hero-mascots">
+            <img src="{{ url_for('static', filename='images/mascot_chick.png') }}" alt="黃色小雞吉祥物">
+            <img src="{{ url_for('static', filename='images/mascot_bear.png') }}" alt="白色小熊吉祥物">
+            <img src="{{ url_for('static', filename='images/mascot_frog.png') }}" alt="綠色青蛙吉祥物">
+          </div>
+        </section>
+        {% for banner in home_banners %}
+        {% set tag = 'a' if banner.link_url else 'div' %}
+        <{{ tag }} class="home-carousel-slide home-carousel-image" {% if banner.link_url %}href="{{ banner.link_url }}"{% if banner.link_url.startswith('http') %} target="_blank" rel="noopener"{% endif %}{% endif %} aria-roledescription="slide" aria-label="第 {{ loop.index + 1 }} / {{ (home_banners|length) + 1 }} 頁">
+          <img src="{{ url_for('static', filename=banner.image_path) }}" alt="{{ banner.title or '精選圖片' }}" loading="lazy" style="object-position: {{ banner.focus_x }}% {{ banner.focus_y }}%;">
+          {% if banner.title %}<div class="home-carousel-caption">{{ banner.title }}</div>{% endif %}
+        </{{ tag }}>
+        {% endfor %}
       </div>
+      {% if home_banners %}
+      <button class="home-carousel-arrow prev" type="button" aria-label="上一頁">&#8249;</button>
+      <button class="home-carousel-arrow next" type="button" aria-label="下一頁">&#8250;</button>
+      <div class="home-carousel-dots">
+        <button type="button" aria-label="切換到第 1 頁"></button>{% for banner in home_banners %}<button type="button" aria-label="切換到第 {{ loop.index + 1 }} 頁"></button>{% endfor %}
+      </div>
+      {% endif %}
     </section>
     <section class="search-panel">
       <div class="search-tabs" role="tablist">
@@ -669,5 +704,39 @@
   <script src="{{ url_for('static', filename='js/city-autocomplete.js') }}" defer></script>
 {% if is_member %}{% include 'member/_notification_drawer.html' %}<script src="{{ url_for('static', filename='js/member_notifications.js') }}" defer></script>{% endif %}
 <script src="{{ url_for('static', filename='js/member-nav.js') }}" defer></script>
+  <script>
+    (function () {  // 首頁圖片跑馬燈：自動輪播、左右切換、圓點切換、滑動切換
+      var root = document.querySelector('[data-home-carousel]');
+      if (!root) return;
+      var track = root.querySelector('.home-carousel-track');
+      var slides = track.children;
+      var dots = root.querySelectorAll('.home-carousel-dots button');
+      var count = slides.length, index = 0, timer = null, INTERVAL = 3000;
+      if (count < 2) return;
+      function go(i) {
+        index = (i + count) % count;
+        track.style.transform = 'translateX(-' + (index * 100) + '%)';
+        for (var d = 0; d < dots.length; d++) dots[d].classList.toggle('active', d === index);
+      }
+      function start() { stop(); timer = setInterval(function () { go(index + 1); }, INTERVAL); }
+      function stop() { if (timer) clearInterval(timer); timer = null; }
+      root.querySelector('.prev').addEventListener('click', function () { go(index - 1); start(); });
+      root.querySelector('.next').addEventListener('click', function () { go(index + 1); start(); });
+      Array.prototype.forEach.call(dots, function (dot, i) { dot.addEventListener('click', function () { go(i); start(); }); });
+      root.addEventListener('mouseenter', stop);
+      root.addEventListener('mouseleave', start);
+      var startX = null;
+      root.addEventListener('touchstart', function (e) { startX = e.touches[0].clientX; stop(); }, { passive: true });
+      root.addEventListener('touchend', function (e) {
+        if (startX !== null) {
+          var dx = e.changedTouches[0].clientX - startX;
+          if (Math.abs(dx) > 40) go(index + (dx < 0 ? 1 : -1));
+        }
+        startX = null; start();
+      });
+      document.addEventListener('visibilitychange', function () { document.hidden ? stop() : start(); });
+      go(0); start();
+    })();
+  </script>
 </body>
 </html>

@@ -1,0 +1,33 @@
+{% extends "content_admin/base.html" %}
+{% set active_menu = "restaurants" %}
+
+{% block title %}批次上傳餐廳圖片｜Travel Together{% endblock %}
+{% block page_title %}批次上傳餐廳圖片{% endblock %}
+{% block page_subtitle %}一次選多張照片，系統會依檔名自動比對要更新哪一筆餐廳的圖片{% endblock %}
+
+{% block content %}
+
+<div class="admin-section">
+
+    <ul>
+        <li>每張照片的「檔名」（不含副檔名）要包含該餐廳在系統裡的名稱，例如餐廳名稱是「鼎泰豐」，檔名可以是「鼎泰豐.jpg」或「鼎泰豐_1.jpg」。</li>
+        <li>系統會先找檔名跟餐廳名稱完全相符的，找不到再找檔名「包含」餐廳名稱、或餐廳名稱「包含」檔名的。</li>
+        <li>如果一張照片同時符合多筆餐廳、或找不到符合的餐廳，會列在失敗清單裡，請改到該筆的編輯頁手動上傳。</li>
+        <li>比對成功會直接覆蓋該筆原本的圖片（如果有的話），請確認檔名沒有打錯再上傳。</li>
+        <li>可以一次選取多張照片，上傳後會列出每一張的比對結果。</li>
+    </ul>
+
+    <form method="POST" enctype="multipart/form-data" class="content-form" style="margin-top:10px;">
+        <div class="form-group full-width">
+            <label for="images">選擇圖片（可一次選多張）</label>
+            <input type="file" id="images" name="images" accept=".png,.jpg,.jpeg,.gif,.webp" multiple required>
+        </div>
+        <div class="form-actions">
+            <button type="submit" class="primary-button">開始比對並上傳</button>
+            <a href="{{ url_for('restaurants.list_restaurants') }}" class="secondary-link">取消</a>
+        </div>
+    </form>
+
+</div>
+
+{% endblock %}

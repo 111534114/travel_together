@@ -8,6 +8,7 @@
       <label>名稱 *<input name="title" required maxlength="150" value="{{ group.title }}"></label>
       <label>集合地點<input name="location" maxlength="255" value="{{ group.location or '' }}"></label>
       <label>開始日期 *<input name="event_date" type="date" required value="{{ group.event_date }}"></label>
+      <label>報名截止 *<select name="registration_lead_days" required><option value="2" {% if (group.registration_lead_days or 2) == 2 %}selected{% endif %}>行程開始前 2 天</option><option value="3" {% if group.registration_lead_days == 3 %}selected{% endif %}>行程開始前 3 天</option></select></label>
       <label>結束日期 *<input name="end_date" type="date" required value="{{ group.end_date or group.event_date }}"></label>
       <label>團員名額（不含主揪）<input name="capacity" type="number" min="1" value="{{ group.capacity or '' }}" placeholder="留空不限制（資深團長）"></label>
       <label>招募狀態<select name="status"><option value="open" {% if group.status == 'open' %}selected{% endif %}>開放招募</option><option value="closed" {% if group.status == 'closed' %}selected{% endif %}>暫停招募</option></select></label>

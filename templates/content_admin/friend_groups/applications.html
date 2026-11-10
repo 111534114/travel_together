@@ -16,8 +16,18 @@
   {% endif %}
 </div>
 
+<div class="admin-section">
+  <div class="section-title"><h2>聊天室敏感詞</h2><span>行程與官方活動聊天室送出前檢查</span></div>
+  <form method="post" action="{{ url_for('friend_groups_admin.save_chat_terms') }}">
+    <label for="blockedTerms">敏感詞（以逗號或換行分隔）</label>
+    <textarea id="blockedTerms" name="blocked_terms" rows="3" maxlength="255" style="width:100%;margin:10px 0;">{{ blocked_terms or '' }}</textarea>
+    {% if content_admin_can('friend_groups_admin', 'edit') %}<button class="small-button" type="submit">儲存敏感詞</button>{% endif %}
+  </form>
+</div>
+
 <div class="type-tabs">
   <a href="{{ url_for('friend_groups_admin.list_events') }}">官方活動管理</a>
+  <a href="{{ url_for('friend_groups_admin.group_chat_messages') }}">聊天室管理</a>
   <a href="{{ url_for('friend_groups_admin.group_reports') }}">揪團檢舉</a>
   <a href="{{ url_for('friend_groups_admin.stats') }}">旅遊人格統計</a>
 </div>

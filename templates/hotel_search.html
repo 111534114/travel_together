@@ -52,8 +52,54 @@
     .empty { grid-column: 1 / -1; padding: 36px; color: var(--muted); text-align: center; background: #fff; border: 1px dashed #C6DCDF; border-radius: 8px; }
     @media (max-width: 850px) { .site-nav { align-items: flex-start; flex-direction: column; gap: 6px; padding: 8px 18px 12px; } .nav-links { width: 100%; margin-left: 0; overflow-x: auto; } main { width: min(100% - 28px, 680px); padding: 24px 0 70px; } .hotel-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
     @media (max-width: 560px) { .brand { width: 108px; height: 48px; } .nav-links { gap: 2px; } .nav-links a { padding: 8px; font-size: 14px; white-space: nowrap; } .section-header { align-items: stretch; flex-direction: column; } .hotel-grid { grid-template-columns: 1fr; } .section-header h2 { font-size: 22px; } }
+    .results-layout { display: grid; grid-template-columns: 240px 1fr; align-items: start; gap: 20px; }
+    .results-sidebar { position: sticky; top: 88px; max-height: calc(100vh - 104px); overflow-y: auto; overscroll-behavior: contain; padding-right: 6px; scrollbar-width: thin; scrollbar-color: #C6DCDF transparent; }
+    .map-box { display: grid; place-items: center; height: 96px; margin-bottom: 4px; background: linear-gradient(135deg, #CFE8EC, #E7F3EC 55%, #D4E6F3); border-radius: 10px; }
+    .map-box span { padding: 9px 22px; color: var(--purple); background: #fff; border-radius: 8px; box-shadow: 0 2px 8px rgba(35, 55, 58, .15); font-weight: 700; }
+    .map-box:hover span { color: #fff; background: var(--purple); }
+    .star-glyphs { color: #F5A623; letter-spacing: 1px; }
+    .facet-title-note { margin-left: 8px; color: var(--muted); font-weight: 500; font-size: 12px; }
+    .results-sidebar .booking-tools { margin-top: 0; }
+    .results-sidebar .booking-filters { flex-direction: column; align-items: stretch; gap: 16px; }
+    .results-sidebar .booking-filters label { flex-direction: column; align-items: stretch; gap: 6px; white-space: normal; }
+    .results-sidebar .booking-filters select { width: 100%; }
+    .results-sidebar .price-slider-row { flex-direction: column; align-items: stretch; gap: 6px; }
+    .results-sidebar .price-slider { width: 100%; max-width: none; flex: none; }
+    .results-main { min-width: 0; }
+    .hotel-list { display: grid; gap: 16px; }
+    .hotel-row { position: relative; display: grid; grid-template-columns: 270px minmax(0, 1fr) 190px; overflow: hidden; background: #fff; border: 1px solid var(--line); border-radius: 10px; box-shadow: 0 8px 22px rgba(45, 37, 68, .06); }
+    .hotel-row { cursor: pointer; }
+    .hotel-row:hover { box-shadow: 0 12px 28px rgba(45, 37, 68, .12); }
+    .hotel-photo { position: relative; min-height: 200px; background: #DCE8EA; }
+    .hotel-photo img { display: block; width: 100%; height: 100%; object-fit: cover; }
+    .hotel-photo-empty { display: grid; height: 100%; place-items: center; color: var(--muted); font-size: 14px; }
+    .photo-nav { position: absolute; top: 50%; width: 30px; height: 30px; margin-top: -15px; padding: 0; color: #fff; background: rgba(35, 55, 58, .55); border: 0; border-radius: 50%; cursor: pointer; font-size: 18px; line-height: 30px; opacity: 0; transition: opacity 150ms ease; }
+    .photo-nav.prev { left: 8px; }
+    .photo-nav.next { right: 8px; }
+    .hotel-photo:hover .photo-nav { opacity: 1; }
+    .photo-count { position: absolute; right: 8px; bottom: 8px; padding: 2px 8px; color: #fff; background: rgba(35, 55, 58, .6); border-radius: 999px; font-size: 12px; }
+    .hotel-info { display: flex; flex-direction: column; gap: 8px; padding: 16px 18px; min-width: 0; }
+    .hotel-info h3 { margin: 0; font-size: 19px; line-height: 1.4; }
+    .hotel-meta { color: var(--muted); font-size: 13px; }
+    .rating-line { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--muted); }
+    .rating-score { padding: 3px 8px; color: #fff; background: var(--purple); border-radius: 6px 6px 6px 0; font-weight: 800; font-size: 14px; }
+    .rating-label { color: var(--ink); font-weight: 700; }
+    .hotel-info .hotel-desc { margin: 0; }
+    .amenity-chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: auto; }
+    .amenity-chips span { padding: 3px 9px; color: #426064; background: var(--purple-soft); border-radius: 999px; font-size: 12px; }
+    .hotel-side { display: flex; flex-direction: column; align-items: flex-end; justify-content: flex-end; gap: 6px; padding: 16px 18px; text-align: right; border-left: 1px dashed var(--line); }
+    .deal-badge { padding: 3px 9px; color: #B23B3B; background: #FBE7E7; border-radius: 6px; font-size: 12px; font-weight: 700; }
+    .price-night { color: var(--purple); font-size: 24px; font-weight: 800; line-height: 1.1; }
+    .price-night small { color: var(--muted); font-size: 12px; font-weight: 500; }
+    .price-total { color: var(--muted); font-size: 12px; }
+    .more-wrap { margin-top: 18px; text-align: center; }
+    .more-link { display: inline-block; padding: 10px 22px; color: var(--purple); background: #fff; border: 1px solid #C6DCDF; border-radius: 8px; font-weight: 700; }
+    .more-link:hover { color: #fff; background: var(--purple); border-color: var(--purple); }
+    .live-note { margin: 0 0 14px; color: var(--muted); font-size: 13px; }
+    @media (max-width: 950px) { .results-layout { grid-template-columns: 1fr; } .results-sidebar { position: static; } .hotel-row { grid-template-columns: 1fr; } .hotel-side { align-items: flex-start; text-align: left; border-left: 0; border-top: 1px dashed var(--line); } .hotel-photo { height: 210px; } }
   </style>
   <link rel="stylesheet" href="{{ url_for('static', filename='css/member-nav.css') }}">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/hotel-detail.css') }}">
   {% if session.get('user_id') and session.get('role') == 'member' %}<link rel="stylesheet" href="{{ url_for('static', filename='css/member_notifications.css') }}">{% endif %}
 </head>
 <body>
@@ -63,7 +109,11 @@
   <main class="member-content">
     <p class="breadcrumb"><a href="{{ url_for('member.dashboard') if is_member else url_for('visitor') }}">{{ '← 返回會員首頁' if is_member else '← 返回訪客首頁' }}</a></p>
 {% include 'partials/booking_search_form.html' %}
+    <div class="results-layout">
+      <aside class="results-sidebar">
 {% include 'partials/booking_tools.html' %}
+      </aside>
+      <div class="results-main">
     <section id="hotel-results">
       <div class="section-header">
         <div>
@@ -72,10 +122,42 @@
             {% if destination %}目的地：{{ destination }}{% else %}顯示全部目的地{% endif %}
             {% if checkin and checkout %} ・ {{ checkin }} ～ {{ checkout }}{% if nights %}（{{ nights }} 晚）{% endif %}{% endif %}
             ・ {{ guests }} 人
-            ・ 共 {{ accommodations|length }} 筆結果
+            ・ {% if using_live_data %}共 {{ hotels|length }} 間{% if hotels|length != hotel_total %}（本頁共 {{ hotel_total }} 間）{% endif %}{% else %}共 {{ accommodations|length }} 筆結果{% endif %}
           </p>
         </div>
       </div>
+      {% if using_live_data %}
+      <div class="hotel-list" data-hotel-query data-destination="{{ destination }}" data-checkin="{{ checkin }}" data-checkout="{{ checkout }}" data-guests="{{ guests }}">
+        {% for hotel in hotels %}
+        <article class="hotel-row" data-detail='{{ hotel.detail|tojson }}'>
+          <div class="hotel-photo" data-photos='{{ hotel.images|map(attribute="thumb")|list|tojson }}'>
+            {% if hotel.images %}
+              <img src="{{ hotel.images[0].thumb }}" alt="{{ hotel.name }}" loading="lazy" referrerpolicy="no-referrer" onerror="this.replaceWith(Object.assign(document.createElement('div'), {className: 'hotel-photo-empty', textContent: '圖片無法載入'}))">
+              {% if hotel.images|length > 1 %}<button type="button" class="photo-nav prev" data-photo-dir="-1" aria-label="上一張">&#8249;</button><button type="button" class="photo-nav next" data-photo-dir="1" aria-label="下一張">&#8250;</button><span class="photo-count">1 / {{ hotel.images|length }}</span>{% endif %}
+            {% else %}<div class="hotel-photo-empty">沒有圖片</div>{% endif %}
+          </div>
+          <div class="hotel-info">
+            <h3>{{ hotel.name }}</h3>
+            <div class="hotel-meta">{{ hotel.property_type }}{% if hotel.star %} ・ {{ hotel.star }} 星級{% endif %}{% if hotel.check_in_time %} ・ 入住 {{ hotel.check_in_time }}{% endif %}{% if hotel.check_out_time %} ・ 退房 {{ hotel.check_out_time }}{% endif %}</div>
+            {% if hotel.rating_10 %}<div class="rating-line"><span class="rating-score">{{ hotel.rating_10 }}</span><span class="rating-label">{{ hotel.rating_label }}</span><span>{{ '{:,}'.format(hotel.reviews) }} 則評價</span></div>{% endif %}
+            {% if hotel.description %}<p class="hotel-desc">{{ hotel.description }}</p>{% endif %}
+            {% if hotel.amenities %}<div class="amenity-chips">{% for item in hotel.amenities[:6] %}<span>{{ item }}</span>{% endfor %}</div>{% endif %}
+          </div>
+          <div class="hotel-side">
+            {% if hotel.deal %}<span class="deal-badge">{{ hotel.deal }}</span>{% endif %}
+            <span class="price-night">NT$ {{ "{:,.0f}".format(hotel.price) }}<small> / 晚</small></span>
+            {% if hotel.total_price %}<span class="price-total">{{ nights }} 晚共 NT$ {{ "{:,.0f}".format(hotel.total_price) }}</span>{% endif %}
+            <span class="price-total">以 {{ guests }} 位住客計價</span>
+            <button type="button" class="view-button" data-hotel-detail>查看詳情</button>
+          </div>
+        </article>
+        {% else %}
+        <div class="empty">沒有符合目前篩選條件的住宿，請放寬條件試試。</div>
+        {% endfor %}
+      </div>
+      {% if next_page_token %}<div class="more-wrap"><a class="more-link" href="{{ url_for('visitor_hotel_search', **dict(request.args.to_dict(), page_token=next_page_token)) }}">看更多住宿 →</a></div>{% endif %}
+      {% else %}
+      {% if live_failed %}<p class="live-note">即時住宿報價暫時無法取得，以下是站內收錄的住宿。</p>{% endif %}
       <div class="hotel-grid">
         {% for hotel in accommodations %}
           <article class="hotel-card">
@@ -108,10 +190,24 @@
           <div class="empty">找不到符合「{{ destination }}」的住宿，換個關鍵字試試，或<a href="{{ url_for('visitor_hotel_search') }}" style="color: var(--purple); font-weight: 700;">清除目的地看全部住宿</a>。</div>
         {% endfor %}
       </div>
+      {% endif %}
     </section>
+      </div>
+    </div>
   </main>
   </div>
   <script>
+    document.addEventListener('click', (event) => {
+      const button = event.target instanceof Element ? event.target.closest('[data-photo-dir]') : null;
+      if (!button) return;
+      const box = button.closest('.hotel-photo');
+      const photos = JSON.parse(box.dataset.photos || '[]');
+      const image = box.querySelector('img');
+      if (!image || photos.length < 2) return;
+      const next = (photos.indexOf(image.getAttribute('src')) + Number(button.dataset.photoDir) + photos.length) % photos.length;
+      image.src = photos[next];
+      box.querySelector('.photo-count').textContent = (next + 1) + ' / ' + photos.length;
+    });
     let toastTimer;
     function showToast(message) {
       let toast = document.getElementById('siteToast');
@@ -129,5 +225,6 @@
   </script>
   {% if is_member %}{% include 'member/_notification_drawer.html' %}<script src="{{ url_for('static', filename='js/member_notifications.js') }}" defer></script>{% endif %}
   <script src="{{ url_for('static', filename='js/member-nav.js') }}" defer></script>
+  <script src="{{ url_for('static', filename='js/hotel-detail.js') }}" defer></script>
 </body>
 </html>

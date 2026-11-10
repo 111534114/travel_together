@@ -208,12 +208,16 @@ def get_booking_redirect(origin_keyword, destination_keyword, departure_date, bo
             candidates.append({
                 "book_with": leg.get("book_with") or "",
                 "price": leg.get("price"),
+                "is_airline": bool(leg.get("airline")),
                 "url": booking_request["url"],
                 "post_data": booking_request["post_data"],
             })
 
         if candidates:
-            cheapest = min(candidates, key=lambda c: c["price"] if c["price"] is not None else float("inf"))
+            # 優先導向航空公司官網(airline=True)；該班沒有官網直訂選項時才退而求其次選最便宜的 OTA
+            airline_candidates = [c for c in candidates if c["is_airline"]]
+            pool = airline_candidates or candidates
+            cheapest = min(pool, key=lambda c: c["price"] if c["price"] is not None else float("inf"))
             result = {
                 "url": cheapest["url"],
                 "post_data": cheapest["post_data"],

@@ -1,0 +1,50 @@
+{% extends "content_admin/base.html" %}
+{% set active_menu = "restaurants" %}
+
+{% block title %}批次上傳圖片結果｜Travel Together{% endblock %}
+{% block page_title %}批次上傳圖片結果{% endblock %}
+{% block page_subtitle %}成功 {{ success_count }} 筆，失敗 {{ fail_count }} 筆{% endblock %}
+
+{% block content %}
+
+<div class="admin-section">
+
+    <div class="table-container">
+        <table class="admin-table">
+            <thead>
+            <tr>
+                <th>#</th>
+                <th>檔名</th>
+                <th>結果</th>
+                <th>說明</th>
+            </tr>
+            </thead>
+            <tbody>
+            {% for row_number, name, ok, message in results %}
+            <tr>
+                <td>{{ row_number }}</td>
+                <td>{{ name }}</td>
+                <td>
+                    {% if ok %}
+                        <span class="status-active">已更新</span>
+                    {% else %}
+                        <span class="status-returned">失敗</span>
+                    {% endif %}
+                </td>
+                <td>{{ message or '-' }}</td>
+            </tr>
+            {% else %}
+            <tr><td colspan="4" class="empty-data">沒有處理任何照片</td></tr>
+            {% endfor %}
+            </tbody>
+        </table>
+    </div>
+
+    <div class="form-actions" style="margin-top:20px;">
+        <a href="{{ url_for('restaurants.list_restaurants') }}" class="primary-button" style="text-decoration:none; display:inline-block;">回餐廳列表</a>
+        <a href="{{ url_for('restaurants.bulk_upload_images') }}" class="secondary-link">再上傳一次</a>
+    </div>
+
+</div>
+
+{% endblock %}

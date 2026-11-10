@@ -62,7 +62,7 @@ class LineBoundFriendGroupTests(unittest.TestCase):
 
         def render_detail(line_bound):
             cursor = MagicMock()
-            cursor.fetchone.side_effect = [{"setting_value": "1"}, group, None]
+            cursor.fetchone.side_effect = [{"setting_value": "1"}, group, None, None]
             cursor.fetchall.return_value = []
             connection = MagicMock()
             connection.cursor.return_value = cursor

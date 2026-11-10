@@ -10,6 +10,7 @@
             <div><span>日期</span><strong>{{ group.event_date }}{% if group.end_date and group.end_date != group.event_date %} ～ {{ group.end_date }}{% endif %}{% if group.start_time %} {{ group.start_time }}{% endif %}</strong></div>
             <div><span>地點</span><strong>{{ group.location or '未提供' }}</strong></div>
             <div><span>團員（不含主揪）</span><strong>{{ total_members }}{% if group.capacity %} / {{ group.capacity }}{% endif %}</strong></div>
+            <div><span>報名截止</span><strong>{{ registration_deadline }}（開始前 {{ group.registration_lead_days or 2 }} 天）</strong></div>
         </div>
         {% if group.description %}<div class="attraction-detail-intro"><h2>說明</h2><p>{{ group.description }}</p></div>{% endif %}
 
@@ -37,7 +38,7 @@
     <div class="panel"><h2>申請加入</h2><p class="form-hint">審核通過後預設可以查看行程及參加聊天室，但不能修改正式行程；主揪可另外授權共同編輯。</p>{% if can_apply %}<form method="post" action="{{ url_for('friend_groups.apply_group', group_id=group.group_id) }}" class="form-grid-member">
       <label class="span-2">簡短自我介紹（選填）<textarea name="note" maxlength="300" rows="2" placeholder="告訴主揪你想加入的原因"></textarea></label>
       <button class="member-btn primary" type="submit" {% if group.capacity and total_members >= group.capacity %}disabled{% endif %}>{{ '已額滿' if group.capacity and total_members >= group.capacity else '申請參加揪團' }}</button>
-    </form>{% else %}<p class="form-hint">先綁定 LINE、通過交友揪團申請並出席一場官方活動，才能申請加入。<a href="{{ url_for('friend_groups.index') }}#friend-groups">查看申請資格與官方活動</a></p>{% endif %}</div>
+    </form>{% elif registration_deadline < today %}<p class="form-hint">這個揪團已截止報名。</p>{% else %}<p class="form-hint">先綁定 LINE、通過交友揪團申請並出席一場官方活動，才能申請加入。<a href="{{ url_for('friend_groups.index') }}#friend-groups">查看申請資格與官方活動</a></p>{% endif %}</div>
     {% endif %}
     {% if my_membership and my_membership.status in ('pending','approved') %}
     <div class="panel">

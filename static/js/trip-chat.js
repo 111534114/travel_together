@@ -8,6 +8,7 @@
     var feedUrl = panel.dataset.feedUrl;
     var readUrl = panel.dataset.readUrl;
     var nudgeUrl = panel.dataset.nudgeUrl;
+    var removeUrl = panel.dataset.removeUrl;
     var listEl = document.getElementById('chatMessages');
     var form = document.getElementById('chatForm');
     var input = form.querySelector('textarea');
@@ -24,6 +25,7 @@
     var messageIds = [];
     var panelVisible = false;
     var polling = false;
+    var canModerate = false;
 
     function el(tag, className, text) {
         var node = document.createElement(tag);
@@ -77,6 +79,18 @@
         meta.appendChild(el('span', 'chat-read'));
         meta.appendChild(el('span', '', message.time));
         bubbleWrap.appendChild(meta);
+        if (canModerate && !message.removed) {
+            var remove = el('button', 'chat-remove-button', '移除');
+            remove.type = 'button';
+            remove.title = '移除不當訊息';
+            remove.addEventListener('click', function () {
+                if (!confirm('確定要移除這則訊息嗎？')) return;
+                postJson(removeUrl.replace('/0/remove', '/' + message.id + '/remove'))
+                    .then(function () { showError(''); return poll(); })
+                    .catch(function (err) { showError(err.message); });
+            });
+            bubbleWrap.appendChild(remove);
+        }
         row.appendChild(bubbleWrap);
         listEl.appendChild(row);
         messageIds.push(message.id);
@@ -172,16 +186,32 @@
         if (polling) return Promise.resolve();
         polling = true;
         return fetch(feedUrl + '?after=' + lastId, { headers: { 'Accept': 'application/json' } })
-            .then(function (res) { return res.json(); })
+            .then(function (res) {
+                return res.json().catch(function () {
+                    throw new Error('聊天室暫時無法載入，請稍後再試。');
+                }).then(function (data) {
+                    if (!res.ok) throw new Error(data.error || '聊天室暫時無法載入，請稍後再試。');
+                    return data;
+                });
+            })
             .then(function (data) {
                 if (data.error) throw new Error(data.error);
                 var stick = lastId === 0 || isNearBottom();
                 if (lastId === 0) listEl.textContent = '';
                 me = data.me;
+                canModerate = !!data.can_moderate;
                 members = data.members;
                 latestId = data.latest_id;
                 members.forEach(function (m) { if (m.user_id === me) myLastRead = Math.max(myLastRead, m.last_read); });
                 data.messages.forEach(appendMessage);
+                (data.removed_ids || []).forEach(function (id) {
+                    var row = listEl.querySelector('.chat-message[data-id="' + id + '"]');
+                    if (!row) return;
+                    var text = row.querySelector('.chat-text');
+                    if (text) text.textContent = '訊息已由團長移除';
+                    var remove = row.querySelector('.chat-remove-button');
+                    if (remove) remove.remove();
+                });
                 if (data.messages.length) lastId = data.messages[data.messages.length - 1].id;
                 if (!messageIds.length && !listEl.querySelector('.muted')) listEl.appendChild(el('p', 'muted', '還沒有訊息，跟旅伴打聲招呼吧！'));
                 if (messageIds.length) { var empty = listEl.querySelector('.muted'); if (empty) empty.remove(); }

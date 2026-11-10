@@ -309,7 +309,7 @@
         {% for banner in home_banners %}
         {% set tag = 'a' if banner.link_url else 'div' %}
         <{{ tag }} class="home-carousel-slide home-carousel-image" {% if banner.link_url %}href="{{ banner.link_url }}"{% if banner.link_url.startswith('http') %} target="_blank" rel="noopener"{% endif %}{% endif %} aria-roledescription="slide" aria-label="第 {{ loop.index + 1 }} / {{ (home_banners|length) + 1 }} 頁">
-          <img src="{{ url_for('static', filename=banner.image_path) }}" alt="{{ banner.title or '精選圖片' }}" loading="lazy" style="object-position: {{ banner.focus_x }}% {{ banner.focus_y }}%;">
+          <img src="{{ url_for('static', filename=banner.display_image_path) }}" alt="{{ banner.title or '精選圖片' }}" loading="lazy" style="object-position: {{ banner.focus_x }}% {{ banner.focus_y }}%;">
           {% if banner.title %}<div class="home-carousel-caption">{{ banner.title }}</div>{% endif %}
         </{{ tag }}>
         {% endfor %}

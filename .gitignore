@@ -29,3 +29,6 @@ tdx_cache/
 # 本機資料庫備份（可能包含帳號資料）
 database/backup_*.sql
 
+# 本機圖片路徑修復前的資料庫記錄備份
+output/*_image_paths_before_*.json
+

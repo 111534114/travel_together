@@ -1,4 +1,6 @@
 """首頁圖片跑馬燈（輪播圖）：系統管理員後台維護，首頁讀取啟用中的圖片輪播。"""
+from pathlib import Path
+
 from flask import Blueprint, flash, jsonify, redirect, render_template, request, session, url_for
 
 from activity_log import log_action
@@ -11,6 +13,8 @@ home_banners_bp = Blueprint("home_banners", __name__, url_prefix="/system-admin/
 UPLOAD_SUBFOLDER = "banners"  # 圖片存到 static/uploads/banners
 MAX_TITLE_LENGTH = 100
 MAX_LINK_LENGTH = 500
+STATIC_DIR = Path(__file__).resolve().parents[1] / "static"
+IMAGE_EXTENSIONS = (".jpg", ".jpeg", ".png", ".webp", ".gif")
 
 
 FOCUS_MISSING_HINT = "請執行 database/migrate_1109_home_banner_focus.sql 才能儲存顯示位置"
@@ -37,6 +41,29 @@ def _parse_focus(value):
         return 50
 
 
+def _with_available_image(row):
+    """保留資料庫的原路徑；上傳檔遺失時，嘗試使用專案內同標題的圖片。"""
+    image_path = (row.get("image_path") or "").replace("\\", "/")
+    path = (STATIC_DIR / image_path).resolve()
+    try:
+        path.relative_to(STATIC_DIR.resolve())
+        original_exists = path.is_file() and path.suffix.lower() in IMAGE_EXTENSIONS
+    except ValueError:
+        original_exists = False
+
+    row["image_missing"] = not original_exists
+    row["display_image_path"] = image_path if original_exists else None
+    if not original_exists:
+        title = (row.get("title") or "").strip()
+        if title and Path(title).name == title and "/" not in title and "\\" not in title:
+            for extension in IMAGE_EXTENSIONS:
+                fallback = STATIC_DIR / "images" / f"{title}{extension}"
+                if fallback.is_file():
+                    row["display_image_path"] = f"images/{title}{extension}"
+                    break
+    return row
+
+
 def fetch_active_banners(cursor):
     """首頁用：回傳啟用中的輪播圖。資料表尚未建立時回傳空清單，不影響首頁其他區塊。"""
     try:
@@ -56,7 +83,8 @@ def fetch_active_banners(cursor):
                 WHERE is_active = 1
                 ORDER BY sort_order ASC, banner_id ASC
             """)
-        return _with_focus_defaults(cursor.fetchall())
+        rows = _with_focus_defaults(cursor.fetchall())
+        return [row for row in map(_with_available_image, rows) if row["display_image_path"]]
     except Exception as error:
         print("首頁輪播圖查詢失敗（是否尚未執行 migrate_1109_home_banners.sql？）：", error)
         return []
@@ -97,7 +125,7 @@ def manage_banners():
             LEFT JOIN users u ON u.user_id = b.created_by
             ORDER BY b.sort_order ASC, b.banner_id ASC
         """)
-        banners = _with_focus_defaults(cursor.fetchall())
+        banners = [_with_available_image(row) for row in _with_focus_defaults(cursor.fetchall())]
     except Exception as error:
         print("讀取首頁輪播圖失敗：", error)
         flash("讀取輪播圖失敗，請確認已執行 database/migrate_1109_home_banners.sql", "error")

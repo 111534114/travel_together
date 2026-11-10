@@ -43,6 +43,8 @@
     .banner-bulk-all, .banner-select { display: inline-flex; align-items: center; gap: 6px; font-size: 14px; cursor: pointer; }
     .banner-item.is-selected { border-color: #C0504D; background: #FFF7F6; }
     .banner-save-hint { color: #C0504D !important; font-weight: 700; margin-left: 0 !important; }
+    .banner-missing-note { margin: 0; padding: 8px 10px; color: #A6423F; background: #FFF1EF; border-radius: 8px; font-size: 13px; }
+    .banner-empty-image { display: grid; place-items: center; min-height: 120px; color: #A6423F; background: #FFF1EF; border-radius: 8px; }
     @media (max-width: 760px) { .banner-item, .banner-edit { grid-template-columns: 1fr; } }
 </style>
 
@@ -75,14 +77,17 @@
         <article class="banner-item {{ '' if item.is_active else 'is-hidden' }}">
             <div class="banner-thumb" data-crop data-ratio="5.5">
                 <label class="banner-select"><input type="checkbox" name="banner_ids" value="{{ item.banner_id }}" form="banner-bulk-form" data-bulk-check> 選取這張</label>
+                {% if item.image_missing %}<p class="banner-missing-note">原上傳圖片已遺失。{% if item.display_image_path %}首頁暫用同名的專案圖片；{% else %}首頁已略過這張圖片；{% endif %}請選擇「更換圖片」後儲存。</p>{% endif %}
                 <div class="banner-crop-label"><span>顯示位置（拖曳白框）</span><button type="button" data-crop-reset>置中</button></div>
                 <div class="banner-crop-picker" data-crop-picker>
-                    <img src="{{ url_for('static', filename=item.image_path) }}" alt="{{ item.title or '輪播圖' }}">
+                    <img {% if item.display_image_path %}src="{{ url_for('static', filename=item.display_image_path) }}"{% else %}style="display:none"{% endif %} alt="{{ item.title or '輪播圖' }}">
+                    {% if not item.display_image_path %}<div class="banner-empty-image" data-banner-empty>圖片遺失，請更換圖片</div>{% endif %}
                     <div class="banner-crop-frame" data-crop-frame></div>
                 </div>
                 <div class="banner-crop-label"><span>首頁預覽</span></div>
                 <div class="banner-crop-result">
-                    <img src="{{ url_for('static', filename=item.image_path) }}" alt="" data-crop-result style="object-position: {{ item.focus_x }}% {{ item.focus_y }}%;">
+                    <img {% if item.display_image_path %}src="{{ url_for('static', filename=item.display_image_path) }}"{% endif %} alt="" data-crop-result style="object-position: {{ item.focus_x }}% {{ item.focus_y }}%;{% if not item.display_image_path %} display:none;{% endif %}">
+                    {% if not item.display_image_path %}<div class="banner-empty-image" data-banner-empty>圖片遺失，請更換圖片</div>{% endif %}
                     <span class="banner-badge {{ '' if item.is_active else 'off' }}">{{ '顯示中' if item.is_active else '已隱藏' }}</span>
                 </div>
             </div>
@@ -269,6 +274,8 @@
         fileInput.addEventListener('change', function () {  // 選了新圖片就直接拿新圖片來調整位置
             if (!fileInput.files.length) return;
             var url = URL.createObjectURL(fileInput.files[0]);
+            item.querySelectorAll('[data-banner-empty]').forEach(function (empty) { empty.remove(); });
+            img.style.display = ''; result.style.display = '';
             img.src = url; result.src = url;
             fx = 50; fy = 50;
             original = { x: -1, y: -1 };

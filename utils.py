@@ -2,6 +2,7 @@ import io  # 匯入 io，用來在記憶體中組出 CSV 檔案內容
 import ipaddress
 from datetime import time as time_type, timedelta  # 匯入 time/timedelta，用來把資料庫的 TIME 欄位格式化成 HH:MM
 import os  # 匯入作業系統相關功能，用來處理檔案路徑與資料夾
+from pathlib import Path
 import random  # 匯入 random，用來隨機挑選不同句型，避免自動產生的描述長得都一樣
 import socket
 import uuid  # 匯入 uuid，用來產生不重複的檔名
@@ -210,7 +211,16 @@ def delete_uploaded_image(relative_path):  # 定義刪除已上傳圖片的函�
     if not relative_path:  # 如果路徑是空值(代表原本就沒有圖片)
         return  # 直接結束，不用做任何事
 
-    full_path = os.path.join(current_app.static_folder, relative_path)  # 組成圖片在硬碟上的完整路徑
+    # 只有實際上傳的檔案可以刪除；專案內的 static/images 共用照片不能隨資料列一起刪掉。
+    parts = str(relative_path).replace("\\", "/").split("/")
+    if len(parts) < 3 or parts[0] != "uploads" or any(part in ("", ".", "..") for part in parts):
+        return
+    upload_root = (Path(current_app.static_folder) / "uploads").resolve()
+    full_path = (Path(current_app.static_folder) / Path(*parts)).resolve()
+    try:
+        full_path.relative_to(upload_root)
+    except ValueError:
+        return
 
     if os.path.isfile(full_path):  # 如果該檔案確實存在
         try:  # 嘗試刪除檔案

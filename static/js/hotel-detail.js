@@ -169,9 +169,17 @@
       a.href = d.website_url; a.target = '_blank'; a.rel = 'noopener';
       side.appendChild(a);
     }
-    if (d.latitude) {
+    const hotelName = d.original_name || d.name;
+    const hotelLocation = d.address || (query && query.destination) || '';
+    const mapQuery = [hotelName, hotelLocation].filter(Boolean).join(', ') ||
+      (d.latitude != null && d.longitude != null ? `${d.latitude},${d.longitude}` : '');
+    if (mapQuery) {
       const a = el('a', 'hd-btn', '在地圖上查看');
-      a.href = `https://www.google.com/maps/search/?api=1&query=${d.latitude},${d.longitude}`;
+      const mapUrl = new URL('https://www.google.com/maps/search/');
+      mapUrl.searchParams.set('api', '1');
+      mapUrl.searchParams.set('query', mapQuery);
+      if (d.place_id) mapUrl.searchParams.set('query_place_id', d.place_id);
+      a.href = mapUrl.toString();
       a.target = '_blank'; a.rel = 'noopener';
       side.appendChild(a);
     }

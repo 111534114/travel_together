@@ -94,6 +94,8 @@ def _parse_detail(item, images, amenities, rating_10, per_night, total):
     coords = item.get("gps_coordinates") or {}
     return {
         "name": item.get("name") or "",
+        "address": item.get("address") or "",
+        "place_id": item.get("place_id") or "",
         "description": item.get("description") or "",
         "images": [img["full"] for img in images],
         "amenities": amenities,

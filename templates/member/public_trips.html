@@ -16,8 +16,7 @@
             <label class="companion-search-field">旅行日期<input type="date" name="date" value="{{ filters.date }}"></label>
             <label class="companion-search-field">預算上限<input type="number" min="0" name="budget" value="{{ filters.budget }}" placeholder="不限"></label>
         </div>
-        <div class="companion-search-footer">
-            <label class="companion-search-toggle"><input type="checkbox" name="available" value="1" {% if filters.available %}checked{% endif %}><span>只看尚有名額</span></label>
+        <div class="companion-search-footer public-trip-search-footer">
             <div class="companion-search-actions">
                 <a class="member-btn outline" href="{{ url_for('member.public_trips') }}">清除條件</a>
                 <button class="member-btn primary" type="submit">搜尋行程</button>

@@ -652,7 +652,6 @@ def public_trips():
         "region": request.args.get("region", "").strip()[:80],
         "date": request.args.get("date", "").strip(),
         "budget": request.args.get("budget", "").strip(),
-        "available": request.args.get("available") == "1",
     }
     max_budget = float(filters["budget"]) if filters["budget"].isdigit() else None
     visible_trips = []
@@ -662,8 +661,6 @@ def public_trips():
         if filters["date"] and not (str(trip.get("start_date") or "") <= filters["date"] <= str(trip.get("end_date") or "")):
             continue
         if max_budget is not None and float(trip.get("total_budget") or 0) > max_budget:
-            continue
-        if filters["available"] and trip.get("people_count") and trip.get("joined_count", 0) >= trip["people_count"]:
             continue
         trip["is_favorited"] = trip["trip_id"] in favorite_ids
         visible_trips.append(trip)

@@ -29,6 +29,13 @@
                 <button class="member-btn danger small" type="submit">取消揪團</button>
             </form>
         </div>
+        {% else %}
+        <div class="group-manage-danger">
+            <p>刪除後，揪團的申請、相簿、評價與檢舉資料會永久移除；連結的行程會保留。</p>
+            <form method="post" action="{{ url_for('friend_groups.delete_group', group_id=group.group_id) }}" onsubmit="return confirm('確定永久刪除這個揪團及其申請、相簿、評價與檢舉資料嗎？這項操作無法復原。')">
+                <button class="member-btn danger small" type="submit">刪除揪團</button>
+            </form>
+        </div>
         {% endif %}
     </section>
 

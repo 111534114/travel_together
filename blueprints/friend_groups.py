@@ -221,7 +221,7 @@ def index():
     try:
         user_id = session["user_id"]
         friend_group_on = _feature_enabled(cursor)
-        line_bound = False
+        line_bound = _has_line_bound(cursor, user_id)
         application = None
         unlocked = False
         profile = None
@@ -249,7 +249,6 @@ def index():
                 return False
             return True
         if friend_group_on:
-            line_bound = _has_line_bound(cursor, user_id)
             if line_bound:
                 application = _latest_application(cursor, user_id)
 
@@ -765,7 +764,13 @@ def new_group():
         cities = get_cities(cursor)
         cursor.execute("""
             SELECT t.trip_id, t.trip_name, t.start_date, t.end_date, t.country_id, t.city_id,
-                   t.total_budget, t.people_count
+                   t.total_budget, t.people_count,
+                   (SELECT LEFT(CAST(i.start_time AS CHAR), 5) FROM itineraries i
+                    WHERE i.trip_id=t.trip_id AND i.start_time IS NOT NULL
+                    ORDER BY i.itinerary_date, i.start_time, i.sort_order LIMIT 1) AS first_start_time,
+                   (SELECT LEFT(CAST(i.end_time AS CHAR), 5) FROM itineraries i
+                    WHERE i.trip_id=t.trip_id AND i.end_time IS NOT NULL
+                    ORDER BY i.itinerary_date DESC, i.end_time DESC, i.sort_order DESC LIMIT 1) AS last_end_time
             FROM trips t WHERE t.owner_id=%s AND t.deleted_at IS NULL
               AND t.status != 'cancelled' AND t.visibility='private'
               AND NOT EXISTS (SELECT 1 FROM friend_groups g WHERE g.trip_id=t.trip_id AND g.status != 'cancelled')
@@ -888,7 +893,7 @@ def new_group():
                 INSERT INTO friend_groups
                     (trip_id, host_user_id, title, description, location, event_date, end_date, start_time, end_time,
                      capacity, pace_filter, social_style_filter, show_member_list)
-                VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
+                VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
             """, (trip_id, user_id, title, description, location or None, event_date, end_date, start_time, end_time,
                   capacity, pace_filter, social_style_filter, show_member_list))
             cursor.execute("""INSERT INTO app_settings (setting_key,setting_value,updated_by) VALUES (%s,%s,%s)""",
@@ -1336,6 +1341,41 @@ def cancel_group(group_id):
     return redirect(url_for("friend_groups.index") + "#friend-groups")
 
 
+@friend_groups_bp.route("/groups/<int:group_id>/delete", methods=["POST"])
+@login_required("member")
+def delete_group(group_id):
+    connection = _connection_or_home()
+    if connection is None: return redirect(url_for("friend_groups.index") + "#friend-groups")
+    cursor = connection.cursor(dictionary=True)
+    try:
+        cursor.execute("SELECT host_user_id, status FROM friend_groups WHERE group_id=%s FOR UPDATE", (group_id,))
+        group = cursor.fetchone()
+        if not group or group["host_user_id"] != session["user_id"] or group["status"] != "cancelled":
+            flash("只有團主可以刪除已取消的揪團。", "error")
+            return redirect(url_for("friend_groups.index") + "#friend-groups")
+        cursor.execute("SELECT stored_name FROM friend_group_album_photos WHERE group_id=%s", (group_id,))
+        photo_names = [row["stored_name"] for row in cursor.fetchall()]
+        cursor.execute("DELETE FROM app_settings WHERE setting_key=%s", (f"friend_group_deadline_{group_id}",))
+        cursor.execute("DELETE FROM friend_groups WHERE group_id=%s", (group_id,))
+        connection.commit()
+        for stored_name in photo_names:
+            if re.fullmatch(r"[0-9a-f]{40}\.(?:jpg|png|webp|gif)", stored_name):
+                try:
+                    os.remove(_group_album_path(stored_name))
+                except FileNotFoundError:
+                    pass
+                except OSError as error:
+                    current_app.logger.warning("無法清除揪團相簿檔案：%s", error)
+        flash("揪團已刪除；原本連結的行程仍會保留。", "success")
+    except Exception as error:
+        connection.rollback()
+        current_app.logger.exception("刪除揪團失敗：%s", error)
+        flash("刪除失敗，請稍後再試。", "error")
+    finally:
+        cursor.close(); connection.close()
+    return redirect(url_for("friend_groups.index") + "#friend-groups")
+
+
 @friend_groups_bp.route("/groups/<int:group_id>/edit", methods=["GET", "POST"])
 @login_required("member")
 def edit_group(group_id):
@@ -1725,6 +1765,10 @@ def ai_plan():
     connection = _connection_or_home()
     if connection is None: return redirect(url_for("friend_groups.index"))
     cursor = connection.cursor(dictionary=True)
+    if not _has_line_bound(cursor, session["user_id"]):
+        cursor.close(); connection.close()
+        flash("請先綁定 LINE 帳號，才能使用 AI 規劃。", "error")
+        return redirect(url_for("line_bind", next=url_for("friend_groups.ai_plan")))
     countries = []
     cities = []
     form_values = request.form if request.method == "POST" else {}
@@ -1806,6 +1850,10 @@ def save_ai_plan(draft_id):
     connection = _connection_or_home()
     if connection is None: return redirect(url_for("friend_groups.index"))
     cursor = connection.cursor(dictionary=True)
+    if not _has_line_bound(cursor, session["user_id"]):
+        cursor.close(); connection.close()
+        flash("請先綁定 LINE 帳號，才能使用 AI 規劃。", "error")
+        return redirect(url_for("line_bind", next=url_for("friend_groups.ai_plan")))
     try:
         cursor.execute("""
             SELECT * FROM friend_group_ai_drafts

@@ -4593,6 +4593,7 @@ html { scroll-behavior: smooth; }
     padding-top: 18px;
     border-top: 1px solid #E8F0F1;
 }
+.public-trip-search-footer { justify-content: flex-end; }
 .companion-search-toggle {
     display: inline-flex;
     align-items: center;

@@ -1,6 +1,6 @@
 {% if booking_kind %}
 <div class="booking-search-card">
-  <form method="get" class="booking-search-form">
+  <form method="get" class="booking-search-form booking-search-form--{{ booking_kind }}">
     {% if booking_kind == 'hotel' %}
     <div class="field"><label for="searchDestination">目的地</label><input id="searchDestination" name="destination" type="text" value="{{ destination or '' }}" placeholder="城市、飯店名稱" autocomplete="off" data-hotel-autocomplete></div>
     <div class="field"><label for="searchCheckin">入住</label><input id="searchCheckin" name="checkin" type="date" value="{{ checkin or '' }}"></div>
@@ -15,11 +15,22 @@
     <div class="field"><label for="searchReturn">回程日期（選填）</label><input id="searchReturn" name="return" type="date" value="{{ return_date or '' }}"></div>
     <div class="field"><label for="searchPax">人數</label><input id="searchPax" name="pax" type="number" min="1" max="99" value="{{ pax or 1 }}"></div>
     {% elif booking_kind == 'train' %}
+    <div class="field field-compact"><label for="searchRail">車種</label><select id="searchRail" name="rail">
+      <option value="thsr"{% if rail == 'thsr' %} selected{% endif %}>高鐵</option>
+      <option value="tra"{% if rail == 'tra' %} selected{% endif %}>台鐵</option>
+      {% if not rail %}<option value="" selected>高鐵＋台鐵</option>{% endif %}
+    </select></div>
+    {% set train_roundtrip = request.args.get('trip_mode') == 'roundtrip' and request.args.get('return') %}
+    <div class="field field-compact"><label for="searchTripMode">行程</label><select id="searchTripMode" name="trip_mode">
+      <option value="oneway"{% if not train_roundtrip %} selected{% endif %}>單程</option>
+      <option value="roundtrip"{% if train_roundtrip %} selected{% endif %}>來回</option>
+    </select></div>
     <div class="field"><label for="searchFrom">出發站</label><input id="searchFrom" name="from" type="text" value="{{ origin or '' }}" placeholder="台北" autocomplete="off" data-station-autocomplete></div>
     <div class="field-sep">→</div>
     <div class="field"><label for="searchTo">到達站</label><input id="searchTo" name="to" type="text" value="{{ destination or '' }}" placeholder="高雄" autocomplete="off" data-station-autocomplete></div>
-    <div class="field"><label for="searchDate">日期</label><input id="searchDate" name="date" type="date" value="{{ travel_date or '' }}"></div>
-    <div class="field"><label for="searchPax">人數</label><input id="searchPax" name="pax" type="number" min="1" max="99" value="{{ pax or 1 }}"></div>
+    <div class="field"><label for="searchDate">去程日期</label><input id="searchDate" name="date" type="date" value="{{ travel_date or '' }}"></div>
+    <div class="field" id="searchReturnField"{% if not train_roundtrip %} hidden{% endif %}><label for="searchTrainReturn">回程日期</label><input id="searchTrainReturn" name="return" type="date" value="{{ request.args.get('return', '') if train_roundtrip else '' }}"{% if not train_roundtrip %} disabled{% endif %}></div>
+    <div class="field field-compact"><label for="searchPax">人數</label><input id="searchPax" name="pax" type="number" min="1" max="99" value="{{ pax or 1 }}"></div>
     {% endif %}
     <button class="booking-search-submit" type="submit"{% if booking_kind == 'flight' %} onclick="var r=document.getElementById('searchReturn'); document.getElementById('tripModeInput').value = (r &amp;&amp; r.value) ? 'roundtrip' : 'oneway';"{% endif %}>搜尋</button>
   </form>
@@ -32,8 +43,21 @@
     var now = new Date();
     var todayStr = now.getFullYear() + '-' + String(now.getMonth() + 1).padStart(2, '0') + '-' + String(now.getDate()).padStart(2, '0');
     document.querySelectorAll('.booking-search-form input[type="date"]').forEach(function (input) { input.min = todayStr; });
-    var startInput = document.getElementById('searchCheckin') || document.getElementById('searchDepart');
-    var endInput = document.getElementById('searchCheckout') || document.getElementById('searchReturn');
+    var startInput = document.getElementById('searchCheckin') || document.getElementById('searchDepart') || document.getElementById('searchDate');
+    var endInput = document.getElementById('searchCheckout') || document.getElementById('searchReturn') || document.getElementById('searchTrainReturn');
+    // 火車票：選「來回」才顯示並送出回程日期；切回「單程」就藏起來並停用，不會把舊的回程日期帶進網址
+    var tripMode = document.getElementById('searchTripMode');
+    var returnField = document.getElementById('searchReturnField');
+    if (tripMode && returnField && endInput) {
+      var syncTrip = function () {
+        var roundtrip = tripMode.value === 'roundtrip';
+        returnField.hidden = !roundtrip;
+        endInput.disabled = !roundtrip;
+        endInput.required = roundtrip;
+      };
+      tripMode.addEventListener('change', syncTrip);
+      syncTrip();
+    }
     if (startInput && endInput) {
       startInput.addEventListener('change', function () {
         endInput.min = startInput.value || todayStr;

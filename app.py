@@ -5,7 +5,7 @@ import secrets  # 匯入 secrets 模組，用來產生忘記密碼用的隨機 t
 from urllib.parse import quote, unquote_plus, urlsplit # SerpApi 表單資料解碼與公開 OAuth 網址判斷
 from booking_search import (
     TRAIN_TYPE_LABELS, apply_facets, apply_time_band, apply_value_range, booking_bp, facet_options,
-    filter_prices, price_buckets, price_range, time_band_options, value_range,
+    filter_prices, mark_saved_live_trains, price_buckets, price_range, time_band_options, value_range,
 )
 import requests  # 匯入 requests，用來呼叫 LINE 的個人資料 API
 from datetime import datetime, timedelta
@@ -728,7 +728,7 @@ def _live_cheapest_price(origin_keyword, destination_keyword, depart_date, pax=1
 
 @app.route("/api/station-search")  # 出發站/到達站自動完成打字時用的 AJAX 端點，查高鐵 12 站＋台鐵全部車站
 def api_station_search():
-    return jsonify(tdx_trains.search_stations(request.args.get("q", "")))
+    return jsonify(tdx_trains.search_stations(request.args.get("q", ""), rail=request.args.get("rail")))
 
 
 @app.route("/api/city-search")  # 出發地/目的地自動完成打字時用的 AJAX 端點，查全球機場資料庫(不只是手動整理的常見城市)
@@ -1042,6 +1042,9 @@ def visitor_train_search():
     travel_date = request.args.get("date", "").strip()  # 取得查詢日期(YYYY-MM-DD)，TDX 依日期查當天班表；本地資料庫是固定每日時刻
     return_date = request.args.get("return", "").strip()
     is_roundtrip = request.args.get('trip_mode') == 'roundtrip' and return_date
+    rail = request.args.get("rail", "").strip()  # 使用者選的系統：thsr=高鐵、tra=台鐵；沒選(舊連結)就兩個都查
+    if rail not in TRAIN_TYPE_LABELS:
+        rail = ""
 
     pax_raw = request.args.get("pax", "1").strip()  # 取得人數參數(字串)
     pax = int(pax_raw) if pax_raw.isdigit() and int(pax_raw) > 0 else 1  # 驗證人數為正整數，否則預設 1 人
@@ -1051,12 +1054,12 @@ def visitor_train_search():
 
     # 優先查交通部 TDX 的真實班表與票價；沒設定金鑰、站名對不到、或 API 失敗(例如超過每分鐘次數限制)，
     # 就自動改用本地資料庫 trains 資料表的固定班表
-    live_trains = tdx_trains.search_trains(origin, destination, travel_date)
+    live_trains = tdx_trains.search_trains(origin, destination, travel_date, rail)
     using_live_data = live_trains is not None
     if using_live_data:
         trains = live_trains
         if is_roundtrip:
-            return_trains = tdx_trains.search_trains(destination, origin, return_date) or []
+            return_trains = tdx_trains.search_trains(destination, origin, return_date, rail) or []
     connection = None if using_live_data else get_db_connection()
 
     if connection:
@@ -1072,6 +1075,10 @@ def visitor_train_search():
             if destination:  # 如果有輸入到達站關鍵字，依站名模糊搜尋
                 conditions.append("t.destination_station LIKE %s")
                 params.append(f"%{destination}%")
+
+            if rail:  # 只查使用者選的高鐵或台鐵
+                conditions.append("t.train_type = %s")
+                params.append(rail)
 
             where_clause = "WHERE " + " AND ".join(conditions)
 
@@ -1091,7 +1098,8 @@ def visitor_train_search():
             if is_roundtrip:
                 cursor.execute("""SELECT * FROM trains WHERE status='active' AND seats_available >= %s
                                   AND origin_station LIKE %s AND destination_station LIKE %s
-                                  ORDER BY departure_time""", (pax, '%' + destination + '%', '%' + origin + '%'))
+                                  AND (%s = '' OR train_type = %s)
+                                  ORDER BY departure_time""", (pax, '%' + destination + '%', '%' + origin + '%', rail, rail))
                 return_trains = cursor.fetchall()
         except Exception as error:  # 如果查詢過程發生錯誤(例如資料表尚未建立)
             print("高鐵／台鐵搜尋查詢失敗：", error)
@@ -1100,13 +1108,14 @@ def visitor_train_search():
             connection.close()
 
     all_trains = trains + return_trains
+    mark_saved_live_trains(all_trains)  # 已收藏的即時車次，愛心要顯示成已收藏
     for row in all_trains:  # 高鐵即時車次的官網連結先指到下面的轉址路由，使用者按下才去高鐵官網加密查詢條件
         if row.get("official_query"):
             row["booking_url"] = url_for("thsr_timetable_redirect", **row["official_query"])
     train_price_buckets = price_buckets(all_trains, "price")
     train_price_max = price_range(all_trains, "price")
-    train_type_facets = facet_options(all_trains, "train_type", TRAIN_TYPE_LABELS)
-    car_class_facets = facet_options(all_trains, "car_class")
+    train_type_facets = facet_options(all_trains, "train_type", TRAIN_TYPE_LABELS, price_field="price")
+    car_class_facets = facet_options(all_trains, "car_class", price_field="price")
     depart_band_options = time_band_options(all_trains, "departure_time")
     trains = apply_time_band(apply_facets(trains, (("train_type", "train_type"), ("car_class", "car_class"))), "departure_time")
     return_trains = apply_time_band(apply_facets(return_trains, (("train_type", "train_type"), ("car_class", "car_class"))), "departure_time")
@@ -1116,6 +1125,8 @@ def visitor_train_search():
         destination=destination,
         travel_date=travel_date,
         pax=pax,
+        rail=rail,
+        rail_label=TRAIN_TYPE_LABELS.get(rail, "高鐵／台鐵"),
         trains=filter_prices(trains, 'price', 'duration_minutes'),
         return_trains=filter_prices(return_trains, 'price', 'duration_minutes'),
         price_buckets=train_price_buckets,

@@ -78,8 +78,10 @@
     {% endif %}
     <label>排序<select name="sort" onchange="this.form.requestSubmit()"><option value="">預設</option>{% if booking_kind != 'hotel' %}<option value="featured" {{ 'selected' if request.args.get('sort') == 'featured' }}>精選</option>{% endif %}<option value="price_asc" {{ 'selected' if request.args.get('sort') == 'price_asc' }}>價格由低至高</option><option value="price_desc" {{ 'selected' if request.args.get('sort') == 'price_desc' }}>價格由高至低</option>{% if booking_kind == 'hotel' and using_live_data %}<option value="rating" {{ 'selected' if request.args.get('sort') == 'rating' }}>評分最高</option><option value="star" {{ 'selected' if request.args.get('sort') == 'star' }}>星級最高</option>{% endif %}{% if booking_kind != 'hotel' %}<option value="depart_earliest" {{ 'selected' if request.args.get('sort') == 'depart_earliest' }}>當日最早出發</option><option value="depart_latest" {{ 'selected' if request.args.get('sort') == 'depart_latest' }}>當日最晚出發</option>{% endif %}</select></label>
     {% if booking_kind == 'flight' %}<label>艙等<select name="cabin" onchange="this.form.querySelectorAll('input[name=min_price],input[name=max_price]').forEach(i => i.disabled = true); this.form.requestSubmit()">{% for key,label in cabin_options.items() %}<option value="{{ key }}" {{ 'selected' if request.args.get('cabin','all') == key }}>{{ label }}</option>{% endfor %}</select></label>{% elif booking_kind != 'hotel' %}<label>票種<select name="fare" onchange="this.form.requestSubmit()">{% for key,label in fare_options.items() %}<option value="{{ key }}" {{ 'selected' if request.args.get('fare','all') == key }}>{{ label }}</option>{% endfor %}</select></label>{% endif %}
-    {% if booking_kind == 'train' %}{{ facet_checkboxes('車種', 'train_type', train_type_facets) }}{% endif %}
-    {% if booking_kind == 'train' %}{{ facet_checkboxes('車廂等級', 'car_class', car_class_facets) }}{% endif %}
+    {% if booking_kind == 'train' %}
+    {{ facet_list_priced('車種', 'train_type', train_type_facets, show_count=True) }}
+    {{ facet_list_priced('車廂等級', 'car_class', car_class_facets, show_count=True) }}
+    {% endif %}
     {% if booking_kind == 'flight' %}
     <div class="facet-section">
       <span class="facet-title">時間</span>
@@ -128,7 +130,7 @@
     {{ facet_list_priced('設施', 'amenity', amenity_facets, show_count=True, searchable=True) }}
     {% endif %}
   </form>
-  <p class="price-range-note">{{ '僅供估算，實際空房與價格請洽業者確認。' if booking_kind == 'hotel' else ('即時機票報價，價格會隨日期與座位狀況浮動，實際票價與座位請以航空公司或售票平台為準。' if using_live_data else '僅供估算，為資料庫參考票價；實際票價以售票平台為準。') }}</p>
+  <p class="price-range-note">{{ '僅供估算，實際空房與價格請洽業者確認。' if booking_kind == 'hotel' else (('即時班表與票價來自交通部 TDX，座位與訂票請以高鐵／台鐵官方售票系統為準。' if booking_kind == 'train' else '即時機票報價，價格會隨日期與座位狀況浮動，實際票價與座位請以航空公司或售票平台為準。') if using_live_data else '僅供估算，為資料庫參考票價；實際票價以售票平台為準。') }}</p>
   {% endif %}
   {% if search_errors %}<div class="booking-errors" role="alert">{% for key, message in search_errors.items() %}<p>{{ message }}</p>{% endfor %}</div>{% endif %}
 </div>

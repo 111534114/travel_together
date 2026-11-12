@@ -1,4 +1,4 @@
-from datetime import date
+from datetime import date, timedelta
 from decimal import Decimal, InvalidOperation
 import secrets
 
@@ -6,6 +6,7 @@ from flask import Blueprint, abort, current_app, flash, redirect, render_templat
 from auth import login_required
 from db import get_db_connection
 from utils import format_hm
+import tdx_trains
 
 booking_bp = Blueprint('booking', __name__)
 TABLES = {'hotel': ('accommodations', 'accommodation_id'), 'flight': ('flights', 'flight_id'), 'train': ('trains', 'train_id')}
@@ -85,6 +86,8 @@ def guard_search():
                            origin=request.args.get('from', ''), checkin=request.args.get('checkin', ''),
                            checkout=request.args.get('checkout', ''), depart_date=request.args.get('depart', ''),
                            return_date=request.args.get('return', ''), travel_date=request.args.get('date', ''),
+                           rail=request.args.get('rail', '') if request.args.get('rail') in TRAIN_TYPE_LABELS else '',
+                           rail_label=TRAIN_TYPE_LABELS.get(request.args.get('rail', ''), '高鐵／台鐵'),
                            guests=2, pax=1, nights=None, accommodations=[], outbound_flights=[], return_flights=[], trains=[],
                            price_buckets=[], price_max=None, airline_facets=[], train_type_facets=[], car_class_facets=[], depart_band_options=[]), 400
 
@@ -318,6 +321,83 @@ def save_favorite(kind, target_id):
     return redirect(target)
 
 
+LIVE_TRAIN_KEY_SQL = ("SELECT train_id FROM trains WHERE train_type=%s AND train_number=%s AND car_class=%s "
+                      "AND origin_station=%s AND destination_station=%s AND TIME_FORMAT(departure_time,'%H:%i')=%s "
+                      "ORDER BY status='active' DESC, train_id LIMIT 1")
+
+
+def _live_train_key(row):
+    return (row['train_type'], row['train_number'], row['car_class'], row['origin_station'],
+            row['destination_station'], format_hm(row['departure_time']))
+
+
+def mark_saved_live_trains(rows):
+    """即時(TDX)車次沒有資料庫 train_id，收藏時會另存一份到 trains 表；這裡把已收藏的車次對回去，
+    讓結果頁的愛心顯示「已收藏」並能取消收藏(row['favorite_id'] = 對應的 train_id)。"""
+    live_rows = [row for row in rows if row.get('is_live')]
+    if session.get('role') != 'member' or not live_rows:
+        return
+    connection = get_db_connection()
+    if not connection:
+        return
+    cursor = connection.cursor()
+    try:
+        cursor.execute("""SELECT t.train_id, t.train_type, t.train_number, t.car_class, t.origin_station,
+                                 t.destination_station, TIME_FORMAT(t.departure_time,'%H:%i')
+                          FROM booking_favorites f JOIN trains t ON t.train_id=f.target_id
+                          WHERE f.user_id=%s AND f.kind='train'""", (session['user_id'],))
+        saved = {tuple(record[1:]): record[0] for record in cursor.fetchall()}
+    finally:
+        cursor.close(); connection.close()
+    for row in live_rows:
+        row['favorite_id'] = saved.get(_live_train_key(row))
+
+
+@booking_bp.route('/member/booking-favorites/train/live', methods=['POST'])
+@login_required('member')
+def save_live_train():
+    """收藏即時(TDX)車次：不相信表單送來的票價等資料，而是用站名＋日期重新向 TDX 查一次(有快取)，
+    找到同一班車後存一份到 trains 表(status='hidden'，不會出現在一般搜尋結果)，再加入收藏。"""
+    if not secrets.compare_digest(request.form.get('csrf', ''), session.get('booking_csrf', '!')):
+        abort(400)
+    live_id = request.form.get('live_id', '')
+    rail = request.form.get('rail', '')
+    rows = tdx_trains.search_trains(request.form.get('from', ''), request.form.get('to', ''),
+                                    request.form.get('date', '') or None, rail if rail in TRAIN_TYPE_LABELS else None)
+    row = next((r for r in rows or [] if r['train_id'] == live_id), None)
+    if row is None:
+        flash('找不到這班車次，可能班表已更新，請重新搜尋後再收藏。', 'error')
+    else:
+        connection = get_db_connection()
+        if connection is None:
+            abort(503)
+        cursor = connection.cursor()
+        try:
+            key = _live_train_key(row)
+            cursor.execute(LIVE_TRAIN_KEY_SQL, key)
+            found = cursor.fetchone()
+            if found:
+                train_id = found[0]
+            else:
+                cursor.execute("""INSERT INTO trains (train_type, train_number, car_class, origin_station, destination_station,
+                                                      departure_time, arrival_time, duration_minutes, price, seats_available, status)
+                                  VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,0,'hidden')""",
+                               key[:5] + (row['departure_time'], row['arrival_time'], row['duration_minutes'], row['price']))
+                train_id = cursor.lastrowid
+            cursor.execute('INSERT IGNORE INTO booking_favorites(user_id,kind,target_id) VALUES (%s,%s,%s)',
+                           (session['user_id'], 'train', train_id))
+            connection.commit()
+        except Exception:
+            connection.rollback()
+            raise
+        finally:
+            cursor.close(); connection.close()
+    target = request.form.get('next', '')
+    if not target.startswith('/visitor/trains') or any(ch in target for ch in '\\\r\n'):
+        target = url_for('booking.favorites')
+    return redirect(target)
+
+
 @booking_bp.route('/member/booking-favorites')
 @login_required('member')
 def favorites():
@@ -332,4 +412,7 @@ def favorites():
             groups[kind] = cursor.fetchall()
     finally:
         cursor.close(); connection.close()
-    return render_template('member/booking_favorites.html', groups=groups)
+    # 收藏沒有記日期，「重新查詢」連結預設帶今天(住宿是今天入住、明天退房)，使用者到結果頁可以再改日期
+    today = date.today()
+    return render_template('member/booking_favorites.html', groups=groups, today=today.isoformat(),
+                           tomorrow=(today + timedelta(days=1)).isoformat())

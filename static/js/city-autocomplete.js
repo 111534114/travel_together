@@ -308,12 +308,36 @@
 
   const debounceTimers = new WeakMap();
 
+  // 表單上選了「高鐵」或「台鐵」(name="rail" 的單選鈕或下拉選單)，車站清單就只列該系統的車站，避免選到另一個系統沒有的站
+  const RAIL_POPULAR = {
+    thsr: ['南港', '台北', '板橋', '桃園', '新竹', '台中', '嘉義', '台南', '左營'],
+    tra: ['台北', '板橋', '桃園', '新竹', '台中', '台南', '高雄', '宜蘭', '花蓮', '台東'],
+  };
+  const stationModeCache = {};
+  function stationMode(input) {
+    const railField = input.form && input.form.elements.namedItem('rail');
+    const rail = railField ? railField.value : '';
+    if (!RAIL_POPULAR[rail]) return MODES.station;
+    if (!stationModeCache[rail]) {
+      const regions = Object.fromEntries(Object.entries(MODES.station.regions)
+        .filter(([region]) => (rail === 'thsr') === region.startsWith('高鐵')));
+      stationModeCache[rail] = Object.assign({}, MODES.station, {
+        recentKey: MODES.station.recentKey + '.' + rail,
+        popular: RAIL_POPULAR[rail],
+        regions,
+        all: Array.from(new Set(Object.values(regions).flat())),
+        searchSuffix: '&rail=' + rail,
+      });
+    }
+    return stationModeCache[rail];
+  }
+
   // showAll：剛點進輸入框時，就算裡面已經有字(例如搜尋結果頁帶回來的「台北」)也列出完整清單，
   // 不然只會看到跟原本那個字相符的一兩筆；使用者開始打字才依輸入內容篩選。
   function openPanel(input, showAll = false) {
     const panel = getOrCreatePanel(input);
     const keyword = showAll ? '' : input.value.trim();
-    const mode = input.matches('[data-station-autocomplete]') ? MODES.station
+    const mode = input.matches('[data-station-autocomplete]') ? stationMode(input)
       : input.matches('[data-hotel-autocomplete]') ? MODES.hotel : MODES.city;
     const onPick = (value) => {
       input.value = value;
@@ -328,7 +352,7 @@
     if (!keyword) return;
 
     const timer = setTimeout(() => {
-      fetch(mode.searchUrl + encodeURIComponent(keyword))
+      fetch(mode.searchUrl + encodeURIComponent(keyword) + (mode.searchSuffix || ''))
         .then((resp) => (resp.ok ? resp.json() : []))
         .then((results) => {
           if (input.value.trim() !== keyword) return; // 使用者已經改打別的字，這批結果過時了，不要顯示

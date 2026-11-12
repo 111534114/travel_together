@@ -269,6 +269,12 @@
     }
   });
   if (get('flightDirect')) get('flightDirect').checked = query.get('stops')==='direct';
+  if (query.get('rail')) form.querySelectorAll('input[name="rail"]').forEach(r=>{r.checked = r.value===query.get('rail');});
+  // 換高鐵／台鐵時，已填的站名可能是另一個系統才有的站，順便收起已開的車站清單，下次點開就是新系統的清單
+  form.querySelectorAll('input[name="rail"]').forEach(r=>r.addEventListener('change',()=>{
+    form.querySelectorAll('[data-station-autocomplete] + .city-suggest-panel').forEach(p=>{p.hidden=true;});
+    noteText();
+  }));
   const today=new Date();
   const isoToday=[today.getFullYear(),String(today.getMonth()+1).padStart(2,'0'),String(today.getDate()).padStart(2,'0')].join('-');
   form.querySelectorAll('input[type=date]').forEach(input=>input.min=isoToday);
@@ -321,10 +327,11 @@
     if(kind!=='hotel' && values.from && values.from===values.to){error(get(ids[kind].to),'出發地與目的地不能相同');failed=true;}
     if(failed){form.querySelector('[aria-invalid=true]')?.focus();return;}
     if(mode)params.set('trip_mode',mode);
+    if(kind==='train')params.set('rail',form.querySelector('input[name="rail"]:checked')?.value||'thsr');
     if(kind==='flight' && get('flightDirect')?.checked)params.set('stops','direct');
     location.href='/visitor/'+({hotel:'hotels',flight:'flights',train:'trains'}[kind])+'?'+params.toString();
   },true);
   const note=get('searchNote');
-  const noteText=()=>{if(note)note.textContent=active()==='hotel'?'住宿為資料庫資訊，空房與日期價格請向業者確認。':active()==='train'?'高鐵／台鐵班表與票價來自交通部 TDX，座位與訂票請以官方售票系統為準。':'班表與票價為資料庫參考資料，尚未串接即時售票或優惠報價。';};
+  const noteText=()=>{if(note)note.textContent=active()==='hotel'?'住宿為資料庫資訊，空房與日期價格請向業者確認。':active()==='train'?(form.querySelector('input[name="rail"]:checked')?.value==='tra'?'台鐵':'高鐵')+'班表與票價來自交通部 TDX，座位與訂票請以官方售票系統為準。':'班表與票價為資料庫參考資料，尚未串接即時售票或優惠報價。';};
   noteText();document.querySelectorAll('.search-tab').forEach(el=>el.addEventListener('click',noteText));
 })();

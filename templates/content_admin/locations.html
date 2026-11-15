@@ -52,7 +52,10 @@
     <form method="POST" action="{{ url_for('locations.create_country') }}" class="filter-form" style="margin-top:18px;">
         <input type="text" name="name" placeholder="新增國家名稱" required>
         <button type="submit">＋ 新增國家</button>
+        <button type="submit" form="importWorldCountriesForm" class="small-button">🌍 一鍵匯入全世界國家</button>
     </form>
+    <form id="importWorldCountriesForm" method="POST" action="{{ url_for('locations.import_world_countries') }}"
+          onsubmit="return confirm('將會一次新增世界各國，已經存在的國家不會重複新增，確定要匯入嗎？');"></form>
 
 </div>
 

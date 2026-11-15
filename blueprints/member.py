@@ -13,6 +13,8 @@ from werkzeug.security import check_password_hash, generate_password_hash
 from auth import login_required
 from blueprints.home_banners import fetch_active_banners  # 首頁圖片跑馬燈(後台可修改)
 from attraction_rankings import TAIWAN_COUNTIES, count_attraction_rankings, fetch_attraction_rankings
+from restaurant_rankings import fetch_restaurant_rankings
+from accommodation_rankings import fetch_accommodation_rankings
 from nearby_attractions import find_nearby_attractions
 from notification_preferences import NOTIFICATION_CATEGORIES, get_preferences, save_preferences, send_notification
 import trip_preferences
@@ -652,7 +654,6 @@ def public_trips():
         "region": request.args.get("region", "").strip()[:80],
         "date": request.args.get("date", "").strip(),
         "budget": request.args.get("budget", "").strip(),
-        "available": request.args.get("available") == "1",
     }
     max_budget = float(filters["budget"]) if filters["budget"].isdigit() else None
     visible_trips = []
@@ -662,8 +663,6 @@ def public_trips():
         if filters["date"] and not (str(trip.get("start_date") or "") <= filters["date"] <= str(trip.get("end_date") or "")):
             continue
         if max_budget is not None and float(trip.get("total_budget") or 0) > max_budget:
-            continue
-        if filters["available"] and trip.get("people_count") and trip.get("joined_count", 0) >= trip["people_count"]:
             continue
         trip["is_favorited"] = trip["trip_id"] in favorite_ids
         visible_trips.append(trip)
@@ -1497,6 +1496,414 @@ def toggle_favorite(attraction_id):
     next_url = request.form.get("next", "")
     if not next_url.startswith("/") or next_url.startswith("//"):
         next_url = url_for("member.browse_attractions")
+    return redirect(next_url)
+
+
+@member_bp.route("/restaurants")
+@login_required("member")
+def browse_restaurants():
+    keyword = request.args.get("keyword", "").strip()
+    country_id = request.args.get("country_id", "").strip()
+    city_id = request.args.get("city_id", "").strip()
+    favorites_only = request.args.get("favorites_only") == "1"
+
+    connection = _connection_or_home()
+    if connection is None:
+        return render_template("member/restaurants.html", restaurants=[], countries=[], cities=[],
+                                keyword=keyword, country_id=country_id, city_id=city_id,
+                                favorites_only=favorites_only, ranking_preview=[], addable_trips=[],
+                                taiwan_counties=TAIWAN_COUNTIES)
+    cursor = connection.cursor(dictionary=True)
+    try:
+        conditions = ["r.status = 'active'", "r.deleted_at IS NULL"]
+        params = [session["user_id"]]
+
+        if keyword:
+            conditions.append("(r.name LIKE %s OR r.address LIKE %s)")
+            params.extend([f"%{keyword}%", f"%{keyword}%"])
+        if country_id:
+            conditions.append("r.country_id = %s")
+            params.append(country_id)
+        if city_id:
+            conditions.append("r.city_id = %s")
+            params.append(city_id)
+        if favorites_only:
+            conditions.append("f.favorite_id IS NOT NULL")
+
+        where_clause = " AND ".join(conditions)
+        cursor.execute(f"""
+            SELECT r.restaurant_id, r.city_id, r.name, r.address, r.latitude, r.longitude,
+                   r.cuisine_type, r.price_level, r.image_path,
+                   cat.category_name, co.name AS country, ci.name AS city,
+                   (f.favorite_id IS NOT NULL) AS is_favorited
+            FROM restaurants r
+            LEFT JOIN categories cat ON cat.category_id = r.category_id
+            JOIN countries co ON co.country_id = r.country_id
+            JOIN cities ci ON ci.city_id = r.city_id
+            LEFT JOIN favorites f ON f.restaurant_id = r.restaurant_id AND f.user_id = %s
+            WHERE {where_clause}
+            ORDER BY r.restaurant_id DESC
+        """, params)
+        restaurants = cursor.fetchall()
+        ranking_preview = fetch_restaurant_rankings(
+            cursor, country_id=country_id, city_id=city_id, keyword=keyword,
+            limit=3,
+        )
+        countries = get_countries(cursor)
+        cities = get_cities(cursor)
+        addable_trips = _addable_trips(cursor, session["user_id"])
+    finally:
+        cursor.close(); connection.close()
+
+    return render_template("member/restaurants.html", restaurants=restaurants, countries=countries, cities=cities,
+                            keyword=keyword, country_id=country_id, city_id=city_id, favorites_only=favorites_only,
+                            ranking_preview=ranking_preview, addable_trips=addable_trips,
+                            taiwan_counties=TAIWAN_COUNTIES)
+
+
+@member_bp.route("/restaurants/rankings/data")
+@login_required("member")
+def restaurant_rankings_data():
+    """Return the top-5 ranking data for the Explore page's in-place dialog."""
+    country_id = request.args.get("country_id", "").strip()
+    city_id = request.args.get("city_id", "").strip()
+    country_id = country_id if country_id.isdecimal() and int(country_id) > 0 else ""
+    city_id = city_id if city_id.isdecimal() and int(city_id) > 0 else ""
+    metric = request.args.get("metric", "itineraries").strip()
+    county = request.args.get("county", "").strip().replace("臺", "台")
+    if metric not in ("itineraries", "favorites") or (county and county not in TAIWAN_COUNTIES):
+        return jsonify({"error": "無效的排行榜篩選"}), 400
+
+    connection = get_db_connection()
+    if connection is None:
+        return jsonify({"error": "排行榜暫時無法載入，請稍後再試。"}), 503
+    cursor = connection.cursor(dictionary=True)
+    try:
+        rankings = fetch_restaurant_rankings(
+            cursor, country_id=None if county else country_id or None,
+            county_name=county or None,
+            favorites_only=metric == "favorites",
+            positive_only=metric == "itineraries", sort_by=metric, limit=5)
+    finally:
+        cursor.close(); connection.close()
+    return jsonify({"rankings": [{
+        "rank": index, "name": row["name"], "country": row["country"],
+        "city": row["city"], "itinerary_count": row["itinerary_count"],
+        "favorite_count": row["favorite_count"],
+        "detail_url": url_for("member.restaurant_detail", restaurant_id=row["restaurant_id"]),
+    } for index, row in enumerate(rankings, start=1)]})
+
+
+@member_bp.route("/restaurants/<int:restaurant_id>")
+@login_required("member")
+def restaurant_detail(restaurant_id):
+    connection = _connection_or_home()
+    if connection is None: return redirect(url_for("member.browse_restaurants"))
+    cursor = connection.cursor(dictionary=True)
+    try:
+        cursor.execute("""
+            SELECT r.*, cat.category_name, co.name AS country, ci.name AS city,
+                   (f.favorite_id IS NOT NULL) AS is_favorited
+            FROM restaurants r
+            LEFT JOIN categories cat ON cat.category_id = r.category_id
+            JOIN countries co ON co.country_id = r.country_id
+            JOIN cities ci ON ci.city_id = r.city_id
+            LEFT JOIN favorites f ON f.restaurant_id = r.restaurant_id AND f.user_id = %s
+            WHERE r.restaurant_id = %s AND r.status = 'active' AND r.deleted_at IS NULL
+        """, (session["user_id"], restaurant_id))
+        restaurant = cursor.fetchone()
+        addable_trips = _addable_trips(cursor, session["user_id"]) if restaurant else []
+    finally:
+        cursor.close(); connection.close()
+
+    if not restaurant:
+        flash("找不到這間餐廳，或已被下架。", "error")
+        return redirect(url_for("member.browse_restaurants"))
+
+    return render_template("member/restaurant_detail.html", r=restaurant, addable_trips=addable_trips)
+
+
+@member_bp.route("/restaurants/<int:restaurant_id>/add-to-trip", methods=["POST"])
+@login_required("member")
+def add_restaurant_to_trip(restaurant_id):
+    next_url = request.form.get("next", "")
+    if not next_url.startswith("/") or next_url.startswith("//"):
+        next_url = url_for("member.browse_restaurants")
+
+    trip_id = request.form.get("trip_id", "").strip()
+    day = request.form.get("itinerary_date", "").strip()
+    start, end, is_all_day, transport_minutes, time_errors = _parse_itinerary_time(request.form)
+    if not trip_id.isdigit() or not day:
+        flash("請選擇要加入的行程與日期。", "error"); return redirect(next_url)
+    if time_errors:
+        for error in time_errors: flash(error, "error")
+        return redirect(next_url)
+    try:
+        day_value = date.fromisoformat(day)
+    except ValueError:
+        flash("請輸入正確的日期。", "error"); return redirect(next_url)
+
+    connection = _connection_or_home()
+    if connection is None: return redirect(next_url)
+    cursor = connection.cursor(dictionary=True)
+    try:
+        trip = _member_access(cursor, int(trip_id), session["user_id"])
+        if not trip or not _can_edit(trip):
+            flash("你沒有編輯這個行程的權限。", "error"); return redirect(next_url)
+        if not trip["start_date"] <= day_value <= trip["end_date"]:
+            flash(f"日期必須在行程期間內（{trip['start_date']} ～ {trip['end_date']}）。", "error"); return redirect(next_url)
+        cursor.execute("""SELECT name, address FROM restaurants
+                          WHERE restaurant_id=%s AND status='active' AND deleted_at IS NULL""", (restaurant_id,))
+        restaurant = cursor.fetchone()
+        if not restaurant:
+            flash("找不到這間餐廳，或已被下架。", "error"); return redirect(next_url)
+        cursor.execute("SELECT COALESCE(MAX(sort_order),0)+1 AS next_order FROM itineraries WHERE trip_id=%s AND itinerary_date=%s", (trip["trip_id"], day_value))
+        order = cursor.fetchone()["next_order"]
+        cursor.execute("""INSERT INTO itineraries (trip_id,created_by,itinerary_date,item_type,title,start_time,end_time,is_all_day,address,transport_method,transport_minutes,estimated_cost,notes,restaurant_id,sort_order)
+                          VALUES (%s,%s,%s,'restaurant',%s,%s,%s,%s,%s,%s,%s,0,%s,%s,%s)""",
+                       (trip["trip_id"], session["user_id"], day_value, restaurant["name"][:150], start, end, is_all_day, restaurant["address"],
+                        request.form.get("transport_method", "").strip() or None, transport_minutes,
+                        request.form.get("notes", "").strip() or None, restaurant_id, order))
+        connection.commit()
+        flash(f"已將「{restaurant['name']}」加入「{trip['trip_name']}」的 {day_value} 行程。", "success")
+    except Exception:
+        current_app.logger.exception("加入餐廳到行程失敗 user_id=%s", session.get("user_id"))
+        connection.rollback(); flash("加入行程失敗，請再試一次。", "error")
+    finally:
+        cursor.close(); connection.close()
+    return redirect(next_url)
+
+
+@member_bp.route("/restaurants/<int:restaurant_id>/favorite", methods=["POST"])
+@login_required("member")
+def toggle_restaurant_favorite(restaurant_id):
+    connection = _connection_or_home()
+    if connection is None: return redirect(url_for("member.browse_restaurants"))
+    cursor = connection.cursor()
+    try:
+        user_id = session["user_id"]
+        cursor.execute("SELECT favorite_id FROM favorites WHERE user_id=%s AND restaurant_id=%s", (user_id, restaurant_id))
+        existing = cursor.fetchone()
+        if existing:
+            cursor.execute("DELETE FROM favorites WHERE favorite_id=%s", (existing[0],))
+            connection.commit()
+            flash("已取消收藏。", "success")
+        else:
+            cursor.execute("INSERT INTO favorites (user_id, target_type, restaurant_id) VALUES (%s,'restaurant',%s)", (user_id, restaurant_id))
+            connection.commit()
+            flash("已加入收藏。", "success")
+    except Exception:
+        connection.rollback(); flash("操作失敗，請再試一次。", "error")
+    finally:
+        cursor.close(); connection.close()
+
+    next_url = request.form.get("next", "")
+    if not next_url.startswith("/") or next_url.startswith("//"):
+        next_url = url_for("member.browse_restaurants")
+    return redirect(next_url)
+
+
+@member_bp.route("/accommodations")
+@login_required("member")
+def browse_accommodations():
+    keyword = request.args.get("keyword", "").strip()
+    country_id = request.args.get("country_id", "").strip()
+    city_id = request.args.get("city_id", "").strip()
+    favorites_only = request.args.get("favorites_only") == "1"
+
+    connection = _connection_or_home()
+    if connection is None:
+        return render_template("member/accommodations.html", accommodations=[], countries=[], cities=[],
+                                keyword=keyword, country_id=country_id, city_id=city_id,
+                                favorites_only=favorites_only, ranking_preview=[], addable_trips=[],
+                                taiwan_counties=TAIWAN_COUNTIES)
+    cursor = connection.cursor(dictionary=True)
+    try:
+        conditions = ["ac.status = 'active'", "ac.deleted_at IS NULL"]
+        params = [session["user_id"]]
+
+        if keyword:
+            conditions.append("(ac.name LIKE %s OR ac.address LIKE %s)")
+            params.extend([f"%{keyword}%", f"%{keyword}%"])
+        if country_id:
+            conditions.append("ac.country_id = %s")
+            params.append(country_id)
+        if city_id:
+            conditions.append("ac.city_id = %s")
+            params.append(city_id)
+        if favorites_only:
+            conditions.append("f.favorite_id IS NOT NULL")
+
+        where_clause = " AND ".join(conditions)
+        cursor.execute(f"""
+            SELECT ac.accommodation_id, ac.city_id, ac.name, ac.address, ac.latitude, ac.longitude,
+                   ac.accommodation_type, ac.price_per_night, ac.image_path,
+                   cat.category_name, co.name AS country, ci.name AS city,
+                   (f.favorite_id IS NOT NULL) AS is_favorited
+            FROM accommodations ac
+            LEFT JOIN categories cat ON cat.category_id = ac.category_id
+            JOIN countries co ON co.country_id = ac.country_id
+            JOIN cities ci ON ci.city_id = ac.city_id
+            LEFT JOIN favorites f ON f.accommodation_id = ac.accommodation_id AND f.user_id = %s
+            WHERE {where_clause}
+            ORDER BY ac.accommodation_id DESC
+        """, params)
+        accommodations = cursor.fetchall()
+        ranking_preview = fetch_accommodation_rankings(
+            cursor, country_id=country_id, city_id=city_id, keyword=keyword,
+            limit=3,
+        )
+        countries = get_countries(cursor)
+        cities = get_cities(cursor)
+        addable_trips = _addable_trips(cursor, session["user_id"])
+    finally:
+        cursor.close(); connection.close()
+
+    return render_template("member/accommodations.html", accommodations=accommodations, countries=countries, cities=cities,
+                            keyword=keyword, country_id=country_id, city_id=city_id, favorites_only=favorites_only,
+                            ranking_preview=ranking_preview, addable_trips=addable_trips,
+                            taiwan_counties=TAIWAN_COUNTIES)
+
+
+@member_bp.route("/accommodations/rankings/data")
+@login_required("member")
+def accommodation_rankings_data():
+    """Return the top-5 ranking data for the Explore page's in-place dialog."""
+    country_id = request.args.get("country_id", "").strip()
+    city_id = request.args.get("city_id", "").strip()
+    country_id = country_id if country_id.isdecimal() and int(country_id) > 0 else ""
+    city_id = city_id if city_id.isdecimal() and int(city_id) > 0 else ""
+    metric = request.args.get("metric", "itineraries").strip()
+    county = request.args.get("county", "").strip().replace("臺", "台")
+    if metric not in ("itineraries", "favorites") or (county and county not in TAIWAN_COUNTIES):
+        return jsonify({"error": "無效的排行榜篩選"}), 400
+
+    connection = get_db_connection()
+    if connection is None:
+        return jsonify({"error": "排行榜暫時無法載入，請稍後再試。"}), 503
+    cursor = connection.cursor(dictionary=True)
+    try:
+        rankings = fetch_accommodation_rankings(
+            cursor, country_id=None if county else country_id or None,
+            county_name=county or None,
+            favorites_only=metric == "favorites",
+            positive_only=metric == "itineraries", sort_by=metric, limit=5)
+    finally:
+        cursor.close(); connection.close()
+    return jsonify({"rankings": [{
+        "rank": index, "name": row["name"], "country": row["country"],
+        "city": row["city"], "itinerary_count": row["itinerary_count"],
+        "favorite_count": row["favorite_count"],
+        "detail_url": url_for("member.accommodation_detail", accommodation_id=row["accommodation_id"]),
+    } for index, row in enumerate(rankings, start=1)]})
+
+
+@member_bp.route("/accommodations/<int:accommodation_id>")
+@login_required("member")
+def accommodation_detail(accommodation_id):
+    connection = _connection_or_home()
+    if connection is None: return redirect(url_for("member.browse_accommodations"))
+    cursor = connection.cursor(dictionary=True)
+    try:
+        cursor.execute("""
+            SELECT ac.*, cat.category_name, co.name AS country, ci.name AS city,
+                   (f.favorite_id IS NOT NULL) AS is_favorited
+            FROM accommodations ac
+            LEFT JOIN categories cat ON cat.category_id = ac.category_id
+            JOIN countries co ON co.country_id = ac.country_id
+            JOIN cities ci ON ci.city_id = ac.city_id
+            LEFT JOIN favorites f ON f.accommodation_id = ac.accommodation_id AND f.user_id = %s
+            WHERE ac.accommodation_id = %s AND ac.status = 'active' AND ac.deleted_at IS NULL
+        """, (session["user_id"], accommodation_id))
+        accommodation = cursor.fetchone()
+        addable_trips = _addable_trips(cursor, session["user_id"]) if accommodation else []
+    finally:
+        cursor.close(); connection.close()
+
+    if not accommodation:
+        flash("找不到這間住宿，或已被下架。", "error")
+        return redirect(url_for("member.browse_accommodations"))
+
+    return render_template("member/accommodation_detail.html", ac=accommodation, addable_trips=addable_trips)
+
+
+@member_bp.route("/accommodations/<int:accommodation_id>/add-to-trip", methods=["POST"])
+@login_required("member")
+def add_accommodation_to_trip(accommodation_id):
+    next_url = request.form.get("next", "")
+    if not next_url.startswith("/") or next_url.startswith("//"):
+        next_url = url_for("member.browse_accommodations")
+
+    trip_id = request.form.get("trip_id", "").strip()
+    day = request.form.get("itinerary_date", "").strip()
+    start, end, is_all_day, transport_minutes, time_errors = _parse_itinerary_time(request.form)
+    if not trip_id.isdigit() or not day:
+        flash("請選擇要加入的行程與日期。", "error"); return redirect(next_url)
+    if time_errors:
+        for error in time_errors: flash(error, "error")
+        return redirect(next_url)
+    try:
+        day_value = date.fromisoformat(day)
+    except ValueError:
+        flash("請輸入正確的日期。", "error"); return redirect(next_url)
+
+    connection = _connection_or_home()
+    if connection is None: return redirect(next_url)
+    cursor = connection.cursor(dictionary=True)
+    try:
+        trip = _member_access(cursor, int(trip_id), session["user_id"])
+        if not trip or not _can_edit(trip):
+            flash("你沒有編輯這個行程的權限。", "error"); return redirect(next_url)
+        if not trip["start_date"] <= day_value <= trip["end_date"]:
+            flash(f"日期必須在行程期間內（{trip['start_date']} ～ {trip['end_date']}）。", "error"); return redirect(next_url)
+        cursor.execute("""SELECT name, address, price_per_night FROM accommodations
+                          WHERE accommodation_id=%s AND status='active' AND deleted_at IS NULL""", (accommodation_id,))
+        accommodation = cursor.fetchone()
+        if not accommodation:
+            flash("找不到這間住宿，或已被下架。", "error"); return redirect(next_url)
+        cursor.execute("SELECT COALESCE(MAX(sort_order),0)+1 AS next_order FROM itineraries WHERE trip_id=%s AND itinerary_date=%s", (trip["trip_id"], day_value))
+        order = cursor.fetchone()["next_order"]
+        cursor.execute("""INSERT INTO itineraries (trip_id,created_by,itinerary_date,item_type,title,start_time,end_time,is_all_day,address,transport_method,transport_minutes,estimated_cost,notes,accommodation_id,sort_order)
+                          VALUES (%s,%s,%s,'accommodation',%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)""",
+                       (trip["trip_id"], session["user_id"], day_value, accommodation["name"][:150], start, end, is_all_day, accommodation["address"],
+                        request.form.get("transport_method", "").strip() or None, transport_minutes,
+                        accommodation["price_per_night"] or 0, request.form.get("notes", "").strip() or None, accommodation_id, order))
+        connection.commit()
+        flash(f"已將「{accommodation['name']}」加入「{trip['trip_name']}」的 {day_value} 行程。", "success")
+    except Exception:
+        current_app.logger.exception("加入住宿到行程失敗 user_id=%s", session.get("user_id"))
+        connection.rollback(); flash("加入行程失敗，請再試一次。", "error")
+    finally:
+        cursor.close(); connection.close()
+    return redirect(next_url)
+
+
+@member_bp.route("/accommodations/<int:accommodation_id>/favorite", methods=["POST"])
+@login_required("member")
+def toggle_accommodation_favorite(accommodation_id):
+    connection = _connection_or_home()
+    if connection is None: return redirect(url_for("member.browse_accommodations"))
+    cursor = connection.cursor()
+    try:
+        user_id = session["user_id"]
+        cursor.execute("SELECT favorite_id FROM favorites WHERE user_id=%s AND accommodation_id=%s", (user_id, accommodation_id))
+        existing = cursor.fetchone()
+        if existing:
+            cursor.execute("DELETE FROM favorites WHERE favorite_id=%s", (existing[0],))
+            connection.commit()
+            flash("已取消收藏。", "success")
+        else:
+            cursor.execute("INSERT INTO favorites (user_id, target_type, accommodation_id) VALUES (%s,'accommodation',%s)", (user_id, accommodation_id))
+            connection.commit()
+            flash("已加入收藏。", "success")
+    except Exception:
+        connection.rollback(); flash("操作失敗，請再試一次。", "error")
+    finally:
+        cursor.close(); connection.close()
+
+    next_url = request.form.get("next", "")
+    if not next_url.startswith("/") or next_url.startswith("//"):
+        next_url = url_for("member.browse_accommodations")
     return redirect(next_url)
 
 

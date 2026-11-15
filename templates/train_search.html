@@ -56,6 +56,19 @@
     .view-button { text-decoration: none; padding: 7px 12px; color: var(--purple); background: #fff; border: 1px solid #C6DCDF; border-radius: 6px; cursor: pointer; font-weight: 700; white-space: nowrap; }
     .view-button:hover { color: #fff; background: var(--purple); border-color: var(--purple); }
     .empty { padding: 36px; color: var(--muted); text-align: center; background: #fff; border: 1px dashed #C6DCDF; border-radius: 8px; }
+    .results-layout { display: grid; grid-template-columns: 240px 1fr; align-items: start; gap: 20px; margin-top: 20px; }
+    .results-main { min-width: 0; }
+    .results-main .train-card { gap: 14px; }
+    .results-main .train-brand { flex-basis: 120px; }
+    .results-sidebar { position: sticky; top: 88px; }
+    .results-sidebar .booking-tools { margin-top: 0; }
+    .results-sidebar .booking-filters { flex-direction: column; align-items: stretch; gap: 16px; }
+    .results-sidebar .booking-filters label { flex-direction: column; align-items: stretch; gap: 6px; white-space: normal; }
+    .results-sidebar .booking-filters select { width: 100%; }
+    .results-sidebar .price-slider-row { flex-direction: column; align-items: stretch; gap: 6px; }
+    .results-sidebar .price-slider { width: 100%; max-width: none; flex: none; }
+    .return-section { margin-top: 32px; }
+    @media (max-width: 950px) { .results-layout { grid-template-columns: 1fr; } .results-sidebar { position: static; } }
     @media (max-width: 850px) { .site-nav { align-items: flex-start; flex-direction: column; gap: 6px; padding: 8px 18px 12px; } .nav-links { width: 100%; margin-left: 0; overflow-x: auto; } main { width: min(100% - 28px, 680px); padding: 24px 0 70px; } .train-card { flex-direction: column; align-items: stretch; } .train-footer { margin-left: 0; justify-content: space-between; } }
     @media (max-width: 560px) { .brand { width: 108px; height: 48px; } .nav-links { gap: 2px; } .nav-links a { padding: 8px; font-size: 14px; white-space: nowrap; } .section-header { align-items: stretch; flex-direction: column; } .section-header h2 { font-size: 22px; } .train-route { flex-direction: column; align-items: stretch; } .train-path { display: none; } }
   </style>
@@ -69,14 +82,19 @@
   <main class="member-content">
     <p class="breadcrumb"><a href="{{ url_for('member.dashboard') if is_member else url_for('visitor') }}">{{ '← 返回會員首頁' if is_member else '← 返回訪客首頁' }}</a></p>
 {% include 'partials/booking_search_form.html' %}
+    <div class="results-layout">
+      <aside class="results-sidebar">
 {% include 'partials/booking_tools.html' %}
+      </aside>
+      <div class="results-main">
     <section id="train-results">
       <div class="section-header">
         <div>
-          <h2>高鐵／火車票搜尋結果{% if using_live_data %}<span class="live-badge">即時班表</span>{% endif %}</h2>
+          <h2>{{ rail_label }}車票搜尋結果{% if using_live_data %}<span class="live-badge">即時班表</span>{% endif %}</h2>
           <p>
             {% if origin or destination %}{{ origin or '任何出發站' }} → {{ destination or '任何到達站' }}{% else %}顯示全部車次{% endif %}
-            {% if travel_date %} ・ {{ travel_date }}{% endif %}
+            {% if travel_date %} ・ 去程 {{ travel_date }}{% endif %}
+            {% if request.args.get('trip_mode') == 'roundtrip' and request.args.get('return') %} ・ 回程 {{ request.args.get('return') }}{% endif %}
             ・ {{ pax }} 人
             ・ 共 {{ trains|length }} 筆結果
           </p>
@@ -85,7 +103,7 @@
       <div class="train-list">
         {% for train in trains %}
           <article class="train-card">
-{% if train.is_live %}<span class="booking-heart" aria-disabled="true" title="即時班表暫不支援收藏">&#9825;</span>{% else %}{% set save_kind='train' %}{% set save_id=train.train_id %}{% include 'partials/booking_favorite_button.html' %}{% endif %}
+{% set live_date = travel_date %}{% include 'partials/train_favorite_button.html' %}
             <div class="train-brand">
               <span class="train-type-badge {{ train.train_type }}">{{ '高鐵' if train.train_type == 'thsr' else '台鐵' }}</span>
               <b>{{ train.car_class }}</b>
@@ -107,9 +125,9 @@
         {% endfor %}
       </div>
     </section>
-{% if return_trains %}<section><h2>回程車次 · {{ request.args.get('return','') }}</h2><div class="train-list">{% for train in return_trains %}
+{% if return_trains %}<section class="return-section"><div class="section-header"><div><h2>回程車次</h2><p>{{ destination }} → {{ origin }} ・ {{ request.args.get('return','') }} ・ 共 {{ return_trains|length }} 筆結果</p></div></div><div class="train-list">{% for train in return_trains %}
           <article class="train-card">
-{% if train.is_live %}<span class="booking-heart" aria-disabled="true" title="即時班表暫不支援收藏">&#9825;</span>{% else %}{% set save_kind='train' %}{% set save_id=train.train_id %}{% include 'partials/booking_favorite_button.html' %}{% endif %}
+{% set live_date = request.args.get('return', '') %}{% include 'partials/train_favorite_button.html' %}
             <div class="train-brand">
               <span class="train-type-badge {{ train.train_type }}">{{ '高鐵' if train.train_type == 'thsr' else '台鐵' }}</span>
               <b>{{ train.car_class }}</b>
@@ -129,6 +147,8 @@
         {% else %}
           <div class="empty">找不到符合「{{ origin or '任意出發站' }} → {{ destination or '任意到達站' }}」的車次，換個站名試試，或<a href="{{ url_for('visitor_train_search') }}" style="color: var(--purple); font-weight: 700;">清除條件看全部車次</a>。</div>
         {% endfor %}</div></section>{% endif %}
+      </div>
+    </div>
   </main>
   </div>
   <script>

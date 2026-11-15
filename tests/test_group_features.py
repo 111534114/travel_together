@@ -6,7 +6,7 @@ from unittest.mock import MagicMock, patch
 from flask import session
 
 from app import app
-from blueprints.friend_groups import _active_group_access, _album_image_type, _registration_deadline, ai_plan, approve_group_member, leave_group, save_ai_plan
+from blueprints.friend_groups import _active_group_access, _album_image_type, _registration_deadline, ai_plan, approve_group_member, delete_group, leave_group, new_group, save_ai_plan
 from blueprints.member import chat_feed, chat_remove, chat_send
 from group_ai_planner import generate_plan, normalize_plan
 from chat_moderation import blocked_term, parse_terms
@@ -26,6 +26,95 @@ class FakeCursor:
 
 
 class GroupFeatureTests(unittest.TestCase):
+    def test_new_group_post_has_matching_insert_parameters(self):
+        cursor = MagicMock()
+        cursor.fetchone.return_value = {
+            "trip_id": 8, "trip_name": "宜蘭一日遊", "start_date": date(2099, 1, 5),
+            "end_date": date(2099, 1, 5), "country_id": 1, "city_id": 2,
+        }
+        cursor.lastrowid = 9
+        connection = MagicMock()
+        connection.cursor.return_value = cursor
+        tier = {"level": 1, "allow_multi_day": False, "max_capacity": 6,
+                "hosted_required": 3, "rating_required": 4.5}
+        form = {"existing_trip_id": "8", "title": "宜蘭一日遊", "event_date": "2099-01-05",
+                "registration_lead_days": "2", "start_time": "09:00", "end_time": "18:30"}
+        with app.test_request_context("/member/friend-groups/groups/new", method="POST", data=form):
+            session.update(user_id=2, role="member")
+            with patch("blueprints.friend_groups._connection_or_home", return_value=connection), \
+                 patch("blueprints.friend_groups._can_use_groups", return_value=True), \
+                 patch("blueprints.friend_groups._has_completed_onboarding", return_value=True), \
+                 patch("blueprints.friend_groups._host_tier", return_value=tier), \
+                 patch("blueprints.friend_groups.get_countries", return_value=[]), \
+                 patch("blueprints.friend_groups.get_cities", return_value=[]), \
+                 patch("blueprints.friend_groups._city_matches_country", return_value=True):
+                response = new_group()
+        inserts = [call.args for call in cursor.execute.call_args_list if "INSERT INTO friend_groups" in call.args[0]]
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(len(inserts), 1)
+        self.assertEqual(inserts[0][0].count("%s"), len(inserts[0][1]))
+        connection.commit.assert_called_once()
+
+    def test_new_group_offers_first_and_last_itinerary_times(self):
+        cursor = MagicMock()
+        cursor.fetchall.return_value = [{
+            "trip_id": 8, "trip_name": "宜蘭一日遊", "start_date": date(2099, 1, 5),
+            "end_date": date(2099, 1, 5), "country_id": 1, "city_id": 2,
+            "first_start_time": "09:00", "last_end_time": "18:30",
+        }]
+        connection = MagicMock()
+        connection.cursor.return_value = cursor
+        tier = {"level": 1, "label": "新手團長", "avg_rating": None,
+                "hosted_count": 0, "max_capacity": 6, "hosted_required": 3,
+                "rating_required": 4.5, "allow_multi_day": False}
+        with app.test_request_context("/member/friend-groups/groups/new"):
+            session.update(user_id=2, role="member")
+            with patch("blueprints.friend_groups._connection_or_home", return_value=connection), \
+                 patch("blueprints.friend_groups._can_use_groups", return_value=True), \
+                 patch("blueprints.friend_groups._has_completed_onboarding", return_value=True), \
+                 patch("blueprints.friend_groups._host_tier", return_value=tier), \
+                 patch("blueprints.friend_groups.get_countries", return_value=[]), \
+                 patch("blueprints.friend_groups.get_cities", return_value=[]):
+                html = new_group()
+        self.assertIn('data-start-time="09:00"', html)
+        self.assertIn('data-end-time="18:30"', html)
+        query = cursor.execute.call_args.args[0]
+        self.assertIn("i.start_time IS NOT NULL", query)
+        self.assertIn("i.end_time IS NOT NULL", query)
+        self.assertIn("i.itinerary_date DESC, i.end_time DESC", query)
+
+    def test_only_host_can_delete_cancelled_group(self):
+        for group in ({"host_user_id": 2, "status": "open"},
+                      {"host_user_id": 3, "status": "cancelled"}, None):
+            with self.subTest(group=group):
+                cursor = MagicMock()
+                cursor.fetchone.return_value = group
+                connection = MagicMock()
+                connection.cursor.return_value = cursor
+                with app.test_request_context("/member/friend-groups/groups/8/delete", method="POST"):
+                    session.update(user_id=2, role="member")
+                    with patch("blueprints.friend_groups._connection_or_home", return_value=connection):
+                        response = delete_group(8)
+                self.assertEqual(response.status_code, 302)
+                self.assertFalse(any("DELETE FROM friend_groups" in call.args[0] for call in cursor.execute.call_args_list))
+                connection.commit.assert_not_called()
+
+    def test_host_deletes_cancelled_group_without_deleting_linked_trip(self):
+        cursor = MagicMock()
+        cursor.fetchone.return_value = {"host_user_id": 2, "status": "cancelled"}
+        cursor.fetchall.return_value = []
+        connection = MagicMock()
+        connection.cursor.return_value = cursor
+        with app.test_request_context("/member/friend-groups/groups/8/delete", method="POST"):
+            session.update(user_id=2, role="member")
+            with patch("blueprints.friend_groups._connection_or_home", return_value=connection):
+                response = delete_group(8)
+        self.assertEqual(response.status_code, 302)
+        queries = [call.args[0] for call in cursor.execute.call_args_list]
+        self.assertTrue(any("DELETE FROM friend_groups" in query for query in queries))
+        self.assertFalse(any("DELETE FROM trips" in query for query in queries))
+        connection.commit.assert_called_once()
+
     def test_chat_feed_returns_json_for_trip_owner(self):
         cursor = MagicMock()
         cursor.fetchall.side_effect = [[], []]
@@ -78,11 +167,31 @@ class GroupFeatureTests(unittest.TestCase):
             normalize_plan({"items": [{"date": "2026-12-10", "type": "other", "title": "X"}]},
                            date(2026, 12, 1), date(2026, 12, 3))
 
+    def test_ai_plan_requires_line_for_get_post_and_save(self):
+        for path, method in [
+            ("/member/friend-groups/ai-plan", "GET"),
+            ("/member/friend-groups/ai-plan", "POST"),
+            ("/member/friend-groups/ai-plan/3/save", "POST"),
+        ]:
+            with self.subTest(path=path, method=method):
+                connection = MagicMock()
+                with app.test_request_context(path, method=method):
+                    session.update(user_id=2, role="member")
+                    with patch("blueprints.friend_groups._connection_or_home", return_value=connection), \
+                         patch("blueprints.friend_groups._has_line_bound", return_value=False):
+                        response = ai_plan() if path.endswith("ai-plan") else save_ai_plan(3)
+                self.assertEqual(response.status_code, 302)
+                self.assertIn("/line/bind", response.location)
+                connection.cursor.return_value.execute.assert_not_called()
+                connection.cursor.return_value.close.assert_called_once()
+                connection.close.assert_called_once()
+
     def test_ai_plan_shows_missing_key_beside_disabled_button(self):
         connection = MagicMock()
         with app.test_request_context("/member/friend-groups/ai-plan"):
             session.update(user_id=2, role="member")
             with patch("blueprints.friend_groups._connection_or_home", return_value=connection), \
+                 patch("blueprints.friend_groups._has_line_bound", return_value=True), \
                  patch("blueprints.friend_groups.get_countries", return_value=[]), \
                  patch("blueprints.friend_groups.get_cities", return_value=[]), \
                  patch("blueprints.friend_groups.ANTHROPIC_API_KEY", ""), \
@@ -103,6 +212,7 @@ class GroupFeatureTests(unittest.TestCase):
         with app.test_request_context("/member/friend-groups/ai-plan", method="POST", data=form):
             session.update(user_id=2, role="member")
             with patch("blueprints.friend_groups._connection_or_home", return_value=connection), \
+                 patch("blueprints.friend_groups._has_line_bound", return_value=True), \
                  patch("blueprints.friend_groups.get_countries", return_value=[{"country_id": 1, "name": "日本"}]), \
                  patch("blueprints.friend_groups.get_cities", return_value=[{"city_id": 2, "country_id": 1, "name": "東京"}]), \
                  patch("blueprints.friend_groups._city_matches_country", return_value=True), \
@@ -142,7 +252,8 @@ class GroupFeatureTests(unittest.TestCase):
         with app.test_request_context("/member/friend-groups/ai-plan/3/save", method="POST", data={"title": "台北兩日遊", "visibility": "public"}):
             session.update(user_id=2, role="member")
             with patch("blueprints.friend_groups._connection_or_home", return_value=connection):
-                response = save_ai_plan(3)
+                with patch("blueprints.friend_groups._has_line_bound", return_value=True):
+                    response = save_ai_plan(3)
         self.assertEqual(response.status_code, 302)
         inserts = [call.args[0] for call in cursor.execute.call_args_list if "INSERT INTO trips" in call.args[0]]
         self.assertEqual(len(inserts), 1)

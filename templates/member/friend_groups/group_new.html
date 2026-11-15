@@ -12,7 +12,7 @@
         </p>
         <p class="form-hint">可以連結自己已有的「私人、尚無其他已加入成員」的行程，也可以讓系統建立新行程。發布後會顯示在左側「參加別人的行程」清單。</p>
         <form method="post" action="{{ url_for('friend_groups.new_group') }}" class="form-grid-member">
-            <label class="span-2">使用既有行程（選填）<select id="existingTripSelect" name="existing_trip_id"><option value="">建立新行程</option>{% for trip in own_trips %}<option value="{{ trip.trip_id }}" data-title="{{ trip.trip_name }}" data-start="{{ trip.start_date }}" data-end="{{ trip.end_date }}" data-country="{{ trip.country_id }}" data-city="{{ trip.city_id }}">{{ trip.trip_name }}（{{ trip.start_date }}～{{ trip.end_date }}）</option>{% endfor %}</select></label>
+            <label class="span-2">使用既有行程（選填）<select id="existingTripSelect" name="existing_trip_id"><option value="">建立新行程</option>{% for trip in own_trips %}<option value="{{ trip.trip_id }}" data-title="{{ trip.trip_name }}" data-start="{{ trip.start_date }}" data-end="{{ trip.end_date }}" data-country="{{ trip.country_id }}" data-city="{{ trip.city_id }}" data-start-time="{{ trip.first_start_time or '' }}" data-end-time="{{ trip.last_end_time or '' }}">{{ trip.trip_name }}（{{ trip.start_date }}～{{ trip.end_date }}）</option>{% endfor %}</select></label>
             <label>揪團名稱 *<input required name="title" maxlength="150"></label>
             <label>目的地國家 *<select id="countrySelect" name="country_id" required><option value="">請選擇國家</option>{% for country in countries %}<option value="{{ country.country_id }}">{{ country.name }}</option>{% endfor %}</select></label>
             <label>目的地城市 *<select id="citySelect" name="city_id" required><option value="">請選擇城市</option>{% for city in cities %}<option value="{{ city.city_id }}" data-country="{{ city.country_id }}">{{ city.name }}</option>{% endfor %}</select></label>
@@ -67,6 +67,11 @@
             document.querySelector('[name="event_date"]').value = selected.dataset.start;
             var end = document.querySelector('[name="end_date"]');
             if (end) end.value = selected.dataset.end;
+            document.querySelector('[name="start_time"]').value = selected.dataset.startTime || '';
+            document.querySelector('[name="end_time"]').value = selected.dataset.endTime || '';
+        } else {
+            document.querySelector('[name="start_time"]').value = '';
+            document.querySelector('[name="end_time"]').value = '';
         }
     });
 </script>

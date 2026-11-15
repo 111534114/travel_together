@@ -1,0 +1,16 @@
+{# 車次收藏愛心：資料庫車次、已收藏的即時車次走一般收藏按鈕；尚未收藏的即時(TDX)車次改送到 save_live_train，
+   由後端重新查 TDX 確認這班車後另存一份再收藏。需要外層先 set live_date(這班車的查詢日期)。 #}
+{% if not train.is_live or train.favorite_id %}
+{% set save_kind='train' %}{% set save_id=train.favorite_id or train.train_id %}{% include 'partials/booking_favorite_button.html' %}
+{% elif session.get('role') == 'member' %}
+<form method="post" action="{{ url_for('booking.save_live_train') }}" class="booking-save-form">
+  <input type="hidden" name="csrf" value="{{ booking_csrf }}">
+  <input type="hidden" name="next" value="{{ request.full_path }}">
+  <input type="hidden" name="live_id" value="{{ train.train_id }}">
+  <input type="hidden" name="from" value="{{ train.origin_station }}">
+  <input type="hidden" name="to" value="{{ train.destination_station }}">
+  <input type="hidden" name="date" value="{{ live_date }}">
+  <input type="hidden" name="rail" value="{{ train.train_type }}">
+  <button class="booking-heart" type="submit" aria-label="加入我的收藏" title="加入我的收藏"><span aria-hidden="true">♡</span></button>
+</form>
+{% else %}<a class="booking-heart" href="{{ url_for('login') }}" aria-label="登入後收藏" title="登入後收藏"><span aria-hidden="true">♡</span></a>{% endif %}

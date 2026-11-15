@@ -1,4 +1,5 @@
 import unittest
+from datetime import date, timedelta
 from decimal import Decimal
 from unittest.mock import patch
 
@@ -62,10 +63,11 @@ class October29MergeTests(unittest.TestCase):
     @patch("app._live_flight_search", return_value=(None, False))
     def test_flight_result_templates_render_without_live_api(self, _live, _local):
         client = app.test_client()
-        response = client.get("/visitor/flights?from=台北&to=東京&depart=2026-11-10&trip_mode=oneway")
+        travel_date = (date.today() + timedelta(days=30)).isoformat()
+        response = client.get(f"/visitor/flights?from=台北&to=東京&depart={travel_date}&trip_mode=oneway")
         self.assertEqual(response.status_code, 200)
         self.assertIn("機票搜尋結果".encode(), response.data)
-        response = client.get("/visitor/flights/multi-city?from1=台北&to1=東京&date1=2026-11-10")
+        response = client.get(f"/visitor/flights/multi-city?from1=台北&to1=東京&date1={travel_date}")
         self.assertEqual(response.status_code, 200)
 
 

@@ -1,0 +1,221 @@
+{% extends 'member/base.html' %}
+{% block title %}探索餐廳｜走吧揪團{% endblock %}
+{% block content %}
+<div class="page-heading">
+    <p class="eyebrow">EXPLORE</p>
+    <h1>探索餐廳</h1>
+    <p>瀏覽餐廳並收藏喜歡的地方，之後排行程時更快找到。</p>
+</div>
+
+<form class="member-form compact attraction-filter" method="get">
+    <div class="form-grid-member">
+        <label>關鍵字<input name="keyword" value="{{ keyword }}" placeholder="餐廳名稱或地址"></label>
+        <label>國家
+            <select id="countrySelect" name="country_id">
+                <option value="">全部國家</option>
+                {% for country in countries %}
+                <option value="{{ country.country_id }}" {{ 'selected' if country_id == country.country_id|string else '' }}>{{ country.name }}</option>
+                {% endfor %}
+            </select>
+        </label>
+        <label>城市
+            <select id="citySelect" name="city_id">
+                <option value="">全部城市</option>
+                {% for city in cities %}
+                <option value="{{ city.city_id }}" data-country="{{ city.country_id }}" {{ 'selected' if city_id == city.city_id|string else '' }}>{{ city.name }}</option>
+                {% endfor %}
+            </select>
+        </label>
+    </div>
+    <div class="form-actions-member">
+        <label class="favorites-toggle"><input type="checkbox" name="favorites_only" value="1" {{ 'checked' if favorites_only else '' }} onchange="this.form.requestSubmit()"><span>♡ 只看我的收藏</span></label>
+        <button class="member-btn primary" type="submit">篩選</button>
+        <a class="member-btn ghost" href="{{ url_for('member.browse_restaurants') }}">清除篩選</a>
+    </div>
+</form>
+
+<section class="attraction-ranking-preview" aria-labelledby="rankingPreviewTitle">
+    <div class="ranking-section-heading">
+        <div><p class="eyebrow">RANKING</p><h2 id="rankingPreviewTitle">餐廳排行榜</h2></div>
+        <button class="member-btn outline ranking-open-button" type="button" data-ranking-open aria-haspopup="dialog" aria-controls="restaurantRankingDialog">查看排行 →</button>
+    </div>
+    {% if ranking_preview %}
+    <ol class="ranking-preview-list">
+        {% for r in ranking_preview %}
+        <li>
+            <a href="{{ url_for('member.restaurant_detail', restaurant_id=r.restaurant_id) }}">
+                <span class="ranking-number">{{ loop.index }}</span>
+                <span class="ranking-preview-name"><strong>{{ r.name }}</strong><small>{{ r.city }}</small></span>
+                <span class="ranking-preview-count">加入行程 {{ r.itinerary_count }} 次</span>
+            </a>
+        </li>
+        {% endfor %}
+    </ol>
+    {% else %}
+    <p class="ranking-empty">目前沒有符合條件的上架餐廳。</p>
+    {% endif %}
+</section>
+
+<dialog id="restaurantRankingDialog" class="attraction-ranking-dialog"
+        data-ranking-endpoint="{{ url_for('member.restaurant_rankings_data') }}"
+        data-entity-label="餐廳"
+        aria-labelledby="rankingDialogTitle">
+    <div class="ranking-dialog-heading">
+        <div><p class="eyebrow">RANKING</p><h2 id="rankingDialogTitle">餐廳排行榜</h2></div>
+        <button type="button" class="ranking-dialog-close" data-ranking-close aria-label="關閉排行榜">×</button>
+    </div>
+    <div class="ranking-dialog-body">
+        <section class="ranking-dialog-filters" aria-label="餐廳排行篩選">
+            <div class="attraction-filter-group" aria-label="選擇國家"><span>國家</span>
+                <button type="button" class="attraction-filter-button is-active" data-ranking-country="" aria-pressed="true">全部</button>
+                {% for country in countries %}<button type="button" class="attraction-filter-button" data-ranking-country="{{ country.country_id }}" data-taiwan="{{ 'true' if country.name in ['台灣', '臺灣', 'Taiwan'] else 'false' }}" aria-pressed="false">{{ country.name }}</button>{% endfor %}
+            </div>
+            <div class="attraction-filter-group" data-ranking-county-group aria-label="選擇臺灣縣市" hidden><span>臺灣縣市</span>
+                <button type="button" class="attraction-filter-button is-active" data-ranking-county="" aria-pressed="true">全部縣市</button>
+                {% for county in taiwan_counties %}<button type="button" class="attraction-filter-button" data-ranking-county="{{ county }}" aria-pressed="false">{{ county }}</button>{% endfor %}
+            </div>
+            <div class="attraction-filter-group" role="group" aria-label="餐廳排名方式"><span>排名依據</span>
+                <button type="button" class="attraction-metric-button is-active" data-ranking-metric="itineraries" aria-pressed="true"><i class="attraction-chart-trip" aria-hidden="true"></i>加入行程</button>
+                <button type="button" class="attraction-metric-button" data-ranking-metric="favorites" aria-pressed="false"><i class="attraction-chart-favorite" aria-hidden="true"></i>收藏</button>
+            </div>
+        </section>
+        <section class="ranking-chart" aria-labelledby="rankingChartTitle">
+            <h3 id="rankingChartTitle" data-ranking-title>加入行程餐廳前五名</h3>
+            <p class="ranking-dialog-status" data-ranking-status role="status" aria-live="polite"></p>
+            <div class="attraction-chart" data-ranking-chart-list aria-live="polite"></div>
+        </section>
+    </div>
+</dialog>
+
+{% if restaurants %}
+<div class="trip-grid attraction-grid">
+    {% for r in restaurants %}
+    <div class="attraction-card-member">
+        <a href="{{ url_for('member.restaurant_detail', restaurant_id=r.restaurant_id) }}" class="attraction-card-link">
+            <div class="card-art attraction-art">
+                {% if r.image_path %}<img src="{{ url_for('static', filename=r.image_path) }}" alt="{{ r.name }}">{% else %}<span class="art-fallback">{{ r.name[:1] }}</span>{% endif %}
+            </div>
+            <div class="card-content">
+                <p>{{ r.country }} · {{ r.city }}{% if r.cuisine_type %} · {{ r.cuisine_type }}{% endif %}</p>
+                <h3>{{ r.name }}</h3>
+                <footer><span>{{ r.address or '地址未提供' }}</span><strong>{{ {'low':'$','medium':'$$','high':'$$$','luxury':'$$$$'}.get(r.price_level, '$$') }}</strong></footer>
+            </div>
+        </a>
+        <form method="post" action="{{ url_for('member.toggle_restaurant_favorite', restaurant_id=r.restaurant_id) }}" class="favorite-form">
+            <input type="hidden" name="next" value="{{ request.full_path }}">
+            <button type="submit" class="favorite-btn {{ 'is-favorited' if r.is_favorited else '' }}" title="{{ '取消收藏' if r.is_favorited else '收藏餐廳' }}">{{ '♥' if r.is_favorited else '♡' }}</button>
+        </form>
+        <div class="attraction-card-actions"><button type="button" class="member-btn outline small" data-add-to-trip data-action="{{ url_for('member.add_restaurant_to_trip', restaurant_id=r.restaurant_id) }}" data-name="{{ r.name }}" data-city-id="{{ r.city_id }}">＋ 加入行程</button></div>
+    </div>
+    {% endfor %}
+</div>
+{% else %}
+<div class="empty-member">
+    <div>✦</div>
+    <h2>{{ '還沒有收藏的餐廳' if favorites_only else '找不到符合條件的餐廳' }}</h2>
+    <p>{{ '去逛逛餐廳，把喜歡的加進收藏吧。' if favorites_only else '試試看調整關鍵字或國家、城市篩選。' }}</p>
+</div>
+{% endif %}
+
+{% include 'member/_add_to_trip_modal.html' %}
+<script>
+    function filterCitiesByCountry() {
+        var countryId = document.getElementById('countrySelect').value;
+        var citySelect = document.getElementById('citySelect');
+        if (!citySelect._allCityNodes) citySelect._allCityNodes = Array.prototype.slice.call(citySelect.children);
+        var currentValue = citySelect.value;
+        citySelect.innerHTML = '';
+        citySelect._allCityNodes.forEach(function (node) {
+            if (!countryId || !node.dataset.country || node.dataset.country === countryId) citySelect.appendChild(node);
+        });
+        var stillThere = Array.prototype.some.call(citySelect.querySelectorAll('option'), function (o) { return o.value === currentValue; });
+        citySelect.value = stillThere ? currentValue : '';
+    }
+    document.getElementById('countrySelect').addEventListener('change', filterCitiesByCountry);
+    window.addEventListener('DOMContentLoaded', filterCitiesByCountry);
+
+    const rankingDialog = document.getElementById('restaurantRankingDialog');
+    const rankingChartList = rankingDialog.querySelector('[data-ranking-chart-list]');
+    const rankingStatus = rankingDialog.querySelector('[data-ranking-status]');
+    const rankingTitle = rankingDialog.querySelector('[data-ranking-title]');
+    const countyGroup = rankingDialog.querySelector('[data-ranking-county-group]');
+    const entityLabel = rankingDialog.dataset.entityLabel || '項目';
+    let rankingCountry = '', rankingCounty = '', rankingMetric = 'itineraries', rankingRequest = 0;
+
+    function selectRankingButton(buttons, selected) {
+        buttons.forEach(button => {
+            const active = button === selected;
+            button.classList.toggle('is-active', active);
+            button.setAttribute('aria-pressed', String(active));
+        });
+    }
+
+    async function loadRanking() {
+        const current = ++rankingRequest;
+        const metricLabel = rankingMetric === 'favorites' ? '收藏' : '加入行程';
+        rankingTitle.textContent = `${metricLabel}${entityLabel}前五名`;
+        rankingStatus.textContent = '排行榜載入中…';
+        rankingChartList.replaceChildren();
+        const params = new URLSearchParams({view: 'top', metric: rankingMetric});
+        if (rankingCountry) params.set('country_id', rankingCountry);
+        if (rankingCounty) params.set('county', rankingCounty);
+        try {
+            const response = await fetch(`${rankingDialog.dataset.rankingEndpoint}?${params}`, { credentials: 'same-origin' });
+            if (!response.ok) throw new Error('ranking request failed');
+            const data = await response.json();
+            if (current !== rankingRequest) return;
+            const key = rankingMetric === 'favorites' ? 'favorite_count' : 'itinerary_count';
+            const kind = rankingMetric === 'favorites' ? 'attraction-chart-favorite' : 'attraction-chart-trip';
+            const scale = Math.max(1, ...data.rankings.map(item => Number(item[key]) || 0));
+            data.rankings.forEach(item => {
+                const row = document.createElement('div'); row.className = 'attraction-chart-row';
+                const label = document.createElement('div'); label.className = 'attraction-chart-name';
+                const link = document.createElement('a'); link.href = item.detail_url; link.textContent = item.name;
+                const place = document.createElement('span'); place.textContent = `${item.country} · ${item.city}`;
+                label.append(link, place);
+                const bars = document.createElement('div'); bars.className = 'attraction-chart-bars';
+                const measure = document.createElement('div'); measure.className = 'attraction-chart-measure';
+                const track = document.createElement('span'); track.className = 'attraction-chart-track';
+                const fill = document.createElement('span'); fill.className = `attraction-chart-fill ${kind}`;
+                fill.style.width = `${Number(item[key]) / scale * 100}%`;
+                const value = document.createElement('strong'); value.textContent = String(item[key]);
+                track.append(fill); measure.append(track, value); bars.append(measure);
+                row.append(label, bars); rankingChartList.append(row);
+            });
+            rankingStatus.textContent = data.rankings.length ? '' : `目前沒有${entityLabel}${metricLabel}紀錄。`;
+        } catch (error) {
+            if (current === rankingRequest) rankingStatus.textContent = '排行榜載入失敗，請稍後再試。';
+        }
+    }
+
+    document.querySelector('[data-ranking-open]').addEventListener('click', function () {
+        rankingDialog.showModal();
+        loadRanking();
+    });
+    rankingDialog.querySelector('[data-ranking-close]').addEventListener('click', function () {
+        rankingDialog.close();
+    });
+    rankingDialog.addEventListener('click', function (event) {
+        if (event.target === rankingDialog) rankingDialog.close();
+    });
+    rankingDialog.querySelectorAll('[data-ranking-country]').forEach(button => button.addEventListener('click', () => {
+        rankingCountry = button.dataset.rankingCountry;
+        rankingCounty = '';
+        selectRankingButton(rankingDialog.querySelectorAll('[data-ranking-country]'), button);
+        selectRankingButton(rankingDialog.querySelectorAll('[data-ranking-county]'), rankingDialog.querySelector('[data-ranking-county=""]'));
+        countyGroup.hidden = button.dataset.taiwan !== 'true';
+        loadRanking();
+    }));
+    rankingDialog.querySelectorAll('[data-ranking-county]').forEach(button => button.addEventListener('click', () => {
+        rankingCounty = button.dataset.rankingCounty;
+        selectRankingButton(rankingDialog.querySelectorAll('[data-ranking-county]'), button);
+        loadRanking();
+    }));
+    rankingDialog.querySelectorAll('[data-ranking-metric]').forEach(button => button.addEventListener('click', () => {
+        if (rankingMetric === button.dataset.rankingMetric) return;
+        rankingMetric = button.dataset.rankingMetric;
+        selectRankingButton(rankingDialog.querySelectorAll('[data-ranking-metric]'), button);
+        loadRanking();
+    }));
+</script>
+{% endblock %}

@@ -64,6 +64,12 @@
     .search-options-row { display: flex; align-items: center; gap: 24px; margin-bottom: 14px; }
     .option-radio, .option-check { display: flex; align-items: center; gap: 6px; color: var(--ink); font-size: 14px; font-weight: 600; cursor: pointer; }
     .option-radio input, .option-check input { accent-color: var(--purple); width: 16px; height: 16px; cursor: pointer; }
+    .rail-switch { display: inline-flex; padding: 3px; background: #EEF5F6; border: 1px solid #D3E4E6; border-radius: 8px; }
+    .rail-switch label { position: relative; cursor: pointer; }
+    .rail-switch input { position: absolute; opacity: 0; pointer-events: none; }
+    .rail-switch span { display: block; padding: 6px 18px; color: #426064; border-radius: 6px; font-size: 14px; font-weight: 700; transition: background 150ms ease, color 150ms ease; }
+    .rail-switch input:checked + span { color: #fff; background: var(--purple); }
+    .rail-switch input:focus-visible + span { outline: 2px solid var(--purple); outline-offset: 2px; }
     .field-swap { flex: 0 0 auto; align-self: flex-end; width: 36px; height: 36px; margin-bottom: 4px; color: var(--purple); background: #fff; border: 1px solid var(--line); border-radius: 50%; cursor: pointer; font-size: 15px; line-height: 1; transition: transform 160ms ease; }
     .field-swap:hover { background: var(--purple-soft); transform: rotate(180deg); }
     .multi-city-legs { display: flex; flex-direction: column; gap: 10px; margin-bottom: 12px; }
@@ -393,6 +399,10 @@
         </div>
         <div class="search-fields-group" data-tab-fields="train" hidden>
           <div class="search-options-row">
+            <div class="rail-switch" role="radiogroup" aria-label="選擇高鐵或台鐵">
+              <label><input type="radio" name="rail" value="thsr" checked><span>高鐵</span></label>
+              <label><input type="radio" name="rail" value="tra"><span>台鐵</span></label>
+            </div>
             <label class="option-radio"><input type="radio" name="trainMode" value="oneway" checked>單程</label>
             <label class="option-radio"><input type="radio" name="trainMode" value="roundtrip">來回</label>
           </div>

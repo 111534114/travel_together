@@ -66,15 +66,17 @@ def is_configured():
     return bool(TDX_CLIENT_ID and TDX_CLIENT_SECRET)
 
 
-def search_trains(origin_keyword, destination_keyword, travel_date=None):
+def search_trains(origin_keyword, destination_keyword, travel_date=None, rail=None):
     """回傳指定日期的高鐵＋台鐵車次清單(格式跟本地 trains 資料表一致，可以直接丟給 train_search.html)。
+    rail 給 "thsr" 或 "tra" 就只查那個系統，其他值兩個都查。
     兩個系統都對不到站名或都查詢失敗就回傳 None，呼叫端要自己 fallback；只有其中一個失敗就回傳另一個的結果。"""
     if not is_configured() or not origin_keyword or not destination_keyword:
         return None
     travel_date = travel_date or datetime.now(TAIPEI_TZ).strftime("%Y-%m-%d")
 
+    searches = {"thsr": (_search_thsr,), "tra": (_search_tra,)}.get(rail, (_search_thsr, _search_tra))
     results = None
-    for search in (_search_thsr, _search_tra):
+    for search in searches:
         try:
             rows = search(origin_keyword, destination_keyword, travel_date)
         except Exception as error:
@@ -87,23 +89,26 @@ def search_trains(origin_keyword, destination_keyword, travel_date=None):
     return results
 
 
-def search_stations(keyword, limit=12):
+def search_stations(keyword, limit=12, rail=None):
     """給車站輸入框自動完成用：回傳 [{"name": "台北", "systems": ["高鐵", "台鐵"]}, ...]，
-    完全相同的站名排最前面、開頭相同的其次、包含關鍵字的最後。台鐵車站清單查不到時只回傳高鐵車站。"""
+    完全相同的站名排最前面、開頭相同的其次、包含關鍵字的最後。台鐵車站清單查不到時只回傳高鐵車站。
+    rail 給 "thsr" 或 "tra" 就只列那個系統的車站。"""
     keyword = _normalize_station(keyword)
     if not keyword:
         return []
-    try:
-        tra_names = set(_tra_stations()) if is_configured() else set()
-    except Exception as error:
-        print("TDX 台鐵車站清單查詢失敗：", error)
-        tra_names = set()
+    tra_names = set()
+    if rail != "thsr":
+        try:
+            tra_names = set(_tra_stations()) if is_configured() else set()
+        except Exception as error:
+            print("TDX 台鐵車站清單查詢失敗：", error)
+    thsr_names = set() if rail == "tra" else set(THSR_STATIONS) | set(THSR_ALIASES)
     matches = []
-    for name in set(THSR_STATIONS) | set(THSR_ALIASES) | tra_names:
+    for name in thsr_names | tra_names:
         if keyword not in name or "-" in name:  # 「台北-環島」這類是環島列車專用的虛擬站名，不給使用者選
             continue
-        systems = [label for label, names in (("高鐵", THSR_STATIONS), ("台鐵", tra_names)) if name in names]
-        if name in THSR_ALIASES:  # 例如搜尋「高雄」，高鐵會查左營站，提示使用者
+        systems = [label for label, names in (("高鐵", thsr_names & set(THSR_STATIONS)), ("台鐵", tra_names)) if name in names]
+        if name in THSR_ALIASES and name in thsr_names:  # 例如搜尋「高雄」，高鐵會查左營站，提示使用者
             systems.insert(0, f"高鐵{THSR_ALIASES[name]}站")
         rank = 0 if name == keyword else 1 if name.startswith(keyword) else 2
         matches.append((rank, len(name), name, systems))

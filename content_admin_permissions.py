@@ -65,6 +65,7 @@ _ENDPOINT_ACTIONS = {
     },
     "locations": {
         "create_country": "create", "create_city": "create",
+        "import_world_countries": "create",
         "import_preset_cities": "create", "edit_country": "edit",
         "edit_city": "edit", "delete_country": "delete", "delete_city": "delete",
     },

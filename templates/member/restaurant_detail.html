@@ -1,0 +1,54 @@
+{% extends 'member/base.html' %}{% block title %}{{ r.name }}｜走吧揪團{% endblock %}{% block content %}
+<div class="trip-form-page">
+    <div class="page-heading trip-form-heading">
+        <a href="{{ url_for('member.browse_restaurants') }}">← 返回探索餐廳</a>
+    </div>
+    <div class="panel">
+        <div class="attraction-hero">
+            {% if r.image_path %}
+                <img src="{{ url_for('static', filename=r.image_path) }}" alt="{{ r.name }}">
+            {% else %}
+                <span class="art-fallback">{{ r.name[:1] }}</span>
+            {% endif %}
+            <form method="post" action="{{ url_for('member.toggle_restaurant_favorite', restaurant_id=r.restaurant_id) }}" class="favorite-form">
+                <input type="hidden" name="next" value="{{ request.full_path }}">
+                <button type="submit" class="favorite-btn {{ 'is-favorited' if r.is_favorited else '' }}" title="{{ '取消收藏' if r.is_favorited else '收藏餐廳' }}">{{ '♥' if r.is_favorited else '♡' }}</button>
+            </form>
+        </div>
+
+        <p class="attraction-detail-breadcrumb">{{ r.country }} · {{ r.city }}{% if r.category_name %} · {{ r.category_name }}{% endif %}</p>
+        <h1>{{ r.name }}</h1>
+
+        <div class="attraction-detail-stats">
+            <div><span>料理類型</span><strong>{{ r.cuisine_type or '未提供' }}</strong></div>
+            <div><span>價位</span><strong>{{ {'low':'$（平價）','medium':'$$（中等）','high':'$$$（偏高）','luxury':'$$$$（奢華）'}.get(r.price_level, '未提供') }}</strong></div>
+            <div><span>營業時間</span><strong>{{ r.opening_hours or '未提供' }}</strong></div>
+        </div>
+
+        <div class="attraction-detail-location">
+            <span>📍 {{ r.address or '地址未提供' }}</span>
+            {% set map_url = google_maps_url(r.address, r.latitude, r.longitude) %}
+            {% if map_url %}<a href="{{ map_url }}" target="_blank" rel="noopener" class="member-btn light">🗺️ 在 Google 地圖上查看</a>{% endif %}
+        </div>
+
+        {% set embed_url = google_maps_embed_url(r.address, r.latitude, r.longitude) %}
+        {% if embed_url %}
+        <div class="attraction-map-embed">
+            <iframe src="{{ embed_url }}" loading="lazy" referrerpolicy="no-referrer-when-downgrade" allowfullscreen></iframe>
+        </div>
+        {% endif %}
+
+        <div class="attraction-detail-intro">
+            <h2>餐廳介紹</h2>
+            <p>{{ r.description or '這間餐廳還沒有介紹。' }}</p>
+        </div>
+
+        <div class="attraction-detail-actions">
+            <button type="button" class="member-btn primary" data-add-to-trip data-action="{{ url_for('member.add_restaurant_to_trip', restaurant_id=r.restaurant_id) }}" data-name="{{ r.name }}" data-city-id="{{ r.city_id }}">＋ 加入行程</button>
+            {% if r.website_url %}<a href="{{ r.website_url }}" target="_blank" rel="noopener" class="member-btn ghost">官方網站</a>{% endif %}
+        </div>
+    </div>
+</div>
+
+{% include 'member/_add_to_trip_modal.html' %}
+{% endblock %}

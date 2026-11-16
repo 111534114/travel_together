@@ -61,6 +61,16 @@ def get_city_airport_codes(english_city_name, country=None):
     return ",".join(a["iata"] for a in matches) if matches else None
 
 
+def get_country_airports(english_country_name, limit=None):
+    """某個國家底下的機場(國際機場已經篩過)，航線多的排前面。"""
+    name_lower = (english_country_name or "").strip().lower()
+    if not name_lower:
+        return []
+    matches = [a for a in _airports if a["country"].lower() == name_lower]
+    matches.sort(key=lambda a: -int(a.get("routes") or 0))
+    return matches[:limit] if limit else matches
+
+
 def search_airports(keyword, limit=10):
     """依關鍵字(城市名/機場名/IATA 代碼，英文、不分大小寫)找出符合的城市，
     每個符合的城市會展開成「這個城市底下的所有機場」一起列出(例如打 tpe 或 Taipei，

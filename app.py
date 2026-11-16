@@ -442,15 +442,14 @@ def api_hotel_offers():
     destination = request.args.get("destination", "").strip()[:100]
     checkin = request.args.get("checkin", "").strip()
     checkout = request.args.get("checkout", "").strip()
-    guests_raw = request.args.get("guests", "2").strip()
-    guests = int(guests_raw) if guests_raw.isdigit() and 0 < int(guests_raw) <= 20 else 2
+    party = _parse_guest_party(request.args)
     try:
         datetime.strptime(checkin, "%Y-%m-%d"); datetime.strptime(checkout, "%Y-%m-%d")
     except ValueError:
         return jsonify(error="日期格式不正確"), 400
     if not re.fullmatch(r"[A-Za-z0-9_\-]{10,300}", token):
         return jsonify(error="飯店資料不正確"), 400
-    offers = serpapi_hotels.get_offers(token, destination, checkin, checkout, guests)
+    offers = serpapi_hotels.get_offers(token, destination, checkin, checkout, party["adults_per_room"], party["ages_per_room"])
     if offers is None:
         return jsonify(error="暫時查不到各訂房網站的價格，請稍後再試。"), 502
     return jsonify(offers=offers)
@@ -462,8 +461,8 @@ def visitor_hotel_search():
     checkin = request.args.get("checkin", "").strip()  # 取得入住日期(YYYY-MM-DD)
     checkout = request.args.get("checkout", "").strip()  # 取得退房日期(YYYY-MM-DD)
 
-    guests_raw = request.args.get("guests", "2").strip()  # 取得人數參數(字串)
-    guests = int(guests_raw) if guests_raw.isdigit() and int(guests_raw) > 0 else 2  # 驗證人數為正整數，否則預設 2 人
+    party = _parse_guest_party(request.args)  # 房間數、成人、兒童(含年齡)；guests 沿用成人人數，其他程式還在用
+    guests = party["adults"]
 
     nights = None  # 預設住宿晚數未知
     if checkin and checkout:  # 如果入住與退房日期都有填
@@ -480,7 +479,7 @@ def visitor_hotel_search():
     live_failed = False
     page_token = request.args.get("page_token", "").strip() or None
     if destination and nights and serpapi_hotels.is_configured():
-        live = serpapi_hotels.search_hotels(destination, checkin, checkout, guests, page_token)
+        live = serpapi_hotels.search_hotels(destination, checkin, checkout, party["adults_per_room"], page_token, party["ages_per_room"])
         if live and live["hotels"]:
             live_hotels, next_page_token = live["hotels"], live["next_page_token"]
         else:
@@ -526,7 +525,7 @@ def visitor_hotel_search():
             connection.close()
 
     if live_hotels is not None:
-        return _render_live_hotels(live_hotels, destination, checkin, checkout, guests, nights, next_page_token)
+        return _render_live_hotels(live_hotels, destination, checkin, checkout, guests, nights, next_page_token, party)
 
     hotel_price_buckets = price_buckets(accommodations, "price_per_night")
     hotel_price_max = price_range(accommodations, "price_per_night")
@@ -542,7 +541,41 @@ def visitor_hotel_search():
         price_buckets=hotel_price_buckets,
         price_max=hotel_price_max,
         live_failed=live_failed,
+        party=party, rooms=party["rooms"], party_label=party["label"],
     )
+
+
+HOTEL_MAX_GUESTS = 60  # 住客上限(成人+兒童)，比照 Agoda；Trip.com 只有 8 人，太少
+HOTEL_MAX_ROOMS = 30
+HOTEL_MAX_ADULTS_PER_ROOM = 4  # 每間房最多 4 位成人，人數超過就自動增加房間
+HOTEL_MAX_CHILDREN = 20
+
+
+def _parse_guest_party(args):
+    """住宿搜尋的房間數、成人、兒童(含年齡)。SerpApi 沒有房間數參數，所以多間房時改成「平均分配到每間房」
+    (成人、兒童都無條件進位)去查每間房的價格，頁面再用「每間價格 x 房間數」估算總價並標明是估算。"""
+    def clamp(raw, default, low, high):
+        raw = str(raw if raw is not None else "").strip()
+        value = int(raw) if raw.isdigit() else default
+        return max(low, min(high, value))
+
+    adults = clamp(args.get("guests"), 2, 1, HOTEL_MAX_GUESTS)
+    rooms = max(clamp(args.get("rooms"), 1, 1, HOTEL_MAX_ROOMS), -(-adults // HOTEL_MAX_ADULTS_PER_ROOM))  # 人多時自動補足房間數
+    adults = max(adults, rooms)  # 每間房至少要有一位成人
+    ages_raw = [a for a in str(args.get("child_ages", "")).split(",") if a.strip().isdigit()]
+    children = clamp(args.get("children", len(ages_raw)), len(ages_raw), 0, min(HOTEL_MAX_CHILDREN, max(0, HOTEL_MAX_GUESTS - adults)))
+    ages = [max(1, min(17, int(a))) for a in ages_raw][:children]
+    ages += [8] * (children - len(ages))  # 年齡沒填完整時用 8 歲補(SerpApi 要求年齡數量要跟兒童數一致)
+    adults_per_room = -(-adults // rooms)
+    kids_per_room = -(-children // rooms)
+    label = f"{adults} 位成人" + (f"、{children} 位兒童" if children else "")
+    if rooms > 1:
+        label = f"{rooms} 間房，每間以 {adults_per_room} 位成人" + (f"、{kids_per_room} 位兒童" if kids_per_room else "") + "計價"
+    else:
+        label = "以 " + label + "計價"
+    note = f"需要 {rooms} 間房，是否有足夠空房請向訂房網站確認" if rooms > 1 else ""  # Google 沒有飯店房間總數或剩餘房數的資料
+    return {"rooms": rooms, "adults": adults, "children": children, "ages": ages, "adults_per_room": adults_per_room,
+            "ages_per_room": ages[:kids_per_room], "label": label, "note": note}
 
 
 def _hotel_facet(rows, key, label_of, sort_key=None):
@@ -562,7 +595,7 @@ def _hotel_facet(rows, key, label_of, sort_key=None):
     return sorted(options, key=sort_key or (lambda o: -o["count"]))
 
 
-def _render_live_hotels(hotels, destination, checkin, checkout, guests, nights, next_page_token):
+def _render_live_hotels(hotels, destination, checkin, checkout, guests, nights, next_page_token, party):
     star_facets = _hotel_facet(hotels, "star", lambda v: f"{v} 星級", sort_key=lambda o: -int(o["value"]))
     # 側邊欄不列「度假租屋」，只留「飯店」一個選項(結果裡有混到租屋時才有篩選意義)
     type_facets = [f for f in _hotel_facet(hotels, "property_type", lambda v: v) if f["value"] == "飯店"]
@@ -573,10 +606,13 @@ def _render_live_hotels(hotels, destination, checkin, checkout, guests, nights, 
             amenity_counts[label] = amenity_counts.get(label, 0) + 1
     amenity_facets = [{"value": label, "label": label, "count": count, "min_price": None}
                       for label, count in sorted(amenity_counts.items(), key=lambda item: -item[1])[:20]
-                      if count < len(hotels)]
+                      if count < len(hotels) and label != "親子友善"]
 
     # 熱門篩選條件：只列這批結果裡真的有符合的項目(沒有任何一間符合就不顯示，不放點了沒結果的選項)
     popular_labels = {"parking": "設有停車位", "breakfast": "包含早餐", "pets": "可攜帶寵物"}
+    kids_label = {"kids": "親子友善（Google 標示）"}  # Google 對整間飯店的標示，不代表有親子房
+    # 有帶兒童時排在最前面，沒帶兒童一樣列出來，只是不優先
+    popular_labels = {**kids_label, **popular_labels} if party["children"] else {**popular_labels, **kids_label}
     popular_facets = [{"value": key, "label": label, "count": sum(1 for h in hotels if key in h["flags"])}
                       for key, label in popular_labels.items()]
     popular_facets = [f for f in popular_facets if f["count"]]
@@ -606,6 +642,9 @@ def _render_live_hotels(hotels, destination, checkin, checkout, guests, nights, 
         rows = sorted(rows, key=lambda h: -(h["rating_10"] or 0))
     elif sort == "star":
         rows = sorted(rows, key=lambda h: -(h["star"] or 0))
+    elif party["children"] and not sort:
+        # 有帶兒童且沒指定排序時，親子友善的飯店排最前面(其餘維持 Google 原本的順序)；指定了排序就照使用者選的排
+        rows = sorted(rows, key=lambda h: "kids" not in h["flags"])
 
     return render_template(
         "hotel_search.html", destination=destination, checkin=checkin, checkout=checkout, guests=guests, nights=nights,
@@ -614,6 +653,7 @@ def _render_live_hotels(hotels, destination, checkin, checkout, guests, nights, 
         popular_facets=popular_facets, rating_facets=rating_facets,
         map_url="https://www.google.com/maps/search/?api=1&query=" + quote(f"{destination} 飯店"),
         next_page_token=next_page_token, accommodations=[],
+        party=party, rooms=party["rooms"], party_label=party["label"],
     )
 
 
@@ -738,7 +778,10 @@ def api_city_search():
         return jsonify([])
     # 北海道、九州等地區涵蓋多個城市，合併查詢各城市機場。
     region_cities = flight_links.REGION_CITIES.get(keyword)
-    if region_cities:
+    country_found = [] if region_cities else flight_links.country_airports(keyword)
+    if country_found:
+        results = country_found
+    elif region_cities:
         results = []
         seen_iata = set()
         for city in region_cities:
@@ -759,7 +802,7 @@ def api_city_search():
             row,
             name_zh=flight_links.AIRPORT_NAME_ZH.get(row["iata"]) or row.get("name_zh") or None,
             city_zh=flight_links.to_chinese_city_name(row["city"]),
-            region=keyword if region_cities else None,
+            region=keyword if (region_cities or country_found) else None,
         )
         for row in results
     ]

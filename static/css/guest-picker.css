@@ -1,0 +1,27 @@
+.guest-picker { position: relative; }
+.guest-picker-toggle {
+  width: 100%; min-height: 46px; padding: 11px 14px; text-align: left; white-space: nowrap;
+  color: #23373A; background: #fff; border: 1px solid #C6DCDF; border-radius: 8px; font: inherit; font-size: 15px; cursor: pointer;
+}
+.guest-picker-toggle:focus-visible, .guest-picker-toggle[aria-expanded="true"] { border-color: #078da4; box-shadow: 0 0 0 3px rgba(7, 141, 164, .15); outline: none; }
+.guest-picker-panel {
+  position: absolute; z-index: 60; top: calc(100% + 6px); right: 0; width: 290px; padding: 14px 18px 16px;
+  background: #fff; border: 1px solid #E1EBEC; border-radius: 12px; box-shadow: 0 14px 36px rgba(35, 55, 58, .22);
+}
+.guest-picker-panel[hidden] { display: none; }
+.gp-row { display: flex; align-items: center; justify-content: space-between; padding: 10px 0; color: #23373A; font-size: 15px; }
+.gp-label small { margin-left: 4px; color: #708284; font-size: 12px; }
+.gp-counter { display: inline-flex; align-items: center; gap: 14px; }
+.gp-counter output { min-width: 18px; text-align: center; font-size: 15px; }
+.gp-counter button {
+  width: 30px; height: 30px; padding: 0; color: #078da4; background: #fff; border: 2px solid #078da4; border-radius: 50%;
+  font-size: 18px; line-height: 1; cursor: pointer;
+}
+.gp-counter button:disabled { color: #C6DCDF; border-color: #C6DCDF; cursor: default; }
+.gp-hint { margin: 8px 0 0; color: #708284; font-size: 12px; line-height: 1.5; }
+.gp-ages { display: grid; gap: 8px; margin-top: 4px; }
+.gp-age { display: flex; align-items: center; justify-content: space-between; gap: 10px; color: #536970; font-size: 13px; }
+.gp-age select { padding: 6px 8px; border: 1px solid #C6DCDF; border-radius: 6px; background: #fff; font: inherit; font-size: 13px; }
+.gp-confirm { display: block; margin: 12px 0 0 auto; padding: 8px 22px; color: #fff; background: #078da4; border: 0; border-radius: 8px; font: inherit; font-weight: 700; cursor: pointer; }
+.gp-confirm:hover { background: #067286; }
+@media (max-width: 560px) { .guest-picker-panel { right: auto; left: 0; width: min(290px, calc(100vw - 48px)); } }

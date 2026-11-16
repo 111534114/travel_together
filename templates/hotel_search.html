@@ -81,6 +81,7 @@
     .hotel-info { display: flex; flex-direction: column; gap: 8px; padding: 16px 18px; min-width: 0; }
     .hotel-info h3 { margin: 0; font-size: 19px; line-height: 1.4; }
     .hotel-meta { color: var(--muted); font-size: 13px; }
+    .kid-badge { margin-left: 8px; padding: 2px 8px; color: #2F7A4B; background: #E5F4EA; border-radius: 6px; font-size: 12px; font-weight: 700; cursor: help; }
     .rating-line { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--muted); }
     .rating-score { padding: 3px 8px; color: #fff; background: var(--purple); border-radius: 6px 6px 6px 0; font-weight: 800; font-size: 14px; }
     .rating-label { color: var(--ink); font-weight: 700; }
@@ -92,6 +93,7 @@
     .price-night { color: var(--purple); font-size: 24px; font-weight: 800; line-height: 1.1; }
     .price-night small { color: var(--muted); font-size: 12px; font-weight: 500; }
     .price-total { color: var(--muted); font-size: 12px; }
+    .price-warn { color: #B26A00; }
     .more-wrap { margin-top: 18px; text-align: center; }
     .more-link { display: inline-block; padding: 10px 22px; color: var(--purple); background: #fff; border: 1px solid #C6DCDF; border-radius: 8px; font-weight: 700; }
     .more-link:hover { color: #fff; background: var(--purple); border-color: var(--purple); }
@@ -127,7 +129,7 @@
         </div>
       </div>
       {% if using_live_data %}
-      <div class="hotel-list" data-hotel-query data-destination="{{ destination }}" data-checkin="{{ checkin }}" data-checkout="{{ checkout }}" data-guests="{{ guests }}">
+      <div class="hotel-list" data-hotel-query data-destination="{{ destination }}" data-checkin="{{ checkin }}" data-checkout="{{ checkout }}" data-adults="{{ party.adults_per_room }}" data-child-ages="{{ party.ages_per_room|join(',') }}" data-rooms="{{ rooms }}" data-party="{{ party_label }}" data-party-note="{{ party.note }}">
         {% for hotel in hotels %}
         <article class="hotel-row" data-detail='{{ hotel.detail|tojson }}'>
           <div class="hotel-photo" data-photos='{{ hotel.images|map(attribute="thumb")|list|tojson }}'>
@@ -138,16 +140,18 @@
           </div>
           <div class="hotel-info">
             <h3>{{ hotel.name }}</h3>
-            <div class="hotel-meta">{{ hotel.property_type }}{% if hotel.star %} ・ {{ hotel.star }} 星級{% endif %}{% if hotel.check_in_time %} ・ 入住 {{ hotel.check_in_time }}{% endif %}{% if hotel.check_out_time %} ・ 退房 {{ hotel.check_out_time }}{% endif %}</div>
+            <div class="hotel-meta">{{ hotel.property_type }}{% if hotel.star %} ・ {{ hotel.star }} 星級{% endif %}{% if hotel.check_in_time %} ・ 入住 {{ hotel.check_in_time }}{% endif %}{% if hotel.check_out_time %} ・ 退房 {{ hotel.check_out_time }}{% endif %}{% if 'kids' in hotel.flags %}<span class="kid-badge" title="Google 將這間飯店標示為親子友善，不代表一定有親子房或加床，請在訂房網站選房時確認">親子友善</span>{% endif %}</div>
             {% if hotel.rating_10 %}<div class="rating-line"><span class="rating-score">{{ hotel.rating_10 }}</span><span class="rating-label">{{ hotel.rating_label }}</span><span>{{ '{:,}'.format(hotel.reviews) }} 則評價</span></div>{% endif %}
             {% if hotel.description %}<p class="hotel-desc">{{ hotel.description }}</p>{% endif %}
             {% if hotel.amenities %}<div class="amenity-chips">{% for item in hotel.amenities[:6] %}<span>{{ item }}</span>{% endfor %}</div>{% endif %}
           </div>
           <div class="hotel-side">
             {% if hotel.deal %}<span class="deal-badge">{{ hotel.deal }}</span>{% endif %}
-            <span class="price-night">NT$ {{ "{:,.0f}".format(hotel.price) }}<small> / 晚</small></span>
-            {% if hotel.total_price %}<span class="price-total">{{ nights }} 晚共 NT$ {{ "{:,.0f}".format(hotel.total_price) }}</span>{% endif %}
-            <span class="price-total">以 {{ guests }} 位住客計價</span>
+            <span class="price-total">最低價・以訂房網站為準</span>
+            <span class="price-night">NT$ {{ "{:,.0f}".format(hotel.price) }}<small> / 晚{% if rooms > 1 %}・每間{% endif %}</small></span>
+            {% if hotel.total_price %}<span class="price-total">{% if rooms > 1 %}{{ rooms }} 間・{{ nights }} 晚約 NT$ {{ "{:,.0f}".format(hotel.total_price * rooms) }}{% else %}{{ nights }} 晚共 NT$ {{ "{:,.0f}".format(hotel.total_price) }}{% endif %}</span>{% endif %}
+            <span class="price-total">{{ party_label }}</span>
+            {% if party.note %}<span class="price-total price-warn">{{ party.note }}</span>{% endif %}
             <button type="button" class="view-button" data-hotel-detail>查看詳情</button>
           </div>
         </article>

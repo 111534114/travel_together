@@ -7,6 +7,7 @@ import airports
 CITY_IATA = {
     # 台灣
     "台北": "TPE", "台北市": "TPE", "桃園": "TPE",
+    "雷克雅維克": "KEF", "雷克雅未克": "KEF",
     # 日本
     "東京": "NRT", "東京都": "NRT", "大阪": "KIX", "大阪市": "KIX", "名古屋": "NGO",
     "福岡": "FUK", "札幌": "CTS", "沖繩": "OKA", "京都": "KIX",
@@ -161,11 +162,106 @@ REGION_CITIES = {
 }
 
 
+# 中文國家名稱 -> 機場資料庫(airports_data.csv)裡的英文國名；只放有機場資料可對應的國家，搜尋「冰島」這種整個國家時用。
+COUNTRY_NAME_EN = {
+    "冰島": "Iceland",
+    "緬甸": "Burma",
+    "台灣": "Taiwan",
+    "臺灣": "Taiwan",
+    "韓國": "South Korea",
+    "南韓": "South Korea",
+    "泰國": "Thailand",
+    "越南": "Vietnam",
+    "馬來西亞": "Malaysia",
+    "菲律賓": "Philippines",
+    "印尼": "Indonesia",
+    "印度尼西亞": "Indonesia",
+    "柬埔寨": "Cambodia",
+    "寮國": "Laos",
+    "蒙古": "Mongolia",
+    "印度": "India",
+    "尼泊爾": "Nepal",
+    "斯里蘭卡": "Sri Lanka",
+    "馬爾地夫": "Maldives",
+    "不丹": "Bhutan",
+    "澳洲": "Australia",
+    "紐西蘭": "New Zealand",
+    "斐濟": "Fiji",
+    "英國": "United Kingdom",
+    "愛爾蘭": "Ireland",
+    "法國": "France",
+    "德國": "Germany",
+    "義大利": "Italy",
+    "西班牙": "Spain",
+    "葡萄牙": "Portugal",
+    "荷蘭": "Netherlands",
+    "比利時": "Belgium",
+    "瑞士": "Switzerland",
+    "奧地利": "Austria",
+    "捷克": "Czech Republic",
+    "波蘭": "Poland",
+    "匈牙利": "Hungary",
+    "希臘": "Greece",
+    "克羅埃西亞": "Croatia",
+    "羅馬尼亞": "Romania",
+    "保加利亞": "Bulgaria",
+    "塞爾維亞": "Serbia",
+    "斯洛維尼亞": "Slovenia",
+    "芬蘭": "Finland",
+    "瑞典": "Sweden",
+    "挪威": "Norway",
+    "丹麥": "Denmark",
+    "愛沙尼亞": "Estonia",
+    "拉脫維亞": "Latvia",
+    "立陶宛": "Lithuania",
+    "烏克蘭": "Ukraine",
+    "土耳其": "Turkey",
+    "埃及": "Egypt",
+    "摩洛哥": "Morocco",
+    "南非": "South Africa",
+    "肯亞": "Kenya",
+    "坦尚尼亞": "Tanzania",
+    "以色列": "Israel",
+    "約旦": "Jordan",
+    "卡達": "Qatar",
+    "阿聯": "United Arab Emirates",
+    "阿聯酋": "United Arab Emirates",
+    "阿拉伯聯合大公國": "United Arab Emirates",
+    "沙烏地阿拉伯": "Saudi Arabia",
+    "加拿大": "Canada",
+    "墨西哥": "Mexico",
+    "古巴": "Cuba",
+    "巴西": "Brazil",
+    "阿根廷": "Argentina",
+    "智利": "Chile",
+    "秘魯": "Peru",
+    "哥倫比亞": "Colombia",
+    "格陵蘭": "Greenland",
+    "俄羅斯": "Russia",
+    "哈薩克": "Kazakhstan",
+    "烏茲別克": "Uzbekistan",
+    "喬治亞": "Georgia",
+    "亞美尼亞": "Armenia",
+}
+COUNTRY_AIRPORT_LIMIT = 6  # 國際機場超過這個數量的大國(日本、美國⋯)太籠統，不提供「整個國家」的查法，請使用者選城市
+
+
+
+def country_airports(name):
+    """整個國家的機場(例如「冰島」)；國際機場超過 COUNTRY_AIRPORT_LIMIT 個的大國，或已經有手動整理成城市的名稱，回傳空清單。"""
+    english = COUNTRY_NAME_EN.get((name or "").strip())
+    if not english or (name or "").strip() in CITY_IATA:
+        return []
+    found = airports.get_country_airports(english)
+    return found if len(found) <= COUNTRY_AIRPORT_LIMIT else []
+
+
 def region_airport_codes(region_name):
     """地區名稱(例如「北海道」) -> 底下所有城市機場代碼聯集的逗號字串；不是地區名稱就回傳 None。"""
     cities = REGION_CITIES.get((region_name or "").strip())
     if not cities:
-        return None
+        country_found = country_airports(region_name)
+        return ",".join(a["iata"] for a in country_found) if country_found else None
     codes = []
     for city in cities:
         city_codes = airports.get_city_airport_codes(city, "Japan")

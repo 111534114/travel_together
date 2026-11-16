@@ -71,6 +71,8 @@ def _amenity_flags(raw_amenities):
             flags.add("breakfast")
         if "pet" in low or "寵物" in low:
             flags.add("pets")
+        if low == "kid-friendly" or "親子" in low:
+            flags.add("kids")
     return sorted(flags)
 
 
@@ -192,13 +194,23 @@ def _parse_property(item):
     }
 
 
-def search_hotels(destination, check_in, check_out, adults=2, page_token=None):
+def _guest_params(adults, child_ages):
+    # SerpApi 沒有「房間數」參數；兒童要用 children + children_ages(1~17 歲，數量要一致)
+    params = {"adults": adults}
+    if child_ages:
+        params["children"] = len(child_ages)
+        params["children_ages"] = ",".join(str(age) for age in child_ages)
+    return params
+
+
+def search_hotels(destination, check_in, check_out, adults=2, page_token=None, child_ages=None):
     """回傳 {"hotels": [...], "next_page_token": str|None}；沒金鑰、沒日期、查詢失敗都回傳 None。
     價格一律是台幣：price 是每晚、total_price 是整段住宿總價。"""
     if not is_configured() or not destination or not check_in or not check_out:
         return None
 
-    cache_key = (destination, check_in, check_out, adults, page_token or "")
+    child_ages = tuple(child_ages or ())
+    cache_key = (destination, check_in, check_out, adults, child_ages, page_token or "")
     cached = _cache.get(cache_key)
     if cached and cached[0] > time.time():
         return cached[1]
@@ -206,8 +218,8 @@ def search_hotels(destination, check_in, check_out, adults=2, page_token=None):
     query = destination if any(word in destination for word in ("飯店", "住宿", "旅館", "民宿", "hotel", "Hotel")) else f"{destination} 飯店"
     params = {
         "engine": "google_hotels", "api_key": SERPAPI_HOTELS_API_KEY, "q": query,
-        "check_in_date": check_in, "check_out_date": check_out, "adults": adults,
-        "currency": "TWD", "hl": "zh-tw", "gl": "tw",
+        "check_in_date": check_in, "check_out_date": check_out,
+        "currency": "TWD", "hl": "zh-tw", "gl": "tw", **_guest_params(adults, child_ages),
     }
     if page_token:
         params["next_page_token"] = page_token
@@ -234,20 +246,21 @@ def search_hotels(destination, check_in, check_out, adults=2, page_token=None):
     return result
 
 
-def get_offers(property_token, destination, check_in, check_out, adults=2):
+def get_offers(property_token, destination, check_in, check_out, adults=2, child_ages=None):
     """單一飯店在各訂房網站(官網、Booking.com、Agoda⋯)的價格與訂房連結，每次呼叫用掉 1 次額度，結果快取一小時。
     回傳依每晚價格由低到高排序的清單；沒金鑰或查詢失敗回傳 None。"""
     if not is_configured() or not property_token:
         return None
-    cache_key = ("offers", property_token, check_in, check_out, adults)
+    child_ages = tuple(child_ages or ())
+    cache_key = ("offers", property_token, check_in, check_out, adults, child_ages)
     cached = _cache.get(cache_key)
     if cached and cached[0] > time.time():
         return cached[1]
 
     params = {
         "engine": "google_hotels", "api_key": SERPAPI_HOTELS_API_KEY, "q": f"{destination} 飯店",
-        "check_in_date": check_in, "check_out_date": check_out, "adults": adults,
-        "currency": "TWD", "hl": "zh-tw", "gl": "tw", "property_token": property_token,
+        "check_in_date": check_in, "check_out_date": check_out,
+        "currency": "TWD", "hl": "zh-tw", "gl": "tw", "property_token": property_token, **_guest_params(adults, child_ages),
     }
     result = None
     try:

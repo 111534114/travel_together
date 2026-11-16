@@ -312,6 +312,7 @@
       else if((key==='pax'||key==='guests') && (!/^\d+$/.test(value)||Number(value)<1||Number(value)>99)) message='人數須介於 1 與 99';
       if(message){error(input,message);failed=true;}
     });
+    if(kind==='hotel'){[['hotelRooms','rooms'],['hotelChildren','children'],['hotelChildAges','child_ages']].forEach(([id,key])=>{const el=get(id);if(el)params.set(key,el.value);});}
     if(rangeMissing){rangeError(kind,'請選擇日期');failed=true;}
     const start=kind==='hotel'?'checkin':kind==='flight'?'depart':'date';
     const end=kind==='hotel'?'checkout':'return';
@@ -325,6 +326,6 @@
     location.href='/visitor/'+({hotel:'hotels',flight:'flights',train:'trains'}[kind])+'?'+params.toString();
   },true);
   const note=get('searchNote');
-  const noteText=()=>{if(note)note.textContent=active()==='hotel'?'住宿為資料庫資訊，空房與日期價格請向業者確認。':active()==='train'?'高鐵／台鐵班表與票價來自交通部 TDX，座位與訂票請以官方售票系統為準。':'班表與票價為資料庫參考資料，尚未串接即時售票或優惠報價。';};
+  const noteText=()=>{if(note)note.textContent=active()==='hotel'?'住宿價格為即時報價參考，空房與實際價格請以訂房網站為準。':active()==='train'?'高鐵／台鐵班表與票價來自交通部 TDX，座位與訂票請以官方售票系統為準。':'班表與票價為資料庫參考資料，尚未串接即時售票或優惠報價。';};
   noteText();document.querySelectorAll('.search-tab').forEach(el=>el.addEventListener('click',noteText));
 })();

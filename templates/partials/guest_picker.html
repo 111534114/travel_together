@@ -1,0 +1,24 @@
+{# 住宿的「房間／成人／兒童」選擇器：首頁的住宿搜尋和住宿搜尋結果頁共用。目前選的值從網址參數帶回來。 #}
+{% macro guest_picker() %}
+{% set adults = [[request.args.get('guests', '2')|int, 1]|max, 60]|min %}
+{% set rooms = [[[request.args.get('rooms', '1')|int, 1]|max, (adults / 4)|round(0, 'ceil')|int]|max, 30]|min %}
+{% set ages = request.args.get('child_ages', '').split(',') if request.args.get('child_ages') else [] %}
+{% set children = [request.args.get('children', ages|length)|int, 20, 60 - adults]|min %}
+<div class="guest-picker" data-guest-picker>
+  <button type="button" class="guest-picker-toggle" aria-haspopup="true" aria-expanded="false">{{ rooms }} 房, {{ [adults, rooms]|max }}位成人, {{ children }}位兒童</button>
+  <div class="guest-picker-panel" hidden>
+    <div class="gp-row" data-gp-row="rooms"><span class="gp-label">房間</span><span class="gp-counter"><button type="button" data-gp-minus aria-label="減少房間">&minus;</button><output>{{ rooms }}</output><button type="button" data-gp-plus aria-label="增加房間">+</button></span></div>
+    <div class="gp-row" data-gp-row="adults"><span class="gp-label">成人 <small>≥18歲</small></span><span class="gp-counter"><button type="button" data-gp-minus aria-label="減少成人">&minus;</button><output>{{ [adults, rooms]|max }}</output><button type="button" data-gp-plus aria-label="增加成人">+</button></span></div>
+    <div class="gp-row" data-gp-row="children"><span class="gp-label">兒童 <small>0-17歲</small></span><span class="gp-counter"><button type="button" data-gp-minus aria-label="減少兒童">&minus;</button><output>{{ children }}</output><button type="button" data-gp-plus aria-label="增加兒童">+</button></span></div>
+    <div class="gp-ages" data-gp-ages></div>
+    <p class="gp-hint">最多 60 位住客；每間房最多 4 位成人，人多時房間會自動增加。</p>
+    <button type="button" class="gp-confirm">確認</button>
+  </div>
+  <input type="hidden" id="hotelGuests" name="guests" value="{{ [adults, rooms]|max }}" data-gp-value="adults">
+  <input type="hidden" id="hotelRooms" name="rooms" value="{{ rooms }}" data-gp-value="rooms">
+  <input type="hidden" id="hotelChildren" name="children" value="{{ children }}" data-gp-value="children">
+  <input type="hidden" id="hotelChildAges" name="child_ages" value="{{ ages|join(',') }}" data-gp-value="ages">
+</div>
+<link rel="stylesheet" href="{{ url_for('static', filename='css/guest-picker.css') }}">
+<script src="{{ url_for('static', filename='js/guest-picker.js') }}" defer></script>
+{% endmacro %}

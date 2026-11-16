@@ -1,3 +1,4 @@
+{% from 'partials/guest_picker.html' import guest_picker with context %}
 <!doctype html>
 <html lang="zh-Hant">
 <head>
@@ -346,7 +347,7 @@
             <input type="hidden" id="hotelCheckin">
             <input type="hidden" id="hotelCheckout">
           </div>
-          <div class="field"><label for="hotelGuests">人數</label><input id="hotelGuests" type="number" min="1" value="2"></div>
+          <div class="field"><label>房間與人數</label>{{ guest_picker() }}</div>
           <button class="search-submit" type="submit">搜尋</button>
         </div>
         <div class="search-fields-group" data-tab-fields="flight" hidden>

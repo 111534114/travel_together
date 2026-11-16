@@ -105,7 +105,7 @@
     return box;
   }
 
-  function buildOffers(d, query) {
+  function buildOffers(d, query, onOffers) {
     const box = el('div', 'hd-offers');
     if (!d.property_token || !query) return box;
     const button = el('button', 'hd-btn', '查看各訂房網站價格');
@@ -116,14 +116,15 @@
       button.textContent = '查詢中⋯⋯（約需 10 秒）';
       const params = new URLSearchParams({
         token: d.property_token, destination: query.destination, checkin: query.checkin,
-        checkout: query.checkout, guests: query.guests,
+        checkout: query.checkout, guests: query.adults, child_ages: query.childAges || '',
       });
       try {
         const response = await fetch('/api/hotel-offers?' + params.toString(), { headers: { Accept: 'application/json' } });
         const data = await response.json().catch(() => ({}));
         if (!response.ok) throw new Error(data.error || '查詢失敗，請稍後再試。');
         button.remove();
-        renderOffers(list, data.offers, query.guests);
+        renderOffers(list, data.offers, query.party, query.partyNote);
+        if (data.offers.length) onOffers(data.offers[0]);
       } catch (error) {
         button.disabled = false;
         button.textContent = '查看各訂房網站價格';
@@ -134,13 +135,13 @@
     return box;
   }
 
-  function renderOffers(list, offers, guests) {
+  function renderOffers(list, offers, party, partyNote) {
     list.replaceChildren();
     if (!offers.length) {
       list.appendChild(el('p', 'hd-offer-note', '目前沒有找到可訂房的網站。'));
       return;
     }
-    list.appendChild(el('p', 'hd-offer-note', `價格以 ${guests} 位住客計算。房型、房間照片與剩餘房數，請在訂房網站選房時查看。`));
+    list.appendChild(el('p', 'hd-offer-note', `價格${party}。${partyNote ? partyNote + '。' : ''}房型、房間照片與剩餘房數，請在訂房網站選房時查看。`));
     offers.forEach((offer, index) => {
       const row = el('a', 'hd-offer' + (index === 0 ? ' best' : ''));
       row.href = offer.link; row.target = '_blank'; row.rel = 'noopener';
@@ -154,16 +155,26 @@
 
   function buildSide(d, query) {
     const side = el('aside', 'hd-side');
-    const price = el('div', 'hd-price', `NT$ ${Math.round(d.price).toLocaleString('zh-TW')}`);
-    price.appendChild(el('small', '', ' / 晚'));
+    const rooms = query ? Number(query.rooms) || 1 : 1;
+    const price = el('div', 'hd-price');
+    const priceLabel = el('small', 'hd-price-label', 'Google 最低價');
+    const priceValue = el('span', '', `NT$ ${Math.round(d.price).toLocaleString('zh-TW')}`);
+    price.append(priceLabel, el('br'), priceValue, el('small', '', rooms > 1 ? ' / 晚・每間' : ' / 晚'));
     side.appendChild(price);
-    if (d.total_price) side.appendChild(el('div', 'hd-total', `住宿期間共 NT$ ${Math.round(d.total_price).toLocaleString('zh-TW')}`));
+    const totalText = (total) => (total ? `${rooms > 1 ? `${rooms} 間住宿期間約` : '住宿期間共'} NT$ ${Math.round(total * rooms).toLocaleString('zh-TW')}` : '');
+    const totalNode = el('div', 'hd-total', totalText(d.total_price));
+    side.appendChild(totalNode);
     const times = el('ul', 'hd-times');
     if (d.check_in_time) times.appendChild(el('li', '', `入住時間　${d.check_in_time}`));
     if (d.check_out_time) times.appendChild(el('li', '', `退房時間　${d.check_out_time}`));
     if (times.children.length) side.appendChild(times);
-    if (query) side.appendChild(el('div', 'hd-total', `以 ${query.guests} 位住客計價`));
-    side.appendChild(buildOffers(d, query));
+    if (query) side.appendChild(el('div', 'hd-total', query.party));
+    side.appendChild(buildOffers(d, query, (best) => {
+      // 換成實際訂房網站的最低報價，跟下面的清單一致
+      priceLabel.textContent = `${best.source} 報價`;
+      priceValue.textContent = `NT$ ${Math.round(best.price).toLocaleString('zh-TW')}`;
+      totalNode.textContent = totalText(best.total_price);
+    }));
     if (d.website_url) {
       const a = el('a', 'hd-btn primary', '前往飯店官網');
       a.href = d.website_url; a.target = '_blank'; a.rel = 'noopener';

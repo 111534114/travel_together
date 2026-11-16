@@ -14,6 +14,7 @@ import csv
 import os
 
 _CSV_PATH = os.path.join(os.path.dirname(__file__), "database", "airports_data.csv")
+_ROUTES_CSV_PATH = os.path.join(os.path.dirname(__file__), "database", "airports_routes.csv")
 
 _airports = []  # [{"iata":..., "city":..., "country":..., "name":..., "name_zh":...}, ...]
 _by_iata = {}
@@ -29,6 +30,14 @@ def _load():
                 _by_iata[row["iata"]] = row
     except OSError:
         pass  # 資料檔不存在就當作沒有全球機場資料，搜尋回傳空清單，不會讓網站掛掉
+    try:
+        with open(_ROUTES_CSV_PATH, encoding="utf-8-sig", newline="") as f:
+            for row in csv.DictReader(f):
+                airport = _by_iata.get(row["iata"])
+                if airport is not None:
+                    airport["routes"] = row["routes"]
+    except OSError:
+        pass  # 航線數只用於國家搜尋；缺少此檔仍可搜尋原有的全球機場
 
 
 _load()
@@ -59,6 +68,16 @@ def get_city_airport_codes(english_city_name, country=None):
     支援一次傳好幾個用逗號分開的代碼，查詢結果會把這幾個機場的航班混在一起回傳)。查不到就回傳 None。"""
     matches = get_city_airports(english_city_name, country)
     return ",".join(a["iata"] for a in matches) if matches else None
+
+
+def get_country_airports(english_country_name, limit=None):
+    """查詢附有航線統計的主要機場，保留完整機場清單供城市搜尋使用。"""
+    name_lower = (english_country_name or "").strip().lower()
+    if not name_lower:
+        return []
+    matches = [a for a in _airports if a["country"].lower() == name_lower and a.get("routes") is not None]
+    matches.sort(key=lambda a: -int(a.get("routes") or 0))
+    return matches[:limit] if limit else matches
 
 
 def search_airports(keyword, limit=10):

@@ -23,3 +23,11 @@ html, body { overscroll-behavior-y: none; }  /* 捲到最上面或最下面再�
   .member-sidenav nav { flex-direction: row; flex-wrap: wrap; }
   .side-footer { margin-top: 0; flex-direction: row; flex-wrap: wrap; padding-top: 0; border-top: 0; }
 }
+
+.member-content, .member-main { zoom: var(--ui-zoom, 1); }  /* 字體大小選擇(partials/font_size_control.html)：整個內容區一起放大縮小 */
+.font-size-control { display: flex; flex-direction: column; gap: 6px; margin: 4px 0; padding: 8px 4px 2px; }
+.font-size-label { color: #708284; font-size: 12px; font-weight: 600; }
+.font-size-buttons { display: grid; grid-template-columns: repeat(4, 1fr); gap: 4px; }
+.font-size-buttons button { padding: 6px 0; color: #426064; background: #fff; border: 1px solid #D2E4E6; border-radius: 6px; font: inherit; font-size: 13px; cursor: pointer; }
+.font-size-buttons button:hover { background: #EDF6F7; }
+.font-size-buttons button[aria-pressed="true"] { color: #fff; background: #4B838B; border-color: #4B838B; }

@@ -31,7 +31,7 @@
 
         <nav class="admin-menu">
 
-            <a class="{{ 'active' if active_menu == 'dashboard' else '' }}"
+            <a id="navDashboardLink" class="{{ 'active' if active_menu == 'dashboard' else '' }}"
                href="{{ url_for('content_admin_home') }}">
                 儀表板
             </a>
@@ -75,7 +75,7 @@
                 AI資料維護
             </a>{% endif %}
 
-            {% if content_admin_can('reports') %}<a href="{{ url_for('content_admin_home', _anchor='reports') }}">統計報表</a>{% endif %}
+            {% if content_admin_can('reports') %}<a id="navReportsLink" href="{{ url_for('content_admin_home', _anchor='reports') }}">統計報表</a>{% endif %}
 
             {% if content_admin_can('logs') %}<a class="{{ 'active' if active_menu == 'logs' else '' }}"
                href="{{ url_for('logs.list_logs') }}">

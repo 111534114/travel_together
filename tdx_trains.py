@@ -42,6 +42,12 @@ THSR_STATIONS = {
     "台中": "1040", "彰化": "1043", "雲林": "1047", "嘉義": "1050", "台南": "1060", "左營": "1070",
 }
 THSR_ALIASES = {"高雄": "左營", "新左營": "左營"}  # 使用者輸入「高雄」時，高鐵要查左營站
+# 高鐵站英文名(含常見的另一種拼法)→中文站名；台鐵英文站名直接用 TDX 車站資料裡的 StationName.En
+THSR_ENGLISH = {
+    "nangang": "南港", "taipei": "台北", "banqiao": "板橋", "taoyuan": "桃園", "hsinchu": "新竹", "xinzhu": "新竹",
+    "miaoli": "苗栗", "taichung": "台中", "taizhong": "台中", "changhua": "彰化", "zhanghua": "彰化", "yunlin": "雲林",
+    "chiayi": "嘉義", "jiayi": "嘉義", "tainan": "台南", "zuoying": "左營", "kaohsiung": "高雄", "xinzuoying": "新左營",
+}
 # 高鐵官網時刻表頁用的站名代碼
 THSR_WEB_CODES = {
     "0990": "NanGang", "1000": "TaiPei", "1010": "BanQiao", "1020": "TaoYuan", "1030": "XinZhu", "1035": "MiaoLi",
@@ -50,6 +56,9 @@ THSR_WEB_CODES = {
 
 # 高鐵票價的 CabinClass：1=標準車廂 2=商務車廂 3=自由座(這裡只列跟本地資料表一致的兩種)
 THSR_CABIN_LABELS = {1: "標準車廂", 2: "商務車廂"}
+# TDX 高鐵票價的 (TicketType, FareClass) → 票種；TicketType 1=一般票、8=團體票，FareClass 1=全票、9=優待票(孩童／敬老／愛心)
+# TDX 沒有高鐵早鳥票、大學生優惠：那兩種是每班車折扣不同且限量，只能到高鐵官網查
+THSR_FARE_TYPES = {(1, 1): "regular", (1, 9): "concession", (8, 1): "group"}
 
 # 台鐵時刻表的 TrainTypeCode，跟票價資料的 TrainType 是同一組代碼(用台北-台中票價實際對照過)
 TRA_TYPE_LABELS = {
@@ -93,9 +102,11 @@ def search_stations(keyword, limit=12, rail=None):
     """給車站輸入框自動完成用：回傳 [{"name": "台北", "systems": ["高鐵", "台鐵"]}, ...]，
     完全相同的站名排最前面、開頭相同的其次、包含關鍵字的最後。台鐵車站清單查不到時只回傳高鐵車站。
     rail 給 "thsr" 或 "tra" 就只列那個系統的車站。"""
+    english_key = _english_key(keyword)
     keyword = _normalize_station(keyword)
     if not keyword:
         return []
+    english = _english_names() if english_key else {}
     tra_names = set()
     if rail != "thsr":
         try:
@@ -105,18 +116,82 @@ def search_stations(keyword, limit=12, rail=None):
     thsr_names = set() if rail == "tra" else set(THSR_STATIONS) | set(THSR_ALIASES)
     matches = []
     for name in thsr_names | tra_names:
-        if keyword not in name or "-" in name:  # 「台北-環島」這類是環島列車專用的虛擬站名，不給使用者選
+        if "-" in name:  # 「台北-環島」這類是環島列車專用的虛擬站名，不給使用者選
+            continue
+        # 英文輸入(例如 taip、Kaohsiung)：比對該站的英文名；中文輸入照舊比對中文站名
+        en_names = [en for en, zh in english.items() if zh == name]
+        if english_key and en_names:
+            if not any(english_key in en for en in en_names):
+                continue
+            rank = 0 if english_key in en_names else 1 if any(en.startswith(english_key) for en in en_names) else 2
+        elif keyword in name:
+            rank = 0 if name == keyword else 1 if name.startswith(keyword) else 2
+        else:
             continue
         systems = [label for label, names in (("高鐵", thsr_names & set(THSR_STATIONS)), ("台鐵", tra_names)) if name in names]
         if name in THSR_ALIASES and name in thsr_names:  # 例如搜尋「高雄」，高鐵會查左營站，提示使用者
             systems.insert(0, f"高鐵{THSR_ALIASES[name]}站")
-        rank = 0 if name == keyword else 1 if name.startswith(keyword) else 2
         matches.append((rank, len(name), name, systems))
     matches.sort()
-    return [{"name": name, "systems": systems} for _, _, name, systems in matches[:limit]]
+    display = _english_display()
+    return [{"name": name, "en": display.get(name, ""), "systems": systems} for _, _, name, systems in matches[:limit]]
+
+
+def _english_key(name):
+    """英文站名比對用：只留英文字母、轉小寫，並去掉 station / HSR / TRA 這類字，例如 "Taipei HSR Station" → "taipei"。
+    輸入不是英文(含中文)就回傳空字串。"""
+    if not name or not name.isascii():
+        return ""
+    key = "".join(ch for ch in name.lower() if ch.isalpha() or ch == " ")
+    words = [w for w in key.split() if w not in ("station", "hsr", "thsr", "tra", "railway", "train", "main")]
+    return "".join(words)
+
+
+def _english_names():
+    """回傳 {英文 key: 中文站名}：高鐵寫死的英文名，加上 TDX 台鐵車站資料的英文名(有快取；查不到就只用高鐵的)。"""
+    names = dict(THSR_ENGLISH)
+    if is_configured():
+        try:
+            data = _api_get("/v3/Rail/TRA/Station", STATION_TTL_SECONDS)
+            for station in data.get("Stations", []):
+                raw = station["StationName"].get("En", "")
+                zh = station["StationName"]["Zh_tw"].replace("臺", "台")
+                # TDX 有些英文名帶縣市，例如中壢是 "Zhongli_Taoyuan"，使用者通常只打 "Zhongli"，兩種都收
+                for en in {_english_key(raw), _english_key(raw.split("_")[0])}:
+                    if en:
+                        names.setdefault(en, zh)
+        except Exception as error:
+            print("TDX 台鐵英文站名查詢失敗：", error)
+    return names
+
+
+# 高鐵站英文顯示名稱(大小寫正確的版本)，台鐵用 TDX 的 StationName.En
+THSR_ENGLISH_DISPLAY = {
+    "南港": "Nangang", "台北": "Taipei", "板橋": "Banqiao", "桃園": "Taoyuan", "新竹": "Hsinchu", "苗栗": "Miaoli",
+    "台中": "Taichung", "彰化": "Changhua", "雲林": "Yunlin", "嘉義": "Chiayi", "台南": "Tainan", "左營": "Zuoying",
+    "高雄": "Kaohsiung", "新左營": "Xinzuoying",
+}
+
+
+def _english_display():
+    """回傳 {中文站名: 英文顯示名稱}，給英文版網頁的車站下拉清單用。"""
+    display = {}
+    if is_configured():
+        try:
+            data = _api_get("/v3/Rail/TRA/Station", STATION_TTL_SECONDS)
+            for station in data.get("Stations", []):
+                if station["StationName"].get("En"):
+                    display[station["StationName"]["Zh_tw"].replace("臺", "台")] = station["StationName"]["En"].split("_")[0]
+        except Exception as error:
+            print("TDX 台鐵英文站名查詢失敗：", error)
+    display.update(THSR_ENGLISH_DISPLAY)
+    return display
 
 
 def _normalize_station(name):
+    english_key = _english_key(name.strip())
+    if english_key:  # 英文站名(例如 taipei、Kaohsiung)先換成中文站名，後面高鐵/台鐵查站號都用中文
+        return _english_names().get(english_key, name.strip())
     name = name.strip().replace("臺", "台")
     for prefix in ("高鐵", "台鐵"):
         name = name.removeprefix(prefix)
@@ -139,8 +214,12 @@ def _search_thsr(origin_keyword, destination_keyword, travel_date):
     # 高鐵去回程票價相同，固定用站號小的當起點查，來回兩個方向共用同一份快取
     fare_rows = _api_get(f"/v2/Rail/THSR/ODFare/{min(origin, destination)}/to/{max(origin, destination)}", FARE_TTL_SECONDS)
     prices = {}
+    fares = {}  # {車廂: {票種: 票價}}，票種對應 booking_search.TRAIN_FARES
     for record in fare_rows or []:
         for fare in record.get("Fares", []):
+            fare_key = THSR_FARE_TYPES.get((fare.get("TicketType"), fare.get("FareClass")))
+            if fare_key:
+                fares.setdefault(fare.get("CabinClass"), {})[fare_key] = fare.get("Price")
             if fare.get("TicketType") == 1 and fare.get("FareClass") == 1:  # 單程票、全票
                 prices[fare.get("CabinClass")] = fare.get("Price")
 
@@ -157,7 +236,7 @@ def _search_thsr(origin_keyword, destination_keyword, travel_date):
                     continue
                 rows.append(_row("thsr", train_no, label, item["OriginStopTime"]["StationName"]["Zh_tw"],
                                  item["DestinationStopTime"]["StationName"]["Zh_tw"], departure, arrival,
-                                 prices[cabin], None, cabin, official_query))
+                                 prices[cabin], None, cabin, official_query, fares.get(cabin)))
         except (KeyError, TypeError):
             continue
     return rows
@@ -174,7 +253,7 @@ def _search_tra(origin_keyword, destination_keyword, travel_date):
     trains = (timetable or {}).get("TrainTimetables") or []
     if not trains:
         return []
-    prices = _tra_prices(origin, destination)
+    prices, concession_prices = _tra_prices(origin, destination)
 
     rows = []
     for item in trains:
@@ -186,17 +265,22 @@ def _search_tra(origin_keyword, destination_keyword, travel_date):
             type_code = str(info["TrainTypeCode"])
             # 台鐵同一種車在不同路線(例如台北到台中走西部或繞東部)票價不同，要用車次的行駛方向對票價
             price = prices.get((type_code, info.get("Direction")))
+            concession = concession_prices.get((type_code, info.get("Direction")))
             if price is None:
                 price = min((p for (code, _), p in prices.items() if code == type_code), default=None)
+                concession = min((p for (code, _), p in concession_prices.items() if code == type_code), default=None)
             if price is None:
                 continue
+            fares = {"regular": price}
+            if concession is not None:
+                fares["concession"] = concession
             label = TRA_TYPE_LABELS.get(type_code) or info["TrainTypeName"]["Zh_tw"].split("(")[0]
             booking_url = tra_timetable_url(first_stop["StationID"], first_stop["StationName"]["Zh_tw"],
                                             last_stop["StationID"], last_stop["StationName"]["Zh_tw"],
                                             travel_date, first_stop["DepartureTime"])
             rows.append(_row("tra", info["TrainNo"], label, first_stop["StationName"]["Zh_tw"],
                              last_stop["StationName"]["Zh_tw"], first_stop["DepartureTime"],
-                             last_stop["ArrivalTime"], price, booking_url))
+                             last_stop["ArrivalTime"], price, booking_url, fares=fares))
         except (KeyError, IndexError, TypeError):
             continue
     return rows
@@ -209,21 +293,26 @@ def _tra_stations():
 
 
 def _tra_prices(origin, destination):
-    """回傳 {(車種代碼, 行駛方向): 全票價}。
+    """回傳 ({(車種代碼, 行駛方向): 全票價}, {(車種代碼, 行駛方向): 優待票價(孩童／敬老／愛心，半價)})。
     台鐵票價也是去回程相同，固定用站號小的當起點查來共用快取；反方向查時，車次的行駛方向
     (0=順行 1=逆行)剛好相反，所以要把票價資料裡的方向對調。"""
     reverse = origin > destination
     low, high = (destination, origin) if reverse else (origin, destination)
     data = _api_get(f"/v3/Rail/TRA/ODFare/{low}/to/{high}", FARE_TTL_SECONDS)
-    prices = {}
+    prices, concession = {}, {}
     for record in data.get("ODFares", []):
         direction = record.get("Direction")
         if reverse and direction in (0, 1):
             direction = 1 - direction
+        key = (str(record.get("TrainType")), direction)
         for fare in record.get("Fares", []):
-            if fare.get("TicketType") == 1 and fare.get("FareClass") == 1:
-                prices[(str(record.get("TrainType")), direction)] = fare.get("Price")
-    return prices
+            if fare.get("TicketType") != 1:
+                continue
+            if fare.get("FareClass") == 1:
+                prices[key] = fare.get("Price")
+            elif fare.get("FareClass") == 3:  # 孩童票，跟敬老、愛心票同價
+                concession[key] = fare.get("Price")
+    return prices, concession
 
 
 def tra_timetable_url(origin_id, origin_name, destination_id, destination_name, travel_date, start_time="00:00"):
@@ -268,7 +357,7 @@ def thsr_timetable_url(origin_id, destination_id, travel_date, start_time):
     return url
 
 
-def _row(train_type, train_no, car_class, origin_station, destination_station, departure, arrival, price, booking_url, cabin="", official_query=None):
+def _row(train_type, train_no, car_class, origin_station, destination_station, departure, arrival, price, booking_url, cabin="", official_query=None, fares=None):
     depart_at = datetime.strptime(departure, "%H:%M")
     arrive_at = datetime.strptime(arrival, "%H:%M")
     duration = int((arrive_at - depart_at).total_seconds() // 60)
@@ -289,6 +378,8 @@ def _row(train_type, train_no, car_class, origin_station, destination_station, d
         "is_live": True,
         "booking_url": booking_url,
         "official_query": official_query,
+        # 各票種的真實票價(TDX)，票種篩選時用來換價格；沒有的票種代表這班車查不到該票價
+        "fares": {key: Decimal(str(value)) for key, value in (fares or {"regular": price}).items() if value is not None},
     }
 
 
@@ -337,3 +428,8 @@ def _access_token():
     _token["value"] = data["access_token"]
     _token["expires_at"] = time.time() + data.get("expires_in", 3600)
     return _token["value"]
+
+
+def normalize_station(name):
+    """給外部(本地資料庫備援查詢)用：英文站名換中文、去掉「台鐵」「車站」等字，例如 "Taipei" → "台北"。"""
+    return _normalize_station(name)

@@ -42,6 +42,23 @@
             {% endfor %}
         </div></div>
         {% elif friend_group_on %}<div class="panel"><p class="muted">目前沒有符合條件的會員揪團。</p></div>{% endif %}
+        {% if joined_groups %}
+        <section class="group-history-section">
+            <h2>我參加過的揪團</h2>
+            <div class="trip-grid">
+                {% for group in joined_groups %}
+                <a class="trip-card companion-panel-clickable group-search-result" href="{{ url_for('friend_groups.group_detail', group_id=group.group_id) }}">
+                    <div class="trip-content">
+                        <h3>{{ group.title }}</h3>
+                        <p class="location">{{ group.event_date }}{% if group.city %} · {{ group.city }}{% elif group.location %} · {{ group.location }}{% endif %} · 主揪 {{ group.nickname or group.full_name }}</p>
+                        <div class="trip-details"><span class="status-tag">已結束</span><span>已加入</span></div>
+                        <span class="group-search-detail">查看揪團與評價 →</span>
+                    </div>
+                </a>
+                {% endfor %}
+            </div>
+        </section>
+        {% endif %}
     </div>
 
     <div class="page-tab-panel" id="tab-friend-groups">
@@ -136,7 +153,7 @@
         <p class="muted" style="margin-top:-6px;">
             團長等級：<strong>Lv.{{ tier.level }} {{ tier.label }}</strong>
             {% if tier.avg_rating is not none %}（平均評價 {{ "%.1f"|format(tier.avg_rating) }} 顆星，{{ tier.review_count }} 則）{% endif %}
-            {% if tier.level == 1 %}· 累積開滿 {{ tier.hosted_required }} 次、平均 {{ tier.rating_required }} 顆星以上可升級資深團長{% endif %}
+            {% if tier.level == 1 %}· 可開國內揪團；完成後取得團員文字評價，交由旅遊管理員審核國際揪團資格{% else %}· 已開放國際揪團{% endif %}
             {% if onboarding_done %}<span class="status-tag">🏅 新手開團者</span>{% endif %}
         </p>
         {% if not onboarding_done %}
@@ -149,7 +166,7 @@
                 <div class="trip-content">
                     <h3>{{ group.title }}</h3>
                     <p class="location">{{ group.event_date }}{% if group.location %} · {{ group.location }}{% endif %}</p>
-                    <div class="trip-details"><span>{{ group.member_count }}{% if group.capacity %} / {{ group.capacity }}{% endif %} 人</span>{% if group.pending_count %}<span>{{ group.pending_count }} 筆待審核</span>{% endif %}<span class="status-tag">{{ {'open':'開放中','closed':'已關閉','cancelled':'已取消'}[group.status] }}</span></div>
+                    <div class="trip-details"><span>{{ group.member_count }}{% if group.capacity %} / {{ group.capacity }}{% endif %} 人</span>{% if group.pending_count %}<span>{{ group.pending_count }} 筆待審核</span>{% endif %}<span class="status-tag">{{ '已取消' if group.status == 'cancelled' else '已結束' if (group.end_date or group.event_date) < today else {'open':'開放中','closed':'已關閉'}[group.status] }}</span></div>
                 </div>
             </article>
             {% endfor %}

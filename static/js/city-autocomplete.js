@@ -47,8 +47,13 @@
       },
       matchTitle: '常用車站',
       searchUrl: '/api/station-search?q=',
-      renderResults: (results, onPick) => buildDetailList('全部車站', results.map((station) => (
-        { label: station.name, sub: station.systems.join('・'), value: station.name })), onPick),
+      renderResults: (results, onPick) => buildDetailList('全部車站', results.map((station) => {
+        if (station.en && !STATION_EN[station.name]) STATION_EN[station.name] = station.en;  // 記下來，存最近搜尋時才換得回中文
+        const en = isEnglishPage() && (station.en || STATION_EN[station.name]);
+        return en ? { label: en, sub: station.systems.join('・'), value: en, notranslate: true }
+          : { label: station.name, sub: station.systems.join('・'), value: station.name };
+      }), onPick),
+      toItems: (names) => toStationItems(names),
       emptyText: '沒有符合的車站。',
       resultsCoverStatic: true,
     },
@@ -104,10 +109,10 @@
     section.appendChild(heading);
     const grid = document.createElement('div');
     grid.className = 'city-suggest-grid';
-    items.forEach(({ label, value, sub }) => {
+    items.forEach(({ label, value, sub, notranslate }) => {
       const item = document.createElement('button');
       item.type = 'button';
-      item.className = 'city-suggest-item';
+      item.className = 'city-suggest-item' + (notranslate ? ' notranslate' : '');
       item.textContent = sub ? `${label}・${sub}` : label;
       item.addEventListener('mousedown', (event) => {
         event.preventDefault(); // 避免 input 先觸發 blur 把面板關掉，導致點擊沒反應
@@ -121,6 +126,31 @@
 
   function toPlainItems(names) {
     return names.map((name) => ({ label: name, value: name }));
+  }
+
+  // 英文版網頁(Google 翻譯)：車站清單要顯示並填入正確的英文站名。不能用 Google 翻出來的字，
+  // 它會把「桃園」直譯成 Peach orchard 之類，後端對不到；輸入框的值本來也不會被翻譯，點了會填中文。
+  const STATION_EN = {
+    '南港': 'Nangang', '台北': 'Taipei', '板橋': 'Banqiao', '桃園': 'Taoyuan', '新竹': 'Hsinchu', '苗栗': 'Miaoli',
+    '台中': 'Taichung', '彰化': 'Changhua', '雲林': 'Yunlin', '嘉義': 'Chiayi', '台南': 'Tainan', '左營': 'Zuoying',
+    '基隆': 'Keelung', '松山': 'Songshan', '萬華': 'Wanhua', '樹林': 'Shulin', '中壢': 'Zhongli', '豐原': 'Fengyuan',
+    '新烏日': 'Xinwuri', '員林': 'Yuanlin', '斗六': 'Douliu', '新營': 'Xinying', '新左營': 'Xinzuoying', '高雄': 'Kaohsiung',
+    '屏東': 'Pingtung', '潮州': 'Chaozhou', '宜蘭': 'Yilan', '羅東': 'Luodong', '蘇澳新': "Su'aoxin", '花蓮': 'Hualien',
+    '玉里': 'Yuli', '池上': 'Chishang', '台東': 'Taitung', '知本': 'Zhiben',
+  };
+  const isEnglishPage = () => /(?:^|;\s*)googtrans=\/[^/;]*\/en(?:;|$)/.test(document.cookie);
+  // 英文站名 → 中文站名(大小寫不拘)；查不到回傳空字串
+  const stationZh = (name) => {
+    const lower = String(name).toLowerCase();
+    return Object.keys(STATION_EN).find((zh) => STATION_EN[zh].toLowerCase() === lower) || '';
+  };
+  // 車站名換成目前網頁語言：英文版顯示英文、中文版顯示中文；最近搜尋一律存中文，才不會中文版冒出英文
+  const stationInLanguage = (name) => (isEnglishPage() ? (STATION_EN[name] || name) : (stationZh(name) || name));
+  function toStationItems(names) {
+    const seen = new Set();  // 最近搜尋可能同時有「台北」和「Taipei」，換成同一種語言後只留一個
+    return names.map(stationInLanguage)
+      .filter((name) => !seen.has(name) && seen.add(name))
+      .map((name) => ({ label: name, value: name, notranslate: isEnglishPage() }));
   }
 
   // 機場名稱+城市+國家+代碼這種比較長的文字，放進原本給城市名字用的三欄格狀排版會擠爆，
@@ -228,12 +258,12 @@
     section.appendChild(heading);
     const list = document.createElement('div');
     list.className = 'city-suggest-list';
-    items.forEach(({ label, sub, value }) => {
+    items.forEach(({ label, sub, value, notranslate }) => {
       const item = document.createElement('button');
       item.type = 'button';
       item.className = 'city-suggest-item city-suggest-item--airport';
       const primary = document.createElement('span');
-      primary.className = 'city-suggest-item-primary';
+      primary.className = 'city-suggest-item-primary' + (notranslate ? ' notranslate' : '');
       primary.textContent = label;
       const secondary = document.createElement('span');
       secondary.className = 'city-suggest-item-secondary';
@@ -253,18 +283,21 @@
   function renderStaticPanel(panel, keyword, onPick, mode) {
     panel.innerHTML = '';
     if (!keyword) {
-      const recentSection = buildSection('最近搜尋', toPlainItems(readRecent(mode.recentKey)), onPick);
+      const toItems = mode.toItems || toPlainItems;
+      const recentSection = buildSection('最近搜尋', toItems(readRecent(mode.recentKey)), onPick);
       if (recentSection) panel.appendChild(recentSection);
-      const popularSection = buildSection(mode.popularTitle, toPlainItems(mode.popular), onPick);
+      const popularSection = buildSection(mode.popularTitle, toItems(mode.popular), onPick);
       if (popularSection) panel.appendChild(popularSection);
       Object.entries(mode.regions).forEach(([region, cities]) => {
-        const section = buildSection(region, toPlainItems(cities), onPick);
+        const section = buildSection(region, toItems(cities), onPick);
         if (section) panel.appendChild(section);
       });
       return;
     }
-    const matches = mode.all.filter((city) => city.includes(keyword));
-    const section = buildSection(mode.matchTitle, toPlainItems(matches), onPick);
+    const lowerKeyword = keyword.toLowerCase();
+    const matches = mode.all.filter((city) => city.includes(keyword)
+      || (mode.toItems && (STATION_EN[city] || '').toLowerCase().includes(lowerKeyword)));
+    const section = buildSection(mode.matchTitle, (mode.toItems || toPlainItems)(matches), onPick);
     if (section) panel.appendChild(section);
   }
 
@@ -341,7 +374,7 @@
       : input.matches('[data-hotel-autocomplete]') ? MODES.hotel : MODES.city;
     const onPick = (value) => {
       input.value = value;
-      saveRecent(mode.recentKey, value);
+      saveRecent(mode.recentKey, mode.toItems ? (stationZh(value) || value) : value);
       panel.hidden = true;
     };
     renderStaticPanel(panel, keyword, onPick, mode);
@@ -362,6 +395,11 @@
     }, SEARCH_DEBOUNCE_MS);
     debounceTimers.set(input, timer);
   }
+
+  // 結果頁的出發站/到達站是照網址帶回來的(可能是另一種語言搜尋的)，載入時換成目前網頁的語言
+  document.querySelectorAll('[data-station-autocomplete]').forEach((input) => {
+    if (input.value) input.value = stationInLanguage(input.value.trim());
+  });
 
   document.addEventListener('focus', (event) => {
     const input = event.target;

@@ -1,0 +1,13 @@
+.tour-again { display: block; width: 100%; margin: 8px 0 4px; padding: 7px 0; color: #fff; background: #4B838B; border: 0; border-radius: 6px; font: inherit; font-size: 13px; font-weight: 700; text-align: center; cursor: pointer; }
+.tour-again:hover { background: #37676D; }
+.tour-overlay { position: fixed; inset: 0; z-index: 3000; }
+.tour-spot { position: fixed; display: none; border-radius: 10px; box-shadow: 0 0 0 9999px rgba(20, 35, 38, .62); border: 2px solid #57A2AC; pointer-events: none; transition: all 160ms ease; }
+.tour-card { position: fixed; width: min(320px, calc(100vw - 24px)); padding: 16px 18px; color: #23373A; background: #fff; border-radius: 12px; box-shadow: 0 14px 40px rgba(0, 0, 0, .35); }
+.tour-title { display: block; margin-bottom: 6px; font-size: 17px; }
+.tour-text { margin: 0 0 14px; color: #4B5D60; font-size: 14px; line-height: 1.7; }
+.tour-footer { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.tour-count { color: #708284; font-size: 12px; }
+.tour-actions { display: flex; gap: 6px; }
+.tour-btn { padding: 7px 12px; color: #426064; background: #fff; border: 1px solid #C6DCDF; border-radius: 8px; font: inherit; font-size: 13px; font-weight: 700; cursor: pointer; }
+.tour-btn:disabled { opacity: .45; cursor: default; }
+.tour-primary { color: #fff; background: #4B838B; border-color: #4B838B; }

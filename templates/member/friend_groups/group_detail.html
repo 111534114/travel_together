@@ -4,7 +4,7 @@
         <a href="{{ url_for('friend_groups.index') }}#friend-groups">← 返回交友揪團</a>
     </div>
     <div class="panel">
-        <p class="attraction-detail-breadcrumb">團主 <a href="{{ url_for('friend_groups.public_profile', user_id=group.host_user_id) }}">{{ group.nickname or group.full_name }}</a>（Lv.{{ host_tier.level }} {{ host_tier.label }}{% if host_tier.avg_rating is not none %} · ⭐{{ "%.1f"|format(host_tier.avg_rating) }}{% endif %}） · {{ {'open':'開放中','closed':'已關閉','cancelled':'已取消'}[group.status] }}</p>
+        <p class="attraction-detail-breadcrumb">團主 <a href="{{ url_for('friend_groups.public_profile', user_id=group.host_user_id) }}">{{ group.nickname or group.full_name }}</a>（Lv.{{ host_tier.level }} {{ host_tier.label }}{% if host_tier.avg_rating is not none %} · ⭐{{ "%.1f"|format(host_tier.avg_rating) }}{% endif %}） · {{ '已取消' if group.status == 'cancelled' else '已結束' if (group.end_date or group.event_date) < today else {'open':'開放中','closed':'已關閉'}[group.status] }}</p>
         <h1>{{ group.title }}</h1>
         <div class="attraction-detail-stats">
             <div><span>日期</span><strong>{{ group.event_date }}{% if group.end_date and group.end_date != group.event_date %} ～ {{ group.end_date }}{% endif %}{% if group.start_time %} {{ group.start_time }}{% endif %}</strong></div>
@@ -63,4 +63,21 @@
     </div>
     {% if not is_host %}<div class="panel"><h2>檢舉不當揪團</h2><form method="post" action="{{ url_for('friend_groups.report_group_content', group_id=group.group_id) }}" class="form-grid-member"><label>原因<input name="reason" maxlength="255" required placeholder="例如：不當內容、騷擾、廣告"></label><label class="span-2">補充說明<textarea name="description" maxlength="1000" rows="2"></textarea></label><button class="member-btn ghost small" type="submit">送出檢舉</button></form></div>{% endif %}
 </div>
+{% if needs_review %}
+<dialog class="group-review-dialog" id="groupReviewDialog" aria-labelledby="groupReviewTitle">
+    <div class="group-review-dialog-heading">
+        <h2 id="groupReviewTitle">評價「{{ group.title }}」</h2>
+        <button type="button" class="group-review-dialog-close" aria-label="關閉評價視窗" title="關閉" onclick="document.getElementById('groupReviewDialog').close()">×</button>
+    </div>
+    <p>這趟揪團已結束，歡迎留下對主揪的評價。</p>
+    <form method="post" action="{{ url_for('friend_groups.group_reviews', group_id=group.group_id) }}" class="group-review-dialog-form">
+        <input type="hidden" name="reviewee_id" value="{{ group.host_user_id }}">
+        <input type="hidden" name="return_to_detail" value="1">
+        <label>評分<select name="rating" required><option value="">請選擇</option>{% for n in range(5, 0, -1) %}<option value="{{ n }}">{{ n }} 顆星</option>{% endfor %}</select></label>
+        <label>評價內容（選填）<textarea name="comment" rows="3" maxlength="500" placeholder="分享這趟旅程的感受"></textarea></label>
+        <div class="group-review-dialog-actions"><button type="button" class="member-btn outline" onclick="document.getElementById('groupReviewDialog').close()">稍後再說</button><button type="submit" class="member-btn primary">送出評價</button></div>
+    </form>
+</dialog>
+<script>window.addEventListener('DOMContentLoaded', function () { document.getElementById('groupReviewDialog').showModal(); });</script>
+{% endif %}
 {% endblock %}

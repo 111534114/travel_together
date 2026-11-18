@@ -10,7 +10,7 @@
             <div class="group-manage-meta">
                 <span>📅 {{ group.event_date }}</span>
                 {% if group.location %}<span>📍 {{ group.location }}</span>{% endif %}
-                <span class="status-tag">{{ {'open':'開放中','closed':'已關閉','cancelled':'已取消'}[group.status] }}</span>
+                <span class="status-tag">{{ '已取消' if group.status == 'cancelled' else '已結束' if (group.end_date or group.event_date) < today else {'open':'開放中','closed':'已關閉'}[group.status] }}</span>
             </div>
         </div>
 
@@ -43,7 +43,7 @@
         <h2>成員申請</h2>
         {% for member in members %}
         <div class="invite-row">
-            <div><b>{{ member.nickname or member.full_name }}</b><p>{{ {'pending':'待審核','approved':'已加入','rejected':'已婉拒','left':'已退出'}[member.status] }}{% if member.application_note %} · 申請留言：{{ member.application_note }}{% endif %}</p></div>
+            <div><b>{{ member.nickname or member.full_name }}</b><p>{{ {'pending':'待審核','approved':'已加入','rejected':'已婉拒','left':'已退出'}[member.status] }}{% if member.application_note %} · 申請留言：{{ member.application_note }}{% endif %}{% if member.status == 'approved' and group.status != 'cancelled' and (group.end_date or group.event_date) < today %} · 到場：{{ {'attended':'有到','no_show':'未到'}.get(member.attendance_status, '未確認') }}{% endif %}</p></div>
             {% if member.status == 'pending' %}
             <div class="trip-member-actions">
                 <form method="post" action="{{ url_for('friend_groups.approve_group_member', group_id=group.group_id, member_user_id=member.user_id) }}"><button class="member-btn primary small" type="submit">通過</button></form>
@@ -52,6 +52,12 @@
             {% endif %}
             {% if member.status == 'approved' %}
             <div class="trip-member-actions"><form method="post" action="{{ url_for('friend_groups.remove_group_member', group_id=group.group_id, member_user_id=member.user_id) }}" onsubmit="return confirm('移除後，此人將失去行程、聊天室及相簿權限。確定嗎？')"><button class="member-btn danger small" type="submit">移除成員</button></form></div>
+            {% if group.status != 'cancelled' and (group.end_date or group.event_date) < today %}
+            <form method="post" action="{{ url_for('friend_groups.set_group_member_attendance', group_id=group.group_id, member_user_id=member.user_id) }}" class="trip-member-actions group-attendance-actions">
+                <button class="member-btn {{ 'primary' if member.attendance_status == 'attended' else 'outline' }} small" type="submit" name="attendance" value="attended">有到</button>
+                <button class="member-btn {{ 'danger' if member.attendance_status == 'no_show' else 'outline' }} small" type="submit" name="attendance" value="no_show">未到</button>
+            </form>
+            {% endif %}
             {% endif %}
         </div>
         {% else %}

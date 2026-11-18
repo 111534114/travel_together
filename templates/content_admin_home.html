@@ -244,4 +244,20 @@
 
 </div>
 
+<script>
+    // 「統計報表」其實是這頁下方的 #reports 區塊，不是獨立頁面；網址的 #hash 瀏覽器不會送到後端，
+    // 所以後端永遠只知道 active_menu="dashboard"，要靠前端自己判斷網址 hash 來決定側邊欄要亮哪一個。
+    (function () {
+        var dashboardLink = document.getElementById('navDashboardLink');
+        var reportsLink = document.getElementById('navReportsLink');
+        if (!dashboardLink || !reportsLink) return;
+        function syncActiveNav() {
+            var onReports = window.location.hash === '#reports';
+            dashboardLink.classList.toggle('active', !onReports);
+            reportsLink.classList.toggle('active', onReports);
+        }
+        syncActiveNav();
+        window.addEventListener('hashchange', syncActiveNav);
+    })();
+</script>
 {% endblock %}

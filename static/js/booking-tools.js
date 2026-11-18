@@ -11,6 +11,21 @@
     });
   });
 
+  // 側邊欄自己可以捲動；整個頁面捲回最上面時，側邊欄也跟著回到最上面，不然「排序」這一欄會被捲到看不見。
+  (() => {
+    const sidebar = document.querySelector('.results-sidebar');
+    if (!sidebar) return;
+    let ticking = false;
+    window.addEventListener('scroll', () => {
+      if (ticking) return;
+      ticking = true;
+      requestAnimationFrame(() => {
+        ticking = false;
+        if (window.scrollY <= 40 && sidebar.scrollTop > 0) sidebar.scrollTo({ top: 0, behavior: 'smooth' });
+      });
+    }, { passive: true });
+  })();
+
   // 航空公司篩選的搜尋框：純前端文字篩選，不用重新送出表單查一次，輸入時即時隱藏不符合的選項。
   document.querySelectorAll('[data-facet-search]').forEach((input) => {
     const list = document.querySelector(`[data-facet-list="${input.dataset.facetSearch}"]`);
@@ -47,7 +62,9 @@
     const sliderMax = Number(minInput.max);
     const format = RANGE_FORMATTERS[slider.dataset.rangeSlider] || String;
     const percent = (value) => ((Number(value) - sliderMin) / (sliderMax - sliderMin)) * 100;
-    function render(changed) {
+    // 滑桿旁邊的數字框(價格才有)：可以直接輸入金額；跟滑桿雙向同步
+    const numberInputs = { min: slider.closest('[data-range-row]')?.querySelector('[data-range-num="min"]'), max: slider.closest('[data-range-row]')?.querySelector('[data-range-num="max"]') };
+    function render(changed, fromNumber) {
       if (Number(minInput.value) > Number(maxInput.value)) {
         if (changed === minInput) maxInput.value = minInput.value;
         else minInput.value = maxInput.value;
@@ -55,11 +72,37 @@
       fill.style.left = percent(minInput.value) + '%';
       fill.style.right = (100 - percent(maxInput.value)) + '%';
       if (output) output.textContent = format(minInput.value) + ' ～ ' + format(maxInput.value);
+      if (!fromNumber) {  // 正在打字時不要回寫數字框，不然會一邊打一邊被改掉
+        if (numberInputs.min) numberInputs.min.value = minInput.value;
+        if (numberInputs.max) numberInputs.max.value = maxInput.value;
+      }
     }
     minInput.addEventListener('input', () => render(minInput));
     maxInput.addEventListener('input', () => render(maxInput));
+    [['min', minInput], ['max', maxInput]].forEach(([which, rangeInput]) => {
+      const box = numberInputs[which];
+      if (!box) return;
+      const clamp = () => Math.min(sliderMax, Math.max(sliderMin, Number(box.value) || 0));
+      box.addEventListener('input', () => { rangeInput.value = clamp(); render(rangeInput, true); });
+      box.addEventListener('change', () => { rangeInput.value = clamp(); render(rangeInput); if (sliderForm) sliderForm.requestSubmit(); });
+      box.addEventListener('keydown', (event) => { if (event.key === 'Enter') { event.preventDefault(); box.dispatchEvent(new Event('change')); } });
+    });
     minInput.addEventListener('change', () => sliderForm && sliderForm.requestSubmit());
     maxInput.addEventListener('change', () => sliderForm && sliderForm.requestSubmit());
+    // 除了拖拉圓點，也可以直接點軌道：離點擊位置最近的圓點會跳過去並套用篩選。
+    // 圓點本身的點擊事件 target 是 input，交給瀏覽器原本的拖拉行為處理，這裡只處理點在軌道上的情況。
+    slider.addEventListener('click', (event) => {
+      if (event.target === minInput || event.target === maxInput) return;
+      const rect = slider.getBoundingClientRect();
+      const ratio = Math.min(1, Math.max(0, (event.clientX - rect.left) / rect.width));
+      const step = Number(minInput.step) || 1;
+      const value = Math.min(sliderMax, Math.max(sliderMin, Math.round((sliderMin + ratio * (sliderMax - sliderMin)) / step) * step));
+      const target = Math.abs(value - Number(minInput.value)) <= Math.abs(value - Number(maxInput.value))
+        && value <= Number(maxInput.value) ? minInput : maxInput;
+      target.value = value;
+      render(target);
+      target.dispatchEvent(new Event('change', {bubbles: true}));
+    });
     render();
   });
 
@@ -78,7 +121,11 @@
   // 選好的日期另外寫進對應的隱藏欄位(hotelCheckin/hotelCheckout 等)，表單驗證、送出邏輯完全不用改。
   const pickers = {};
   if (typeof flatpickr !== 'undefined') {
-    const zhTw = flatpickr.l10ns && flatpickr.l10ns.zh_tw;
+    // 英文版(Google 翻譯)會把日曆上的數字翻成「twenty one」、星期翻成整個字擠在一起，
+    // 所以英文版改用 flatpickr 內建英文(Sun、Mon…)，並把日曆格子標成 notranslate 不讓 Google 翻。
+    const englishPage = /(?:^|;\s*)googtrans=\/[^/;]*\/en(?:;|$)/.test(document.cookie);
+    const zhTw = englishPage ? null : (flatpickr.l10ns && flatpickr.l10ns.zh_tw);
+    const dateLabel = englishPage ? 'M j (D)' : 'n月j日 D';
     const rangeFieldConfig = {
       hotel: {input:'hotelDateRange', start:'hotelCheckin', end:'hotelCheckout', badge:'hotelDateBadge'},
       flight: {input:'flightDateRange', start:'flightDepart', end:'flightReturn', badge:null},
@@ -88,7 +135,7 @@
     const renderSummary = (instance) => {
       if (!instance.summaryEl) return;
       const [start, end] = instance.selectedDates;
-      const fmt = (d) => flatpickr.formatDate(d, 'n月j日 D', instance.config.locale);
+      const fmt = (d) => flatpickr.formatDate(d, dateLabel, instance.config.locale);
       if (start && end) {
         const nights = Math.round((end - start) / 86400000);
         instance.summaryEl.textContent = fmt(start) + ' - ' + fmt(end) + '（' + nights + '晚）';
@@ -126,7 +173,7 @@
         mode: 'range',
         altInput: true,
         altInputClass: 'date-range-input',
-        altFormat: 'n月j日 D',
+        altFormat: dateLabel,
         dateFormat: 'Y-m-d',
         minDate: 'today',
         locale: zhTw || undefined,
@@ -134,6 +181,9 @@
         showMonths: window.innerWidth > 720 ? 2 : 1,
         position: 'below',
         onReady: (selectedDates, dateStr, instance) => {
+          instance.calendarContainer.querySelectorAll('.flatpickr-months, .flatpickr-weekdays, .flatpickr-days')
+            .forEach((el) => el.classList.add('notranslate'));
+          if (instance.altInput) instance.altInput.classList.add('notranslate');
           const footer = document.createElement('div');
           footer.className = 'date-range-footer';
           instance.holidayEl = document.createElement('div');
@@ -198,6 +248,24 @@
     radios.forEach(r=>r.addEventListener('change',sync));
     sync();
   });
+  // 記住上次搜尋的機票條件(存在這個瀏覽器)：下次回到首頁，出發地、目的地、日期、人數會自動帶入，不用重選。
+  (() => {
+    const flightFrom = get('flightFrom');
+    if (!flightFrom || !pickers.flight) return;
+    let saved = null;
+    try { saved = JSON.parse(localStorage.getItem('flightSearchPrefs') || 'null'); } catch (error) { saved = null; }
+    const now = new Date();
+    const todayIso = now.getFullYear() + '-' + String(now.getMonth() + 1).padStart(2, '0') + '-' + String(now.getDate()).padStart(2, '0');
+    if (!saved || !saved.depart || saved.depart < todayIso || flightFrom.value || get('flightTo').value) return;
+    const mode = saved.mode === 'oneway' ? 'oneway' : 'roundtrip';
+    const radio = document.querySelector('input[name="flightMode"][value="' + mode + '"]');
+    if (radio) { radio.checked = true; radio.dispatchEvent(new Event('change')); }
+    flightFrom.value = saved.from || '';
+    get('flightTo').value = saved.to || '';
+    if (get('flightPax') && saved.pax) get('flightPax').value = saved.pax;
+    const dates = mode === 'oneway' ? [saved.depart] : [saved.depart, saved.ret && saved.ret >= saved.depart ? saved.ret : null].filter(Boolean);
+    pickers.flight.setDate(dates, true);
+  })();
   // 多座城市：動態新增/刪除航班段落，各段獨立填出發地/目的地/日期。
   (() => {
     const legsBox = get('multiCityLegs');
@@ -315,7 +383,7 @@
       let message='';
       if(!value){ if(isRangeKey){rangeMissing=true;} else {message='請填寫此欄位';} }
       else if(input.type==='date' && value<isoToday) message='日期不能早於今天';
-      else if((key==='pax'||key==='guests') && (!/^\d+$/.test(value)||Number(value)<1||Number(value)>99)) message='人數須介於 1 與 99';
+      else if((key==='pax'||key==='guests') && (!/^\d+$/.test(value)||Number(value)<1||Number(value)>(kind==='flight'?9:99))) message='人數須介於 1 與 '+(kind==='flight'?9:99);
       if(message){error(input,message);failed=true;}
     });
     if(kind==='hotel'){[['hotelRooms','rooms'],['hotelChildren','children'],['hotelChildAges','child_ages']].forEach(([id,key])=>{const el=get(id);if(el)params.set(key,el.value);});}
@@ -327,6 +395,7 @@
     }
     if(kind!=='hotel' && values.from && values.from===values.to){error(get(ids[kind].to),'出發地與目的地不能相同');failed=true;}
     if(failed){form.querySelector('[aria-invalid=true]')?.focus();return;}
+    if(kind==='flight'){try{localStorage.setItem('flightSearchPrefs',JSON.stringify({from:values.from||'',to:values.to||'',depart:values.depart||'',ret:values.return||'',pax:values.pax||'1',mode:mode||'roundtrip'}));}catch(error){}}
     if(mode)params.set('trip_mode',mode);
     if(kind==='train')params.set('rail',form.querySelector('input[name="rail"]:checked')?.value||'thsr');
     if(kind==='flight' && get('flightDirect')?.checked)params.set('stops','direct');

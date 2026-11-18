@@ -46,6 +46,28 @@ def _event_registration_open(event, now=None):
     now = now or datetime.now(TAIPEI_TIMEZONE).replace(tzinfo=None)
     return event.get("status") == "open" and now < _event_registration_deadline(event)
 
+
+def _group_attendance_availability(group, now=None):
+    """主揪可於出發當天記錄有到；行程結束後才可記錄未到。"""
+    now = now or datetime.now(TAIPEI_TIMEZONE)
+    if now.tzinfo is not None:
+        now = now.astimezone(TAIPEI_TIMEZONE).replace(tzinfo=None)
+    start_day = group["event_date"]
+    end_day = group.get("end_date") or start_day
+    if isinstance(start_day, str):
+        start_day = date.fromisoformat(start_day)
+    if isinstance(end_day, str):
+        end_day = date.fromisoformat(end_day)
+    end_clock = group.get("end_time")
+    if isinstance(end_clock, timedelta):
+        end_clock = (datetime.min + end_clock).time()
+    elif isinstance(end_clock, str):
+        end_clock = time.fromisoformat(end_clock)
+    end_at = (datetime.combine(end_day, end_clock) if end_clock is not None
+              else datetime.combine(end_day + timedelta(days=1), time.min))
+    active = group["status"] != "cancelled"
+    return active and now.date() >= start_day, active and now >= end_at
+
 # 分級團長制度：Lv.1 新手團長剛解鎖時限制單日、限人數；累積開團次數達標且平均評價夠高才會升到 Lv.2 資深團長，
 # 可以開多天行程、人數上限也解除。等級不另外存欄位，每次都用「開團次數」+「收到的平均評價」即時算出。
 TIER1_MAX_CAPACITY = 6
@@ -1251,7 +1273,10 @@ def manage_group(group_id):
     finally:
         cursor.close(); connection.close()
 
-    return render_template("member/friend_groups/group_manage.html", group=group, members=members, today=date.today())
+    can_mark_attended, can_mark_no_show = _group_attendance_availability(group)
+    return render_template("member/friend_groups/group_manage.html", group=group, members=members,
+                           today=datetime.now(TAIPEI_TIMEZONE).date(), can_mark_attended=can_mark_attended,
+                           can_mark_no_show=can_mark_no_show)
 
 
 @friend_groups_bp.route("/groups/<int:group_id>/members/<int:member_user_id>/attendance", methods=["POST"])
@@ -1266,14 +1291,18 @@ def set_group_member_attendance(group_id, member_user_id):
         return redirect(url_for("friend_groups.index") + "#friend-groups")
     cursor = connection.cursor(dictionary=True)
     try:
-        cursor.execute("""SELECT host_user_id, title, status, event_date, end_date
+        cursor.execute("""SELECT host_user_id, title, status, event_date, end_date, end_time
                           FROM friend_groups WHERE group_id=%s FOR UPDATE""", (group_id,))
         group = cursor.fetchone()
         if not group or group["host_user_id"] != session["user_id"]:
             flash("只有這個揪團的主揪可以確認到場。", "error")
             return redirect(url_for("friend_groups.index") + "#friend-groups")
-        if group["status"] == "cancelled" or (group["end_date"] or group["event_date"]) >= date.today():
-            flash("活動結束後才能確認團員是否到場。", "error")
+        can_mark_attended, can_mark_no_show = _group_attendance_availability(group)
+        if attendance == "attended" and not can_mark_attended:
+            flash("揪團開始當天才能標記有到，已取消的揪團不能標記。", "error")
+            return redirect(url_for("friend_groups.manage_group", group_id=group_id))
+        if attendance == "no_show" and not can_mark_no_show:
+            flash("揪團結束後才能標記未到，已取消的揪團不能標記。", "error")
             return redirect(url_for("friend_groups.manage_group", group_id=group_id))
         cursor.execute("""SELECT 1 FROM friend_group_members
                           WHERE group_id=%s AND user_id=%s AND status='approved'""",

@@ -48,6 +48,7 @@
       matchTitle: '常用車站',
       searchUrl: '/api/station-search?q=',
       renderResults: (results, onPick) => buildDetailList('全部車站', results.map((station) => {
+        if (station.en && !STATION_EN[station.name]) STATION_EN[station.name] = station.en;  // 記下來，存最近搜尋時才換得回中文
         const en = isEnglishPage() && (station.en || STATION_EN[station.name]);
         return en ? { label: en, sub: station.systems.join('・'), value: en, notranslate: true }
           : { label: station.name, sub: station.systems.join('・'), value: station.name };
@@ -138,12 +139,18 @@
     '玉里': 'Yuli', '池上': 'Chishang', '台東': 'Taitung', '知本': 'Zhiben',
   };
   const isEnglishPage = () => /(?:^|;\s*)googtrans=\/[^/;]*\/en(?:;|$)/.test(document.cookie);
+  // 英文站名 → 中文站名(大小寫不拘)；查不到回傳空字串
+  const stationZh = (name) => {
+    const lower = String(name).toLowerCase();
+    return Object.keys(STATION_EN).find((zh) => STATION_EN[zh].toLowerCase() === lower) || '';
+  };
+  // 車站名換成目前網頁語言：英文版顯示英文、中文版顯示中文；最近搜尋一律存中文，才不會中文版冒出英文
+  const stationInLanguage = (name) => (isEnglishPage() ? (STATION_EN[name] || name) : (stationZh(name) || name));
   function toStationItems(names) {
-    if (!isEnglishPage()) return toPlainItems(names);
-    const seen = new Set();  // 最近搜尋可能同時有「台北」和「Taipei」，換成英文後只留一個
-    return names.map((name) => STATION_EN[name] || name)
-      .filter((en) => !seen.has(en) && seen.add(en))
-      .map((en) => ({ label: en, value: en, notranslate: true }));
+    const seen = new Set();  // 最近搜尋可能同時有「台北」和「Taipei」，換成同一種語言後只留一個
+    return names.map(stationInLanguage)
+      .filter((name) => !seen.has(name) && seen.add(name))
+      .map((name) => ({ label: name, value: name, notranslate: isEnglishPage() }));
   }
 
   // 機場名稱+城市+國家+代碼這種比較長的文字，放進原本給城市名字用的三欄格狀排版會擠爆，
@@ -367,7 +374,7 @@
       : input.matches('[data-hotel-autocomplete]') ? MODES.hotel : MODES.city;
     const onPick = (value) => {
       input.value = value;
-      saveRecent(mode.recentKey, value);
+      saveRecent(mode.recentKey, mode.toItems ? (stationZh(value) || value) : value);
       panel.hidden = true;
     };
     renderStaticPanel(panel, keyword, onPick, mode);
@@ -388,6 +395,11 @@
     }, SEARCH_DEBOUNCE_MS);
     debounceTimers.set(input, timer);
   }
+
+  // 結果頁的出發站/到達站是照網址帶回來的(可能是另一種語言搜尋的)，載入時換成目前網頁的語言
+  document.querySelectorAll('[data-station-autocomplete]').forEach((input) => {
+    if (input.value) input.value = stationInLanguage(input.value.trim());
+  });
 
   document.addEventListener('focus', (event) => {
     const input = event.target;

@@ -115,12 +115,14 @@
           </article>
 {% endmacro %}
     {% set return_date = request.args.get('return', '') if request.args.get('trip_mode') == 'roundtrip' else '' %}
+    {# 顯示用站名：英文輸入(例如 Taipei)換成中文，英文版網頁再由 Google 翻譯 #}
+    {% set origin_label = station_label(origin) %}{% set destination_label = station_label(destination) %}
     <section id="train-results">
       <div class="section-header">
         <div>
           <h2>{{ rail_label }}車票搜尋結果{% if using_live_data %}<span class="live-badge">即時班表</span>{% endif %}</h2>
           <p>
-            {% if origin or destination %}{{ origin or '任何出發站' }} → {{ destination or '任何到達站' }}{% else %}顯示全部車次{% endif %}
+            {% if origin or destination %}{{ origin_label or '任何出發站' }} → {{ destination_label or '任何到達站' }}{% else %}顯示全部車次{% endif %}
             {% if travel_date %} ・ 去程 {{ travel_date }}{% endif %}
             {% if return_date %} ・ 回程 {{ return_date }}{% endif %}
             ・ {{ pax }} 人
@@ -132,24 +134,24 @@
       {# 來回：去程、回程用分頁切換，不然回程要捲過上百班去程才看得到 #}
       <div class="leg-tabs" role="tablist">
         <button type="button" class="leg-tab active" role="tab" aria-selected="true" data-leg="outbound">
-          <b>去程</b><span>{{ origin }} → {{ destination }} ・ {{ travel_date }}</span><small>{{ trains|length }} 班</small>
+          <b>去程</b><span>{{ origin_label }} → {{ destination_label }} ・ {{ travel_date }}</span><small>{{ trains|length }} 班</small>
         </button>
         <button type="button" class="leg-tab" role="tab" aria-selected="false" data-leg="return">
-          <b>回程</b><span>{{ destination }} → {{ origin }} ・ {{ return_date }}</span><small>{{ return_trains|length }} 班</small>
+          <b>回程</b><span>{{ destination_label }} → {{ origin_label }} ・ {{ return_date }}</span><small>{{ return_trains|length }} 班</small>
         </button>
       </div>
       {% endif %}
       <div class="train-list" data-leg-panel="outbound">
         {% for train in trains %}{{ train_card(train, travel_date) }}
         {% else %}
-          <div class="empty">找不到符合「{{ origin or '任意出發站' }} → {{ destination or '任意到達站' }}」的車次，換個站名試試，或<a href="{{ url_for('visitor_train_search') }}" style="color: var(--purple); font-weight: 700;">清除條件看全部車次</a>。</div>
+          <div class="empty">找不到符合「{{ origin_label or '任意出發站' }} → {{ destination_label or '任意到達站' }}」的車次，換個站名試試，或<a href="{{ url_for('visitor_train_search') }}" style="color: var(--purple); font-weight: 700;">清除條件看全部車次</a>。</div>
         {% endfor %}
       </div>
       {% if return_date %}
       <div class="train-list" data-leg-panel="return" hidden>
         {% for train in return_trains %}{{ train_card(train, return_date) }}
         {% else %}
-          <div class="empty">找不到 {{ return_date }}「{{ destination }} → {{ origin }}」的回程車次，換個日期或篩選條件試試。</div>
+          <div class="empty">找不到 {{ return_date }}「{{ destination_label }} → {{ origin_label }}」的回程車次，換個日期或篩選條件試試。</div>
         {% endfor %}
       </div>
       {% endif %}

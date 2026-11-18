@@ -92,7 +92,11 @@
   // 選好的日期另外寫進對應的隱藏欄位(hotelCheckin/hotelCheckout 等)，表單驗證、送出邏輯完全不用改。
   const pickers = {};
   if (typeof flatpickr !== 'undefined') {
-    const zhTw = flatpickr.l10ns && flatpickr.l10ns.zh_tw;
+    // 英文版(Google 翻譯)會把日曆上的數字翻成「twenty one」、星期翻成整個字擠在一起，
+    // 所以英文版改用 flatpickr 內建英文(Sun、Mon…)，並把日曆格子標成 notranslate 不讓 Google 翻。
+    const englishPage = /(?:^|;\s*)googtrans=\/[^/;]*\/en(?:;|$)/.test(document.cookie);
+    const zhTw = englishPage ? null : (flatpickr.l10ns && flatpickr.l10ns.zh_tw);
+    const dateLabel = englishPage ? 'M j (D)' : 'n月j日 D';
     const rangeFieldConfig = {
       hotel: {input:'hotelDateRange', start:'hotelCheckin', end:'hotelCheckout', badge:'hotelDateBadge'},
       flight: {input:'flightDateRange', start:'flightDepart', end:'flightReturn', badge:null},
@@ -102,7 +106,7 @@
     const renderSummary = (instance) => {
       if (!instance.summaryEl) return;
       const [start, end] = instance.selectedDates;
-      const fmt = (d) => flatpickr.formatDate(d, 'n月j日 D', instance.config.locale);
+      const fmt = (d) => flatpickr.formatDate(d, dateLabel, instance.config.locale);
       if (start && end) {
         const nights = Math.round((end - start) / 86400000);
         instance.summaryEl.textContent = fmt(start) + ' - ' + fmt(end) + '（' + nights + '晚）';
@@ -140,7 +144,7 @@
         mode: 'range',
         altInput: true,
         altInputClass: 'date-range-input',
-        altFormat: 'n月j日 D',
+        altFormat: dateLabel,
         dateFormat: 'Y-m-d',
         minDate: 'today',
         locale: zhTw || undefined,
@@ -148,6 +152,9 @@
         showMonths: window.innerWidth > 720 ? 2 : 1,
         position: 'below',
         onReady: (selectedDates, dateStr, instance) => {
+          instance.calendarContainer.querySelectorAll('.flatpickr-months, .flatpickr-weekdays, .flatpickr-days')
+            .forEach((el) => el.classList.add('notranslate'));
+          if (instance.altInput) instance.altInput.classList.add('notranslate');
           const footer = document.createElement('div');
           footer.className = 'date-range-footer';
           instance.holidayEl = document.createElement('div');

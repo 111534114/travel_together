@@ -19,6 +19,8 @@ class November11HotelMergeTests(unittest.TestCase):
         })
 
     def test_country_search_keeps_full_city_airport_catalog(self):
+        # 城市搜尋保留完整機場清單；國家搜尋才依航線資料篩選主要機場。
+        self.assertIsNotNone(airports.get_airport("KEF"))
         self.assertIsNotNone(airports.get_airport("GKA"))
         self.assertEqual(
             {airport["iata"] for airport in flight_links.country_airports("冰島")},

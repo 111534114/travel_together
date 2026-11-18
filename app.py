@@ -1,4 +1,6 @@
+from markupsafe import Markup  # 匯入 Markup，money() 輸出的 HTML 不要被跳脫
 import json  # 匯入 json 模組，解析來回票第二步帶回來的去程資料
+import time  # 匯入 time 模組，幣別匯率的快取過期判斷
 import os  # 匯入作業系統功能，用來判斷 Flask 開發伺服器是哪一個行程
 import re  # 匯入正規表示式模組，用來驗證註冊欄位格式
 import secrets  # 匯入 secrets 模組，用來產生忘記密碼用的隨機 token
@@ -43,6 +45,7 @@ from utils import google_maps_url, google_maps_embed_url, format_hm, friend_grou
 import weather  # 匯入中央氣象署天氣預報模組(訪客頁面「目的地天氣」功能用)
 import amadeus_client  # 匯入 Amadeus 機票比價 API 模組(機票搜尋的真實即時報價，備用資料來源)
 import serpapi_flights  # 匯入 SerpApi 的 Google Flights 模組(機票搜尋的真實即時報價，優先資料來源)
+import google_places  # 匯入 Google 地點 API 模組(住宿目的地自動完成)
 import serpapi_hotels  # 匯入 SerpApi 的 Google Hotels 模組(住宿搜尋的真實即時報價與圖片，優先資料來源)
 import tdx_trains  # 匯入交通部 TDX 模組(高鐵／台鐵指定日期的真實班表與票價，優先資料來源)
 import flight_links  # 匯入城市->機場代碼對照表、Skyscanner 比價連結組網址工具
@@ -423,11 +426,17 @@ def visitor():
     )
 
 
-@app.route("/api/hotel-place-search")  # 住宿目的地自動完成打字時用的 AJAX 端點，只查台灣的住宿資料
+@app.route("/api/hotel-place-search")  # 住宿目的地自動完成打字時用的 AJAX 端點：全世界(Google 地點自動完成)，退回站內台灣住宿資料
 def api_hotel_place_search():
-    keyword = request.args.get("q", "").strip().replace("台", "臺")
-    if not keyword:
+    raw_keyword = request.args.get("q", "").strip()
+    if not raw_keyword:
         return jsonify([])
+    raw_keyword = google_places.to_chinese_keyword(raw_keyword)  # 打英文也可以，建議一律用中文顯示
+    # 優先用 Google 地點自動完成：全世界的國家、城市、景點、飯店(繁體中文)；沒金鑰或失敗才退回下面站內(台灣)的資料
+    world = google_places.autocomplete_destinations(raw_keyword)
+    if world:
+        return jsonify(world)
+    keyword = raw_keyword.replace("台", "臺")
     connection = get_db_connection()
     if not connection:
         return jsonify([])
@@ -468,6 +477,50 @@ def api_hotel_place_search():
     return jsonify(results)
 
 
+_currency_cache = {"expires": 0, "rates": {"TWD": 1.0}, "updated": ""}
+_CURRENCY_NAMES = {}
+
+
+def _currency_names():
+    if not _CURRENCY_NAMES:
+        try:
+            with open(os.path.join(os.path.dirname(__file__), "database", "currencies_zh.json"), encoding="utf-8") as f:
+                _CURRENCY_NAMES.update(json.load(f))
+        except (OSError, ValueError):
+            pass
+    return _CURRENCY_NAMES
+
+
+@app.route("/api/currencies")  # 幣別選單用：全世界貨幣的中文名稱與對台幣的匯率(免費匯率服務，每 6 小時更新一次，所有人共用同一份快取)
+def api_currencies():
+    now = time.time()
+    if now >= _currency_cache["expires"]:
+        try:
+            resp = requests.get("https://open.er-api.com/v6/latest/TWD", timeout=10)
+            resp.raise_for_status()
+            data = resp.json()
+            if data.get("result") == "success" and data.get("rates"):
+                _currency_cache.update(rates=data["rates"], updated=data.get("time_last_update_utc", ""), expires=now + 6 * 3600)
+        except Exception as error:
+            print("匯率查詢失敗(沿用上一次的匯率)：", error)
+            _currency_cache["expires"] = now + 300  # 失敗時 5 分鐘後再試，不要每個請求都重打
+    names = _currency_names()
+    rates = {code: rate for code, rate in _currency_cache["rates"].items() if code == "TWD" or code in names}
+    return jsonify(base="TWD", updated=_currency_cache["updated"], rates=rates, names={c: names.get(c, c) for c in rates})
+
+
+def money(amount):
+    """價格的顯示：預設是台幣；網頁上的幣別選單(static/js/currency.js)會把 data-twd 的金額換算成使用者選的貨幣。"""
+    try:
+        value = float(amount)
+    except (TypeError, ValueError):
+        return ""
+    return Markup(f'<span data-twd="{value:.2f}">NT$ {value:,.0f}</span>')
+
+
+app.jinja_env.globals["money"] = money
+
+
 @app.route("/api/hotel-reviews")  # 住宿詳情視窗「查看住客評論」用的 AJAX 端點，使用者按了才查(每次用 1 次 SerpApi 額度)
 def api_hotel_reviews():
     token = request.args.get("token", "").strip()
@@ -501,7 +554,7 @@ def api_hotel_offers():
 
 @app.route("/visitor/hotels")  # 設定訪客住宿搜尋結果頁路由(從訪客頁面的住宿搜尋表單導入，帶入目的地/日期/人數)
 def visitor_hotel_search():
-    destination = request.args.get("destination", "").strip()  # 取得使用者輸入的目的地關鍵字
+    destination = google_places.to_chinese_keyword(request.args.get("destination", "").strip())  # 取得使用者輸入的目的地關鍵字；打英文會轉成中文，頁面和搜尋都用中文
     checkin = request.args.get("checkin", "").strip()  # 取得入住日期(YYYY-MM-DD)
     checkout = request.args.get("checkout", "").strip()  # 取得退房日期(YYYY-MM-DD)
 

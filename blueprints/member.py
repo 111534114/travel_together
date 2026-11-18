@@ -1,12 +1,13 @@
 from collections import Counter
 from datetime import date, datetime
 from decimal import ROUND_DOWN, Decimal, InvalidOperation
+from io import BytesIO
 import json
 import os
 import re
 import secrets
 
-from flask import Blueprint, current_app, flash, jsonify, redirect, render_template, request, session, url_for
+from flask import Blueprint, current_app, flash, jsonify, redirect, render_template, request, send_file, session, url_for
 from markupsafe import Markup, escape
 from werkzeug.security import check_password_hash, generate_password_hash
 
@@ -19,7 +20,7 @@ from nearby_attractions import find_nearby_attractions
 from notification_preferences import NOTIFICATION_CATEGORIES, get_preferences, save_preferences, send_notification
 import trip_preferences
 from db import get_db_connection
-from utils import delete_uploaded_image, format_hm, get_cities, get_countries, save_uploaded_attachment, save_uploaded_image
+from utils import delete_uploaded_image, format_hm, get_cities, get_countries, google_maps_url, save_uploaded_attachment, save_uploaded_image
 from content_moderation import is_image_explicit
 from chat_moderation import REMOVED_CHAT_CONTENT, blocked_term, remove_trip_message
 import theme_parks
@@ -824,14 +825,16 @@ def unread_notifications():
             (session["user_id"],),
         )
         total = cursor.fetchone()["total"]
+        # 已讀的通知也一起回傳，標為已讀後仍留在清單裡，只是改成已讀樣式
         cursor.execute("""
-            SELECT notification_id, title, message, target_url, created_at
-            FROM notifications WHERE user_id=%s AND is_read=FALSE
-            ORDER BY created_at DESC, notification_id DESC LIMIT 20
+            SELECT notification_id, title, message, target_url, created_at, is_read
+            FROM notifications WHERE user_id=%s
+            ORDER BY created_at DESC, notification_id DESC LIMIT 30
         """, (session["user_id"],))
         notifications = cursor.fetchall()
         for notification in notifications:
             notification["created_at"] = notification["created_at"].strftime("%Y/%m/%d %H:%M")
+            notification["is_read"] = bool(notification["is_read"])
         return jsonify({"total": total, "notifications": notifications,
                         "login_id": session["notification_login_id"]})
     finally:
@@ -2061,6 +2064,144 @@ def trip_detail(trip_id):
     finally:
         cursor.close(); connection.close()
     return render_template("member/trip_detail.html", trip=trip, itinerary=itinerary, place_options=place_options, popular_attractions=popular_attractions, addable_trips=[trip], day_last_coords=day_last_coords, city_weather_days=city_weather_days, members=members, mention_members=[{"name": m["nickname"] or m["full_name"], "full_name": m["full_name"], "is_me": m["user_id"] == session["user_id"]} for m in members], pending_invitations=pending_invitations, pending_requests=pending_requests, invite_link=invite_link, proposals=proposals, votes=votes, comments=comments, itinerary_comments=itinerary_comments, proposal_comments=proposal_comments, reported_comment_ids=reported_comment_ids, comment_report_reasons=COMMENT_REPORT_REASONS, expenses=expenses, balance_summary=balance_summary, attachments=attachments, actual=actual, can_edit=_can_edit(trip), is_owner=trip["member_role"] == "owner", now=datetime.now(), item_type_labels=ITEM_TYPE_LABELS, itinerary_change_field_labels=ITINERARY_CHANGE_FIELD_LABELS, disney_parks=theme_parks.get_disney_parks(), transport_summary=transport_summary, preferences_ready=preference_rows is not None, my_preference=my_preference, my_preference_source=my_preference_source, preference_summary=trip_preferences.summarize(preference_rows), preference_options=trip_preferences, return_group_id=return_group_id)
+
+
+@member_bp.route("/trips/<int:trip_id>/export/excel")
+@login_required("member")
+def export_trip_excel(trip_id):
+    connection = _connection_or_home()
+    if connection is None: return redirect(url_for("member.dashboard"))
+    cursor = connection.cursor(dictionary=True)
+    try:
+        trip = _member_access(cursor, trip_id, session["user_id"])
+        if not trip:
+            flash("你沒有查看這個行程的權限。", "error")
+            return redirect(url_for("member.dashboard"))
+        cursor.execute("SELECT * FROM itineraries WHERE trip_id=%s ORDER BY itinerary_date, sort_order", (trip_id,))
+        itinerary = cursor.fetchall()
+        cursor.execute("""SELECT tm.member_role, u.full_name, u.nickname FROM trip_members tm JOIN users u ON u.user_id=tm.user_id
+                          WHERE tm.trip_id=%s AND tm.join_status='accepted'
+                          ORDER BY FIELD(tm.member_role,'owner','editor','viewer'), u.full_name""", (trip_id,))
+        members = cursor.fetchall()
+    finally:
+        cursor.close(); connection.close()
+
+    try:
+        from openpyxl import Workbook
+        from openpyxl.styles import Font, PatternFill
+    except ImportError:
+        current_app.logger.exception("Excel 匯出需要 openpyxl")
+        flash("目前無法匯出 Excel，請通知管理員安裝 openpyxl。", "error")
+        return redirect(url_for("member.trip_detail", trip_id=trip_id))
+
+    header_font = Font(bold=True)
+    header_fill = PatternFill("solid", fgColor="EEF6F7")
+    role_labels = {"owner": "建立者", "editor": "共同編輯者", "viewer": "查看者"}
+
+    workbook = Workbook()
+    overview = workbook.active
+    overview.title = "行程總覽"
+    overview_rows = [
+        ("行程名稱", trip["trip_name"]),
+        ("目的地", f"{trip['country']} / {trip['city']}"),
+        ("旅遊期間", f"{trip['start_date']} ~ {trip['end_date']}"),
+        ("人數", trip["people_count"]),
+        ("團體預算", f"{trip['total_budget']} {trip['currency']}"),
+        ("簡介", trip["introduction"] or ""),
+    ]
+    for label, value in overview_rows:
+        overview.append([label, value])
+        overview.cell(row=overview.max_row, column=1).font = header_font
+    overview.append([])
+    overview.append(["團員", "角色"])
+    for cell in overview[overview.max_row]:
+        cell.font = header_font
+        cell.fill = header_fill
+    for member in members:
+        overview.append([member["nickname"] or member["full_name"], role_labels.get(member["member_role"], member["member_role"])])
+    overview.column_dimensions["A"].width = 16
+    overview.column_dimensions["B"].width = 42
+
+    detail = workbook.create_sheet("每日行程")
+    detail_headers = ["天數", "日期", "開始時間", "結束時間", "類型", "項目名稱", "地址", "交通方式", "交通時間(分)", "預估花費", "備註", "Google地圖"]
+    detail.append(detail_headers)
+    for cell in detail[1]:
+        cell.font = header_font
+        cell.fill = header_fill
+    link_font = Font(color="0563C1", underline="single")  # Excel 預設的超連結藍色底線樣式
+
+    day_numbers = {}  # 把日期對應到「第幾天」，例如行程第一天的日期對應 1
+    for item in itinerary:
+        day_key = item["itinerary_date"]
+        if day_key not in day_numbers:
+            day_numbers[day_key] = len(day_numbers) + 1
+        label = ITEM_TYPE_LABELS.get(item["item_type"], {}).get("label", item["item_type"])
+        detail.append([
+            f"Day {day_numbers[day_key]}",
+            day_key.isoformat(),
+            format_hm(item["start_time"]),
+            format_hm(item["end_time"]),
+            label,
+            item["title"],
+            item["address"] or "",
+            item["transport_method"] or "",
+            item["transport_minutes"] or "",
+            float(item["estimated_cost"]) if item["estimated_cost"] is not None else "",
+            item["notes"] or "",
+            "",
+        ])
+        map_url = google_maps_url(item["address"])  # 沒有地址就組不出連結，回傳 None
+        if map_url:
+            map_cell = detail.cell(row=detail.max_row, column=len(detail_headers))
+            map_cell.value = "查看地圖"
+            map_cell.hyperlink = map_url
+            map_cell.font = link_font
+    for column, width in zip("ABCDEFGHIJKL", [8, 12, 10, 10, 8, 24, 32, 10, 12, 10, 32, 12]):
+        detail.column_dimensions[column].width = width
+
+    buffer = BytesIO()
+    workbook.save(buffer)
+    buffer.seek(0)
+    safe_name = re.sub(r'[\\/:*?"<>|]', "_", trip["trip_name"])  # 去掉檔名不能出現的符號，避免下載失敗
+    return send_file(
+        buffer, as_attachment=True, download_name=f"{safe_name}_行程表.xlsx",
+        mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    )
+
+
+@member_bp.route("/trips/<int:trip_id>/handbook")
+@login_required("member")
+def trip_handbook(trip_id):
+    connection = _connection_or_home()
+    if connection is None: return redirect(url_for("member.dashboard"))
+    cursor = connection.cursor(dictionary=True)
+    try:
+        trip = _member_access(cursor, trip_id, session["user_id"])
+        if not trip:
+            flash("你沒有查看這個行程的權限。", "error")
+            return redirect(url_for("member.dashboard"))
+        cursor.execute("SELECT * FROM itineraries WHERE trip_id=%s ORDER BY itinerary_date, sort_order", (trip_id,))
+        items = cursor.fetchall()
+        cursor.execute("""SELECT tm.member_role, u.full_name, u.nickname, u.avatar_path FROM trip_members tm JOIN users u ON u.user_id=tm.user_id
+                          WHERE tm.trip_id=%s AND tm.join_status='accepted'
+                          ORDER BY FIELD(tm.member_role,'owner','editor','viewer'), u.full_name""", (trip_id,))
+        members = cursor.fetchall()
+    finally:
+        cursor.close(); connection.close()
+
+    days = []  # 把行程項目依日期分組，模板直接逐天印出來
+    days_by_date = {}
+    for item in items:
+        day_key = item["itinerary_date"]
+        if day_key not in days_by_date:
+            days_by_date[day_key] = {"date": day_key, "day_number": len(days) + 1, "items": []}
+            days.append(days_by_date[day_key])
+        days_by_date[day_key]["items"].append(item)
+
+    return render_template(
+        "member/trip_handbook.html", trip=trip, days=days, members=members,
+        item_type_labels=ITEM_TYPE_LABELS, role_labels={"owner": "建立者", "editor": "共同編輯者", "viewer": "查看者"},
+    )
 
 
 @member_bp.route("/trips/<int:trip_id>/preferences", methods=["POST"])
@@ -3627,7 +3768,7 @@ def remove_member(trip_id, member_user_id):
                     SET m.status='left', m.show_profile=0, m.responded_at=NOW()
                     WHERE g.trip_id=%s AND m.user_id=%s AND m.status='approved'
                 """, (trip_id, member_user_id))
-                send_notification(cursor, member_user_id, "trip", "trip_update", "已被移出行程", f"你已被移出行程「{trip['trip_name']}」", url_for('member.dashboard'), trip_id=trip_id)
+                send_notification(cursor, member_user_id, "trip", "permission", "已被移出行程", f"你已被移出行程「{trip['trip_name']}」", url_for('member.dashboard'), trip_id=trip_id)
                 connection.commit()
                 flash("已移除該成員。", "success")
     except Exception:
@@ -3661,7 +3802,7 @@ def approve_trip_request(trip_id, member_user_id):
                 flash("找不到這筆申請。", "error")
             else:
                 cursor.execute("UPDATE trip_members SET join_status='accepted', joined_at=NOW() WHERE trip_id=%s AND user_id=%s", (trip_id, member_user_id))
-                send_notification(cursor, member_user_id, "trip", "trip_update", "加入申請已通過", f"你申請加入「{trip['trip_name']}」已經通過了", url_for('member.trip_detail', trip_id=trip_id), trip_id=trip_id)
+                send_notification(cursor, member_user_id, "trip", "permission", "加入申請已通過", f"你申請加入「{trip['trip_name']}」已經通過了", url_for('member.trip_detail', trip_id=trip_id), trip_id=trip_id)
                 connection.commit()
                 flash("已核准加入申請。", "success")
     except Exception:

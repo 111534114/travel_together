@@ -119,6 +119,18 @@
 
   // 日期範圍選擇器：住宿(入住/退房)、機票(去程/回程)、高鐵(出發/回程)都用同一顆 flatpickr 範圍選擇器，
   // 選好的日期另外寫進對應的隱藏欄位(hotelCheckin/hotelCheckout 等)，表單驗證、送出邏輯完全不用改。
+  // 火車可選的最晚日期由後端算好放在 data-max-by-rail(booking_search.train_max_date)：
+  // 高鐵＝開放訂票規則和 TDX 已公布時刻表取較晚(連假疏運提前開放會自動延長)，台鐵＝今天 + 28 天
+  const trainMaxDate = () => {
+    const rail = document.querySelector('input[name="rail"]:checked')?.value || 'thsr';
+    let maxByRail = {};
+    try { maxByRail = JSON.parse(get('trainDateRange')?.dataset.maxByRail || '{}'); } catch (e) { maxByRail = {}; }
+    if (maxByRail[rail]) return maxByRail[rail];
+    const max = new Date();  // 後端沒給(理論上不會)就退回今天 + 28 天
+    max.setHours(0, 0, 0, 0);
+    max.setDate(max.getDate() + 28);
+    return max;
+  };
   const pickers = {};
   if (typeof flatpickr !== 'undefined') {
     // 英文版(Google 翻譯)會把日曆上的數字翻成「twenty one」、星期翻成整個字擠在一起，
@@ -176,6 +188,8 @@
         altFormat: dateLabel,
         dateFormat: 'Y-m-d',
         minDate: 'today',
+        // 火車只能選開放訂票期間內的日期，更後面的日期反灰(後端 booking_search.py 也會再檢查)
+        maxDate: kind === 'train' ? trainMaxDate() : null,
         locale: zhTw || undefined,
         rangeSeparator: ' - ',
         showMonths: window.innerWidth > 720 ? 2 : 1,
@@ -342,6 +356,7 @@
   form.querySelectorAll('input[name="rail"]').forEach(r=>r.addEventListener('change',()=>{
     form.querySelectorAll('[data-station-autocomplete] + .city-suggest-panel').forEach(p=>{p.hidden=true;});
     noteText();
+    if (pickers.train) pickers.train.set('maxDate', trainMaxDate());  // 高鐵、台鐵開放訂票天數不同
   }));
   const today=new Date();
   const isoToday=[today.getFullYear(),String(today.getMonth()+1).padStart(2,'0'),String(today.getDate()).padStart(2,'0')].join('-');

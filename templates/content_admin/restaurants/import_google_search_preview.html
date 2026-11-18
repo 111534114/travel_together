@@ -58,7 +58,8 @@
                                 <option value="{{ category.category_id }}" {{ 'selected' if c.suggested_category_id == category.category_id else '' }}>{{ category.category_name }}</option>
                             {% endfor %}
                         </select>
-                        {% if c.category_name %}<br><span class="form-hint">Google建議：{{ c.category_name }}</span>{% endif %}
+                        {% if c.category_name %}<br><span class="form-hint">Google建議：{{ c.category_name }}（維持「未分類」送出的話，會自動用這個名稱新增分類）</span>
+                        {% else %}<br><span class="form-hint">Google未提供分類（維持「未分類」送出的話，會歸到「其他」）</span>{% endif %}
                         {% if not c.country_name or not c.city_name %}<br><span class="status-returned">缺國家/城市，會匯入失敗</span>{% endif %}
                     </td>
                     <td>{{ c.opening_hours or '—' }}</td>

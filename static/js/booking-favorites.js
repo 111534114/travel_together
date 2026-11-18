@@ -7,12 +7,17 @@
     button.title = label;
     const glyph = button.querySelector('span');
     if (glyph) glyph.textContent = saved ? '♥' : '♡';
+    // 收藏頁：取消後卡片先變淡(不直接移除)，看得出已取消，想反悔再按一次愛心就能加回來
+    const card = button.closest('.fav-card');
+    if (card) card.classList.toggle('is-removed', !saved);
   }
 
   async function post(url, options) {
     const response = await fetch(url, { credentials: 'same-origin', ...options });
-    const data = await response.json().catch(() => ({}));
-    if (!response.ok) throw new Error(data.error || '收藏失敗，請稍後再試。');
+    // 登入逾時：後端會轉到登入頁，fetch 跟著轉過去，拿到的是登入頁 HTML 不是 JSON
+    if (response.redirected && /\/login/.test(response.url)) throw new Error('登入已逾時，請重新登入後再試。');
+    const data = await response.json().catch(() => null);
+    if (!response.ok || !data) throw new Error((data && data.error) || '收藏失敗（錯誤代碼 ' + response.status + '），請重新整理頁面後再試。');
     return data;
   }
 
@@ -26,11 +31,12 @@
     if (!button || button.disabled) return;
     button.disabled = true;
     try {
-      const data = await post(form.action, { method: 'POST', body: new FormData(form), headers: { 'X-Requested-With': 'fetch' } });
+      // 不能用 form.action：表單裡有 name="action" 的欄位，form.action 會拿到那個欄位(變成送到 /member/[object HTMLInputElement])
+      const data = await post(form.getAttribute('action'), { method: 'POST', body: new FormData(form), headers: { 'X-Requested-With': 'fetch' } });
       paint(button, data.saved);
       if (data.favorite_id) {
         // 剛收藏的即時(TDX)車次：後端存好之後有了車次 id，之後這顆愛心就能走一般的「取消收藏」
-        form.action = '/member/booking-favorites/train/' + data.favorite_id;
+        form.setAttribute('action', '/member/booking-favorites/train/' + data.favorite_id);
         let action = form.querySelector('input[name="action"]');
         if (!action) { action = document.createElement('input'); action.type = 'hidden'; action.name = 'action'; form.appendChild(action); }
         action.value = 'remove';

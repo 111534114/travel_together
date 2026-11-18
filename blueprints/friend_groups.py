@@ -449,7 +449,7 @@ def leave_companion_trip(trip_id):
             flash("你目前沒有待審核或已加入的資格。", "error")
             return redirect(url_for("friend_groups.companion_trip_detail", trip_id=trip_id))
         cursor.execute("UPDATE trip_members SET join_status='left' WHERE trip_id=%s AND user_id=%s", (trip_id, session["user_id"]))
-        send_notification(cursor, trip["owner_id"], "trip", "trip_update", "旅伴退出行程",
+        send_notification(cursor, trip["owner_id"], "trip", "permission", "旅伴退出行程",
                           f"有旅伴{'撤回申請' if membership['join_status'] == 'requested' else '退出'}「{trip['trip_name']}」。",
                           url_for("member.trip_detail", trip_id=trip_id), trip_id=trip_id)
         connection.commit()

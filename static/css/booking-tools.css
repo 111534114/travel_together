@@ -41,6 +41,9 @@
 .city-suggest-item--airport { display:flex; flex-direction:column; align-items:flex-start; gap:2px; width:100%; padding:8px 6px; text-align:left; }
 .city-suggest-item-primary { color:#1c3236; font-size:14px; font-weight:600; }
 .city-suggest-item-secondary { color:#8a9a9d; font-size:12px; }
+.city-suggest-item--icon { display:flex; flex-direction:row; align-items:center; gap:12px; }
+.city-suggest-icon { display:inline-flex; flex:0 0 auto; color:#23373A; }
+.city-suggest-item-text { display:flex; flex-direction:column; min-width:0; text-align:left; }
 .city-suggest-item--airport:hover .city-suggest-item-primary { color:#078da4; }
 .city-suggest-empty { padding:4px; color:#8a9a9d; font-size:13px; }
 
@@ -132,3 +135,7 @@
 .booking-filters .fare-note { display:block; color:#708284; font-size:12px; font-weight:400; line-height:1.5; }
 /* 側邊篩選欄本身已經會捲動，裡面的選項清單就不要再有自己的捲軸，避免兩層捲動不好操作 */
 .results-sidebar .facet-list { max-height:none; overflow:visible; }
+/* 火車搜尋側欄：博愛座／無障礙座位說明(只是提示，不是篩選條件) */
+.booking-filters .seat-note { display:flex; flex-direction:column; gap:4px; width:100%; padding:10px 12px; color:#536970; background:#f2fafb; border:1px solid #d7e6e9; border-radius:8px; font-size:12px; line-height:1.6; white-space:normal; }
+.booking-filters .seat-note b { color:#1c3236; font-size:13px; }
+.booking-filters .seat-note a { color:#078da4; font-weight:700; }

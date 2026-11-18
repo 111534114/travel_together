@@ -183,3 +183,69 @@ def extract_place_fields(place):  # 定義函式：把 Google 回傳的單筆地
         "price_level": price_level,
         "photo_name": photo_name,
     }
+
+
+AUTOCOMPLETE_URL = "https://places.googleapis.com/v1/places:autocomplete"  # Google 地點自動完成(新版)：全世界的國家、城市、景點、飯店、機場都能查
+_autocomplete_cache = {}  # {關鍵字: (過期時間, 結果)}，同樣的關鍵字 10 分鐘內不重複打，省費用
+_AUTOCOMPLETE_SKIP_TYPES = {"food", "store", "restaurant", "shopping_mall", "health", "school", "university", "event_venue", "sports_complex", "stadium"}
+
+
+def autocomplete_destinations(keyword, limit=8):
+    """住宿目的地的自動完成建議(繁體中文)：回傳 [{"label", "sub", "value", "kind"}]；沒金鑰或失敗回傳 None(呼叫端改用站內資料)。
+    kind: lodging(住宿)、place(國家/城市/地區)、poi(景點/交通)。餐廳、商店這類跟住宿無關的地點不列出。"""
+    import time as _time
+    keyword = (keyword or "").strip()
+    if not GOOGLE_MAPS_API_KEY or not keyword:
+        return None
+    cached = _autocomplete_cache.get(keyword)
+    if cached and cached[0] > _time.time():
+        return cached[1]
+    try:
+        resp = requests.post(AUTOCOMPLETE_URL, headers={"X-Goog-Api-Key": GOOGLE_MAPS_API_KEY},
+                             json={"input": keyword, "languageCode": "zh-TW"}, timeout=8)
+        resp.raise_for_status()
+        results = []
+        for suggestion in resp.json().get("suggestions") or []:
+            prediction = suggestion.get("placePrediction") or {}
+            types = set(prediction.get("types") or [])
+            if types & _AUTOCOMPLETE_SKIP_TYPES:
+                continue
+            fmt = prediction.get("structuredFormat") or {}
+            label = (fmt.get("mainText") or {}).get("text") or (prediction.get("text") or {}).get("text") or ""
+            if not label:
+                continue
+            sub = (fmt.get("secondaryText") or {}).get("text") or ""
+            kind = "lodging" if "lodging" in types else "place" if types & {"country", "locality", "political", "geocode", "administrative_area_level_1", "administrative_area_level_2"} else "poi"
+            results.append({"label": label, "sub": sub, "value": label, "kind": kind})
+            if len(results) >= limit:
+                break
+        _autocomplete_cache[keyword] = (_time.time() + 600, results)
+        return results
+    except Exception as error:
+        print("Google 地點自動完成失敗：", error)
+        return None
+
+
+_zh_cache = {}  # {英文關鍵字: 中文}
+
+
+def to_chinese_keyword(text):
+    """使用者在住宿目的地打英文(例如 Tokyo、Hilton Tokyo)時，轉成繁體中文關鍵字，讓建議和結果頁都是中文。
+    用 Google 翻譯網頁版的免金鑰接口(非官方)；已經有中文、不是英文字母、或翻譯失敗就回傳原字串。"""
+    text = (text or "").strip()
+    if not text or any("一" <= ch <= "鿿" for ch in text) or not any(ch.isascii() and ch.isalpha() for ch in text):
+        return text
+    if text.lower() in _zh_cache:
+        return _zh_cache[text.lower()]
+    result = text
+    try:
+        resp = requests.get("https://translate.googleapis.com/translate_a/single",
+                            params={"client": "gtx", "sl": "en", "tl": "zh-TW", "dt": "t", "q": text.title()}, timeout=6)
+        resp.raise_for_status()
+        translated = "".join(seg[0] for seg in resp.json()[0] if seg and seg[0]).strip()
+        if any("一" <= ch <= "鿿" for ch in translated):
+            result = translated
+    except Exception as error:
+        print("目的地關鍵字轉中文失敗(維持原字串)：", error)
+    _zh_cache[text.lower()] = result
+    return result

@@ -27,6 +27,13 @@
 .member-notification-item h3 { margin: 0 0 7px; color: #25474b; font-size: 16px; }
 .member-notification-item p { margin: 0 0 9px; color: #40575b; font-size: 14px; line-height: 1.6; overflow-wrap: anywhere; }
 .member-notification-item time { color: #6f8285; font-size: 12px; }
+/* 未讀通知標題前有小圓點；已讀的通知留在清單裡，顏色變淡 */
+.member-notification-item h3::before { content: ""; display: inline-block; width: 8px; height: 8px; margin: 0 8px 2px 0; border-radius: 50%; background: #ce694d; vertical-align: middle; }
+.member-notification-item.is-read h3::before { display: none; }
+.member-notification-item.is-read h3 { color: #61777a; font-weight: 500; }
+.member-notification-item.is-read p { color: #7a8c8f; }
+.member-notification-meta { display: flex; align-items: center; gap: 8px; }
+.member-notification-state { padding: 1px 8px; border-radius: 999px; background: #eef3f4; color: #6f8285; font-size: 12px; }
 .member-notification-actions { display: flex; gap: 8px; margin-top: 12px; }
 .member-notification-actions button, .member-notification-footer button { padding: 8px 12px; border: 1px solid #aacbd0; border-radius: 5px; background: #fff; color: #226d77; cursor: pointer; font: inherit; font-size: 13px; font-weight: 700; }
 .member-notification-actions button:hover, .member-notification-footer button:hover { background: #edf7f8; }

@@ -36,6 +36,9 @@
   .fav-link { color: #4B838B; font-size: 13px; font-weight: 600; }
   .fav-card .booking-save-form { margin: 0; }
   .fav-gone { flex: 1; margin: 0; color: #708284; }
+  .fav-card { transition: opacity .2s ease; }
+  .fav-card.is-removed { opacity: .5; }
+  .fav-card.is-removed .fav-side::before { content: "已取消收藏，再按 ♡ 可加回"; color: #708284; font-size: 12px; }
   .fav-empty { padding: 26px; color: #708284; text-align: center; background: #fff; border: 1px dashed #C6DCDF; border-radius: 12px; }
   .fav-empty a { color: #4B838B; font-weight: 700; }
   @media (max-width: 760px) {
@@ -50,9 +53,9 @@
 <h1>我的收藏</h1>
 <p class="fav-intro">價格為收藏時的參考價，實際票價與空位請重新查詢確認。</p>
 {% for kind, label, empty_text, search_url in [
-     ('hotel', '想住的住宿', '還沒有收藏住宿', url_for('visitor')),
-     ('flight', '機票收藏', '還沒有收藏航班', url_for('visitor')),
-     ('train', '火車收藏', '還沒有收藏車次', url_for('visitor'))] %}
+     ('hotel', '想住的住宿', '還沒有收藏住宿', url_for('member_home')),
+     ('flight', '機票收藏', '還沒有收藏航班', url_for('member_home')),
+     ('train', '火車收藏', '還沒有收藏車次', url_for('member_home'))] %}
 <section class="fav-section">
   <div class="fav-section-head"><h2>{{ label }}</h2>{% if groups[kind] or live.get(kind) %}<span>{{ (groups[kind]|length) + (live.get(kind, [])|length) }} 筆</span>{% endif %}</div>
   <div class="fav-list">
@@ -89,7 +92,7 @@
       </div>
       <div class="fav-side">
         <span class="fav-price">NT$ {{ '{:,.0f}'.format(item.price) }}<small>每人・參考價</small></span>
-        <a class="fav-action" href="{{ url_for('visitor') }}">重新查詢</a>
+        <a class="fav-action" href="{{ url_for('member_home') }}">重新查詢</a>
         {{ heart(kind, item) }}
       </div>
     {% else %}

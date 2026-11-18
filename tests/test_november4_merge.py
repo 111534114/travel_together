@@ -39,7 +39,8 @@ class November4MergeTests(unittest.TestCase):
         connection.cursor.return_value.fetchall.return_value = [
             {"name": "台北旅店", "address": "台北市信義區松仁路 1 號"},
         ]
-        with patch("app.get_db_connection", return_value=connection):
+        # Google 地點自動完成失敗(回傳 None)時才會退回站內台灣住宿資料，所以測試時要把 Google 那層關掉
+        with patch("app.get_db_connection", return_value=connection), patch("google_places.autocomplete_destinations", return_value=None):
             response = self.client.get("/api/hotel-place-search?q=台北")
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.get_json()[0]["value"], "台北市 信義區")

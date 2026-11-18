@@ -524,6 +524,7 @@ CREATE TABLE friend_group_events (
  event_date DATE NOT NULL,
  start_time TIME,
  end_time TIME,
+ registration_deadline DATETIME NULL,
  capacity INT UNSIGNED,
  status ENUM('open','closed','cancelled') NOT NULL DEFAULT 'open',
  created_by BIGINT UNSIGNED NOT NULL,

@@ -8,10 +8,20 @@
         <h1>{{ event.title }}</h1>
         <div class="attraction-detail-stats">
             <div><span>日期</span><strong>{{ event.event_date }}{% if event.start_time %} {{ event.start_time|hm }}{% endif %}</strong></div>
+            <div><span>報名截止</span><strong>{{ event.registration_deadline_display }}</strong></div>
             <div><span>人數</span><strong>{{ event.registered_count }}{% if event.capacity %} / {{ event.capacity }}{% endif %} 人</strong></div>
             <div><span>我的狀態</span><strong>{{ {'registered':'已報名','attended':'已報到'}.get(my_status, '未報名') }}</strong></div>
         </div>
         {% if event.description %}<div class="attraction-detail-intro"><h2>活動說明</h2><p>{{ event.description }}</p></div>{% endif %}
+        <div class="official-event-footer">
+            {% if my_status == 'registered' %}
+            <form method="post" action="{{ url_for('friend_groups.cancel_event', event_id=event.event_id) }}"><button class="member-btn outline" type="submit">取消報名</button></form>
+            {% elif my_status != 'attended' and can_register and event.registration_open and (not event.capacity or event.registered_count < event.capacity) %}
+            <form method="post" action="{{ url_for('friend_groups.register_event', event_id=event.event_id) }}"><button class="member-btn primary" type="submit">報名參加</button></form>
+            {% elif my_status != 'attended' %}
+            <span class="status-tag">{{ '報名已截止' if not event.registration_open else '尚未取得報名資格' if not can_register else '名額已滿' }}</span>
+            {% endif %}
+        </div>
     </div>
 
     {% if schedule %}

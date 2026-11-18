@@ -16,16 +16,17 @@
   </div>
   <div class="table-container">
     <table class="admin-table">
-      <thead><tr><th>活動名稱</th><th>日期</th><th>地點</th><th>報名人數</th><th>已報到</th><th>狀態</th><th>操作</th></tr></thead>
+      <thead><tr><th>活動名稱</th><th>日期</th><th>報名截止</th><th>地點</th><th>報名人數</th><th>已報到</th><th>狀態</th><th>操作</th></tr></thead>
       <tbody>
       {% for event in events %}
       <tr>
         <td>{{ event.title }}</td>
         <td>{{ event.event_date }}{% if event.start_time %} {{ event.start_time }}{% endif %}</td>
+        <td>{{ event.registration_deadline_display }}</td>
         <td>{{ event.location or '—' }}</td>
         <td>{{ event.registered_count }}{% if event.capacity %} / {{ event.capacity }}{% endif %}</td>
         <td>{{ event.attended_count }}</td>
-        <td><span class="status-{{ 'active' if event.status == 'open' else event.status }}">{{ status_labels[event.status] }}</span></td>
+        <td><span class="status-{{ 'active' if event.status == 'open' and event.registration_open else event.status }}">{{ '報名已截止' if event.status == 'open' and not event.registration_open else status_labels[event.status] }}</span></td>
         <td>
           <a class="small-button" href="{{ url_for('friend_groups_admin.event_participants', event_id=event.event_id) }}">報到名單</a>
           {% if content_admin_can('friend_groups_admin', 'edit') %}
@@ -35,7 +36,7 @@
         </td>
       </tr>
       {% else %}
-      <tr><td colspan="7" class="empty-data">目前還沒有官方活動</td></tr>
+      <tr><td colspan="8" class="empty-data">目前還沒有官方活動</td></tr>
       {% endfor %}
       </tbody>
     </table>

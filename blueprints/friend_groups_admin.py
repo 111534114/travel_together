@@ -1,5 +1,6 @@
 import os
 import re
+from datetime import datetime
 
 from flask import Blueprint, current_app, flash, redirect, render_template, request, send_file, session, url_for
 
@@ -8,7 +9,7 @@ from auth import login_required
 from db import get_db_connection
 from notification_preferences import send_notification
 from chat_moderation import REMOVED_CHAT_CONTENT, SETTING_KEY, parse_terms, remove_trip_message
-from blueprints.friend_groups import _has_attended_event, _international_candidate_reviews
+from blueprints.friend_groups import _event_registration_deadline, _event_registration_open, _event_start_datetime, _has_attended_event, _international_candidate_reviews
 from content_admin_permissions import require_content_admin_module
 
 friend_groups_admin_bp = Blueprint("friend_groups_admin", __name__, url_prefix="/content-admin/friend-groups")
@@ -67,6 +68,22 @@ def _save_event_items(cursor, event_id, items):
             INSERT INTO friend_group_event_items (event_id, start_time, end_time, title, location, sort_order)
             VALUES (%s,%s,%s,%s,%s,%s)
         """, (event_id, start_time, end_time, title, location, sort_order))
+
+
+def _parse_registration_deadline(form):
+    """管理員輸入的是台灣當地時間，截止必須早於活動開始。"""
+    try:
+        event_start = _event_start_datetime({
+            "event_date": form.get("event_date", "").strip(),
+            "start_time": form.get("start_time", "").strip() or None,
+        })
+        raw = form.get("registration_deadline", "").strip()
+        deadline = datetime.strptime(raw, "%Y-%m-%dT%H:%M") if raw else None
+    except ValueError:
+        return None, "請填寫有效的活動日期、開始時間與報名截止時間。"
+    if deadline is not None and deadline >= event_start:
+        return None, "報名截止時間必須早於活動開始；若同一天截止，請先填寫活動開始時間。"
+    return deadline, None
 
 
 @friend_groups_admin_bp.route("/applications")
@@ -428,6 +445,9 @@ def list_events():
             ORDER BY e.event_date DESC
         """)
         events = cursor.fetchall()
+        for event in events:
+            event["registration_open"] = _event_registration_open(event)
+            event["registration_deadline_display"] = _event_registration_deadline(event).strftime("%Y/%m/%d %H:%M")
     finally:
         cursor.close()
         connection.close()
@@ -452,6 +472,10 @@ def new_event():
         if not title or not event_date:
             flash("請填寫活動名稱與日期。", "error")
             return redirect(url_for("friend_groups_admin.new_event"))
+        registration_deadline, deadline_error = _parse_registration_deadline(request.form)
+        if deadline_error:
+            flash(deadline_error, "error")
+            return redirect(url_for("friend_groups_admin.new_event"))
 
         connection = get_db_connection()
         if connection is None:
@@ -460,9 +484,9 @@ def new_event():
         cursor = connection.cursor()
         try:
             cursor.execute("""
-                INSERT INTO friend_group_events (title, description, location, event_date, start_time, end_time, capacity, created_by)
-                VALUES (%s,%s,%s,%s,%s,%s,%s,%s)
-            """, (title, description, location, event_date, start_time, end_time, capacity, session["user_id"]))
+                INSERT INTO friend_group_events (title, description, location, event_date, start_time, end_time, registration_deadline, capacity, created_by)
+                VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s)
+            """, (title, description, location, event_date, start_time, end_time, registration_deadline, capacity, session["user_id"]))
             event_id = cursor.lastrowid
             _save_event_items(cursor, event_id, _parsed_event_items(request.form))
             log_action(cursor, "create_friend_group_event", "friend_group_event", event_id, f"建立官方活動：{title}")
@@ -514,12 +538,16 @@ def edit_event(event_id):
             if not title or not event_date:
                 flash("請填寫活動名稱與日期。", "error")
                 return redirect(url_for("friend_groups_admin.edit_event", event_id=event_id))
+            registration_deadline, deadline_error = _parse_registration_deadline(request.form)
+            if deadline_error:
+                flash(deadline_error, "error")
+                return redirect(url_for("friend_groups_admin.edit_event", event_id=event_id))
 
             cursor.execute("""
                 UPDATE friend_group_events
-                SET title=%s, description=%s, location=%s, event_date=%s, start_time=%s, end_time=%s, capacity=%s
+                SET title=%s, description=%s, location=%s, event_date=%s, start_time=%s, end_time=%s, registration_deadline=%s, capacity=%s
                 WHERE event_id=%s
-            """, (title, description, location, event_date, start_time, end_time, capacity, event_id))
+            """, (title, description, location, event_date, start_time, end_time, registration_deadline, capacity, event_id))
             _save_event_items(cursor, event_id, _parsed_event_items(request.form))
             log_action(cursor, "update_friend_group_event", "friend_group_event", event_id, f"編輯官方活動：{title}")
             connection.commit()

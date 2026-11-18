@@ -122,6 +122,7 @@
                 </div>
                 <div class="official-event-meta">
                     <span>📅 {{ event.event_date }}{% if event.start_time %} {{ event.start_time|hm }}{% endif %}</span>
+                    <span>⏰ 報名截止 {{ event.registration_deadline_display }}</span>
                     {% if event.location %}<span>📍 {{ event.location }}</span>{% endif %}
                     <span>👥 {{ event.registered_count }}{% if event.capacity %} / {{ event.capacity }}{% endif %} 人報名</span>
                 </div>
@@ -130,8 +131,10 @@
                     <a class="official-event-detail" href="{{ url_for('friend_groups.event_detail', event_id=event.event_id) }}">查看活動詳情{% if event.schedule %}與時間軸{% endif %} →</a>
                     {% if event.my_status == 'registered' %}
                     <form method="post" action="{{ url_for('friend_groups.cancel_event', event_id=event.event_id) }}"><button class="member-btn outline" type="submit">取消報名</button></form>
-                    {% elif event.my_status != 'attended' %}
+                    {% elif event.my_status != 'attended' and event.registration_open and (not event.capacity or event.registered_count < event.capacity) %}
                     <form method="post" action="{{ url_for('friend_groups.register_event', event_id=event.event_id) }}"><button class="member-btn primary" type="submit">報名參加</button></form>
+                    {% elif event.my_status != 'attended' %}
+                    <span class="status-tag">{{ '報名已截止' if not event.registration_open else '名額已滿' }}</span>
                     {% endif %}
                 </div>
             </article>

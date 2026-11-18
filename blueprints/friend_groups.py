@@ -1,4 +1,4 @@
-from datetime import date, datetime, timedelta
+from datetime import date, datetime, time, timedelta, timezone
 import json
 import os
 import re
@@ -18,6 +18,33 @@ from config import ANTHROPIC_API_KEY, GEMINI_API_KEY
 friend_groups_bp = Blueprint("friend_groups", __name__, url_prefix="/member/friend-groups")
 
 MIN_AGE = 18  # 申請這個功能的最低年齡限制
+TAIPEI_TIMEZONE = timezone(timedelta(hours=8))
+
+
+def _event_start_datetime(event):
+    """官方活動的開始時間；未填開始時間時，以活動當天 00:00 為準。"""
+    event_day = event["event_date"]
+    if isinstance(event_day, str):
+        event_day = date.fromisoformat(event_day)
+    start = event.get("start_time")
+    if isinstance(start, timedelta):
+        start = (datetime.min + start).time()
+    elif isinstance(start, str):
+        start = time.fromisoformat(start)
+    return datetime.combine(event_day, start or time.min)
+
+
+def _event_registration_deadline(event):
+    """未設定截止時，最晚只能在活動開始前報名。時間以台灣時間解讀。"""
+    deadline = event.get("registration_deadline")
+    if isinstance(deadline, str) and deadline:
+        deadline = datetime.fromisoformat(deadline)
+    return deadline or _event_start_datetime(event)
+
+
+def _event_registration_open(event, now=None):
+    now = now or datetime.now(TAIPEI_TIMEZONE).replace(tzinfo=None)
+    return event.get("status") == "open" and now < _event_registration_deadline(event)
 
 # 分級團長制度：Lv.1 新手團長剛解鎖時限制單日、限人數；累積開團次數達標且平均評價夠高才會升到 Lv.2 資深團長，
 # 可以開多天行程、人數上限也解除。等級不另外存欄位，每次都用「開團次數」+「收到的平均評價」即時算出。
@@ -327,6 +354,9 @@ def index():
                 ORDER BY e.event_date ASC
             """, (user_id,))
             events = cursor.fetchall()
+            for event in events:
+                event["registration_open"] = _event_registration_open(event)
+                event["registration_deadline_display"] = _event_registration_deadline(event).strftime("%Y/%m/%d %H:%M")
 
             if events:
                 event_ids = [e["event_id"] for e in events]
@@ -580,10 +610,13 @@ def register_event(event_id):
             flash("要先通過申請才能報名活動。", "error")
             return redirect(url_for("friend_groups.index") + "#friend-groups")
 
-        cursor.execute("SELECT * FROM friend_group_events WHERE event_id=%s AND status='open'", (event_id,))
+        cursor.execute("SELECT * FROM friend_group_events WHERE event_id=%s AND status='open' FOR UPDATE", (event_id,))
         event = cursor.fetchone()
         if not event:
             flash("找不到這場活動，或活動已關閉。", "error")
+            return redirect(url_for("friend_groups.index") + "#friend-groups")
+        if not _event_registration_open(event):
+            flash(f"這場活動已於 {_event_registration_deadline(event):%Y/%m/%d %H:%M} 截止報名。", "error")
             return redirect(url_for("friend_groups.index") + "#friend-groups")
 
         if event["capacity"]:
@@ -652,6 +685,8 @@ def event_detail(event_id):
         if not event:
             flash("找不到這場活動。", "error")
             return redirect(url_for("friend_groups.index") + "#friend-groups")
+        event["registration_open"] = _event_registration_open(event)
+        event["registration_deadline_display"] = _event_registration_deadline(event).strftime("%Y/%m/%d %H:%M")
 
         cursor.execute("SELECT * FROM friend_group_event_items WHERE event_id=%s ORDER BY sort_order", (event_id,))
         schedule = cursor.fetchall()
@@ -665,12 +700,14 @@ def event_detail(event_id):
 
         my_status = _event_participant_status(cursor, event_id, user_id)
         can_chat = my_status in ("registered", "attended")
+        application = _latest_application(cursor, user_id)
+        can_register = bool(application and application["status"] == "approved")
     finally:
         cursor.close(); connection.close()
     return render_template(
         "member/friend_groups/event_detail.html",
         event=event, schedule=schedule, announcements=announcements,
-        my_status=my_status, can_chat=can_chat,
+        my_status=my_status, can_chat=can_chat, can_register=can_register,
     )
 
 

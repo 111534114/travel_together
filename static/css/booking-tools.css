@@ -59,7 +59,7 @@
 
 .price-slider-row { display:flex; flex:1 0 100%; align-items:center; gap:12px; margin-top:8px; }
 .price-slider-row output { flex:0 0 auto; color:#078da4; font-size:12px; font-weight:700; white-space:nowrap; }
-.price-slider { position:relative; flex:1 1 220px; max-width:320px; height:24px; }
+.price-slider { position:relative; flex:1 1 220px; max-width:320px; height:24px; cursor:pointer; }
 .price-slider::before { content:""; position:absolute; top:50%; left:0; right:0; height:4px; margin-top:-2px; background:#e3eef0; border-radius:4px; }
 .price-slider-fill { position:absolute; top:50%; height:4px; margin-top:-2px; background:#078da4; border-radius:4px; }
 .price-slider input[type=range] {
@@ -124,3 +124,7 @@
 .booking-heart:hover { color:#e54b6b; background:#fff3f6; transform:scale(1.06); }
 .booking-heart.is-saved { color:#e63861; border-color:#e99aae; background:#fff0f4; }
 .booking-heart:focus-visible { outline:3px solid rgba(7,141,164,.25); outline-offset:2px; }
+
+.booking-filters .fare-note { display:block; color:#708284; font-size:12px; font-weight:400; line-height:1.5; }
+/* 側邊篩選欄本身已經會捲動，裡面的選項清單就不要再有自己的捲軸，避免兩層捲動不好操作 */
+.results-sidebar .facet-list { max-height:none; overflow:visible; }

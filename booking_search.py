@@ -12,6 +12,9 @@ booking_bp = Blueprint('booking', __name__)
 TABLES = {'hotel': ('accommodations', 'accommodation_id'), 'flight': ('flights', 'flight_id'), 'train': ('trains', 'train_id')}
 ENDPOINTS = {'visitor_hotel_search': 'hotel', 'visitor_flight_search': 'flight', 'visitor_train_search': 'train'}
 FARES = {'all': '全部票種', 'regular': '一般票', 'discount': '打折票', 'promotion': '優惠票', 'student': '學生票'}
+# 火車票種只放 TDX 查得到真實票價的種類；'all' 顯示全票價
+TRAIN_FARES = {'all': '全票', 'concession': '優待票（孩童／敬老／愛心）', 'group': '團體票（高鐵 11 人以上）'}
+GROUP_MIN_PAX = 11  # 高鐵團體票最低人數
 CABIN_CLASSES = {'all': '全部艙等', '經濟艙': '經濟艙', '豪華經濟艙': '豪華經濟艙', '商務艙': '商務艙', '頭等艙': '頭等艙'}
 TRAIN_TYPE_LABELS = {'thsr': '高鐵', 'tra': '台鐵'}
 TIME_BANDS = [
@@ -63,13 +66,18 @@ def validate_search(kind, args):
     if kind == 'flight':
         if args.get('cabin', 'all') not in CABIN_CLASSES:
             errors['cabin'] = '請選擇有效艙等'
-    elif args.get('fare', 'all') not in FARES:
+    elif args.get('fare', 'all') not in (TRAIN_FARES if kind == 'train' else FARES):
         errors['fare'] = '請選擇有效票種'
     if kind == 'flight' and args.get('stops', '') not in ('', 'direct', 'connecting'):
         errors['stops'] = '請選擇有效的轉機條件'
     count_key = 'guests' if kind == 'hotel' else 'pax'
     if args.get(count_key) and (not args[count_key].isdigit() or not 1 <= int(args[count_key]) <= 99):
         errors[count_key] = '人數須介於 1 與 99'
+    if kind == 'train' and args.get('fare') == 'group':  # 高鐵團體票限 11 人以上、台鐵沒有團體票價資料
+        if args.get('rail') == 'tra':
+            errors['fare'] = '台鐵沒有團體票，請選擇其他票種'
+        elif not (args.get('pax', '').isdigit() and int(args['pax']) >= GROUP_MIN_PAX):
+            errors['fare'] = f'團體票需 {GROUP_MIN_PAX} 人以上，請增加人數或選擇其他票種'
     return errors
 
 
@@ -234,6 +242,11 @@ def filter_prices(rows, field, duration_field=None, stops_field=None, cabin_fiel
         if cabin_field:
             if cabin != 'all' and row.get(cabin_field) != cabin:
                 continue
+        elif row.get('fares') is not None:  # 即時火車車次：換成所選票種的真實票價，這班車沒有該票種就不列出
+            if fare != 'all':
+                if fare not in row['fares']:
+                    continue
+                row = dict(row, price=row['fares'][fare], fare_label=TRAIN_FARES.get(fare, ''))
         # Existing transport records are standard fares; no discount is inferred.
         elif fare not in ('all', row.get('fare_type', 'regular')):
             continue
@@ -281,7 +294,7 @@ def booking_context():
                 saved = set(cursor.fetchall())
             finally:
                 cursor.close(); connection.close()
-    return dict(booking_saved=saved, booking_csrf=session['booking_csrf'], fare_options=FARES,
+    return dict(booking_saved=saved, booking_csrf=session['booking_csrf'], fare_options=FARES, train_fare_options=TRAIN_FARES, GROUP_MIN_PAX=GROUP_MIN_PAX,
                 cabin_options=CABIN_CLASSES, booking_kind=ENDPOINTS.get(request.endpoint))
 
 

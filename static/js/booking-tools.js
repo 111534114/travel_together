@@ -60,6 +60,20 @@
     maxInput.addEventListener('input', () => render(maxInput));
     minInput.addEventListener('change', () => sliderForm && sliderForm.requestSubmit());
     maxInput.addEventListener('change', () => sliderForm && sliderForm.requestSubmit());
+    // 除了拖拉圓點，也可以直接點軌道：離點擊位置最近的圓點會跳過去並套用篩選。
+    // 圓點本身的點擊事件 target 是 input，交給瀏覽器原本的拖拉行為處理，這裡只處理點在軌道上的情況。
+    slider.addEventListener('click', (event) => {
+      if (event.target === minInput || event.target === maxInput) return;
+      const rect = slider.getBoundingClientRect();
+      const ratio = Math.min(1, Math.max(0, (event.clientX - rect.left) / rect.width));
+      const step = Number(minInput.step) || 1;
+      const value = Math.min(sliderMax, Math.max(sliderMin, Math.round((sliderMin + ratio * (sliderMax - sliderMin)) / step) * step));
+      const target = Math.abs(value - Number(minInput.value)) <= Math.abs(value - Number(maxInput.value))
+        && value <= Number(maxInput.value) ? minInput : maxInput;
+      target.value = value;
+      render(target);
+      target.dispatchEvent(new Event('change', {bubbles: true}));
+    });
     render();
   });
 

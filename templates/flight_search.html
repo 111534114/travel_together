@@ -42,7 +42,7 @@
     .toast { position: fixed; z-index: 50; bottom: 30px; left: 50%; padding: 12px 22px; color: #fff; background: #293C3F; border-radius: 8px; box-shadow: 0 10px 25px rgba(0, 0, 0, .25); font-size: 14px; opacity: 0; transform: translate(-50%, 10px); transition: opacity 200ms ease, transform 200ms ease; pointer-events: none; }
     .toast.show { opacity: 1; transform: translate(-50%, 0); }
     .results-layout { display: grid; grid-template-columns: 240px 1fr; align-items: start; gap: 20px; }
-    .results-sidebar { position: sticky; top: 88px; }
+    .results-sidebar { position: sticky; top: 20px; max-height: calc(100vh - 40px); overflow-y: auto; overscroll-behavior: contain; padding-right: 6px; scrollbar-width: thin; scrollbar-color: #C6DCDF transparent; }
     .results-sidebar .booking-tools { margin-top: 0; }
     .results-sidebar .booking-filters { flex-direction: column; align-items: stretch; gap: 16px; }
     .results-sidebar .booking-filters label { flex-direction: column; align-items: stretch; gap: 6px; white-space: normal; }

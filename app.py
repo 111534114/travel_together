@@ -1111,13 +1111,16 @@ def visitor_train_search():
             conditions = ["t.status = 'active'", "t.seats_available >= %s"]  # 只搜尋已啟用且座位足夠的車次
             params = [pax]
 
-            if origin:  # 如果有輸入出發站關鍵字，依站名模糊搜尋
+            # 英文站名(例如 taipei)先換成中文；本地資料表的站名是中文
+            db_origin = tdx_trains.normalize_station(origin) if origin else ""
+            db_destination = tdx_trains.normalize_station(destination) if destination else ""
+            if db_origin:  # 如果有輸入出發站關鍵字，依站名模糊搜尋
                 conditions.append("t.origin_station LIKE %s")
-                params.append(f"%{origin}%")
+                params.append(f"%{db_origin}%")
 
-            if destination:  # 如果有輸入到達站關鍵字，依站名模糊搜尋
+            if db_destination:  # 如果有輸入到達站關鍵字，依站名模糊搜尋
                 conditions.append("t.destination_station LIKE %s")
-                params.append(f"%{destination}%")
+                params.append(f"%{db_destination}%")
 
             if rail:  # 只查使用者選的高鐵或台鐵
                 conditions.append("t.train_type = %s")
@@ -1142,7 +1145,7 @@ def visitor_train_search():
                 cursor.execute("""SELECT * FROM trains WHERE status='active' AND seats_available >= %s
                                   AND origin_station LIKE %s AND destination_station LIKE %s
                                   AND (%s = '' OR train_type = %s)
-                                  ORDER BY departure_time""", (pax, '%' + destination + '%', '%' + origin + '%', rail, rail))
+                                  ORDER BY departure_time""", (pax, '%' + db_destination + '%', '%' + db_origin + '%', rail, rail))
                 return_trains = cursor.fetchall()
         except Exception as error:  # 如果查詢過程發生錯誤(例如資料表尚未建立)
             print("高鐵／台鐵搜尋查詢失敗：", error)

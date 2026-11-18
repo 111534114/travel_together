@@ -1,0 +1,113 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>{{ trip.trip_name }}｜旅遊手冊</title>
+<link rel="icon" type="image/png" href="{{ url_for('static', filename='images/logo.png') }}">
+<style>
+    :root { --ink: #25474D; --muted: #687A7E; --accent: #087E96; --accent-light: #EEF6F7; --border: #E3EEEF; }
+    * { box-sizing: border-box; }
+    body { margin: 0; font-family: 'Noto Sans TC', 'Microsoft JhengHei', sans-serif; color: var(--ink); background: #F4FAFB; }
+    .toolbar { position: sticky; top: 0; z-index: 10; display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 14px 24px; background: #fff; border-bottom: 1px solid var(--border); }
+    .toolbar a, .toolbar button { font: inherit; font-weight: 700; font-size: 14px; padding: 9px 18px; border-radius: 10px; border: 1px solid var(--accent); cursor: pointer; text-decoration: none; }
+    .toolbar .ghost { background: #fff; color: var(--accent); }
+    .toolbar .primary { background: var(--accent); color: #fff; }
+    .page { max-width: 820px; margin: 24px auto 60px; background: #fff; border-radius: 16px; box-shadow: 0 10px 30px rgba(32,89,99,.08); overflow: hidden; }
+    .cover { padding: 48px 40px; background: linear-gradient(135deg, #00A9C0 0%, #087E96 100%); color: #fff; }
+    .cover p.eyebrow { margin: 0 0 6px; letter-spacing: .12em; font-size: 12px; opacity: .85; }
+    .cover h1 { margin: 0 0 14px; font-size: 32px; }
+    .cover .meta { display: flex; flex-wrap: wrap; gap: 18px; font-size: 15px; opacity: .95; }
+    .cover .intro { margin: 18px 0 0; line-height: 1.7; opacity: .95; max-width: 60ch; }
+    .cover-image { width: 100%; height: 240px; object-fit: cover; display: block; }
+    .members { padding: 24px 40px; border-bottom: 1px solid var(--border); display: flex; flex-wrap: wrap; gap: 10px 18px; align-items: center; }
+    .members h2 { margin: 0; font-size: 14px; color: var(--muted); width: 100%; }
+    .member-chip { display: inline-flex; align-items: center; gap: 6px; font-size: 14px; padding: 5px 12px; border-radius: 999px; background: var(--accent-light); color: var(--ink); }
+    .member-chip small { color: var(--muted); }
+    .day-block { padding: 30px 40px; border-bottom: 1px solid var(--border); page-break-inside: avoid; }
+    .day-block:last-child { border-bottom: none; }
+    .day-heading { display: flex; align-items: baseline; gap: 12px; margin-bottom: 18px; }
+    .day-heading .badge { background: var(--accent); color: #fff; font-weight: 800; font-size: 14px; padding: 4px 14px; border-radius: 999px; }
+    .day-heading .date { color: var(--muted); font-size: 15px; }
+    .item { display: flex; gap: 16px; padding: 14px 0; border-top: 1px dashed var(--border); }
+    .item:first-child { border-top: none; }
+    .item .time { flex: 0 0 90px; font-weight: 700; color: var(--accent); font-size: 14px; white-space: nowrap; }
+    .item .body { flex: 1; min-width: 0; }
+    .item .title-row { display: flex; align-items: center; gap: 8px; font-weight: 700; font-size: 16px; }
+    .item .type-tag { font-size: 12px; font-weight: 600; color: var(--muted); background: var(--accent-light); padding: 2px 8px; border-radius: 999px; }
+    .item .address, .item .notes { margin: 4px 0 0; font-size: 13.5px; color: var(--muted); line-height: 1.6; }
+    .item .notes { font-style: italic; }
+    .empty-day { color: var(--muted); font-size: 14px; }
+    @media print {
+        body { background: #fff; }
+        .toolbar { display: none; }
+        .page { box-shadow: none; margin: 0; border-radius: 0; max-width: none; }
+        .day-block { page-break-before: always; }
+        .day-block:first-of-type { page-break-before: auto; }
+        .cover { background: var(--accent) !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+    }
+</style>
+</head>
+<body>
+
+<div class="toolbar">
+    <a class="ghost" href="{{ url_for('member.trip_detail', trip_id=trip.trip_id) }}">← 返回行程</a>
+    <button class="primary" type="button" onclick="window.print()">🖨️ 列印／另存為 PDF</button>
+</div>
+
+<div class="page">
+
+    <section class="cover">
+        <p class="eyebrow">TRAVEL HANDBOOK</p>
+        <h1>{{ trip.trip_name }}</h1>
+        <div class="meta">
+            <span>📍 {{ trip.country }} · {{ trip.city }}</span>
+            <span>📅 {{ trip.start_date }} ～ {{ trip.end_date }}</span>
+            <span>👥 {{ trip.people_count }} 人</span>
+            {% if trip.total_budget %}<span>💰 {{ '{:,.0f}'.format(trip.total_budget) }} {{ trip.currency }}</span>{% endif %}
+        </div>
+        {% if trip.introduction %}<p class="intro">{{ trip.introduction }}</p>{% endif %}
+    </section>
+
+    {% if trip.cover_image_path %}
+    <img class="cover-image" src="{{ url_for('static', filename=trip.cover_image_path) }}" alt="{{ trip.trip_name }}">
+    {% endif %}
+
+    <section class="members">
+        <h2>同行旅伴</h2>
+        {% for member in members %}
+        <span class="member-chip">{{ member.nickname or member.full_name }}<small>（{{ role_labels.get(member.member_role, member.member_role) }}）</small></span>
+        {% endfor %}
+    </section>
+
+    {% for day in days %}
+    <section class="day-block">
+        <div class="day-heading">
+            <span class="badge">Day {{ day.day_number }}</span>
+            <span class="date">{{ day.date }}</span>
+        </div>
+        {% for item in day.items %}
+        <div class="item">
+            <div class="time">
+                {% if item.start_time %}{{ item.start_time|hm }}{% if item.end_time %} - {{ item.end_time|hm }}{% endif %}{% else %}未定時間{% endif %}
+            </div>
+            <div class="body">
+                <div class="title-row">
+                    <span>{{ item_type_labels.get(item.item_type, {}).get('icon', '📌') }}</span>
+                    <span>{{ item.title }}</span>
+                    <span class="type-tag">{{ item_type_labels.get(item.item_type, {}).get('label', item.item_type) }}</span>
+                </div>
+                {% if item.address %}<p class="address">📍 {{ item.address }}</p>{% endif %}
+                {% if item.transport_method %}<p class="address">🚗 {{ item.transport_method }}{% if item.transport_minutes %}・約 {{ item.transport_minutes }} 分鐘{% endif %}</p>{% endif %}
+                {% if item.notes %}<p class="notes">💬 {{ item.notes }}</p>{% endif %}
+            </div>
+        </div>
+        {% endfor %}
+    </section>
+    {% else %}
+    <section class="day-block"><p class="empty-day">這趟旅程還沒有安排任何行程項目。</p></section>
+    {% endfor %}
+
+</div>
+
+</body>
+</html>

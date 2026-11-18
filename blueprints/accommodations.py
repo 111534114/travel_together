@@ -836,37 +836,60 @@ def import_from_google():  # 定義 Google 地圖批次匯入住宿函式：輸�
 
 @accommodations_bp.route("/import/google-search", methods=["GET", "POST"])  # 設定「依關鍵字搜尋多筆地點、批次匯入」的路由(第一步：搜尋並列出候選清單)
 @login_required("content_admin")
-def search_import_accommodations():  # 定義搜尋函式：輸入一個泛用關鍵字(例如「台北市 飯店」)，一次拿回一批候選地點
+def search_import_accommodations():  # 定義搜尋函式：輸入一個或多個泛用關鍵字(每行一個，例如「大安區 飯店」「信義區 飯店」)，每個關鍵字各自搜尋一次，結果合併去重後一次拿回一批候選地點
     if request.method == "GET":
         return render_template(
             "content_admin/accommodations/import_google_search.html",
-            api_configured=is_configured(), max_results=MAX_SEARCH_RESULTS
+            api_configured=is_configured(), max_results=MAX_SEARCH_RESULTS, max_keywords=MAX_GOOGLE_IMPORT_ROWS
         )
 
     if not is_configured():
         flash("尚未設定 Google Places API 金鑰，請先在專案的 .env 檔案設定 GOOGLE_MAPS_API_KEY", "error")
         return redirect(url_for("accommodations.search_import_accommodations"))
 
-    keyword = request.form.get("keyword", "").strip()
-    if not keyword:
-        flash("請輸入搜尋關鍵字", "error")
+    raw_keywords = request.form.get("keyword", "")  # 取得使用者輸入的關鍵字清單(一行一個，例如「大安區 飯店」)
+    keywords = [line.strip() for line in raw_keywords.splitlines() if line.strip()]  # 拆成一行一行，並去掉空白列
+    if not keywords:
+        flash("請至少輸入一個搜尋關鍵字", "error")
+        return redirect(url_for("accommodations.search_import_accommodations"))
+
+    if len(keywords) > MAX_GOOGLE_IMPORT_ROWS:  # 如果一次輸入的關鍵字數量超過上限
+        flash(f"一次最多只能輸入 {MAX_GOOGLE_IMPORT_ROWS} 個關鍵字，請分批處理", "error")
         return redirect(url_for("accommodations.search_import_accommodations"))
 
     max_results = request.form.get("max_results", "20").strip()
     max_results = int(max_results) if max_results.isdigit() else 20
     max_results = max(1, min(max_results, MAX_SEARCH_RESULTS))
 
-    try:
-        places = search_places(keyword, max_results)
-    except PlacesApiError as error:
-        flash(f"Google API 錯誤：{error}", "error")
-        return redirect(url_for("accommodations.search_import_accommodations"))
+    candidates = []  # 所有關鍵字搜尋結果合併後的候選清單
+    seen_names = set()  # 這次搜尋範圍內已經出現過的名稱，避免不同關鍵字查到同一個地點時重複列出兩次
+    empty_keywords = []  # 記錄查無結果的關鍵字，查完一次性提示，不中斷其他關鍵字
+    for keyword in keywords:  # 每個關鍵字各自呼叫一次多筆搜尋，結果全部合併
+        try:
+            places = search_places(keyword, max_results)
+        except PlacesApiError as error:
+            flash(f"Google API 錯誤（關鍵字「{keyword}」）：{error}", "error")
+            return redirect(url_for("accommodations.search_import_accommodations"))
 
-    if not places:
-        flash("Google 地圖查無符合這個關鍵字的地點，請換個關鍵字再試一次", "error")
-        return redirect(url_for("accommodations.search_import_accommodations"))
+        if not places:
+            empty_keywords.append(keyword)
+            continue
 
-    candidates = [extract_place_fields(place) for place in places]
+        for place in places:  # 把每一筆 Google 資料整理成我們需要的欄位，並過濾掉跟先前關鍵字重複的地點
+            fields = extract_place_fields(place)
+            name_key = (fields.get("name") or "").strip().lower()
+            if name_key and name_key in seen_names:
+                continue
+            if name_key:
+                seen_names.add(name_key)
+            candidates.append(fields)
+
+    if empty_keywords:
+        flash(f"以下 {len(empty_keywords)} 個關鍵字查無符合的地點，已略過：{'、'.join(empty_keywords)}", "error")
+
+    if not candidates:
+        flash("Google 地圖查無符合這些關鍵字的地點，請換個關鍵字再試一次", "error")
+        return redirect(url_for("accommodations.search_import_accommodations"))
 
     connection = get_db_connection()  # 開一個連線取我們系統現有的分類清單，讓預覽頁可以直接選用
     categories = []
@@ -889,7 +912,7 @@ def search_import_accommodations():  # 定義搜尋函式：輸入一個泛用�
 
     return render_template(
         "content_admin/accommodations/import_google_search_preview.html",
-        keyword=keyword, candidates=list(enumerate(candidates)), categories=categories,
+        keyword=f"{len(keywords)} 個關鍵字搜尋結果（共 {len(candidates)} 筆）", candidates=list(enumerate(candidates)), categories=categories,
     )
 
 
@@ -916,7 +939,7 @@ def confirm_search_import_accommodations():  # 定義確認匯入函式：把預
                 name = request.form.get(f"name_{index}", "").strip()
                 country_name = request.form.get(f"country_name_{index}", "").strip()
                 city_name = request.form.get(f"city_name_{index}", "").strip()
-                category_name = request.form.get(f"category_name_{index}", "").strip() or None  # Google 判斷的類型文字，只用來顯示、不直接拿來當系統分類
+                category_name = request.form.get(f"category_name_{index}", "").strip() or None  # Google 判斷的類型文字；比對不到既有分類時會拿這個文字自動新增一筆分類
 
                 if not country_name or not city_name:
                     results.append((row_number, name or f"第 {index} 筆", False, "無法從 Google 資料判斷國家或城市，請改用手動新增"))
@@ -933,6 +956,11 @@ def confirm_search_import_accommodations():  # 定義確認匯入函式：把預
 
                 category_id_raw = request.form.get(f"category_id_{index}", "").strip()  # 預覽頁下拉選單選的是我們系統既有的分類 ID
                 category_id = int(category_id_raw) if category_id_raw.isdigit() else None
+                if category_id is None:  # 下拉選單沒選到既有分類
+                    if category_name:  # Google 有給分類文字(只是跟系統現有分類比對不到)，直接用這個文字自動新增一筆分類
+                        category_id = get_or_create_category(cursor, "accommodation", category_name)
+                    else:  # Google 連分類文字都沒提供(小地點常見)，保底歸到「其他」，避免卡在待確認
+                        category_id = get_or_create_category(cursor, "accommodation", "其他")
 
                 country_id = get_or_create_country(cursor, country_name)
                 city_id = get_or_create_city(cursor, country_id, city_name)

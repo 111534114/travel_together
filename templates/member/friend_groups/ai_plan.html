@@ -8,10 +8,11 @@
     <p class="form-hint">告訴系統你想去哪裡、偏好什麼，再檢查產生的交通、住宿與每日安排。這些只是建議，不代表即時價格、空房或已訂位。</p>
     <form method="post" class="form-grid-member" id="aiPlanForm">
       <label>國家 *
-        <select name="country_id" id="aiCountry" required>
-          <option value="">選擇國家</option>
-          {% for country in countries %}<option value="{{ country.country_id }}" {% if form_values.get('country_id', '')|string == country.country_id|string %}selected{% endif %}>{{ country.name }}</option>{% endfor %}
-        </select>
+        <input type="text" name="country_name" id="aiCountry" list="aiCountrySuggestions" value="{{ form_values.get('country_name', '') }}" placeholder="輸入或選擇國家" autocomplete="off" required>
+        <datalist id="aiCountrySuggestions">
+          {% for country in countries %}<option value="{{ country.name }}" data-country-id="{{ country.country_id }}"></option>{% endfor %}
+        </datalist>
+        <small>可直接輸入國家名稱，並從建議中選擇。城市會依國家顯示。</small>
       </label>
       <label>城市 *
         <select name="city_id" id="aiCity" required>
@@ -69,19 +70,30 @@
     var button = document.getElementById('aiPlanSubmit');
     var status = document.getElementById('aiPlanStatus');
     var allCities = Array.prototype.slice.call(city.options);
+    var countryOptions = Array.prototype.slice.call(document.querySelectorAll('#aiCountrySuggestions option'));
+
+    function selectedCountryId() {
+      var name = country.value.trim().toLocaleLowerCase();
+      var match = countryOptions.find(function (option) { return option.value.trim().toLocaleLowerCase() === name; });
+      return match ? match.dataset.countryId : '';
+    }
 
     function filterCities() {
       var selected = city.value;
+      var countryId = selectedCountryId();
+      country.setCustomValidity(country.value.trim() && !countryId ? '請從建議清單選擇國家' : '');
       city.innerHTML = '';
       allCities.forEach(function (option) {
-        if (!country.value || !option.dataset.country || option.dataset.country === country.value) {
+        if (!option.dataset.country || option.dataset.country === countryId) {
           city.appendChild(option);
         }
       });
       city.value = selected;
       if (!city.value) city.selectedIndex = 0;
+      city.disabled = !countryId;
     }
 
+    country.addEventListener('input', filterCities);
     country.addEventListener('change', filterCities);
     filterCities();
     form.addEventListener('invalid', function () {

@@ -1941,6 +1941,15 @@ def ai_plan():
             if not (GEMINI_API_KEY or ANTHROPIC_API_KEY):
                 raise ValueError("尚未設定 AI 服務金鑰，請先在伺服器設定 GEMINI_API_KEY 或 ANTHROPIC_API_KEY。")
             country_raw = request.form.get("country_id", "")
+            country_name = request.form.get("country_name", "").strip()
+            if country_name:
+                selected_country = next(
+                    (item for item in countries if item["name"].strip().casefold() == country_name.casefold()),
+                    None,
+                )
+                if not selected_country:
+                    raise ValueError("請輸入清單中的國家名稱，再選擇對應城市。")
+                country_raw = str(selected_country["country_id"])
             city_raw = request.form.get("city_id", "")
             user_request = request.form.get("user_request", "").strip()[:1000]
             try:

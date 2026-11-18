@@ -215,13 +215,15 @@ class GroupFeatureTests(unittest.TestCase):
         self.assertIn("智慧規劃尚未啟用", html)
         self.assertIn("伺服器尚未設定智慧規劃服務金鑰", html)
         self.assertIn('disabled aria-describedby="aiPlanStatus"', html)
+        self.assertIn('name="country_name"', html)
+        self.assertIn('id="aiCountrySuggestions"', html)
 
     def test_ai_plan_checks_draft_table_before_calling_external_ai(self):
         cursor = MagicMock()
         cursor.fetchone.side_effect = [{"name": "日本"}, {"name": "東京"}, {"table_count": 0}]
         connection = MagicMock()
         connection.cursor.return_value = cursor
-        form = {"country_id": "1", "city_id": "2", "start_date": "2099-01-01",
+        form = {"country_name": "日本", "city_id": "2", "start_date": "2099-01-01",
                 "end_date": "2099-01-02", "people_count": "2", "budget": "1000",
                 "user_request": "景點與美食"}
         with app.test_request_context("/member/friend-groups/ai-plan", method="POST", data=form):
@@ -230,13 +232,34 @@ class GroupFeatureTests(unittest.TestCase):
                  patch("blueprints.friend_groups._has_line_bound", return_value=True), \
                  patch("blueprints.friend_groups.get_countries", return_value=[{"country_id": 1, "name": "日本"}]), \
                  patch("blueprints.friend_groups.get_cities", return_value=[{"city_id": 2, "country_id": 1, "name": "東京"}]), \
-                 patch("blueprints.friend_groups._city_matches_country", return_value=True), \
+                 patch("blueprints.friend_groups._city_matches_country", return_value=True) as matches, \
                  patch("blueprints.friend_groups.ANTHROPIC_API_KEY", "test-key"), \
                  patch("blueprints.friend_groups.generate_plan") as generate:
                 response, status = ai_plan()
         self.assertEqual(status, 400)
         self.assertIn("AI 草稿資料表尚未建立", response)
         self.assertIn("景點與美食", response)
+        matches.assert_called_once_with(cursor, "1", "2")
+        generate.assert_not_called()
+
+    def test_ai_plan_rejects_country_name_outside_suggestions(self):
+        cursor = MagicMock()
+        connection = MagicMock()
+        connection.cursor.return_value = cursor
+        form = {"country_name": "不存在的國家", "city_id": "2", "start_date": "2099-01-01",
+                "end_date": "2099-01-02", "people_count": "2", "budget": "1000",
+                "user_request": "景點與美食"}
+        with app.test_request_context("/member/friend-groups/ai-plan", method="POST", data=form):
+            session.update(user_id=2, role="member")
+            with patch("blueprints.friend_groups._connection_or_home", return_value=connection), \
+                 patch("blueprints.friend_groups._has_line_bound", return_value=True), \
+                 patch("blueprints.friend_groups.get_countries", return_value=[{"country_id": 1, "name": "日本"}]), \
+                 patch("blueprints.friend_groups.get_cities", return_value=[]), \
+                 patch("blueprints.friend_groups.GEMINI_API_KEY", "test-key"), \
+                 patch("blueprints.friend_groups.generate_plan") as generate:
+                response, status = ai_plan()
+        self.assertEqual(status, 400)
+        self.assertIn("請輸入清單中的國家名稱", response)
         generate.assert_not_called()
 
     def test_gemini_plan_uses_key_header_and_normalizes_response(self):

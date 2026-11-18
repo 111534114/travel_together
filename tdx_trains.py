@@ -26,6 +26,7 @@ TOKEN_URL = "https://tdx.transportdata.tw/auth/realms/TDXConnect/protocol/openid
 API_BASE = "https://tdx.transportdata.tw/api/basic"
 CACHE_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "tdx_cache")
 TIMETABLE_TTL_SECONDS = 6 * 3600
+TRAIN_DATES_TTL_SECONDS = 3 * 3600  # 高鐵可查詢日期清單；疏運提前開放時，最晚 3 小時內會更新
 FARE_TTL_SECONDS = 7 * 86400
 STATION_TTL_SECONDS = 7 * 86400
 TAIPEI_TZ = timezone(timedelta(hours=8))
@@ -73,6 +74,26 @@ _thsr_url_cache = {}  # {加密前的查詢條件: 官網時刻表網址}
 
 def is_configured():
     return bool(TDX_CLIENT_ID and TDX_CLIENT_SECRET)
+
+
+_thsr_dates_failed_until = 0  # TDX 查詢失敗後先暫停一段時間，避免每次開頁面都卡在等 TDX 逾時
+
+
+def thsr_last_train_date():
+    """高鐵目前已公布時刻表的最後一天(date)，查不到回傳 None。
+    高鐵平常公布到「今天 + 28 天」，跟開放訂票範圍一致；春節、連假疏運提前開放訂票時，這裡會跟著往後延。
+    (台鐵時刻表一次公布約 60 天，遠超過開放訂票的 28 天，所以台鐵不能用這個方法判斷。)"""
+    global _thsr_dates_failed_until
+    if not is_configured() or time.time() < _thsr_dates_failed_until:
+        return None
+    try:
+        data = _api_get("/v2/Rail/THSR/DailyTimetable/TrainDates", TRAIN_DATES_TTL_SECONDS)
+        dates = data.get("TrainDates") or ([data["EndDate"]] if data.get("EndDate") else [])
+        return datetime.strptime(max(dates), "%Y-%m-%d").date() if dates else None
+    except Exception as error:
+        print("TDX 高鐵可查詢日期查詢失敗：", error)
+        _thsr_dates_failed_until = time.time() + 600
+        return None
 
 
 def search_trains(origin_keyword, destination_keyword, travel_date=None, rail=None):

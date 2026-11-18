@@ -824,14 +824,16 @@ def unread_notifications():
             (session["user_id"],),
         )
         total = cursor.fetchone()["total"]
+        # 已讀的通知也一起回傳，標為已讀後仍留在清單裡，只是改成已讀樣式
         cursor.execute("""
-            SELECT notification_id, title, message, target_url, created_at
-            FROM notifications WHERE user_id=%s AND is_read=FALSE
-            ORDER BY created_at DESC, notification_id DESC LIMIT 20
+            SELECT notification_id, title, message, target_url, created_at, is_read
+            FROM notifications WHERE user_id=%s
+            ORDER BY created_at DESC, notification_id DESC LIMIT 30
         """, (session["user_id"],))
         notifications = cursor.fetchall()
         for notification in notifications:
             notification["created_at"] = notification["created_at"].strftime("%Y/%m/%d %H:%M")
+            notification["is_read"] = bool(notification["is_read"])
         return jsonify({"total": total, "notifications": notifications,
                         "login_id": session["notification_login_id"]})
     finally:
@@ -3627,7 +3629,7 @@ def remove_member(trip_id, member_user_id):
                     SET m.status='left', m.show_profile=0, m.responded_at=NOW()
                     WHERE g.trip_id=%s AND m.user_id=%s AND m.status='approved'
                 """, (trip_id, member_user_id))
-                send_notification(cursor, member_user_id, "trip", "trip_update", "已被移出行程", f"你已被移出行程「{trip['trip_name']}」", url_for('member.dashboard'), trip_id=trip_id)
+                send_notification(cursor, member_user_id, "trip", "permission", "已被移出行程", f"你已被移出行程「{trip['trip_name']}」", url_for('member.dashboard'), trip_id=trip_id)
                 connection.commit()
                 flash("已移除該成員。", "success")
     except Exception:
@@ -3661,7 +3663,7 @@ def approve_trip_request(trip_id, member_user_id):
                 flash("找不到這筆申請。", "error")
             else:
                 cursor.execute("UPDATE trip_members SET join_status='accepted', joined_at=NOW() WHERE trip_id=%s AND user_id=%s", (trip_id, member_user_id))
-                send_notification(cursor, member_user_id, "trip", "trip_update", "加入申請已通過", f"你申請加入「{trip['trip_name']}」已經通過了", url_for('member.trip_detail', trip_id=trip_id), trip_id=trip_id)
+                send_notification(cursor, member_user_id, "trip", "permission", "加入申請已通過", f"你申請加入「{trip['trip_name']}」已經通過了", url_for('member.trip_detail', trip_id=trip_id), trip_id=trip_id)
                 connection.commit()
                 flash("已核准加入申請。", "success")
     except Exception:

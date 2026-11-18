@@ -15,6 +15,47 @@ FARES = {'all': '全部票種', 'regular': '一般票', 'discount': '打折票',
 # 火車票種只放 TDX 查得到真實票價的種類；'all' 顯示全票價
 TRAIN_FARES = {'all': '全票', 'concession': '優待票（孩童／敬老／愛心）', 'group': '團體票（高鐵 11 人以上）'}
 GROUP_MIN_PAX = 11  # 高鐵團體票最低人數
+# 開放訂票期間，超過就不給選(TDX 也查不到更後面的時刻表，會變成顯示資料庫的範例車次，讓使用者誤以為是真的)：
+#   高鐵：乘車日前 29 天內(含乘車當日) → 今天 + 28 天
+#   台鐵：乘車日前 28 天(四週)起開放   → 今天 + 28 天
+# 數字是「今天往後最多幾天」，規定改了只要改這裡(前端日曆的上限也是從這裡算好傳過去)
+TRAIN_AHEAD_DAYS = {'thsr': 28, 'tra': 28}
+TRAIN_BOOKING_RULES = {'thsr': '高鐵開放乘車日前 29 天內（含當日）訂票', 'tra': '台鐵開放乘車日前 28 天（四週）起訂票'}
+
+
+def train_rule_max_date(rail):
+    """依固定規則算出的最晚日期(不含疏運提前開放)。"""
+    return date.today() + timedelta(days=TRAIN_AHEAD_DAYS[rail])
+
+
+def train_max_date(rail=''):
+    """可以查詢的最晚日期。高鐵：固定規則和 TDX 已公布時刻表取比較晚的(春節、連假疏運會提前開放)；
+    台鐵：TDX 時刻表一次公布約 60 天，比開放訂票早很多，只能用固定規則。
+    rail 沒指定(高鐵＋台鐵一起查)就用兩者中比較早的期限。"""
+    if rail == 'thsr':
+        published = tdx_trains.thsr_last_train_date()
+        rule = train_rule_max_date('thsr')
+        return max(rule, published) if published else rule
+    if rail == 'tra':
+        return train_rule_max_date('tra')
+    return min(train_max_date('thsr'), train_max_date('tra'))
+
+
+@booking_bp.app_template_global()
+def train_max_dates():
+    """給前端日曆用的 {'thsr': 'YYYY-MM-DD', 'tra': ..., '': ...}。只有用到的頁面才會呼叫(高鐵那份會查 TDX，有快取)。"""
+    result = {key: train_max_date(key) for key in ('thsr', 'tra')}
+    result[''] = min(result.values())
+    return {key: value.isoformat() for key, value in result.items()}
+
+
+@booking_bp.app_template_global()
+def train_early_open(rail, travel_date):
+    """這天是否超過一般開放期間、屬於疏運提前開放(只有高鐵會發生)。"""
+    try:
+        return rail == 'thsr' and date.fromisoformat(travel_date) > train_rule_max_date('thsr')
+    except (TypeError, ValueError):
+        return False
 CABIN_CLASSES = {'all': '全部艙等', '經濟艙': '經濟艙', '豪華經濟艙': '豪華經濟艙', '商務艙': '商務艙', '頭等艙': '頭等艙'}
 TRAIN_TYPE_LABELS = {'thsr': '高鐵', 'tra': '台鐵'}
 TIME_BANDS = [
@@ -45,6 +86,11 @@ def validate_search(kind, args):
                 dates[key] = date.fromisoformat(value)
                 if dates[key] < date.today():
                     errors[key] = '日期不能早於今天'
+                elif kind == 'train' and dates[key] > train_max_date(args.get('rail', '')):
+                    rule = TRAIN_BOOKING_RULES.get(args.get('rail', ''), '高鐵、台鐵尚未開放這天的訂票')
+                    errors[key] = f'{rule}，目前最晚只能查到 {train_max_date(args.get("rail", "")):%m/%d}'
+                    if args.get('rail') == 'thsr':
+                        errors[key] += '（連假疏運提前開放時會自動延長）'
             except ValueError:
                 errors[key] = '請填寫有效日期'
     start, end = ('checkin', 'checkout') if kind == 'hotel' else ('depart' if kind == 'flight' else 'date', 'return')
@@ -311,24 +357,35 @@ def booking_context():
 @booking_bp.route('/member/booking-favorites/<kind>/<int:target_id>', methods=['POST'])
 @login_required('member')
 def save_favorite(kind, target_id):
+    is_fetch = request.headers.get('X-Requested-With') == 'fetch'
+
+    def fail(status, message):
+        # 愛心是背景送出(fetch)，回 JSON 讓畫面顯示真正的原因；一般表單送出照舊回錯誤頁
+        current_app.logger.warning('收藏失敗(%s) user_id=%s kind=%s id=%s：%s', status, session.get('user_id'), kind, target_id, message)
+        if is_fetch:
+            return jsonify(error=message), status
+        abort(status)
+
     if kind not in TABLES:
-        abort(404)
+        return fail(404, '收藏類型不正確。')
     if not secrets.compare_digest(request.form.get('csrf', ''), session.get('booking_csrf', '!')):
-        abort(400)
+        return fail(400, '頁面已過期(登入狀態有變動)，請重新整理頁面後再試。')
     action = request.form.get('action')
     if action not in ('save', 'remove'):
-        abort(400)
+        return fail(400, '收藏資料不正確，請重新整理頁面後再試。')
     connection = get_db_connection()
     if connection is None:
-        abort(503)
+        return fail(503, '目前無法連線資料庫，請稍後再試。')
     cursor = connection.cursor()
     try:
         if action == 'save':
             table, key = TABLES[kind]
             extra = ' AND deleted_at IS NULL' if kind == 'hotel' else ''
-            cursor.execute(f"SELECT {key} FROM {table} WHERE {key}=%s AND status='active'" + extra, (target_id,))
+            # 收藏的即時(TDX)車次存成 status='hidden'(不出現在一般搜尋)，在收藏頁取消後再按一次要能加回來
+            status_sql = "status IN ('active','hidden')" if kind == 'train' else "status='active'"
+            cursor.execute(f"SELECT {key} FROM {table} WHERE {key}=%s AND {status_sql}" + extra, (target_id,))
             if not cursor.fetchone():
-                abort(404)
+                return fail(404, '這個項目已下架或不存在，無法收藏。')
             cursor.execute('INSERT IGNORE INTO booking_favorites(user_id,kind,target_id) VALUES (%s,%s,%s)', (session['user_id'], kind, target_id))
         else:
             cursor.execute('DELETE FROM booking_favorites WHERE user_id=%s AND kind=%s AND target_id=%s', (session['user_id'], kind, target_id))

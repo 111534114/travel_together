@@ -19,6 +19,7 @@
     <div class="field" id="searchReturnField"{% if not return_date %} hidden{% endif %}><label for="searchReturn">回程日期</label><input id="searchReturn" name="return" type="date" value="{{ return_date or '' }}"{% if not return_date %} disabled{% endif %}></div>
     <div class="field"><label for="searchPax">人數（最多 9 位）</label><input id="searchPax" name="pax" type="number" min="1" max="9" value="{{ pax or 1 }}"></div>
     {% elif booking_kind == 'train' %}
+    {% set train_max = train_max_dates() %}
     <div class="field field-compact"><label for="searchRail">車種</label><select id="searchRail" name="rail">
       <option value="thsr"{% if rail == 'thsr' %} selected{% endif %}>高鐵</option>
       <option value="tra"{% if rail == 'tra' %} selected{% endif %}>台鐵</option>
@@ -32,8 +33,8 @@
     <div class="field"><label for="searchFrom">出發站</label><input id="searchFrom" name="from" type="text" value="{{ origin or '' }}" placeholder="台北" autocomplete="off" data-station-autocomplete></div>
     <div class="field-sep">→</div>
     <div class="field"><label for="searchTo">到達站</label><input id="searchTo" name="to" type="text" value="{{ destination or '' }}" placeholder="高雄" autocomplete="off" data-station-autocomplete></div>
-    <div class="field"><label for="searchDate">去程日期</label><input id="searchDate" name="date" type="date" value="{{ travel_date or '' }}"></div>
-    <div class="field" id="searchReturnField"{% if not train_roundtrip %} hidden{% endif %}><label for="searchTrainReturn">回程日期</label><input id="searchTrainReturn" name="return" type="date" value="{{ request.args.get('return', '') if train_roundtrip else '' }}"{% if not train_roundtrip %} disabled{% endif %}></div>
+    <div class="field"><label for="searchDate">去程日期</label><input id="searchDate" name="date" type="date" max="{{ train_max.get(rail, train_max['']) }}" data-max-by-rail='{{ train_max|tojson }}' value="{{ travel_date or '' }}"></div>
+    <div class="field" id="searchReturnField"{% if not train_roundtrip %} hidden{% endif %}><label for="searchTrainReturn">回程日期</label><input id="searchTrainReturn" name="return" type="date" max="{{ train_max.get(rail, train_max['']) }}" value="{{ request.args.get('return', '') if train_roundtrip else '' }}"{% if not train_roundtrip %} disabled{% endif %}></div>
     <div class="field field-compact"><label for="searchPax">人數</label><input id="searchPax" name="pax" type="number" min="1" max="99" value="{{ pax or 1 }}"></div>
     {% endif %}
     <button class="booking-search-submit" type="submit"{% if booking_kind == 'flight' %}{% endif %}>搜尋</button>
@@ -47,6 +48,18 @@
     var now = new Date();
     var todayStr = now.getFullYear() + '-' + String(now.getMonth() + 1).padStart(2, '0') + '-' + String(now.getDate()).padStart(2, '0');
     document.querySelectorAll('.booking-search-form input[type="date"]').forEach(function (input) { input.min = todayStr; });
+    // 火車：換高鐵／台鐵時，日期上限跟著換(高鐵疏運會提前開放，見 booking_search.train_max_date)
+    var railSelect = document.getElementById('searchRail');
+    var trainDate = document.getElementById('searchDate');
+    if (railSelect && trainDate && trainDate.dataset.maxByRail) {
+      var maxByRail = JSON.parse(trainDate.dataset.maxByRail);
+      var syncMax = function () {
+        var max = maxByRail[railSelect.value] || maxByRail[''];
+        [trainDate, document.getElementById('searchTrainReturn')].forEach(function (input) { if (input) input.max = max; });
+      };
+      railSelect.addEventListener('change', syncMax);
+      syncMax();
+    }
     var startInput = document.getElementById('searchCheckin') || document.getElementById('searchDepart') || document.getElementById('searchDate');
     var endInput = document.getElementById('searchCheckout') || document.getElementById('searchReturn') || document.getElementById('searchTrainReturn');
     // 火車票：選「來回」才顯示並送出回程日期；切回「單程」就藏起來並停用，不會把舊的回程日期帶進網址

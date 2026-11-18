@@ -414,7 +414,7 @@
             <div class="field date-range-field">
               <label for="trainDateRange">出發・回程</label>
               <div class="date-range-box" id="trainDateBox">
-                <input id="trainDateRange" type="text" placeholder="請選擇日期">
+                <input id="trainDateRange" type="text" placeholder="請選擇日期" data-max-by-rail='{{ train_max_dates()|tojson }}'>
               </div>
               <input type="hidden" id="trainDate">
               <input type="hidden" id="trainReturn">

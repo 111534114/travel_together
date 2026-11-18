@@ -23,7 +23,7 @@
   function rememberDismissed() {
     try {
       const ids = dismissedIds();
-      notifications.forEach(item => ids.add(item.notification_id));
+      notifications.filter(item => !item.is_read).forEach(item => ids.add(item.notification_id));
       sessionStorage.setItem(dismissedKey, JSON.stringify([...ids].slice(-100)));
     } catch { /* Storage may be unavailable; closing still works. */ }
   }
@@ -63,32 +63,43 @@
     if (!notifications.length) {
       const empty = document.createElement('p');
       empty.className = 'member-notification-empty';
-      empty.textContent = '目前沒有新通知';
+      empty.textContent = '目前沒有通知';
       list.append(empty);
       return;
     }
     notifications.forEach(item => {
       const article = document.createElement('article');
-      article.className = 'member-notification-item';
+      article.className = item.is_read ? 'member-notification-item is-read' : 'member-notification-item';
       const title = document.createElement('h3'); title.textContent = item.title;
       const message = document.createElement('p'); message.textContent = item.message;
+      const meta = document.createElement('div'); meta.className = 'member-notification-meta';
       const time = document.createElement('time'); time.textContent = item.created_at;
+      meta.append(time);
+      if (item.is_read) {
+        const state = document.createElement('span'); state.className = 'member-notification-state'; state.textContent = '已讀';
+        meta.append(state);
+      }
       const actions = document.createElement('div'); actions.className = 'member-notification-actions';
-      const read = document.createElement('button'); read.type = 'button'; read.textContent = '標為已讀';
-      read.addEventListener('click', async () => {
-        try { await markRead(item.notification_id); }
-        catch (error) { alert(error.message); }
-      });
-      actions.append(read);
+      if (!item.is_read) {
+        const read = document.createElement('button'); read.type = 'button'; read.textContent = '標為已讀';
+        read.addEventListener('click', async () => {
+          try { await markRead(item.notification_id); }
+          catch (error) { alert(error.message); }
+        });
+        actions.append(read);
+      }
       if (item.target_url && item.target_url.startsWith('/') && !item.target_url.startsWith('//')) {
         const view = document.createElement('button'); view.type = 'button'; view.textContent = '查看';
         view.addEventListener('click', async () => {
-          try { await markRead(item.notification_id); window.location.assign(item.target_url); }
-          catch (error) { alert(error.message); }
+          try {
+            if (!item.is_read) await markRead(item.notification_id);
+            window.location.assign(item.target_url);
+          } catch (error) { alert(error.message); }
         });
         actions.append(view);
       }
-      article.append(title, message, time, actions);
+      article.append(title, message, meta);
+      if (actions.childElementCount) article.append(actions);
       list.append(article);
     });
   }
@@ -110,7 +121,7 @@
     notifications = data.notifications;
     total = data.total;
     render();
-    if (autoOpen && !isTucked() && drawer.hidden && notifications.some(item => !dismissedIds().has(item.notification_id))) openDrawer();
+    if (autoOpen && !isTucked() && drawer.hidden && notifications.some(item => !item.is_read && !dismissedIds().has(item.notification_id))) openDrawer();
   }
   bell.addEventListener('click', async () => {
     if (isTucked()) {
@@ -137,7 +148,6 @@
       });
       if (!response.ok) throw new Error('無法更新通知，請稍後再試。');
       await refresh(false);
-      closeDrawer();
     } catch (error) { alert(error.message); }
   });
   refresh(true).catch(() => {});

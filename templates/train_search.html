@@ -112,7 +112,7 @@
             </div>
             <div class="train-meta"><span>{% if train.seats_available is not none %}剩餘 {{ train.seats_available }} 席{% else %}座位以官方售票為準{% endif %}</span></div>
             <div class="train-footer">
-              <span class="price">NT$ {{ "{:,.0f}".format(train.price * pax) }}<small>{% if train.fare_label %}{{ train.fare_label }}・{% endif %}{{ pax }} 人・NT$ {{ "{:,.0f}".format(train.price) }} /人</small></span>
+              <span class="price">{{ money(train.price * pax) }}<small>{% if train.fare_label %}{{ train.fare_label }}・{% endif %}{{ pax }} 人・{{ money(train.price) }} /人</small></span>
               {% if train.booking_url %}<a class="view-button" href="{{ train.booking_url }}" target="_blank" rel="noopener">前往官網訂票</a>{% else %}<button class="view-button" type="button" onclick="showToast('車票線上訂購功能開發中，敬請期待！')">選擇車次</button>{% endif %}
             </div>
           </article>

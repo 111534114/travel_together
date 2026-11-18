@@ -65,3 +65,11 @@
 .hd-review-reply { margin: 8px 0 0; padding: 8px 10px; color: #536970; background: #F5FAFA; border-left: 3px solid #C6DCDF; font-size: 13px; line-height: 1.6; white-space: pre-line; }
 .hd-btn.primary { background: var(--purple, #4B838B); border-color: var(--purple, #4B838B); color: #fff; }
 @media (max-width: 760px) { .hd-body { grid-template-columns: 1fr; } .hd-main { height: 260px; } .hd-side { position: static; } }
+
+.hd-rv-backdrop { position: fixed; inset: 0; z-index: 1100; display: flex; align-items: center; justify-content: center; padding: 16px; background: rgba(20, 35, 38, .55); }
+.hd-rv-panel { display: flex; flex-direction: column; width: min(560px, 100%); max-height: min(80vh, 720px); background: #fff; border-radius: 14px; box-shadow: 0 24px 60px rgba(0, 0, 0, .4); }
+.hd-rv-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; padding: 16px 18px 12px; border-bottom: 1px solid #E1EBEC; }
+.hd-rv-title { display: block; font-size: 18px; }
+.hd-rv-sub { margin-top: 2px; color: var(--muted, #708284); font-size: 13px; }
+.hd-rv-close { flex: none; width: 32px; height: 32px; color: #23373A; background: #F0F5F6; border: 0; border-radius: 50%; font-size: 20px; line-height: 32px; cursor: pointer; }
+.hd-rv-body { flex: 1; overflow-y: auto; overscroll-behavior: contain; padding: 4px 18px 16px; }

@@ -57,19 +57,28 @@
       emptyText: '沒有符合的車站。',
       resultsCoverStatic: true,
     },
-    // 住宿目的地(data-hotel-autocomplete)目前只有台灣：沒打字時列台灣縣市，打字時查資料庫裡住宿的地區與名稱
+    // 住宿目的地(data-hotel-autocomplete)：沒打字時列熱門目的地、台灣縣市，以及全世界各洲的所有國家；打字時查 Google 地點(全世界的國家、城市、景點、飯店)
     hotel: {
       recentKey: 'hotelSearch.recentPlaces',
-      popularTitle: '熱門地區',
-      popular: ['台北市', '新北市', '台中市', '台南市', '高雄市', '花蓮縣', '宜蘭縣', '屏東縣', '南投縣'],
+      popularTitle: '熱門目的地',
+      popular: ['台北市', '台中市', '高雄市', '日本', '韓國', '泰國', '越南', '新加坡', '香港', '美國', '英國', '法國'],
       regions: {
-        '北部': ['台北市', '新北市', '基隆市', '桃園市', '新竹市', '新竹縣', '宜蘭縣'],
-        '中部': ['苗栗縣', '台中市', '彰化縣', '南投縣', '雲林縣'],
-        '南部': ['嘉義市', '嘉義縣', '台南市', '高雄市', '屏東縣'],
-        '東部': ['花蓮縣', '台東縣'],
-        '離島': ['澎湖縣', '金門縣', '連江縣'],
+        '台灣北部': ['台北市', '新北市', '基隆市', '桃園市', '新竹市', '新竹縣', '宜蘭縣'],
+        '台灣中部': ['苗栗縣', '台中市', '彰化縣', '南投縣', '雲林縣'],
+        '台灣南部': ['嘉義市', '嘉義縣', '台南市', '高雄市', '屏東縣'],
+        '台灣東部與離島': ['花蓮縣', '台東縣', '澎湖縣', '金門縣', '連江縣'],
+        '東亞': ['中國', '北韓', '台灣', '日本', '澳門', '蒙古', '韓國', '香港'],
+        '東南亞': ['印尼', '寮國', '新加坡', '東帝汶', '柬埔寨', '汶萊', '泰國', '緬甸', '菲律賓', '越南', '馬來西亞'],
+        '南亞與中亞': ['不丹', '印度', '吉爾吉斯', '哈薩克', '土庫曼', '塔吉克', '孟加拉', '尼泊爾', '巴基斯坦', '斯里蘭卡', '烏茲別克', '阿富汗', '馬爾地夫'],
+        '中東': ['亞塞拜然', '亞美尼亞', '以色列', '伊拉克', '伊朗', '卡達', '喬治亞', '土耳其', '巴勒斯坦自治區', '巴林', '敘利亞', '沙烏地阿拉伯', '科威特', '約旦', '葉門', '阿拉伯聯合大公國', '阿曼', '黎巴嫩'],
+        '歐洲': ['丹麥', '俄羅斯', '保加利亞', '克羅埃西亞', '冰島', '匈牙利', '北馬其頓', '塞爾維亞', '奧地利', '希臘', '德國', '愛沙尼亞', '愛爾蘭', '拉脫維亞', '挪威', '捷克', '摩爾多瓦', '斯洛伐克', '斯洛維尼亞', '曼島', '根息', '比利時', '法國', '法羅群島', '波士尼亞與赫塞哥維納', '波蘭', '澤西島', '烏克蘭', '瑞典', '瑞士', '白俄羅斯', '盧森堡', '直布羅陀', '立陶宛', '羅馬尼亞', '義大利', '芬蘭', '英國', '荷蘭', '葡萄牙', '蒙特內哥羅', '西班牙', '賽普勒斯', '阿爾巴尼亞', '馬爾他'],
+        '北美洲': ['加拿大', '墨西哥', '格陵蘭', '百慕達', '美國', '聖皮埃與密克隆群島'],
+        '中美洲與加勒比海': ['千里達及托巴哥', '古巴', '哥斯大黎加', '土克斯及開科斯群島', '多明尼加共和國', '多米尼克', '安地卡及巴布達', '安奎拉', '宏都拉斯', '尼加拉瓜', '巴哈馬', '巴拿馬', '巴貝多', '格瑞那達', '波多黎各', '海地', '牙買加', '瓜地洛普', '瓜地馬拉', '美屬維京群島', '聖克里斯多福及尼維斯', '聖文森及格瑞那丁', '聖露西亞', '英屬維京群島', '荷屬安地列斯', '荷屬阿魯巴', '蒙哲臘', '薩爾瓦多', '貝里斯', '開曼群島', '馬丁尼克'],
+        '南美洲': ['厄瓜多', '哥倫比亞', '委內瑞拉', '巴拉圭', '巴西', '智利', '法屬圭亞那', '烏拉圭', '玻利維亞', '福克蘭群島', '秘魯', '蓋亞那', '蘇利南', '阿根廷'],
+        '大洋洲': ['中途島', '北馬利安納群島', '吉里巴斯', '吐瓦魯', '威克島', '密克羅尼西亞', '巴布亞紐幾內亞', '帛琉', '庫克群島', '強斯頓環礁', '斐濟', '新喀里多尼亞', '東加', '法屬玻里尼西亞', '澳洲', '瓦利斯群島和富圖那群島', '科克斯（基靈）群島', '紐埃島', '紐西蘭', '索羅門群島', '美屬薩摩亞', '聖誕島', '萬那杜', '薩摩亞', '諾福克島', '諾魯', '關島', '馬紹爾群島'],
+        '非洲': ['中非共和國', '利比亞', '剛果（布拉薩）', '剛果（金夏沙）', '加彭', '南蘇丹', '南非', '厄利垂亞', '史瓦帝尼', '吉布地', '喀麥隆', '坦尚尼亞', '埃及', '塞內加爾', '塞席爾', '多哥', '奈及利亞', '安哥拉', '尚比亞', '尼日', '布吉納法索', '幾內亞', '幾內亞比索', '摩洛哥', '查德', '模里西斯', '波札那', '烏干達', '獅子山', '甘比亞', '留尼旺', '盧安達', '突尼西亞', '納米比亞', '索馬利亞', '維德角', '聖多美普林西比', '聖赫勒拿島', '肯亞', '茅利塔尼亞', '莫三比克', '葛摩', '蒲隆地', '蘇丹', '衣索比亞', '西撒哈拉', '象牙海岸', '貝南', '賴比瑞亞', '賴索托', '赤道幾內亞', '辛巴威', '迦納', '阿爾及利亞', '馬利', '馬拉威', '馬約特島', '馬達加斯加'],
       },
-      matchTitle: '台灣縣市',
+      matchTitle: '地區與國家',
       searchUrl: '/api/hotel-place-search?q=',
       renderResults: (results, onPick) => buildDetailList('地區與住宿', results, onPick),
       emptyText: '沒有符合的地區或住宿。',
@@ -248,6 +257,10 @@
   }
 
   // 車站、住宿地區的結果跟機場一樣用一欄直式清單：第一行名稱，第二行補充說明(高鐵/台鐵、幾間住宿)
+  // 住宿目的地的小圖示：住宿用大樓、國家／城市／景點用圖釘(內嵌 SVG，不用 emoji)
+  const PIN_ICON = '<svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path fill="currentColor" d="M12 2a7 7 0 0 0-7 7c0 5.2 7 13 7 13s7-7.8 7-13a7 7 0 0 0-7-7Zm0 9.5A2.5 2.5 0 1 1 12 6.5a2.5 2.5 0 0 1 0 5Z"/></svg>';
+  const BUILDING_ICON = '<svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-width="2" d="M5 21V4h10v17M15 9h4v12M3 21h18M8 8h2M8 12h2M8 16h2"/></svg>';
+
   function buildDetailList(title, items, onPick) {
     if (!items.length) return null;
     const section = document.createElement('div');
@@ -258,18 +271,28 @@
     section.appendChild(heading);
     const list = document.createElement('div');
     list.className = 'city-suggest-list';
-    items.forEach(({ label, sub, value, notranslate }) => {
+    items.forEach(({ label, sub, value, notranslate, kind }) => {
       const item = document.createElement('button');
       item.type = 'button';
       item.className = 'city-suggest-item city-suggest-item--airport';
+      const text = document.createElement('span');
+      text.className = 'city-suggest-item-text';
       const primary = document.createElement('span');
       primary.className = 'city-suggest-item-primary' + (notranslate ? ' notranslate' : '');
       primary.textContent = label;
       const secondary = document.createElement('span');
       secondary.className = 'city-suggest-item-secondary';
       secondary.textContent = sub;
-      item.appendChild(primary);
-      item.appendChild(secondary);
+      text.appendChild(primary);
+      text.appendChild(secondary);
+      if (kind) {
+        item.classList.add('city-suggest-item--icon');
+        const icon = document.createElement('span');
+        icon.className = 'city-suggest-icon';
+        icon.innerHTML = kind === 'lodging' ? BUILDING_ICON : PIN_ICON;
+        item.appendChild(icon);
+      }
+      item.appendChild(text);
       item.addEventListener('mousedown', (event) => {
         event.preventDefault();
         onPick(value);

@@ -154,8 +154,8 @@
             {% if hotel.deal %}<span class="deal-badge">{{ hotel.deal }}</span>{% endif %}
             {% if hotel.price %}
             <span class="price-total">{% if hotel_source == 'db' %}站內收錄・參考價{% else %}最低價・以訂房網站為準{% endif %}</span>
-            <span class="price-night">NT$ {{ "{:,.0f}".format(hotel.price) }}<small> / 晚{% if rooms > 1 %}・每間{% endif %}</small></span>
-            {% if hotel.total_price %}<span class="price-total">{% if rooms > 1 %}{{ rooms }} 間・{{ nights }} 晚約 NT$ {{ "{:,.0f}".format(hotel.total_price * rooms) }}{% else %}{{ nights }} 晚共 NT$ {{ "{:,.0f}".format(hotel.total_price) }}{% endif %}</span>{% endif %}
+            <span class="price-night">{{ money(hotel.price) }}<small> / 晚{% if rooms > 1 %}・每間{% endif %}</small></span>
+            {% if hotel.total_price %}<span class="price-total">{% if rooms > 1 %}{{ rooms }} 間・{{ nights }} 晚約 {{ money(hotel.total_price * rooms) }}{% else %}{{ nights }} 晚共 {{ money(hotel.total_price) }}{% endif %}</span>{% endif %}
             <span class="price-total">{{ party_label }}</span>
             {% else %}<span class="price-night"><small>價格洽詢</small></span>{% endif %}
             {% if party.note and hotel.price %}<span class="price-total price-warn">{{ party.note }}</span>{% endif %}

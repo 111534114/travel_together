@@ -19,7 +19,9 @@ class November11HotelMergeTests(unittest.TestCase):
         })
 
     def test_country_search_keeps_full_city_airport_catalog(self):
-        self.assertIsNotNone(airports.get_airport("GKA"))
+        # 機場資料只留有國際航線的機場(只飛國內線的小機場像 GKA 不收)，所以改檢查國際機場在不在
+        self.assertIsNotNone(airports.get_airport("KEF"))
+        self.assertIsNone(airports.get_airport("GKA"))
         self.assertEqual(
             {airport["iata"] for airport in flight_links.country_airports("冰島")},
             {"KEF", "RKV"},

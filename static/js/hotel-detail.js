@@ -1,5 +1,6 @@
 (() => {
   // 點住宿卡片(或「查看詳情」)開啟詳情視窗。資料來自搜尋結果卡片上的 data-detail，不會再打 API。
+  const money = (twd) => (window.siteCurrency ? window.siteCurrency.fmt(twd) : `NT$ ${Math.round(twd).toLocaleString('zh-TW')}`);
   let backdrop = null;
   let lastFocus = null;
 
@@ -16,6 +17,7 @@
   }
 
   function close() {
+    closeReviews();
     if (!backdrop) return;
     backdrop.remove();
     backdrop = null;
@@ -72,30 +74,63 @@
     return gallery;
   }
 
-  async function loadReviews(token, container, trigger, pageToken) {
-    trigger.disabled = true;
-    const original = trigger.textContent;
-    trigger.textContent = '載入住客留言中⋯⋯';
+  // 住客留言：在詳情視窗上面再開一個小視窗，留言在裡面自己捲動，載入更多也在裡面，不會把詳情視窗撐長
+  let reviewsOverlay = null;
+
+  function closeReviews() {
+    if (reviewsOverlay) reviewsOverlay.remove();
+    reviewsOverlay = null;
+  }
+
+  function openReviews(d) {
+    closeReviews();
+    reviewsOverlay = el('div', 'hd-rv-backdrop');
+    reviewsOverlay.addEventListener('mousedown', (event) => { if (event.target === reviewsOverlay) closeReviews(); });
+    const panel = el('div', 'hd-rv-panel');
+    panel.setAttribute('role', 'dialog');
+    panel.setAttribute('aria-label', `${d.name} 的住客留言`);
+    const head = el('div', 'hd-rv-head');
+    const titleBox = el('div');
+    titleBox.appendChild(el('b', 'hd-rv-title', '住客留言'));
+    titleBox.appendChild(el('div', 'hd-rv-sub', `${d.name}・★ ${d.rating}・${d.reviews.toLocaleString('zh-TW')} 則 Google 評論`));
+    const closeBtn = el('button', 'hd-rv-close', '×');
+    closeBtn.type = 'button';
+    closeBtn.setAttribute('aria-label', '關閉留言');
+    closeBtn.addEventListener('click', closeReviews);
+    head.append(titleBox, closeBtn);
+    const body = el('div', 'hd-rv-body');
+    body.appendChild(el('p', 'hd-offer-note', '留言來自 Google 地圖的住客評論。'));
+    panel.append(head, body);
+    reviewsOverlay.appendChild(panel);
+    document.body.appendChild(reviewsOverlay);
+    closeBtn.focus();
+    loadReviewPage(d.property_token, body, null);
+  }
+
+  async function loadReviewPage(token, body, pageToken) {
+    const status = el('p', 'hd-offer-note', '載入住客留言中⋯⋯');
+    body.appendChild(status);
     try {
       const params = new URLSearchParams({ token });
       if (pageToken) params.set('page_token', pageToken);
       const response = await fetch('/api/hotel-reviews?' + params.toString(), { headers: { Accept: 'application/json' } });
       const data = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(data.error || '查詢失敗，請稍後再試。');
-      if (!pageToken) container.replaceChildren(el('p', 'hd-offer-note', '以下留言來自 Google 地圖的住客評論。'));
-      data.reviews.forEach((review) => container.appendChild(buildReview(review)));
-      if (!data.reviews.length && !pageToken) container.appendChild(el('p', 'hd-offer-note', '目前沒有可顯示的留言。'));
-      trigger.remove();
+      status.remove();
+      data.reviews.forEach((review) => body.appendChild(buildReview(review)));
+      if (!data.reviews.length && !pageToken) body.appendChild(el('p', 'hd-offer-note', '目前沒有可顯示的留言。'));
       if (data.next_page_token) {
         const more = el('button', 'hd-btn hd-reviews-btn', '載入更多留言');
         more.type = 'button';
-        more.addEventListener('click', () => loadReviews(token, container, more, data.next_page_token));
-        container.appendChild(more);
+        more.addEventListener('click', () => { more.remove(); loadReviewPage(token, body, data.next_page_token); });
+        body.appendChild(more);
       }
     } catch (error) {
-      trigger.disabled = false;
-      trigger.textContent = original;
-      container.appendChild(el('p', 'hd-offer-note', error.message));
+      status.textContent = error.message;
+      const retry = el('button', 'hd-btn hd-reviews-btn', '重試');
+      retry.type = 'button';
+      retry.addEventListener('click', () => { status.remove(); retry.remove(); loadReviewPage(token, body, pageToken); });
+      body.appendChild(retry);
     }
   }
 
@@ -122,7 +157,6 @@
 
   function buildRatings(d) {
     const box = section('住客評價');
-    const reviewsBox = el('div', 'hd-reviews');
     if (d.rating) {
       const head = el('div', 'hd-rating');
       const score = el('button', 'hd-score', `★ ${d.rating}`);
@@ -134,11 +168,10 @@
       if (d.property_token) {
         const open = el('button', 'hd-btn hd-reviews-btn', '查看住客留言');
         open.type = 'button';
-        const load = () => loadReviews(d.property_token, reviewsBox, open, null);
-        open.addEventListener('click', load);
-        score.addEventListener('click', load);
+        const show = () => openReviews(d);
+        open.addEventListener('click', show);
+        score.addEventListener('click', show);
         box.appendChild(open);
-        box.appendChild(reviewsBox);
       }
     }
     const maxCount = Math.max(1, ...d.rating_counts.map((r) => r.count));
@@ -260,9 +293,9 @@
       if (offer.official) left.appendChild(el('em', 'hd-tag', '官網'));
       if (offer.free_cancellation) left.appendChild(el('em', 'hd-tag green', offer.free_until ? `免費取消（至 ${offer.free_until}）` : '免費取消'));
       const priceBox = el('span', 'hd-offer-pricebox');
-      priceBox.appendChild(el('b', 'hd-offer-price', `NT$ ${Math.round(offer.price).toLocaleString('zh-TW')}`));
+      priceBox.appendChild(el('b', 'hd-offer-price', money(offer.price)));
       const extra = Math.round(offer.price - offers[0].price);
-      if (extra > 0) priceBox.appendChild(el('small', 'hd-offer-diff', `比最低貴 NT$ ${extra.toLocaleString('zh-TW')}`));
+      if (extra > 0) priceBox.appendChild(el('small', 'hd-offer-diff', `比最低貴 ${money(extra)}`));
       row.append(left, priceBox);
       (index < VISIBLE ? list : extraBox).appendChild(row);
     });
@@ -283,10 +316,10 @@
     const rooms = query ? Number(query.rooms) || 1 : 1;
     const price = el('div', 'hd-price');
     const priceLabel = el('small', 'hd-price-label', 'Google 最低價');
-    const priceValue = el('span', '', `NT$ ${Math.round(d.price).toLocaleString('zh-TW')}`);
+    const priceValue = el('span', '', money(d.price));
     price.append(priceLabel, el('br'), priceValue, el('small', '', rooms > 1 ? ' / 晚・每間' : ' / 晚'));
     side.appendChild(price);
-    const totalText = (total) => (total ? `${rooms > 1 ? `${rooms} 間住宿期間約` : '住宿期間共'} NT$ ${Math.round(total * rooms).toLocaleString('zh-TW')}` : '');
+    const totalText = (total) => (total ? `${rooms > 1 ? `${rooms} 間住宿期間約` : '住宿期間共'} ${money(total * rooms)}` : '');
     const totalNode = el('div', 'hd-total', totalText(d.total_price));
     side.appendChild(totalNode);
     const times = el('ul', 'hd-times');
@@ -297,7 +330,7 @@
     side.appendChild(buildOffers(d, query, (best) => {
       // 換成實際訂房網站的最低報價，跟下面的清單一致
       priceLabel.textContent = `${best.source} 報價`;
-      priceValue.textContent = `NT$ ${Math.round(best.price).toLocaleString('zh-TW')}`;
+      priceValue.textContent = money(best.price);
       totalNode.textContent = totalText(best.total_price);
     }));
     if (d.website_url) {
@@ -374,10 +407,13 @@
 
   document.addEventListener('click', (event) => {
     if (!(event.target instanceof Element)) return;
-    if (event.target.closest('.photo-nav, a')) return;  // 相片左右箭頭、連結不要觸發開視窗
+    if (event.target.closest('.photo-nav, a, .booking-heart, .booking-save-form, .hotel-heart')) return;  // 相片左右箭頭、連結不要觸發開視窗
     const card = event.target.closest('.hotel-row');
     if (!card || !card.dataset.detail) return;
     try { open(JSON.parse(card.dataset.detail), card); } catch (error) { /* 資料壞掉就不開 */ }
   });
-  document.addEventListener('keydown', (event) => { if (event.key === 'Escape') close(); });
+  document.addEventListener('keydown', (event) => {
+    if (event.key !== 'Escape') return;
+    if (reviewsOverlay) closeReviews(); else close();  // 先關掉留言小視窗，再關詳情
+  });
 })();

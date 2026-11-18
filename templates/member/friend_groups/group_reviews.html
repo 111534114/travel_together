@@ -3,16 +3,16 @@
     <div class="page-heading trip-form-heading">
         <a href="{{ url_for('friend_groups.group_detail', group_id=group.group_id) }}">← 返回揪團詳情</a>
     </div>
-    <div class="panel">
+    <div class="group-reviews-intro">
         <h1>雙向評價：{{ group.title }}</h1>
         <p class="muted">{% if is_host %}請為每一位參加的旅伴評分。{% else %}請為團長評分。{% endif %}雙方都完成評價後，才會看到對方寫的內容，避免互相觀望。</p>
     </div>
 
     {% for target in targets %}
     {% set existing = my_reviews.get(target.user_id) %}
-    <div class="panel">
+    <div class="panel group-review-panel">
         <h2>{{ target.nickname or target.full_name }}{% if existing %}<span class="status-tag">已評價</span>{% endif %}</h2>
-        <form method="post" action="{{ url_for('friend_groups.group_reviews', group_id=group.group_id) }}" class="form-grid-member">
+        <form method="post" action="{{ url_for('friend_groups.group_reviews', group_id=group.group_id) }}" class="form-grid-member group-review-form">
             <input type="hidden" name="reviewee_id" value="{{ target.user_id }}">
             <label>評分 *
                 <select name="rating" required>
@@ -24,14 +24,15 @@
             </label>
             <div class="span-2">
                 <span class="form-label-text">標籤（選填，可複選）</span>
-                <div class="issue-options">
+                <div class="review-tag-options">
                     {% set existing_tags = (existing.tags.split(',') if existing and existing.tags else []) %}
                     {% for tag in review_tags %}
-                    <label class="issue-option"><span>{{ tag }}</span><input type="checkbox" name="tags" value="{{ tag }}" {{ 'checked' if tag in existing_tags }}></label>
+                    <label class="review-tag-option"><input type="checkbox" name="tags" value="{{ tag }}" {{ 'checked' if tag in existing_tags }}><span>{{ tag }}</span></label>
                     {% endfor %}
                 </div>
             </div>
             <label class="span-2">留言（選填）<textarea name="comment" rows="3" maxlength="500" placeholder="這趟旅程的感想、對這位旅伴/團長的回饋">{{ existing.comment or '' }}</textarea></label>
+            {% if not is_host %}<p class="span-2 form-hint">完成國內揪團後，團員留下的文字評價可供旅遊管理員審核團長的國際揪團資格；只有星等不會列入審核。</p>{% endif %}
             <button class="member-btn primary" type="submit">{{ '更新評價' if existing else '送出評價' }}</button>
         </form>
     </div>

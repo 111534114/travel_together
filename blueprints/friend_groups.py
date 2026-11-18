@@ -22,8 +22,6 @@ MIN_AGE = 18  # 申請這個功能的最低年齡限制
 # 分級團長制度：Lv.1 新手團長剛解鎖時限制單日、限人數；累積開團次數達標且平均評價夠高才會升到 Lv.2 資深團長，
 # 可以開多天行程、人數上限也解除。等級不另外存欄位，每次都用「開團次數」+「收到的平均評價」即時算出。
 TIER1_MAX_CAPACITY = 6
-TIER2_HOSTED_REQUIRED = 3
-TIER2_RATING_REQUIRED = 4.5
 TIER_LABELS = {1: "新手團長", 2: "資深團長"}
 
 # 雙向評價可選的標籤，團長、團員互評時都可以勾選
@@ -149,8 +147,7 @@ def _traveler_profile(cursor, user_id):
 
 
 def _host_tier(cursor, user_id):
-    """算出這個人目前的團長等級：Lv.2 資深團長要「累積開團次數」跟「當團長收到的平均評價」都達標，
-    不然都是 Lv.1 新手團長；順便回傳人數上限、能不能排多天，給開團表單跟驗證共用。"""
+    """團長等級由管理員核准國際揪團資格決定，評價與開團數只作參考。"""
     cursor.execute(
         "SELECT COUNT(*) AS c FROM friend_groups WHERE host_user_id=%s AND status != 'cancelled' AND COALESCE(end_date,event_date) < CURDATE()",
         (user_id,)
@@ -167,7 +164,7 @@ def _host_tier(cursor, user_id):
     avg_rating = float(row["avg_rating"]) if row["avg_rating"] is not None else None
     review_count = row["review_count"] or 0
 
-    level = 2 if (hosted_count >= TIER2_HOSTED_REQUIRED and avg_rating is not None and avg_rating >= TIER2_RATING_REQUIRED) else 1
+    level = 2 if _has_international_approval(cursor, user_id) else 1
     return {
         "level": level,
         "label": TIER_LABELS[level],
@@ -176,9 +173,43 @@ def _host_tier(cursor, user_id):
         "review_count": review_count,
         "max_capacity": None if level == 2 else TIER1_MAX_CAPACITY,
         "allow_multi_day": level == 2,
-        "hosted_required": TIER2_HOSTED_REQUIRED,
-        "rating_required": TIER2_RATING_REQUIRED,
+        "can_host_international": level == 2,
     }
+
+
+def _has_international_approval(cursor, user_id):
+    cursor.execute("SELECT setting_value FROM app_settings WHERE setting_key=%s",
+                   (f"friend_group_international_{user_id}",))
+    row = cursor.fetchone()
+    return bool(row and row["setting_value"] == "1")
+
+
+def _is_domestic_country(cursor, country_id):
+    cursor.execute("SELECT name FROM countries WHERE country_id=%s", (country_id,))
+    row = cursor.fetchone()
+    return bool(row and row["name"].strip().casefold() in ("台灣", "臺灣", "taiwan"))
+
+
+def _international_candidate_reviews(cursor, user_id=None):
+    """已完成國內揪團中，由實際加入團員撰寫給團長的評價。"""
+    where_user = "AND g.host_user_id=%s" if user_id is not None else ""
+    cursor.execute(f"""
+        SELECT g.group_id, g.title, g.host_user_id, u.nickname, u.full_name,
+               r.rating, r.comment, r.created_at
+        FROM friend_group_reviews r
+        JOIN friend_groups g ON g.group_id=r.group_id AND r.reviewee_id=g.host_user_id
+        JOIN friend_group_members m ON m.group_id=g.group_id
+            AND m.user_id=r.reviewer_id AND m.status='approved'
+        JOIN trips t ON t.trip_id=g.trip_id
+        JOIN countries co ON co.country_id=t.country_id
+        JOIN users u ON u.user_id=g.host_user_id
+        WHERE g.status != 'cancelled' AND COALESCE(g.end_date,g.event_date) < CURDATE()
+          AND co.name IN ('台灣','臺灣','Taiwan')
+          AND TRIM(COALESCE(r.comment,'')) != ''
+          {where_user}
+        ORDER BY r.created_at DESC
+    """, (user_id,) if user_id is not None else ())
+    return cursor.fetchall()
 
 
 def _review_targets(cursor, group, user_id):
@@ -228,6 +259,7 @@ def index():
         events = []
         my_groups = []
         browse_groups = []
+        joined_groups = []
         tier = None
         onboarding_done = False
         filters = {
@@ -262,10 +294,25 @@ def index():
                 LEFT JOIN trips t ON t.trip_id=g.trip_id
                 LEFT JOIN countries co ON co.country_id=t.country_id
                 LEFT JOIN cities ci ON ci.city_id=t.city_id
-                WHERE g.status='open' AND g.host_user_id != %s
+                WHERE g.status='open' AND COALESCE(g.end_date,g.event_date) >= CURDATE()
+                  AND g.host_user_id != %s
                 ORDER BY g.event_date ASC
             """, (user_id, user_id))
             browse_groups = [g for g in cursor.fetchall() if matches_filters(g, "event_date", "end_date", "capacity", "member_count")]
+            cursor.execute("""
+                SELECT g.group_id, g.title, g.event_date, g.end_date, g.location,
+                       u.nickname, u.full_name, co.name AS country, ci.name AS city
+                FROM friend_group_members m
+                JOIN friend_groups g ON g.group_id=m.group_id
+                JOIN users u ON u.user_id=g.host_user_id
+                LEFT JOIN trips t ON t.trip_id=g.trip_id
+                LEFT JOIN countries co ON co.country_id=t.country_id
+                LEFT JOIN cities ci ON ci.city_id=t.city_id
+                WHERE m.user_id=%s AND m.status='approved' AND g.host_user_id != %s
+                  AND g.status != 'cancelled' AND COALESCE(g.end_date,g.event_date) < CURDATE()
+                ORDER BY COALESCE(g.end_date,g.event_date) DESC
+            """, (user_id, user_id))
+            joined_groups = cursor.fetchall()
 
         if application and application["status"] == "approved":
             unlocked = _has_attended_event(cursor, user_id)
@@ -315,7 +362,7 @@ def index():
         friend_group_on=friend_group_on, line_bound=line_bound,
         application=application, unlocked=unlocked, profile=profile, tier=tier,
         events=events, my_groups=my_groups, onboarding_done=onboarding_done,
-        browse_groups=browse_groups, filters=filters,
+        browse_groups=browse_groups, joined_groups=joined_groups, filters=filters, today=date.today(),
     )
 
 
@@ -733,7 +780,8 @@ def browse_groups():
                    (SELECT COUNT(*) FROM friend_group_members m WHERE m.group_id=g.group_id AND m.status='approved') AS member_count,
                    (SELECT status FROM friend_group_members m WHERE m.group_id=g.group_id AND m.user_id=%s) AS my_status
             FROM friend_groups g JOIN users u ON u.user_id=g.host_user_id
-            WHERE g.status='open' AND g.host_user_id != %s
+            WHERE g.status='open' AND COALESCE(g.end_date,g.event_date) >= CURDATE()
+              AND g.host_user_id != %s
             ORDER BY g.event_date ASC
         """, (user_id, user_id))
         groups = cursor.fetchall()
@@ -764,6 +812,7 @@ def new_group():
         cities = get_cities(cursor)
         cursor.execute("""
             SELECT t.trip_id, t.trip_name, t.start_date, t.end_date, t.country_id, t.city_id,
+                   co.name AS country_name,
                    t.total_budget, t.people_count,
                    (SELECT LEFT(CAST(i.start_time AS CHAR), 5) FROM itineraries i
                     WHERE i.trip_id=t.trip_id AND i.start_time IS NOT NULL
@@ -771,7 +820,8 @@ def new_group():
                    (SELECT LEFT(CAST(i.end_time AS CHAR), 5) FROM itineraries i
                     WHERE i.trip_id=t.trip_id AND i.end_time IS NOT NULL
                     ORDER BY i.itinerary_date DESC, i.end_time DESC, i.sort_order DESC LIMIT 1) AS last_end_time
-            FROM trips t WHERE t.owner_id=%s AND t.deleted_at IS NULL
+            FROM trips t JOIN countries co ON co.country_id=t.country_id
+            WHERE t.owner_id=%s AND t.deleted_at IS NULL
               AND t.status != 'cancelled' AND t.visibility='private'
               AND NOT EXISTS (SELECT 1 FROM friend_groups g WHERE g.trip_id=t.trip_id AND g.status != 'cancelled')
               AND NOT EXISTS (SELECT 1 FROM trip_members tm WHERE tm.trip_id=t.trip_id AND tm.user_id != %s AND tm.join_status='accepted')
@@ -841,11 +891,14 @@ def new_group():
             if not _city_matches_country(cursor, country_id, city_id):
                 flash("所選城市不屬於該國家，請重新選擇。", "error")
                 return redirect(url_for("friend_groups.new_group"))
+            if not tier["can_host_international"] and not _is_domestic_country(cursor, country_id):
+                flash("國際揪團須先完成國內揪團並取得團員文字評價，再由旅遊管理員審核開放。", "error")
+                return redirect(url_for("friend_groups.new_group"))
 
             # Lv.1 新手團長限制單日、人數上限；Lv.2 資深團長才能排多天行程、人數不設限
             if not tier["allow_multi_day"]:
                 if end_date and end_date != event_date:
-                    flash(f"你目前是 Lv.1 新手團長，只能開單日的揪團；累積辦滿 {tier['hosted_required']} 次、平均評價達 {tier['rating_required']} 顆星以上即可升級成 Lv.2 資深團長，開放多天行程。", "error")
+                    flash("你目前是 Lv.1 新手團長，只能開單日國內揪團；國際揪團須由旅遊管理員審核開放。", "error")
                     return redirect(url_for("friend_groups.new_group"))
                 end_date = None
                 if not capacity_raw:
@@ -964,6 +1017,12 @@ def group_detail(group_id):
             itinerary = cursor.fetchall()
         event_finished = (group["end_date"] or group["event_date"]) < date.today()
         can_review = event_finished and (is_host or is_approved_member)
+        needs_review = False
+        if event_finished and is_approved_member and not is_host and group["status"] != "cancelled":
+            cursor.execute("""SELECT 1 FROM friend_group_reviews
+                              WHERE group_id=%s AND reviewer_id=%s AND reviewee_id=%s LIMIT 1""",
+                           (group_id, user_id, group["host_user_id"]))
+            needs_review = cursor.fetchone() is None
     finally:
         cursor.close(); connection.close()
 
@@ -972,7 +1031,8 @@ def group_detail(group_id):
         group=group, is_host=is_host, my_membership=my_membership, members=members,
         total_members=total_members, can_view_members=can_view_members, itinerary=itinerary,
         host_tier=host_tier, can_review=can_review, event_finished=event_finished,
-        can_apply=can_apply, registration_deadline=registration_deadline, today=date.today(),
+        can_apply=can_apply, needs_review=needs_review,
+        registration_deadline=registration_deadline, today=date.today(),
     )
 
 
@@ -1021,14 +1081,30 @@ def group_reviews(group_id):
             elif rating not in ("1", "2", "3", "4", "5"):
                 flash("請選擇 1～5 顆星的評分。", "error")
             else:
+                cursor.execute("""SELECT comment FROM friend_group_reviews
+                                  WHERE group_id=%s AND reviewer_id=%s AND reviewee_id=%s""",
+                               (group_id, user_id, int(reviewee_id)))
+                previous_review = cursor.fetchone()
                 cursor.execute(
                     """INSERT INTO friend_group_reviews (group_id, reviewer_id, reviewee_id, rating, tags, comment)
                        VALUES (%s,%s,%s,%s,%s,%s)
                        ON DUPLICATE KEY UPDATE rating=VALUES(rating), tags=VALUES(tags), comment=VALUES(comment)""",
                     (group_id, user_id, int(reviewee_id), int(rating), tags or None, comment)
                 )
+                if not is_host and comment and not (previous_review and previous_review["comment"]):
+                    cursor.execute("SELECT t.country_id FROM trips t WHERE t.trip_id=%s", (group["trip_id"],))
+                    trip = cursor.fetchone()
+                    if trip and _is_domestic_country(cursor, trip["country_id"]):
+                        cursor.execute("SELECT user_id FROM users WHERE role IN ('content_admin','system_admin') AND status='active'")
+                        for admin in cursor.fetchall():
+                            send_notification(cursor, admin["user_id"], "friend_group", "system",
+                                              "國際揪團資格待審",
+                                              f"「{group['title']}」收到團員文字評價，請審核團長資格。",
+                                              url_for("friend_groups_admin.international_hosts"))
                 connection.commit()
                 flash("評價已送出，等對方也評價你之後就能互相看到內容。", "success")
+                if request.form.get("return_to_detail") == "1" and not is_host:
+                    return redirect(url_for("friend_groups.group_detail", group_id=group_id))
             return redirect(url_for("friend_groups.group_reviews", group_id=group_id))
 
         cursor.execute(
@@ -1127,8 +1203,10 @@ def manage_group(group_id):
             return redirect(url_for("friend_groups.index") + "#friend-groups")
 
         cursor.execute("""
-            SELECT m.*, u.nickname, u.full_name
+            SELECT m.*, u.nickname, u.full_name, attendance.setting_value AS attendance_status
             FROM friend_group_members m JOIN users u ON u.user_id=m.user_id
+            LEFT JOIN app_settings attendance
+              ON attendance.setting_key=CONCAT('fg_att_',m.group_id,'_',m.user_id)
             WHERE m.group_id=%s
             ORDER BY FIELD(m.status,'pending','approved','rejected','left'), m.applied_at
         """, (group_id,))
@@ -1136,7 +1214,52 @@ def manage_group(group_id):
     finally:
         cursor.close(); connection.close()
 
-    return render_template("member/friend_groups/group_manage.html", group=group, members=members)
+    return render_template("member/friend_groups/group_manage.html", group=group, members=members, today=date.today())
+
+
+@friend_groups_bp.route("/groups/<int:group_id>/members/<int:member_user_id>/attendance", methods=["POST"])
+@login_required("member")
+def set_group_member_attendance(group_id, member_user_id):
+    attendance = request.form.get("attendance")
+    if attendance not in ("attended", "no_show"):
+        flash("請選擇有到或未到。", "error")
+        return redirect(url_for("friend_groups.manage_group", group_id=group_id))
+    connection = _connection_or_home()
+    if connection is None:
+        return redirect(url_for("friend_groups.index") + "#friend-groups")
+    cursor = connection.cursor(dictionary=True)
+    try:
+        cursor.execute("""SELECT host_user_id, title, status, event_date, end_date
+                          FROM friend_groups WHERE group_id=%s FOR UPDATE""", (group_id,))
+        group = cursor.fetchone()
+        if not group or group["host_user_id"] != session["user_id"]:
+            flash("只有這個揪團的主揪可以確認到場。", "error")
+            return redirect(url_for("friend_groups.index") + "#friend-groups")
+        if group["status"] == "cancelled" or (group["end_date"] or group["event_date"]) >= date.today():
+            flash("活動結束後才能確認團員是否到場。", "error")
+            return redirect(url_for("friend_groups.manage_group", group_id=group_id))
+        cursor.execute("""SELECT 1 FROM friend_group_members
+                          WHERE group_id=%s AND user_id=%s AND status='approved'""",
+                       (group_id, member_user_id))
+        if not cursor.fetchone():
+            flash("只能確認已加入團員的到場狀態。", "error")
+            return redirect(url_for("friend_groups.manage_group", group_id=group_id))
+        cursor.execute("""INSERT INTO app_settings (setting_key,setting_value,updated_by)
+                          VALUES (%s,%s,%s) ON DUPLICATE KEY UPDATE
+                          setting_value=VALUES(setting_value),updated_by=VALUES(updated_by)""",
+                       (f"fg_att_{group_id}_{member_user_id}", attendance, session["user_id"]))
+        send_notification(cursor, member_user_id, "friend_group", "system", "揪團到場紀錄已更新",
+                          f"「{group['title']}」的到場狀態已由主揪標記為{'有到' if attendance == 'attended' else '未到'}。",
+                          url_for("friend_groups.group_detail", group_id=group_id))
+        connection.commit()
+        flash("已更新團員到場狀態。", "success")
+    except Exception as error:
+        connection.rollback()
+        current_app.logger.exception("確認揪團到場失敗：%s", error)
+        flash("確認到場失敗，請稍後再試。", "error")
+    finally:
+        cursor.close(); connection.close()
+    return redirect(url_for("friend_groups.manage_group", group_id=group_id))
 
 
 @friend_groups_bp.route("/groups/<int:group_id>/permissions")
@@ -1356,6 +1479,8 @@ def delete_group(group_id):
         cursor.execute("SELECT stored_name FROM friend_group_album_photos WHERE group_id=%s", (group_id,))
         photo_names = [row["stored_name"] for row in cursor.fetchall()]
         cursor.execute("DELETE FROM app_settings WHERE setting_key=%s", (f"friend_group_deadline_{group_id}",))
+        prefix = f"fg_att_{group_id}_"
+        cursor.execute("DELETE FROM app_settings WHERE LEFT(setting_key,LENGTH(%s))=%s", (prefix, prefix))
         cursor.execute("DELETE FROM friend_groups WHERE group_id=%s", (group_id,))
         connection.commit()
         for stored_name in photo_names:

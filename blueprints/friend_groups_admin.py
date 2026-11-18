@@ -8,6 +8,8 @@ from auth import login_required
 from db import get_db_connection
 from notification_preferences import send_notification
 from chat_moderation import REMOVED_CHAT_CONTENT, SETTING_KEY, parse_terms, remove_trip_message
+from blueprints.friend_groups import _has_attended_event, _international_candidate_reviews
+from content_admin_permissions import require_content_admin_module
 
 friend_groups_admin_bp = Blueprint("friend_groups_admin", __name__, url_prefix="/content-admin/friend-groups")
 
@@ -128,6 +130,93 @@ def list_applications():
         page=page, total_pages=total_pages, total=total, feature_enabled=feature_enabled,
         blocked_terms=blocked_terms,
     )
+
+
+@friend_groups_admin_bp.route("/international-hosts")
+@login_required()
+def international_hosts():
+    if session.get("role") == "content_admin":
+        require_content_admin_module()
+    elif session.get("role") != "system_admin":
+        return redirect(url_for("login"))
+    connection = get_db_connection()
+    if connection is None:
+        flash("資料庫連線失敗", "error")
+        return redirect(url_for("friend_groups_admin.list_applications"))
+    cursor = connection.cursor(dictionary=True)
+    try:
+        reviews = _international_candidate_reviews(cursor)
+        candidates = {}
+        for review in reviews:
+            candidate = candidates.setdefault(review["host_user_id"], {
+                "user_id": review["host_user_id"], "name": review["nickname"] or review["full_name"],
+                "reviews": [], "approved": False,
+            })
+            candidate["reviews"].append(review)
+        cursor.execute("""SELECT u.user_id, u.nickname, u.full_name
+                          FROM app_settings s JOIN users u
+                            ON u.user_id=CAST(SUBSTRING(s.setting_key, 28) AS UNSIGNED)
+                          WHERE LEFT(s.setting_key,27)='friend_group_international_' AND s.setting_value='1'""")
+        for user in cursor.fetchall():
+            candidates.setdefault(user["user_id"], {
+                "user_id": user["user_id"], "name": user["nickname"] or user["full_name"],
+                "reviews": [], "approved": True,
+            })
+        for candidate in candidates.values():
+            cursor.execute("SELECT setting_value FROM app_settings WHERE setting_key=%s",
+                           (f"friend_group_international_{candidate['user_id']}",))
+            row = cursor.fetchone()
+            candidate["approved"] = bool(row and row["setting_value"] == "1")
+    finally:
+        cursor.close(); connection.close()
+    return render_template("content_admin/friend_groups/international_hosts.html",
+                           candidates=list(candidates.values()), is_system_admin=session["role"] == "system_admin",
+                           admin_base="system_admin_base.html" if session["role"] == "system_admin" else "content_admin/base.html")
+
+
+@friend_groups_admin_bp.route("/international-hosts/<int:user_id>", methods=["POST"])
+@login_required()
+def set_international_host(user_id):
+    if session.get("role") == "content_admin":
+        require_content_admin_module()
+    elif session.get("role") != "system_admin":
+        return redirect(url_for("login"))
+    value = request.form.get("approved")
+    if value not in ("0", "1"):
+        flash("請選擇有效的審核結果。", "error")
+        return redirect(url_for("friend_groups_admin.international_hosts"))
+    connection = get_db_connection()
+    if connection is None:
+        flash("資料庫連線失敗", "error")
+        return redirect(url_for("friend_groups_admin.international_hosts"))
+    cursor = connection.cursor(dictionary=True)
+    try:
+        if value == "1" and (not _has_attended_event(cursor, user_id) or not _international_candidate_reviews(cursor, user_id)):
+            flash("這位會員尚未完成官方活動、國內揪團及團員文字評價。", "error")
+            return redirect(url_for("friend_groups_admin.international_hosts"))
+        if value == "0":
+            cursor.execute("SELECT setting_value FROM app_settings WHERE setting_key=%s",
+                           (f"friend_group_international_{user_id}",))
+            existing = cursor.fetchone()
+            if not existing or existing["setting_value"] != "1":
+                flash("這位會員目前沒有國際揪團資格。", "error")
+                return redirect(url_for("friend_groups_admin.international_hosts"))
+        cursor.execute("""INSERT INTO app_settings (setting_key,setting_value,updated_by) VALUES (%s,%s,%s)
+                          ON DUPLICATE KEY UPDATE setting_value=VALUES(setting_value),updated_by=VALUES(updated_by)""",
+                       (f"friend_group_international_{user_id}", value, session["user_id"]))
+        action = "開放" if value == "1" else "撤銷"
+        send_notification(cursor, user_id, "friend_group", "system", f"國際揪團資格已{action}",
+                          f"旅遊管理員已{action}你的國際揪團資格。", url_for("friend_groups.index") + "#friend-groups")
+        log_action(cursor, "set_international_host", "user", user_id, f"{action}國際揪團資格")
+        connection.commit()
+        flash(f"已{action}國際揪團資格。", "success")
+    except Exception as error:
+        connection.rollback()
+        current_app.logger.exception("更新國際揪團資格失敗：%s", error)
+        flash("更新失敗，請稍後再試。", "error")
+    finally:
+        cursor.close(); connection.close()
+    return redirect(url_for("friend_groups_admin.international_hosts"))
 
 
 @friend_groups_admin_bp.route("/settings/chat-terms", methods=["POST"])

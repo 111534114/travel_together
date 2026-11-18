@@ -3,7 +3,7 @@ import unittest
 from datetime import date, timedelta
 from unittest.mock import MagicMock, patch
 
-from flask import session
+from flask import render_template, session
 
 from app import app
 from blueprints.friend_groups import _active_group_access, _album_image_type, _registration_deadline, ai_plan, approve_group_member, delete_group, leave_group, new_group, save_ai_plan
@@ -26,16 +26,30 @@ class FakeCursor:
 
 
 class GroupFeatureTests(unittest.TestCase):
+    def test_past_group_is_not_labeled_open_in_manage_page(self):
+        with app.test_request_context("/member/friend-groups/groups/8/manage"):
+            group = {"group_id": 8, "title": "宜蘭一日遊", "event_date": date(2026, 11, 16),
+                     "end_date": None, "location": "宜蘭", "trip_id": None, "status": "open"}
+            html = render_template("member/friend_groups/group_manage.html", group=group,
+                                   members=[], today=date(2026, 11, 18))
+            self.assertIn("已結束", html)
+            self.assertNotIn("開放中", html)
+            group["status"] = "cancelled"
+            cancelled_html = render_template("member/friend_groups/group_manage.html", group=group,
+                                             members=[], today=date(2026, 11, 18))
+            self.assertIn("已取消", cancelled_html)
+            self.assertNotIn("已結束", cancelled_html)
+
     def test_new_group_post_has_matching_insert_parameters(self):
         cursor = MagicMock()
         cursor.fetchone.return_value = {
             "trip_id": 8, "trip_name": "宜蘭一日遊", "start_date": date(2099, 1, 5),
-            "end_date": date(2099, 1, 5), "country_id": 1, "city_id": 2,
+            "end_date": date(2099, 1, 5), "country_id": 1, "city_id": 2, "country_name": "台灣",
         }
         cursor.lastrowid = 9
         connection = MagicMock()
         connection.cursor.return_value = cursor
-        tier = {"level": 1, "allow_multi_day": False, "max_capacity": 6,
+        tier = {"level": 1, "allow_multi_day": False, "can_host_international": False, "max_capacity": 6,
                 "hosted_required": 3, "rating_required": 4.5}
         form = {"existing_trip_id": "8", "title": "宜蘭一日遊", "event_date": "2099-01-05",
                 "registration_lead_days": "2", "start_time": "09:00", "end_time": "18:30"}
@@ -47,7 +61,8 @@ class GroupFeatureTests(unittest.TestCase):
                  patch("blueprints.friend_groups._host_tier", return_value=tier), \
                  patch("blueprints.friend_groups.get_countries", return_value=[]), \
                  patch("blueprints.friend_groups.get_cities", return_value=[]), \
-                 patch("blueprints.friend_groups._city_matches_country", return_value=True):
+                 patch("blueprints.friend_groups._city_matches_country", return_value=True), \
+                 patch("blueprints.friend_groups._is_domestic_country", return_value=True):
                 response = new_group()
         inserts = [call.args for call in cursor.execute.call_args_list if "INSERT INTO friend_groups" in call.args[0]]
         self.assertEqual(response.status_code, 302)
@@ -59,14 +74,14 @@ class GroupFeatureTests(unittest.TestCase):
         cursor = MagicMock()
         cursor.fetchall.return_value = [{
             "trip_id": 8, "trip_name": "宜蘭一日遊", "start_date": date(2099, 1, 5),
-            "end_date": date(2099, 1, 5), "country_id": 1, "city_id": 2,
+            "end_date": date(2099, 1, 5), "country_id": 1, "city_id": 2, "country_name": "台灣",
             "first_start_time": "09:00", "last_end_time": "18:30",
         }]
         connection = MagicMock()
         connection.cursor.return_value = cursor
         tier = {"level": 1, "label": "新手團長", "avg_rating": None,
                 "hosted_count": 0, "max_capacity": 6, "hosted_required": 3,
-                "rating_required": 4.5, "allow_multi_day": False}
+                "rating_required": 4.5, "allow_multi_day": False, "can_host_international": False}
         with app.test_request_context("/member/friend-groups/groups/new"):
             session.update(user_id=2, role="member")
             with patch("blueprints.friend_groups._connection_or_home", return_value=connection), \

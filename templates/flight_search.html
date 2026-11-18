@@ -37,12 +37,19 @@
     .date-strip-day.selected { border-bottom-color: var(--purple); font-weight: 700; }
     .date-strip-label { color: var(--ink); }
     .date-strip-price { color: var(--purple); font-size: 12px; font-weight: 700; }
+    .date-strip-best { padding: 1px 8px; color: #fff; background: #D9534F; border-radius: 999px; font-size: 11px; font-weight: 700; }
     .date-strip-day.selected .date-strip-price { color: #B23B3B; }
     .date-strip-note { margin: 0 0 20px; color: var(--muted); font-size: 12px; }
+    .side-toggle { display: inline-flex; align-items: center; gap: 8px; margin: 0 0 14px; color: var(--ink); font-size: 14px; font-weight: 600; cursor: pointer; }
+    .legs-wrap.side-by-side { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 18px; align-items: start; }
+    .legs-wrap.side-by-side .flight-card { flex-direction: column; align-items: stretch; }
+    .legs-wrap.side-by-side .flight-meta { margin: 0; padding-left: 0; border-left: 0; }
+    .legs-wrap.side-by-side .flight-footer { margin-left: 0; justify-content: space-between; }
+    @media (max-width: 1100px) { .legs-wrap.side-by-side { grid-template-columns: 1fr; } }
     .toast { position: fixed; z-index: 50; bottom: 30px; left: 50%; padding: 12px 22px; color: #fff; background: #293C3F; border-radius: 8px; box-shadow: 0 10px 25px rgba(0, 0, 0, .25); font-size: 14px; opacity: 0; transform: translate(-50%, 10px); transition: opacity 200ms ease, transform 200ms ease; pointer-events: none; }
     .toast.show { opacity: 1; transform: translate(-50%, 0); }
     .results-layout { display: grid; grid-template-columns: 240px 1fr; align-items: start; gap: 20px; }
-    .results-sidebar { position: sticky; top: 88px; }
+    .results-sidebar { position: sticky; top: 88px; max-height: calc(100vh - 104px); overflow-y: auto; overscroll-behavior: contain; padding-right: 6px; scrollbar-width: thin; scrollbar-color: #C6DCDF transparent; }
     .results-sidebar .booking-tools { margin-top: 0; }
     .results-sidebar .booking-filters { flex-direction: column; align-items: stretch; gap: 16px; }
     .results-sidebar .booking-filters label { flex-direction: column; align-items: stretch; gap: 6px; white-space: normal; }
@@ -114,10 +121,12 @@
     <div class="date-strip">
       <a class="date-strip-arrow" href="{{ date_strip_link(strip_prev.depart, strip_prev['return']) }}" aria-label="往前看更早的日期">‹</a>
       <div class="date-strip-days">
+        {% set strip_min = date_strip|selectattr('price')|map(attribute='price')|list|min if date_strip|selectattr('price')|list else none %}
         {% for d in date_strip %}
         <a class="date-strip-day {{ 'selected' if d.selected }}" href="{{ date_strip_link(d.depart, d['return']) }}">
           <span class="date-strip-label">{{ d.label }}</span>
           {% if d.price %}<span class="date-strip-price">TWD{{ '{:,.0f}'.format(d.price) }}</span>{% endif %}
+          {% if d.price and d.price == strip_min %}<span class="date-strip-best">最低價</span>{% endif %}
         </a>
         {% endfor %}
       </div>
@@ -142,13 +151,17 @@
           </p>
         </div>
       </div>
+      {% if return_date and not bundled_roundtrip %}
+      <label class="side-toggle"><input type="checkbox" id="sideBySideToggle"> 並排顯示去程與回程（不用往下滑就能同時看到兩段）</label>
+      {% endif %}
+      <div class="legs-wrap" id="legsWrap">
       <div class="flight-leg">
         {% if not bundled_roundtrip %}<h3>去程{% if depart_date %}｜{{ depart_date }}{% endif %}</h3>{% endif %}
         <div class="flight-list">
           {% set outbound_min_price = outbound_flights|map(attribute='price')|min if outbound_flights else none %}
           {% for flight in outbound_flights %}
             <article class="flight-card">
-{% if flight.is_live %}<span class="booking-heart" aria-disabled="true" title="即時報價暫不支援收藏">&#9825;</span>{% else %}{% set save_kind='flight' %}{% set save_id=flight.flight_id %}{% include 'partials/booking_favorite_button.html' %}{% endif %}
+{% if flight.is_live %}{% set fav = live_flight_favorite(flight, depart_date, origin, destination, pax) %}{% include 'partials/booking_live_heart.html' %}{% else %}{% set save_kind='flight' %}{% set save_id=flight.flight_id %}{% include 'partials/booking_favorite_button.html' %}{% endif %}
               {% if flight.price == outbound_min_price %}<span class="flight-best-badge">{{ '來回最低總價' if bundled_roundtrip else '最低價' }}</span>{% endif %}
               <div class="flight-airline">{% if flight.airline_logo %}<img class="airline-logo-img" src="{{ flight.airline_logo }}" alt="{{ flight.airline_name }}" loading="lazy">{% else %}<span class="airline-logo">{{ flight.airline_name[:1] }}</span>{% endif %}<div><b>{{ flight.airline_name }}</b><span>{{ flight.flight_number }}・{{ flight.cabin_class }}</span>{{ render_amenities(flight) }}</div></div>
               <div class="flight-route">
@@ -174,7 +187,7 @@
           {% set return_min_price = return_flights|map(attribute='price')|min if return_flights else none %}
           {% for flight in return_flights %}
             <article class="flight-card">
-{% if flight.is_live %}<span class="booking-heart" aria-disabled="true" title="即時報價暫不支援收藏">&#9825;</span>{% else %}{% set save_kind='flight' %}{% set save_id=flight.flight_id %}{% include 'partials/booking_favorite_button.html' %}{% endif %}
+{% if flight.is_live %}{% set fav = live_flight_favorite(flight, return_date, destination, origin, pax) %}{% include 'partials/booking_live_heart.html' %}{% else %}{% set save_kind='flight' %}{% set save_id=flight.flight_id %}{% include 'partials/booking_favorite_button.html' %}{% endif %}
               {% if flight.price == return_min_price %}<span class="flight-best-badge">最低價</span>{% endif %}
               <div class="flight-airline">{% if flight.airline_logo %}<img class="airline-logo-img" src="{{ flight.airline_logo }}" alt="{{ flight.airline_name }}" loading="lazy">{% else %}<span class="airline-logo">{{ flight.airline_name[:1] }}</span>{% endif %}<div><b>{{ flight.airline_name }}</b><span>{{ flight.flight_number }}・{{ flight.cabin_class }}</span>{{ render_amenities(flight) }}</div></div>
               <div class="flight-route">
@@ -194,6 +207,7 @@
         </div>
       </div>
       {% endif %}
+      </div>
     </section>
       </div>
     </div>
@@ -219,5 +233,17 @@
   <script src="{{ url_for('static', filename='js/member-nav.js') }}" defer></script>
   <link rel="stylesheet" href="{{ url_for('static', filename='css/flight-trip-confirm.css') }}">
   <script src="{{ url_for('static', filename='js/flight-trip-confirm.js') }}" defer></script>
+  <script src="{{ url_for('static', filename='js/booking-favorites.js') }}" defer></script>
+  <script>
+    (function () {
+      // 勾選「並排顯示」：去程和回程左右並排，勾選狀態記在這個瀏覽器，下次進來還在
+      var toggle = document.getElementById('sideBySideToggle'), wrap = document.getElementById('legsWrap');
+      if (!toggle || !wrap) return;
+      try { toggle.checked = localStorage.getItem('flightSideBySide') === '1'; } catch (e) {}
+      var apply = function () { wrap.classList.toggle('side-by-side', toggle.checked); try { localStorage.setItem('flightSideBySide', toggle.checked ? '1' : '0'); } catch (e) {} };
+      toggle.addEventListener('change', apply);
+      apply();
+    })();
+  </script>
 </body>
 </html>

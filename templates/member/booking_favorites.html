@@ -18,6 +18,16 @@
 {% else %}<h3>{{ {'thsr':'高鐵','tra':'台鐵'}.get(item.train_type, item.train_type) }} {{ item.train_number }} 車次・{{ item.car_class }}</h3><p>{{ item.origin_station }} → {{ item.destination_station }} · {{ item.departure_time|hm }} ～ {{ item.arrival_time|hm }} · NT$ {{ '{:,.0f}'.format(item.price) }}／人（參考）</p><a href="{{ url_for('visitor_train_search', **{'from':item.origin_station,'to':item.destination_station,'rail':item.train_type,'date':today,'trip_mode':'oneway'}) }}">重新查詢車次</a>{% endif %}
 {% set save_kind=kind %}{% set save_id=item.target_id %}{% include 'partials/booking_favorite_button.html' %}
 </article>
-{% else %}<p>尚無收藏。</p>{% endfor %}</section>
 {% endfor %}
+{% for item in live.get(kind, []) %}
+<article style="padding:16px 0;border-bottom:1px solid #d3e2e5;">
+<h3>{{ item.title }}</h3>{% if item.subtitle %}<p>{{ item.subtitle }}</p>{% endif %}
+<p>{% if item.price is not none %}NT$ {{ '{:,.0f}'.format(item.price) }}{{ '／晚' if kind == 'hotel' else '／人' }}（即時查詢時的參考價）{% else %}價格請重新查詢{% endif %}</p>
+{% if item.link %}<a href="{{ item.link }}" {% if item.link.startswith('http') %}target="_blank" rel="noopener"{% endif %}>{{ '前往飯店頁面' if kind == 'hotel' else '重新查詢航班' }}</a>{% endif %}
+{% set fav = {'kind': kind, 'key': item.item_key} %}{% include 'partials/booking_live_heart.html' %}
+</article>
+{% endfor %}
+{% if not groups[kind] and not live.get(kind) %}<p>尚無收藏。</p>{% endif %}</section>
+{% endfor %}
+<script src="{{ url_for('static', filename='js/booking-favorites.js') }}" defer></script>
 {% endblock %}

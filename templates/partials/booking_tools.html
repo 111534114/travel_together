@@ -56,6 +56,11 @@
         <input type="range" name="max_price" min="0" max="{{ price_max }}" step="{{ 50 if price_max < 2000 else (100 if price_max < 10000 else 500) }}" value="{{ request.args.get('max_price', price_max) }}" aria-label="最高價格">
       </div>
       <output data-price-slider-output>NT$ {{ '{:,}'.format(request.args.get('min_price', '0')|int) }} ～ NT$ {{ '{:,}'.format(request.args.get('max_price', price_max)|int) }}</output>
+      <div class="price-number-row">
+        <label>最低<input type="number" inputmode="numeric" min="0" max="{{ price_max }}" step="50" value="{{ request.args.get('min_price', '0') }}" data-range-num="min" aria-label="輸入最低價格"></label>
+        <span aria-hidden="true">～</span>
+        <label>最高<input type="number" inputmode="numeric" min="0" max="{{ price_max }}" step="50" value="{{ request.args.get('max_price', price_max) }}" data-range-num="max" aria-label="輸入最高價格"></label>
+      </div>
     </div>
     {% endif %}
 {% endmacro %}
@@ -70,12 +75,6 @@
   <form method="get" class="booking-filters">
     {% for key, value in request.args.items(multi=True) %}{% if key not in own_params %}<input type="hidden" name="{{ key }}" value="{{ value }}">{% endif %}{% endfor %}
     {% if not (booking_kind == 'hotel' and using_live_data) %}{{ budget_slider() }}{% endif %}
-    {% if booking_kind == 'flight' %}
-    <div class="recommend-group">
-      <span class="facet-title">推薦</span>
-      <label class="recommend-check"><input type="checkbox" name="stops" value="direct" {{ 'checked' if request.args.get('stops') == 'direct' }} onchange="this.form.requestSubmit()">直飛</label>
-    </div>
-    {% endif %}
     <label>排序<select name="sort" onchange="this.form.requestSubmit()"><option value="">預設</option>{% if booking_kind != 'hotel' %}<option value="featured" {{ 'selected' if request.args.get('sort') == 'featured' }}>精選</option>{% endif %}<option value="price_asc" {{ 'selected' if request.args.get('sort') == 'price_asc' }}>價格由低至高</option><option value="price_desc" {{ 'selected' if request.args.get('sort') == 'price_desc' }}>價格由高至低</option>{% if booking_kind == 'hotel' and using_live_data %}<option value="rating" {{ 'selected' if request.args.get('sort') == 'rating' }}>評分最高</option><option value="star" {{ 'selected' if request.args.get('sort') == 'star' }}>星級最高</option>{% endif %}{% if booking_kind != 'hotel' %}<option value="depart_earliest" {{ 'selected' if request.args.get('sort') == 'depart_earliest' }}>當日最早出發</option><option value="depart_latest" {{ 'selected' if request.args.get('sort') == 'depart_latest' }}>當日最晚出發</option>{% endif %}</select></label>
     {% if booking_kind == 'flight' %}<label>艙等<select name="cabin" onchange="this.form.querySelectorAll('input[name=min_price],input[name=max_price]').forEach(i => i.disabled = true); this.form.requestSubmit()">{% for key,label in cabin_options.items() %}<option value="{{ key }}" {{ 'selected' if request.args.get('cabin','all') == key }}>{{ label }}</option>{% endfor %}</select></label>{% elif booking_kind != 'hotel' %}<label>票種<select name="fare" onchange="this.form.requestSubmit()">{% for key,label in fare_options.items() %}<option value="{{ key }}" {{ 'selected' if request.args.get('fare','all') == key }}>{{ label }}</option>{% endfor %}</select></label>{% endif %}
     {% if booking_kind == 'train' %}

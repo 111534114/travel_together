@@ -165,6 +165,9 @@ REGION_CITIES = {
 # 中文國家名稱 -> 機場資料庫(airports_data.csv)裡的英文國名；只放有機場資料可對應的國家，搜尋「冰島」這種整個國家時用。
 COUNTRY_NAME_EN = {
     "冰島": "Iceland",
+    "日本": "Japan",
+    "美國": "United States",
+    "中國": "China",
     "緬甸": "Burma",
     "台灣": "Taiwan",
     "臺灣": "Taiwan",

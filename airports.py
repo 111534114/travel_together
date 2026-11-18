@@ -70,6 +70,17 @@ def get_city_airport_codes(english_city_name, country=None):
     return ",".join(a["iata"] for a in matches) if matches else None
 
 
+def match_country_name(keyword):
+    """使用者打的英文字剛好是某個國家名稱(例如 Japan、japan)就回傳資料庫裡的國名，不是就回傳 None。"""
+    key = (keyword or "").strip().lower()
+    if not key:
+        return None
+    for a in _airports:
+        if a["country"].lower() == key:
+            return a["country"]
+    return None
+
+
 def get_country_airports(english_country_name, limit=None):
     """查詢附有航線統計的主要機場，保留完整機場清單供城市搜尋使用。"""
     name_lower = (english_country_name or "").strip().lower()

@@ -28,6 +28,8 @@
     main { width: 100%; max-width: 1180px; margin: 0 auto; padding: 32px 36px 70px 0; }
     .breadcrumb { margin: 0 0 18px; color: var(--muted); font-size: 14px; }
     .breadcrumb a { color: var(--purple); font-weight: 600; }
+    .mc-sort label { display: flex; align-items: center; gap: 8px; color: var(--muted); font-size: 14px; font-weight: 600; }
+    .mc-sort select { padding: 8px 10px; color: var(--ink); background: #fff; border: 1px solid #C6DCDF; border-radius: 8px; font: inherit; }
     .toast { position: fixed; z-index: 50; bottom: 30px; left: 50%; padding: 12px 22px; color: #fff; background: #293C3F; border-radius: 8px; box-shadow: 0 10px 25px rgba(0, 0, 0, .25); font-size: 14px; opacity: 0; transform: translate(-50%, 10px); transition: opacity 200ms ease, transform 200ms ease; pointer-events: none; }
     .toast.show { opacity: 1; transform: translate(-50%, 0); }
     .section-header { display: flex; align-items: end; justify-content: space-between; gap: 18px; margin-bottom: 18px; }
@@ -93,6 +95,16 @@
           <h2>多座城市機票搜尋結果</h2>
           <p>共 {{ legs|length }} 段航班 ・ {{ pax }} 人</p>
         </div>
+        <form method="get" class="mc-sort">
+          {% for key, value in request.args.items(multi=True) %}{% if key != 'sort' %}<input type="hidden" name="{{ key }}" value="{{ value }}">{% endif %}{% endfor %}
+          <label>排序
+            <select name="sort" onchange="this.form.submit()">
+              {% for value, label in [('', '預設'), ('price_asc', '價格由低至高'), ('price_desc', '價格由高至低'), ('depart_earliest', '出發時間由早到晚'), ('depart_latest', '出發時間由晚到早'), ('featured', '精選')] %}
+              <option value="{{ value }}" {{ 'selected' if request.args.get('sort', '') == value }}>{{ label }}</option>
+              {% endfor %}
+            </select>
+          </label>
+        </form>
       </div>
       {% for leg in legs %}
       <div class="flight-leg">
@@ -101,7 +113,7 @@
           {% set leg_min_price = leg.flights|map(attribute='price')|min if leg.flights else none %}
           {% for flight in leg.flights %}
             <article class="flight-card">
-{% if flight.is_live %}<span class="booking-heart" aria-disabled="true" title="即時報價暫不支援收藏">&#9825;</span>{% else %}{% set save_kind='flight' %}{% set save_id=flight.flight_id %}{% include 'partials/booking_favorite_button.html' %}{% endif %}
+{% if flight.is_live %}{% set fav = live_flight_favorite(flight, leg.date, leg.origin, leg.destination, pax) %}{% include 'partials/booking_live_heart.html' %}{% else %}{% set save_kind='flight' %}{% set save_id=flight.flight_id %}{% include 'partials/booking_favorite_button.html' %}{% endif %}
               {% if flight.price == leg_min_price %}<span class="flight-best-badge">最低價</span>{% endif %}
               <div class="flight-airline">{% if flight.airline_logo %}<img class="airline-logo-img" src="{{ flight.airline_logo }}" alt="{{ flight.airline_name }}" loading="lazy">{% else %}<span class="airline-logo">{{ flight.airline_name[:1] }}</span>{% endif %}<div><b>{{ flight.airline_name }}</b><span>{{ flight.flight_number }}・{{ flight.cabin_class }}</span>{{ render_amenities(flight) }}</div></div>
               <div class="flight-route">
@@ -144,6 +156,7 @@
   <script src="{{ url_for('static', filename='js/member-nav.js') }}" defer></script>
   <link rel="stylesheet" href="{{ url_for('static', filename='css/flight-trip-confirm.css') }}">
   <script src="{{ url_for('static', filename='js/flight-trip-confirm.js') }}" defer></script>
+  <script src="{{ url_for('static', filename='js/booking-favorites.js') }}" defer></script>
 </body>
 </html>
 

@@ -60,7 +60,10 @@
     .results-main { min-width: 0; }
     .results-main .train-card { gap: 14px; }
     .results-main .train-brand { flex-basis: 120px; }
-    .results-sidebar { position: sticky; top: 88px; }
+    .results-sidebar { position: sticky; top: 88px; max-height: calc(100vh - 104px); overflow-y: auto; overscroll-behavior: contain; padding-right: 6px; scrollbar-width: thin; scrollbar-color: #C6DCDF transparent; }
+    .train-group-title { display: flex; align-items: baseline; gap: 8px; margin: 18px 0 2px; padding-left: 10px; border-left: 4px solid var(--purple); font-size: 18px; }
+    .train-group-title span { color: var(--muted); font-size: 13px; font-weight: 500; }
+    .train-group-title:first-child { margin-top: 0; }
     .results-sidebar .booking-tools { margin-top: 0; }
     .results-sidebar .booking-filters { flex-direction: column; align-items: stretch; gap: 16px; }
     .results-sidebar .booking-filters label { flex-direction: column; align-items: stretch; gap: 6px; white-space: normal; }
@@ -79,6 +82,26 @@
   {% set is_member = session.get('user_id') and session.get('role') == 'member' %}
   <div class="member-shell">
 {% include 'partials/site_sidenav.html' %}
+{% macro train_card(train, live_date) %}
+          <article class="train-card">
+{% include 'partials/train_favorite_button.html' %}
+            <div class="train-brand">
+              <span class="train-type-badge {{ train.train_type }}">{{ '高鐵' if train.train_type == 'thsr' else '台鐵' }}</span>
+              <b>{{ train.car_class }}</b>
+              <span>{{ train.train_number }} 車次</span>
+            </div>
+            <div class="train-route">
+              <div class="train-time"><b>{{ train.departure_time|hm }}</b><span>{{ train.origin_station }}</span></div>
+              <div class="train-path"><div class="line"></div><span>{{ (train.duration_minutes // 60) }} 小時 {{ (train.duration_minutes % 60) }} 分</span></div>
+              <div class="train-time"><b>{{ train.arrival_time|hm }}</b><span>{{ train.destination_station }}</span></div>
+            </div>
+            <div class="train-meta"><span>{% if train.seats_available is not none %}剩餘 {{ train.seats_available }} 席{% else %}座位以官方售票為準{% endif %}</span></div>
+            <div class="train-footer">
+              <span class="price">NT$ {{ "{:,.0f}".format(train.price * pax) }}<small>{{ pax }} 人・NT$ {{ "{:,.0f}".format(train.price) }} /人</small></span>
+              {% if train.booking_url %}<a class="view-button" href="{{ train.booking_url }}" target="_blank" rel="noopener">前往官網訂票</a>{% else %}<button class="view-button" type="button" onclick="showToast('車票線上訂購功能開發中，敬請期待！')">選擇車次</button>{% endif %}
+            </div>
+          </article>
+{% endmacro %}
   <main class="member-content">
     <p class="breadcrumb"><a href="{{ url_for('member.dashboard') if is_member else url_for('visitor') }}">{{ '← 返回會員首頁' if is_member else '← 返回訪客首頁' }}</a></p>
 {% include 'partials/booking_search_form.html' %}
@@ -90,7 +113,7 @@
     <section id="train-results">
       <div class="section-header">
         <div>
-          <h2>{{ rail_label }}車票搜尋結果{% if using_live_data %}<span class="live-badge">即時班表</span>{% endif %}</h2>
+          <h2>{{ rail_label }}車票搜尋結果</h2>
           <p>
             {% if origin or destination %}{{ origin or '任何出發站' }} → {{ destination or '任何到達站' }}{% else %}顯示全部車次{% endif %}
             {% if travel_date %} ・ 去程 {{ travel_date }}{% endif %}
@@ -101,49 +124,17 @@
         </div>
       </div>
       <div class="train-list">
-        {% for train in trains %}
-          <article class="train-card">
-{% set live_date = travel_date %}{% include 'partials/train_favorite_button.html' %}
-            <div class="train-brand">
-              <span class="train-type-badge {{ train.train_type }}">{{ '高鐵' if train.train_type == 'thsr' else '台鐵' }}</span>
-              <b>{{ train.car_class }}</b>
-              <span>{{ train.train_number }} 車次</span>
-            </div>
-            <div class="train-route">
-              <div class="train-time"><b>{{ train.departure_time|hm }}</b><span>{{ train.origin_station }}</span></div>
-              <div class="train-path"><div class="line"></div><span>{{ (train.duration_minutes // 60) }} 小時 {{ (train.duration_minutes % 60) }} 分</span></div>
-              <div class="train-time"><b>{{ train.arrival_time|hm }}</b><span>{{ train.destination_station }}</span></div>
-            </div>
-            <div class="train-meta"><span>{% if train.seats_available is not none %}剩餘 {{ train.seats_available }} 席{% else %}座位以官方售票為準{% endif %}</span></div>
-            <div class="train-footer">
-              <span class="price">NT$ {{ "{:,.0f}".format(train.price * pax) }}<small>{{ pax }} 人・NT$ {{ "{:,.0f}".format(train.price) }} /人</small></span>
-              {% if train.booking_url %}<a class="view-button" href="{{ train.booking_url }}" target="_blank" rel="noopener">前往官網訂票</a>{% else %}<button class="view-button" type="button" onclick="showToast('車票線上訂購功能開發中，敬請期待！')">選擇車次</button>{% endif %}
-            </div>
-          </article>
+        {% for group in train_groups %}
+          {% if group.label %}<h3 class="train-group-title">{{ group.label }}<span>（{{ group.rows|length }} 班）</span></h3>{% endif %}
+          {% for train in group.rows %}{{ train_card(train, travel_date) }}{% endfor %}
         {% else %}
           <div class="empty">找不到符合「{{ origin or '任意出發站' }} → {{ destination or '任意到達站' }}」的車次，換個站名試試，或<a href="{{ url_for('visitor_train_search') }}" style="color: var(--purple); font-weight: 700;">清除條件看全部車次</a>。</div>
         {% endfor %}
       </div>
     </section>
-{% if return_trains %}<section class="return-section"><div class="section-header"><div><h2>回程車次</h2><p>{{ destination }} → {{ origin }} ・ {{ request.args.get('return','') }} ・ 共 {{ return_trains|length }} 筆結果</p></div></div><div class="train-list">{% for train in return_trains %}
-          <article class="train-card">
-{% set live_date = request.args.get('return', '') %}{% include 'partials/train_favorite_button.html' %}
-            <div class="train-brand">
-              <span class="train-type-badge {{ train.train_type }}">{{ '高鐵' if train.train_type == 'thsr' else '台鐵' }}</span>
-              <b>{{ train.car_class }}</b>
-              <span>{{ train.train_number }} 車次</span>
-            </div>
-            <div class="train-route">
-              <div class="train-time"><b>{{ train.departure_time|hm }}</b><span>{{ train.origin_station }}</span></div>
-              <div class="train-path"><div class="line"></div><span>{{ (train.duration_minutes // 60) }} 小時 {{ (train.duration_minutes % 60) }} 分</span></div>
-              <div class="train-time"><b>{{ train.arrival_time|hm }}</b><span>{{ train.destination_station }}</span></div>
-            </div>
-            <div class="train-meta"><span>{% if train.seats_available is not none %}剩餘 {{ train.seats_available }} 席{% else %}座位以官方售票為準{% endif %}</span></div>
-            <div class="train-footer">
-              <span class="price">NT$ {{ "{:,.0f}".format(train.price * pax) }}<small>{{ pax }} 人・NT$ {{ "{:,.0f}".format(train.price) }} /人</small></span>
-              {% if train.booking_url %}<a class="view-button" href="{{ train.booking_url }}" target="_blank" rel="noopener">前往官網訂票</a>{% else %}<button class="view-button" type="button" onclick="showToast('車票線上訂購功能開發中，敬請期待！')">選擇車次</button>{% endif %}
-            </div>
-          </article>
+{% if return_trains %}<section class="return-section"><div class="section-header"><div><h2>回程車次</h2><p>{{ destination }} → {{ origin }} ・ {{ request.args.get('return','') }} ・ 共 {{ return_trains|length }} 筆結果</p></div></div><div class="train-list">{% for group in return_groups %}
+          {% if group.label %}<h3 class="train-group-title">{{ group.label }}<span>（{{ group.rows|length }} 班）</span></h3>{% endif %}
+          {% for train in group.rows %}{{ train_card(train, request.args.get('return', '')) }}{% endfor %}
         {% else %}
           <div class="empty">找不到符合「{{ origin or '任意出發站' }} → {{ destination or '任意到達站' }}」的車次，換個站名試試，或<a href="{{ url_for('visitor_train_search') }}" style="color: var(--purple); font-weight: 700;">清除條件看全部車次</a>。</div>
         {% endfor %}</div></section>{% endif %}
@@ -169,5 +160,6 @@
   </script>
   {% if is_member %}{% include 'member/_notification_drawer.html' %}<script src="{{ url_for('static', filename='js/member_notifications.js') }}" defer></script>{% endif %}
   <script src="{{ url_for('static', filename='js/member-nav.js') }}" defer></script>
+  <script src="{{ url_for('static', filename='js/booking-favorites.js') }}" defer></script>
 </body>
 </html>

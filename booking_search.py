@@ -2,7 +2,7 @@ from datetime import date, timedelta
 from decimal import Decimal, InvalidOperation
 import secrets
 
-from flask import Blueprint, abort, current_app, flash, redirect, render_template, request, session, url_for
+from flask import Blueprint, abort, current_app, flash, jsonify, redirect, render_template, request, session, url_for
 from auth import login_required
 from db import get_db_connection
 from utils import format_hm
@@ -68,8 +68,9 @@ def validate_search(kind, args):
     if kind == 'flight' and args.get('stops', '') not in ('', 'direct', 'connecting'):
         errors['stops'] = '請選擇有效的轉機條件'
     count_key = 'guests' if kind == 'hotel' else 'pax'
-    if args.get(count_key) and (not args[count_key].isdigit() or not 1 <= int(args[count_key]) <= 99):
-        errors[count_key] = '人數須介於 1 與 99'
+    max_count = 9 if kind == 'flight' else 99  # Google Flights 一次最多查 9 位乘客
+    if args.get(count_key) and (not args[count_key].isdigit() or not 1 <= int(args[count_key]) <= max_count):
+        errors[count_key] = f'人數須介於 1 與 {max_count}'
     return errors
 
 
@@ -89,7 +90,10 @@ def guard_search():
                            rail=request.args.get('rail', '') if request.args.get('rail') in TRAIN_TYPE_LABELS else '',
                            rail_label=TRAIN_TYPE_LABELS.get(request.args.get('rail', ''), '高鐵／台鐵'),
                            guests=2, pax=1, nights=None, accommodations=[], outbound_flights=[], return_flights=[], trains=[],
-                           price_buckets=[], price_max=None, airline_facets=[], train_type_facets=[], car_class_facets=[], depart_band_options=[]), 400
+                           price_buckets=[], price_max=None, airline_facets=[], train_type_facets=[], car_class_facets=[], depart_band_options=[],
+                           hotels=[], hotel_total=0, rooms=1, party={'adults_per_room': 2, 'ages_per_room': [], 'note': '', 'children': 0, 'rooms': 1},
+                           party_label='', hotel_source='db', live_failed=False, using_live_data=True, next_page_token=None,
+                           train_groups=[], return_groups=[]), 400
 
 
 def price_buckets(rows, field, count=4):
@@ -272,6 +276,7 @@ def filter_prices(rows, field, duration_field=None, stops_field=None, cabin_fiel
 def booking_context():
     session.setdefault('booking_csrf', secrets.token_urlsafe(32))
     saved = set()
+    live_saved = set()
     if session.get('role') == 'member' and (request.endpoint in ENDPOINTS or request.endpoint == 'booking.favorites'):
         connection = get_db_connection()
         if connection:
@@ -279,9 +284,14 @@ def booking_context():
             try:
                 cursor.execute('SELECT kind,target_id FROM booking_favorites WHERE user_id=%s', (session['user_id'],))
                 saved = set(cursor.fetchall())
+                try:
+                    cursor.execute('SELECT kind,item_key FROM booking_live_favorites WHERE user_id=%s', (session['user_id'],))
+                    live_saved = set(cursor.fetchall())
+                except Exception:
+                    live_saved = set()  # 還沒建立 booking_live_favorites 資料表(見 database/migrate_1118_live_favorites.sql)
             finally:
                 cursor.close(); connection.close()
-    return dict(booking_saved=saved, booking_csrf=session['booking_csrf'], fare_options=FARES,
+    return dict(booking_saved=saved, booking_live_saved=live_saved, booking_csrf=session['booking_csrf'], fare_options=FARES,
                 cabin_options=CABIN_CLASSES, booking_kind=ENDPOINTS.get(request.endpoint))
 
 
@@ -315,10 +325,60 @@ def save_favorite(kind, target_id):
         raise
     finally:
         cursor.close(); connection.close()
+    if request.headers.get('X-Requested-With') == 'fetch':
+        return jsonify(ok=True, saved=(action == 'save'))
     target = request.form.get('next', '')
     if not target.startswith(('/visitor/hotels', '/visitor/flights', '/visitor/trains', '/member/booking-favorites')) or '\\' in target or '\r' in target or '\n' in target:
         target = url_for('booking.favorites')
     return redirect(target)
+
+
+@booking_bp.route('/member/booking-favorites/live', methods=['POST'])
+@login_required('member')
+def save_live_favorite():
+    """收藏即時查詢結果(Google 機票／住宿)：沒有資料庫 id，存一份當下的摘要(標題、說明、參考價格、連結)。"""
+    data = request.get_json(silent=True) or {}
+    if not secrets.compare_digest(str(data.get('csrf', '')), session.get('booking_csrf', '!')):
+        return jsonify(error='頁面已過期，請重新整理後再試。'), 400
+    kind, action = data.get('kind'), data.get('action')
+    key = str(data.get('key') or '').strip()
+    if kind not in ('hotel', 'flight') or action not in ('save', 'remove') or not 1 <= len(key) <= 190:
+        return jsonify(error='收藏資料不正確。'), 400
+    title = str(data.get('title') or '').strip()[:200]
+    subtitle = str(data.get('subtitle') or '').strip()[:300] or None
+    link = str(data.get('link') or '').strip()[:1000] or None
+    if link and not (link.startswith(('https://', 'http://')) or (link.startswith('/') and not link.startswith('//'))):
+        link = None
+    try:
+        price = Decimal(str(data['price'])) if data.get('price') not in (None, '') else None
+        if price is not None and not (price.is_finite() and 0 <= price <= 100000000):
+            price = None
+    except InvalidOperation:
+        price = None
+    if action == 'save' and not title:
+        return jsonify(error='收藏資料不正確。'), 400
+    connection = get_db_connection()
+    if connection is None:
+        return jsonify(error='目前無法連線資料庫，請稍後再試。'), 503
+    cursor = connection.cursor()
+    try:
+        if action == 'save':
+            cursor.execute("""INSERT INTO booking_live_favorites(user_id,kind,item_key,title,subtitle,price,link)
+                              VALUES (%s,%s,%s,%s,%s,%s,%s)
+                              ON DUPLICATE KEY UPDATE title=VALUES(title), subtitle=VALUES(subtitle), price=VALUES(price), link=VALUES(link)""",
+                           (session['user_id'], kind, key, title, subtitle, price, link))
+        else:
+            cursor.execute('DELETE FROM booking_live_favorites WHERE user_id=%s AND kind=%s AND item_key=%s', (session['user_id'], kind, key))
+        connection.commit()
+    except Exception as error:
+        connection.rollback()
+        current_app.logger.exception('即時收藏失敗 user_id=%s', session.get('user_id'))
+        if 'booking_live_favorites' in str(error):
+            return jsonify(error='收藏資料表還沒建立，請先執行 database/migrate_1118_live_favorites.sql。'), 503
+        return jsonify(error='收藏失敗，請稍後再試。'), 500
+    finally:
+        cursor.close(); connection.close()
+    return jsonify(ok=True, saved=(action == 'save'))
 
 
 LIVE_TRAIN_KEY_SQL = ("SELECT train_id FROM trains WHERE train_type=%s AND train_number=%s AND car_class=%s "
@@ -365,7 +425,11 @@ def save_live_train():
     rows = tdx_trains.search_trains(request.form.get('from', ''), request.form.get('to', ''),
                                     request.form.get('date', '') or None, rail if rail in TRAIN_TYPE_LABELS else None)
     row = next((r for r in rows or [] if r['train_id'] == live_id), None)
+    ajax = request.headers.get('X-Requested-With') == 'fetch'
+    saved_train_id = None
     if row is None:
+        if ajax:
+            return jsonify(error='找不到這班車次，可能班表已更新，請重新搜尋後再收藏。'), 404
         flash('找不到這班車次，可能班表已更新，請重新搜尋後再收藏。', 'error')
     else:
         connection = get_db_connection()
@@ -387,11 +451,14 @@ def save_live_train():
             cursor.execute('INSERT IGNORE INTO booking_favorites(user_id,kind,target_id) VALUES (%s,%s,%s)',
                            (session['user_id'], 'train', train_id))
             connection.commit()
+            saved_train_id = train_id
         except Exception:
             connection.rollback()
             raise
         finally:
             cursor.close(); connection.close()
+    if ajax:
+        return jsonify(ok=True, saved=True, favorite_id=saved_train_id)
     target = request.form.get('next', '')
     if not target.startswith('/visitor/trains') or any(ch in target for ch in '\\\r\n'):
         target = url_for('booking.favorites')
@@ -410,9 +477,16 @@ def favorites():
         for kind, (table, key) in TABLES.items():
             cursor.execute(f'SELECT f.target_id, t.* FROM booking_favorites f LEFT JOIN {table} t ON t.{key}=f.target_id WHERE f.user_id=%s AND f.kind=%s ORDER BY f.created_at DESC', (session['user_id'], kind))
             groups[kind] = cursor.fetchall()
+        live = {'hotel': [], 'flight': []}
+        try:
+            cursor.execute('SELECT kind,item_key,title,subtitle,price,link FROM booking_live_favorites WHERE user_id=%s ORDER BY created_at DESC', (session['user_id'],))
+            for row in cursor.fetchall():
+                live[row['kind']].append(row)
+        except Exception:
+            pass  # 還沒建立 booking_live_favorites 資料表時，即時收藏區塊就是空的
     finally:
         cursor.close(); connection.close()
     # 收藏沒有記日期，「重新查詢」連結預設帶今天(住宿是今天入住、明天退房)，使用者到結果頁可以再改日期
     today = date.today()
-    return render_template('member/booking_favorites.html', groups=groups, today=today.isoformat(),
+    return render_template('member/booking_favorites.html', groups=groups, live=live, today=today.isoformat(),
                            tomorrow=(today + timedelta(days=1)).isoformat())

@@ -5,16 +5,19 @@
     {% if booking_kind == 'hotel' %}
     <div class="field"><label for="searchDestination">目的地</label><input id="searchDestination" name="destination" type="text" value="{{ destination or '' }}" placeholder="城市、飯店名稱" autocomplete="off" data-hotel-autocomplete></div>
     <div class="field"><label for="searchCheckin">入住</label><input id="searchCheckin" name="checkin" type="date" value="{{ checkin or '' }}"></div>
-    <div class="field"><label for="searchCheckout">退房</label><input id="searchCheckout" name="checkout" type="date" value="{{ checkout or '' }}"></div>
+    <div class="field"><label for="searchCheckout">退房 <span id="searchNights" class="nights-badge" hidden></span></label><input id="searchCheckout" name="checkout" type="date" value="{{ checkout or '' }}"></div>
     <div class="field"><label>房間與人數</label>{{ guest_picker() }}</div>
     {% elif booking_kind == 'flight' %}
-    <input type="hidden" name="trip_mode" id="tripModeInput" value="{{ 'roundtrip' if return_date else 'oneway' }}">
+    <div class="field field-compact"><label for="searchTripMode">行程</label><select id="searchTripMode" name="trip_mode">
+      <option value="oneway"{% if not return_date %} selected{% endif %}>單程</option>
+      <option value="roundtrip"{% if return_date %} selected{% endif %}>來回</option>
+    </select></div>
     <div class="field"><label for="searchFrom">出發地</label><input id="searchFrom" name="from" type="text" value="{{ origin or '' }}" placeholder="台北" autocomplete="off" data-city-autocomplete></div>
     <div class="field-sep">→</div>
     <div class="field"><label for="searchTo">目的地</label><input id="searchTo" name="to" type="text" value="{{ destination or '' }}" placeholder="東京" autocomplete="off" data-city-autocomplete></div>
     <div class="field"><label for="searchDepart">去程日期</label><input id="searchDepart" name="depart" type="date" value="{{ depart_date or '' }}"></div>
-    <div class="field"><label for="searchReturn">回程日期（選填）</label><input id="searchReturn" name="return" type="date" value="{{ return_date or '' }}"></div>
-    <div class="field"><label for="searchPax">人數</label><input id="searchPax" name="pax" type="number" min="1" max="99" value="{{ pax or 1 }}"></div>
+    <div class="field" id="searchReturnField"{% if not return_date %} hidden{% endif %}><label for="searchReturn">回程日期</label><input id="searchReturn" name="return" type="date" value="{{ return_date or '' }}"{% if not return_date %} disabled{% endif %}></div>
+    <div class="field"><label for="searchPax">人數（最多 9 位）</label><input id="searchPax" name="pax" type="number" min="1" max="9" value="{{ pax or 1 }}"></div>
     {% elif booking_kind == 'train' %}
     <div class="field field-compact"><label for="searchRail">車種</label><select id="searchRail" name="rail">
       <option value="thsr"{% if rail == 'thsr' %} selected{% endif %}>高鐵</option>
@@ -33,7 +36,7 @@
     <div class="field" id="searchReturnField"{% if not train_roundtrip %} hidden{% endif %}><label for="searchTrainReturn">回程日期</label><input id="searchTrainReturn" name="return" type="date" value="{{ request.args.get('return', '') if train_roundtrip else '' }}"{% if not train_roundtrip %} disabled{% endif %}></div>
     <div class="field field-compact"><label for="searchPax">人數</label><input id="searchPax" name="pax" type="number" min="1" max="99" value="{{ pax or 1 }}"></div>
     {% endif %}
-    <button class="booking-search-submit" type="submit"{% if booking_kind == 'flight' %} onclick="var r=document.getElementById('searchReturn'); document.getElementById('tripModeInput').value = (r &amp;&amp; r.value) ? 'roundtrip' : 'oneway';"{% endif %}>搜尋</button>
+    <button class="booking-search-submit" type="submit"{% if booking_kind == 'flight' %}{% endif %}>搜尋</button>
   </form>
 </div>
 <script>
@@ -59,6 +62,47 @@
       tripMode.addEventListener('change', syncTrip);
       syncTrip();
     }
+    // 機票：記住上次搜尋的條件(存在這個瀏覽器)；從導覽列進來、網址沒帶搜尋條件時，自動帶入上次的出發地、目的地、日期、人數
+    var flightForm = document.querySelector('.booking-search-form--flight');
+    if (flightForm) {
+      var field = function (id) { return document.getElementById(id); };
+      flightForm.addEventListener('submit', function () {
+        try {
+          localStorage.setItem('flightSearchPrefs', JSON.stringify({
+            from: field('searchFrom').value.trim(), to: field('searchTo').value.trim(), depart: field('searchDepart').value,
+            ret: field('searchTripMode').value === 'roundtrip' ? field('searchReturn').value : '', pax: field('searchPax').value,
+            mode: field('searchTripMode').value
+          }));
+        } catch (e) {}
+      });
+      var urlParams = new URLSearchParams(location.search);
+      if (!urlParams.get('from') && !urlParams.get('to') && !urlParams.get('depart')) {
+        var saved = null;
+        try { saved = JSON.parse(localStorage.getItem('flightSearchPrefs') || 'null'); } catch (e) {}
+        if (saved && saved.depart && saved.depart >= todayStr) {
+          field('searchFrom').value = saved.from || '';
+          field('searchTo').value = saved.to || '';
+          field('searchDepart').value = saved.depart;
+          if (saved.pax) field('searchPax').value = saved.pax;
+          var modeSelect = field('searchTripMode');
+          modeSelect.value = saved.mode === 'roundtrip' && saved.ret && saved.ret >= saved.depart ? 'roundtrip' : 'oneway';
+          field('searchReturn').value = modeSelect.value === 'roundtrip' ? saved.ret : '';
+          modeSelect.dispatchEvent(new Event('change'));
+        }
+      }
+    }
+    // 住宿：選好入住和退房日期後，在「退房」旁邊顯示共幾晚
+    var nightsBadge = document.getElementById('searchNights');
+    if (nightsBadge && startInput && endInput) {
+      var showNights = function () {
+        var nights = startInput.value && endInput.value ? Math.round((new Date(endInput.value) - new Date(startInput.value)) / 86400000) : 0;
+        nightsBadge.hidden = nights < 1;
+        nightsBadge.textContent = nights >= 1 ? nights + ' 晚' : '';
+      };
+      startInput.addEventListener('change', showNights);
+      endInput.addEventListener('change', showNights);
+      showNights();
+    }
     if (startInput && endInput) {
       startInput.addEventListener('change', function () {
         endInput.min = startInput.value || todayStr;
@@ -67,5 +111,6 @@
     }
   })();
 </script>
+<style>.nights-badge { margin-left: 6px; padding: 1px 8px; color: #078da4; background: #e5f4f7; border-radius: 999px; font-size: 12px; font-weight: 700; }</style>
 <script src="{{ url_for('static', filename='js/city-autocomplete.js') }}" defer></script>
 {% endif %}

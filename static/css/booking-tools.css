@@ -58,6 +58,10 @@
 .price-range-note { margin-top:8px; font-size:12px; }
 
 .price-slider-row { display:flex; flex:1 0 100%; align-items:center; gap:12px; margin-top:8px; }
+.price-number-row { display:flex; flex:1 0 100%; align-items:center; gap:8px; }
+.price-number-row label { display:flex; flex:1 1 0; align-items:center; gap:6px; color:#536970; font-size:12px; font-weight:600; white-space:nowrap; }
+.price-number-row input { width:100%; min-width:0; padding:6px 8px; border:1px solid #c6dcdf; border-radius:6px; font:inherit; font-size:13px; }
+.price-number-row input:focus { border-color:#078da4; outline:none; box-shadow:0 0 0 3px rgba(7,141,164,.15); }
 .price-slider-row output { flex:0 0 auto; color:#078da4; font-size:12px; font-weight:700; white-space:nowrap; }
 .price-slider { position:relative; flex:1 1 220px; max-width:320px; height:24px; }
 .price-slider::before { content:""; position:absolute; top:50%; left:0; right:0; height:4px; margin-top:-2px; background:#e3eef0; border-radius:4px; }

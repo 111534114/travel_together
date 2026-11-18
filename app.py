@@ -99,6 +99,35 @@ def flight_trip_item(flight, date_value, pax=1, cost=None, bundled=False):
     }
 
 
+def live_flight_favorite(flight, date_value, origin_keyword, destination_keyword, pax=1):
+    # 即時機票的收藏摘要(愛心按下去時存進 booking_live_favorites)
+    origin = flight.get("origin_airport_code") or flight.get("origin_city") or ""
+    destination = flight.get("destination_airport_code") or flight.get("destination_city") or ""
+    stops = flight.get("stops") or 0
+    dep = format_hm(flight.get("departure_time"))
+    return {
+        "kind": "flight",
+        "key": f"{flight.get('flight_number', '')}|{date_value}|{dep}|{origin}|{destination}"[:190],
+        "title": f"{flight.get('airline_name', '')} {flight.get('flight_number', '')}｜{origin} → {destination}".strip(),
+        "subtitle": f"{date_value} {dep}–{format_hm(flight.get('arrival_time'))}・{flight.get('cabin_class') or '經濟艙'}・{'直飛' if not stops else f'轉機 {stops} 次'}",
+        "price": float(flight.get("price") or 0),
+        "link": url_for("visitor_flight_search", **{"from": origin_keyword, "to": destination_keyword, "depart": date_value, "trip_mode": "oneway", "pax": pax}),
+    }
+
+
+def live_hotel_favorite(hotel, destination, checkin, checkout):
+    # 即時住宿的收藏摘要
+    parts = [hotel.get("property_type") or "", f"{hotel['star']} 星級" if hotel.get("star") else "", f"{checkin} ～ {checkout}"]
+    return {
+        "kind": "hotel",
+        "key": (hotel.get("detail", {}).get("property_token") or hotel.get("name") or "")[:190],
+        "title": hotel.get("name", ""),
+        "subtitle": "・".join(p for p in parts if p),
+        "price": float(hotel.get("price") or 0),
+        "link": hotel.get("website_url") or url_for("visitor_hotel_search", destination=destination, checkin=checkin, checkout=checkout),
+    }
+
+
 def _parse_outbound_item(raw):
     # 來回票第二步(選回程)頁面帶回來的去程資料；來自網址，只收預期的欄位並限制長度，壞掉就當沒有
     try:
@@ -123,6 +152,8 @@ def _parse_outbound_item(raw):
 
 app.jinja_env.globals["public_url"] = public_url
 app.jinja_env.globals["flight_trip_item"] = flight_trip_item
+app.jinja_env.globals["live_flight_favorite"] = live_flight_favorite
+app.jinja_env.globals["live_hotel_favorite"] = live_hotel_favorite
 app.jinja_env.globals["line_add_friend_url"] = line_messaging.add_friend_url()  # LINE 官方帳號加好友連結，會員首頁與個人資料頁共用
 app.jinja_env.globals["line_qr_code_url"] = line_messaging.qr_code_url()  # LINE 官方帳號加好友 QR Code 圖片網址
 app.jinja_env.filters["hm"] = format_hm  # 註冊成樣板過濾器，任何頁面都能直接用 {{ 值 | hm }} 把 TIME 欄位格式化成 HH:MM
@@ -436,6 +467,18 @@ def api_hotel_place_search():
     return jsonify(results)
 
 
+@app.route("/api/hotel-reviews")  # 住宿詳情視窗「查看住客評論」用的 AJAX 端點，使用者按了才查(每次用 1 次 SerpApi 額度)
+def api_hotel_reviews():
+    token = request.args.get("token", "").strip()
+    page_token = request.args.get("page_token", "").strip() or None
+    if not re.fullmatch(r"[A-Za-z0-9_\-]{10,300}", token) or (page_token and not re.fullmatch(r"[A-Za-z0-9_\-=%.]{1,2000}", page_token)):
+        return jsonify(error="飯店資料不正確"), 400
+    result = serpapi_hotels.get_reviews(token, page_token)
+    if result is None:
+        return jsonify(error="暫時查不到住客評論，請稍後再試。"), 502
+    return jsonify(result)
+
+
 @app.route("/api/hotel-offers")  # 住宿詳情視窗「查看各訂房網站價格」用的 AJAX 端點，使用者按了才查(每次用 1 次 SerpApi 額度)
 def api_hotel_offers():
     token = request.args.get("token", "").strip()
@@ -494,12 +537,17 @@ def visitor_hotel_search():
             conditions = ["ac.status = 'active'", "ac.deleted_at IS NULL"]  # 只搜尋已啟用、且不在回收桶裡的住宿
             params = []
 
+            one_keyword = "(REPLACE(ac.name,'台','臺') LIKE %s OR REPLACE(ci.name,'台','臺') LIKE %s OR co.name LIKE %s OR REPLACE(ac.address,'台','臺') LIKE %s)"
             for keyword in destination.split():
-                conditions.append(
-                    "(REPLACE(ac.name,'台','臺') LIKE %s OR REPLACE(ci.name,'台','臺') LIKE %s OR co.name LIKE %s OR REPLACE(ac.address,'台','臺') LIKE %s)"
-                )
-                like = '%' + keyword.replace('台', '臺') + '%'
-                params.extend([like, like, like, like])
+                # 打英文城市名(例如 Taipei)時，資料庫的城市是中文，所以把英文轉成中文城市名一起比對
+                words = [keyword]
+                zh = flight_links.to_chinese_city_name(keyword.title()) if keyword.isascii() else None
+                if zh and zh != keyword:
+                    words.append(zh)
+                conditions.append("(" + " OR ".join(one_keyword for _ in words) + ")")
+                for word in words:
+                    like = '%' + word.replace('台', '臺') + '%'
+                    params.extend([like, like, like, like])
 
             where_clause = "WHERE " + " AND ".join(conditions)
 
@@ -507,7 +555,7 @@ def visitor_hotel_search():
                 f"""
                 SELECT ac.accommodation_id, ac.name, ac.address, ac.accommodation_type,
                        ac.price_per_night, ac.check_in_time, ac.check_out_time,
-                       ac.image_path, ac.description, ac.website_url,
+                       ac.image_path, ac.description, ac.website_url, ac.latitude, ac.longitude,
                        co.name AS country_name, ci.name AS city_name
                 FROM accommodations ac
                 JOIN countries co ON co.country_id = ac.country_id
@@ -527,22 +575,10 @@ def visitor_hotel_search():
     if live_hotels is not None:
         return _render_live_hotels(live_hotels, destination, checkin, checkout, guests, nights, next_page_token, party)
 
-    hotel_price_buckets = price_buckets(accommodations, "price_per_night")
-    hotel_price_max = price_range(accommodations, "price_per_night")
-    accommodations = filter_prices(accommodations, 'price_per_night')
-    return render_template(
-        "hotel_search.html",
-        destination=destination,
-        checkin=checkin,
-        checkout=checkout,
-        guests=guests,
-        nights=nights,
-        accommodations=accommodations,
-        price_buckets=hotel_price_buckets,
-        price_max=hotel_price_max,
-        live_failed=live_failed,
-        party=party, rooms=party["rooms"], party_label=party["label"],
-    )
+    # 沒有連上 API(沒金鑰、查詢失敗)時，資料庫的住宿也用跟即時資料一樣的版面顯示
+    cards = [_db_hotel_card(row, nights) for row in accommodations]
+    serpapi_hotels.translate_names(cards)  # 資料庫裡少數英文名稱的住宿也翻成中文
+    return _render_live_hotels(cards, destination, checkin, checkout, guests, nights, None, party, source="db", live_failed=live_failed)
 
 
 HOTEL_MAX_GUESTS = 60  # 住客上限(成人+兒童)，比照 Agoda；Trip.com 只有 8 人，太少
@@ -595,7 +631,34 @@ def _hotel_facet(rows, key, label_of, sort_key=None):
     return sorted(options, key=sort_key or (lambda o: -o["count"]))
 
 
-def _render_live_hotels(hotels, destination, checkin, checkout, guests, nights, next_page_token, party):
+def _db_hotel_card(row, nights):
+    """把資料庫的住宿(accommodations)轉成跟 Google 即時資料一樣的卡片資料，讓兩種來源用同一個版面。
+    資料庫沒有評分、星級、設施，這些欄位就是空的(卡片上不顯示)；價格是 0 代表「價格洽詢」。"""
+    price = float(row["price_per_night"] or 0)
+    image = url_for("static", filename=row["image_path"]) if row.get("image_path") else None
+    images = [{"thumb": image, "full": image}] if image else []
+    check_in, check_out = format_hm(row.get("check_in_time")), format_hm(row.get("check_out_time"))
+    website = row.get("website_url") or ""
+    lat = float(row["latitude"]) if row.get("latitude") is not None else None
+    lng = float(row["longitude"]) if row.get("longitude") is not None else None
+    kind = row.get("accommodation_type") or "住宿"
+    return {
+        "accommodation_id": row["accommodation_id"], "name": row["name"], "description": row.get("description") or "",
+        "images": images, "price": price, "total_price": price * nights if price and nights else None,
+        "flags": [], "rating": None, "reviews": 0, "star": None, "property_type": kind, "amenities": [], "deal": "",
+        "website_url": website, "latitude": lat, "longitude": lng, "check_in_time": check_in, "check_out_time": check_out,
+        "address": row.get("address") or "",
+        "detail": {
+            "name": row["name"], "address": row.get("address") or "", "place_id": "", "description": row.get("description") or "",
+            "images": [img["full"] for img in images], "amenities": [], "rating": None, "reviews": 0, "location_rating": None,
+            "rating_counts": [], "topics": [], "nearby": [], "check_in_time": check_in, "check_out_time": check_out,
+            "website_url": website, "latitude": lat, "longitude": lng, "star": None, "property_type": kind,
+            "price": price, "total_price": price * nights if price and nights else None, "property_token": "",
+        },
+    }
+
+
+def _render_live_hotels(hotels, destination, checkin, checkout, guests, nights, next_page_token, party, source="live", live_failed=False):
     star_facets = _hotel_facet(hotels, "star", lambda v: f"{v} 星級", sort_key=lambda o: -int(o["value"]))
     # 側邊欄不列「度假租屋」，只留「飯店」一個選項(結果裡有混到租屋時才有篩選意義)
     type_facets = [f for f in _hotel_facet(hotels, "property_type", lambda v: v) if f["value"] == "飯店"]
@@ -616,8 +679,8 @@ def _render_live_hotels(hotels, destination, checkin, checkout, guests, nights, 
     popular_facets = [{"value": key, "label": label, "count": sum(1 for h in hotels if key in h["flags"])}
                       for key, label in popular_labels.items()]
     popular_facets = [f for f in popular_facets if f["count"]]
-    rating_facets = [{"value": str(score), "label": f"{name} {score}+", "count": sum(1 for h in hotels if (h["rating_10"] or 0) >= score)}
-                     for score, name in ((9, "極佳"), (8, "很好"))]
+    rating_facets = [{"value": str(score), "label": f"{score} 星以上", "count": sum(1 for h in hotels if (h["rating"] or 0) >= score)}
+                     for score in (4.5, 4)]
     rating_facets = [f for f in rating_facets if f["count"]]
 
     rows = hotels
@@ -633,13 +696,13 @@ def _render_live_hotels(hotels, destination, checkin, checkout, guests, nights, 
         rows = [h for h in rows if key in h["flags"]]
     rating_values = [float(v) for v in request.args.getlist("rating_min") if v.replace(".", "", 1).isdigit()]
     if rating_values:
-        rows = [h for h in rows if (h["rating_10"] or 0) >= max(rating_values)]
+        rows = [h for h in rows if (h["rating"] or 0) >= max(rating_values)]
 
     price_max = price_range(hotels, "price")
     rows = filter_prices(rows, "price")
     sort = request.args.get("sort", "")
     if sort == "rating":
-        rows = sorted(rows, key=lambda h: -(h["rating_10"] or 0))
+        rows = sorted(rows, key=lambda h: -(h["rating"] or 0))
     elif sort == "star":
         rows = sorted(rows, key=lambda h: -(h["star"] or 0))
     elif party["children"] and not sort:
@@ -653,7 +716,7 @@ def _render_live_hotels(hotels, destination, checkin, checkout, guests, nights, 
         popular_facets=popular_facets, rating_facets=rating_facets,
         map_url="https://www.google.com/maps/search/?api=1&query=" + quote(f"{destination} 飯店"),
         next_page_token=next_page_token, accommodations=[],
-        party=party, rooms=party["rooms"], party_label=party["label"],
+        party=party, rooms=party["rooms"], party_label=party["label"], hotel_source=source, live_failed=live_failed,
     )
 
 
@@ -779,8 +842,17 @@ def api_city_search():
     # 北海道、九州等地區涵蓋多個城市，合併查詢各城市機場。
     region_cities = flight_links.REGION_CITIES.get(keyword)
     country_found = [] if region_cities else flight_links.country_airports(keyword)
+    # 打國家名稱(中文或英文，例如 Japan、日本)：國際機場不多的小國直接列出「所有機場」；
+    # 機場很多的大國列出航線最多的前 10 個機場，讓使用者自己挑
+    big_country = []
+    if not region_cities and not country_found:
+        country_en = flight_links.COUNTRY_NAME_EN.get(keyword) or airports.match_country_name(keyword)
+        if country_en:
+            big_country = airports.get_country_airports(country_en, limit=10)
     if country_found:
         results = country_found
+    elif big_country:
+        results = big_country
     elif region_cities:
         results = []
         seen_iata = set()
@@ -1162,6 +1234,8 @@ def visitor_train_search():
     depart_band_options = time_band_options(all_trains, "departure_time")
     trains = apply_time_band(apply_facets(trains, (("train_type", "train_type"), ("car_class", "car_class"))), "departure_time")
     return_trains = apply_time_band(apply_facets(return_trains, (("train_type", "train_type"), ("car_class", "car_class"))), "departure_time")
+    trains = filter_prices(trains, 'price', 'duration_minutes')
+    return_trains = filter_prices(return_trains, 'price', 'duration_minutes')
     return render_template(
         "train_search.html",
         origin=origin,
@@ -1170,8 +1244,10 @@ def visitor_train_search():
         pax=pax,
         rail=rail,
         rail_label=TRAIN_TYPE_LABELS.get(rail, "高鐵／台鐵"),
-        trains=filter_prices(trains, 'price', 'duration_minutes'),
-        return_trains=filter_prices(return_trains, 'price', 'duration_minutes'),
+        trains=trains,
+        return_trains=return_trains,
+        train_groups=_group_trains(trains),
+        return_groups=_group_trains(return_trains),
         price_buckets=train_price_buckets,
         price_max=train_price_max,
         train_type_facets=train_type_facets,
@@ -1179,6 +1255,16 @@ def visitor_train_search():
         depart_band_options=depart_band_options,
         using_live_data=using_live_data,
     )
+
+
+def _group_trains(rows):
+    """同時勾選 2 個以上「車廂等級」(例如普悠瑪、自強、區間)時，結果依車種分組顯示(照勾選的順序)，
+    不要不同車種混在一起排；只勾 1 個或都沒勾就維持單一清單。"""
+    selected = [c for c in request.args.getlist("car_class") if c]
+    if len(selected) < 2 or not rows:
+        return [{"label": None, "rows": rows}] if rows else []
+    groups = [{"label": name, "rows": [r for r in rows if r.get("car_class") == name]} for name in selected]
+    return [g for g in groups if g["rows"]]
 
 
 @app.route("/visitor/trains/thsr-timetable")  # 轉址到高鐵官網時刻表頁，並帶入這班車的起訖站、日期、時間

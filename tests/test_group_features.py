@@ -1,12 +1,12 @@
 import json
 import unittest
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta
 from unittest.mock import MagicMock, patch
 
 from flask import render_template, session
 
 from app import app
-from blueprints.friend_groups import _active_group_access, _album_image_type, _registration_deadline, ai_plan, approve_group_member, delete_group, leave_group, new_group, save_ai_plan
+from blueprints.friend_groups import _active_group_access, _album_image_type, _group_attendance_availability, _registration_deadline, ai_plan, approve_group_member, delete_group, leave_group, new_group, save_ai_plan
 from blueprints.member import chat_feed, chat_remove, chat_send
 from group_ai_planner import generate_plan, normalize_plan
 from chat_moderation import blocked_term, parse_terms
@@ -30,13 +30,17 @@ class GroupFeatureTests(unittest.TestCase):
         with app.test_request_context("/member/friend-groups/groups/8/manage"):
             group = {"group_id": 8, "title": "宜蘭一日遊", "event_date": date(2026, 11, 16),
                      "end_date": None, "location": "宜蘭", "trip_id": None, "status": "open"}
+            can_mark_attended, can_mark_no_show = _group_attendance_availability(group, datetime(2026, 11, 18))
             html = render_template("member/friend_groups/group_manage.html", group=group,
-                                   members=[], today=date(2026, 11, 18))
+                                   members=[], today=date(2026, 11, 18),
+                                   can_mark_attended=can_mark_attended, can_mark_no_show=can_mark_no_show)
             self.assertIn("已結束", html)
             self.assertNotIn("開放中", html)
             group["status"] = "cancelled"
+            can_mark_attended, can_mark_no_show = _group_attendance_availability(group, datetime(2026, 11, 18))
             cancelled_html = render_template("member/friend_groups/group_manage.html", group=group,
-                                             members=[], today=date(2026, 11, 18))
+                                             members=[], today=date(2026, 11, 18),
+                                             can_mark_attended=can_mark_attended, can_mark_no_show=can_mark_no_show)
             self.assertIn("已取消", cancelled_html)
             self.assertNotIn("已結束", cancelled_html)
 

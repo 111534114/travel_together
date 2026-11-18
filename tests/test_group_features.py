@@ -276,6 +276,29 @@ class GroupFeatureTests(unittest.TestCase):
         self.assertEqual(post.call_args.kwargs["headers"]["x-goog-api-key"], "test-gemini")
         self.assertNotIn("test-gemini", post.call_args.args[0])
 
+    def test_gemini_retries_503_then_reports_service_busy(self):
+        unavailable = MagicMock(status_code=503)
+        with patch("group_ai_planner.GEMINI_API_KEY", "test-gemini"), \
+             patch("group_ai_planner.requests.post", side_effect=[unavailable, unavailable]) as post, \
+             patch("group_ai_planner.time.sleep") as sleep:
+            with self.assertRaisesRegex(ValueError, "目前繁忙（503）"):
+                generate_plan("景點", "台灣", "台北", date(2026, 12, 1), date(2026, 12, 2), 2, 1000)
+        self.assertEqual(post.call_count, 2)
+        sleep.assert_called_once_with(2)
+
+    def test_gemini_retry_can_recover(self):
+        unavailable = MagicMock(status_code=503)
+        recovered = MagicMock(status_code=200)
+        recovered.json.return_value = {"candidates": [{"content": {"parts": [{"text": json.dumps({
+            "items": [{"date": "2026-12-01", "type": "attraction", "title": "台北101"}]
+        })}]}}]}
+        with patch("group_ai_planner.GEMINI_API_KEY", "test-gemini"), \
+             patch("group_ai_planner.requests.post", side_effect=[unavailable, recovered]) as post, \
+             patch("group_ai_planner.time.sleep"):
+            plan = generate_plan("景點", "台灣", "台北", date(2026, 12, 1), date(2026, 12, 2), 2, 1000)
+        self.assertEqual(post.call_count, 2)
+        self.assertEqual(plan["items"][0]["title"], "台北101")
+
     def test_saving_ai_draft_is_private_even_if_public_is_submitted(self):
         cursor = MagicMock()
         cursor.fetchone.return_value = {

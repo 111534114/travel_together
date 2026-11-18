@@ -104,7 +104,7 @@
       button.disabled = true;
       button.textContent = '正在產生草稿…';
       status.classList.remove('is-error');
-      status.textContent = '正在規劃，可能需要約 30 秒，請勿重複點擊或關閉頁面。';
+      status.textContent = '正在規劃，可能需要約 1 分鐘，請勿重複點擊或關閉頁面。';
       form.setAttribute('aria-busy', 'true');
     });
     {% if form_error %}status.scrollIntoView({block: 'center'});{% endif %}

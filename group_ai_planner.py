@@ -3,6 +3,7 @@
 from datetime import date
 import json
 import re
+import time
 
 import requests
 
@@ -66,14 +67,31 @@ def generate_plan(user_request, country, city, start_date, end_date, people_coun
         f"總預算參考：{budget} TWD。旅客需求：{user_request}"
     )
     if GEMINI_API_KEY:
-        response = requests.post(
-            f"https://generativelanguage.googleapis.com/v1beta/models/{GEMINI_MODEL}:generateContent",
-            headers={"x-goog-api-key": GEMINI_API_KEY, "Content-Type": "application/json"},
-            json={"contents": [{"role": "user", "parts": [{"text": prompt}]}],
-                  "generationConfig": {"responseMimeType": "application/json", "maxOutputTokens": 8192}},
-            timeout=35,
-        )
-        response.raise_for_status()
+        for attempt in range(2):
+            try:
+                response = requests.post(
+                    f"https://generativelanguage.googleapis.com/v1beta/models/{GEMINI_MODEL}:generateContent",
+                    headers={"x-goog-api-key": GEMINI_API_KEY, "Content-Type": "application/json"},
+                    json={"contents": [{"role": "user", "parts": [{"text": prompt}]}],
+                          "generationConfig": {"responseMimeType": "application/json", "maxOutputTokens": 8192}},
+                    timeout=35,
+                )
+                if response.status_code == 503:
+                    if attempt == 0:
+                        time.sleep(2)
+                        continue
+                    raise ValueError("Google AI 目前繁忙（503），請稍後再試。")
+                if response.status_code == 429:
+                    raise ValueError("Google AI 使用額度或呼叫次數已達上限（429），請稍後再試或檢查額度。")
+                response.raise_for_status()
+                break
+            except requests.Timeout as error:
+                raise ValueError("Google AI 回應逾時，請稍後再試。") from error
+            except requests.ConnectionError as error:
+                raise ValueError("目前無法連線 Google AI，請檢查網路後重試。") from error
+            except requests.HTTPError as error:
+                status = error.response.status_code if error.response is not None else response.status_code
+                raise ValueError(f"Google AI 回傳錯誤（HTTP {status}），請檢查服務設定後重試。") from error
         candidates = response.json().get("candidates", [])
         parts = candidates[0].get("content", {}).get("parts", []) if candidates else []
         content = "".join(part.get("text", "") for part in parts).strip()

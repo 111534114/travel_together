@@ -1,0 +1,82 @@
+/* 行程頁 AI 功能：智慧排程彈窗、住宿與預算建議、截圖辨識 */
+
+/* 每一天標題列的「AI 排順序」 */
+.smart-day-btn { margin-left: auto; padding: 5px 12px; color: #fff; font: inherit; font-size: 13px; font-weight: 700; background: linear-gradient(135deg, var(--ocean-primary), var(--ocean-primary-deep)); border: 0; border-radius: 999px; cursor: pointer; box-shadow: 0 4px 10px rgba(6, 98, 117, .2); }
+.smart-day-btn:hover, .smart-day-btn:focus-visible { filter: brightness(1.08); }
+
+/* 彈窗 */
+.smart-modal { position: fixed; inset: 0; z-index: 2000; display: grid; place-items: center; padding: 16px; background: rgba(10, 30, 40, .45); }
+.smart-modal[hidden] { display: none; }
+body.smart-modal-open { overflow: hidden; }
+.smart-modal-card { position: relative; width: min(560px, 100%); max-height: calc(100vh - 32px); overflow-y: auto; padding: 24px 24px 18px; background: #fff; border-radius: 14px; box-shadow: 0 20px 50px rgba(0, 0, 0, .25); }
+.smart-modal-card h2 { margin: 0 0 10px; font-size: 22px; }
+.smart-modal-close { position: absolute; top: 10px; right: 12px; width: 34px; height: 34px; font-size: 22px; line-height: 1; color: #5d7275; background: none; border: 0; border-radius: 50%; cursor: pointer; }
+.smart-modal-close:hover { background: #eef5f6; }
+.smart-modal-actions { position: sticky; bottom: -18px; display: flex; justify-content: flex-end; gap: 8px; margin: 16px -24px -18px; padding: 12px 24px 18px; background: #fff; border-top: 1px solid #e3eef0; }
+.smart-source { display: inline-block; margin: 0 0 8px; padding: 4px 10px; color: var(--ocean-primary-deep); font-size: 13px; font-weight: 700; background: #eaf6f8; border-radius: 999px; }
+.smart-source.is-ai { color: #6a3fb5; background: #f1eafc; }
+.smart-reason { margin: 0 0 12px; color: #2c3e42; line-height: 1.6; }
+.smart-note { margin: 0 0 10px; color: #8a6d1d; font-size: 13px; }
+.smart-loading { padding: 24px 0; color: #5d7275; text-align: center; }
+.smart-error { margin: 0 0 10px; padding: 10px 12px; color: #a33a36; background: #fdeeee; border-radius: 8px; }
+.smart-list { margin: 0; padding: 0; list-style: none; }
+.smart-stop { display: flex; align-items: baseline; gap: 10px; padding: 9px 12px; background: #f6fafb; border: 1px solid #e1edef; border-radius: 8px; }
+.smart-stop small { color: #8a9a9d; }
+.smart-time { flex: 0 0 48px; color: var(--ocean-primary-dark); font-weight: 800; font-variant-numeric: tabular-nums; }
+.smart-leg { padding: 5px 0 5px 22px; color: #5d7275; font-size: 13px; }
+.smart-tips { margin: 14px 0 0; padding: 10px 12px; list-style: none; background: #fff9e8; border-radius: 8px; font-size: 14px; }
+.smart-tips li + li { margin-top: 4px; }
+.smart-disclaimer { margin: 12px 0 0; color: #8a9a9d; font-size: 12px; }
+
+/* 住宿與預算建議 */
+.stay-intro { margin: 0 0 16px; color: #5d7275; font-size: 14px; }
+.budget-estimate { margin-bottom: 20px; padding: 18px 20px; background: linear-gradient(135deg, #f3fbfc, #fff); border: 1px solid #d6e9ec; border-radius: 12px; }
+.budget-estimate-head { display: flex; flex-wrap: wrap; align-items: flex-start; justify-content: space-between; gap: 12px; }
+.budget-estimate-head h3 { margin: 0; font-size: 15px; color: #5d7275; }
+.budget-estimate-total { margin: 2px 0 0; color: var(--ocean-primary-deep); font-size: 28px; font-weight: 800; }
+.budget-estimate-total small { display: block; color: #5d7275; font-size: 13px; font-weight: 600; }
+.stay-tier-form { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; font-size: 13px; color: #5d7275; }
+.stay-tier { padding: 5px 12px; color: var(--ocean-primary-dark); font: inherit; font-weight: 700; background: #fff; border: 1px solid #c6dcdf; border-radius: 999px; cursor: pointer; }
+.stay-tier.active { color: #fff; background: var(--ocean-primary-dark); border-color: var(--ocean-primary-dark); }
+.budget-estimate-lines { display: grid; gap: 8px; margin-top: 14px; }
+.budget-line { display: grid; grid-template-columns: minmax(110px, 160px) 1fr auto; align-items: center; gap: 10px; font-size: 14px; }
+.budget-line-bar { height: 8px; overflow: hidden; background: #e6f0f1; border-radius: 999px; }
+.budget-line-bar i { display: block; height: 100%; background: var(--ocean-primary); border-radius: 999px; }
+.budget-line b { font-variant-numeric: tabular-nums; }
+.budget-compare { margin: 14px 0 0; padding: 10px 12px; font-size: 14px; background: #f1f6f7; border-radius: 8px; }
+.budget-compare.ok { color: #23683a; background: #eaf7ee; }
+.budget-compare.over { color: #8a4b12; background: #fff3e4; }
+.budget-note { margin: 8px 0 0; color: #8a9a9d; font-size: 12px; }
+.stay-night { padding: 14px 0; border-top: 1px solid #e3eef0; }
+.stay-night-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 12px; margin-bottom: 8px; }
+.stay-night-head h3 { margin: 0; font-size: 16px; }
+.stay-night-head span { color: #5d7275; font-size: 13px; }
+.stay-booked { margin: 0 0 8px; }
+.stay-hotel-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 10px; }
+.stay-hotel { display: flex; gap: 10px; padding: 10px; background: #fff; border: 1px solid #e1edef; border-radius: 10px; }
+.stay-hotel img, .stay-hotel-noimg { flex: 0 0 64px; width: 64px; height: 64px; object-fit: cover; border-radius: 8px; }
+.stay-hotel-noimg { display: grid; place-items: center; font-size: 26px; background: #eaf6f8; }
+.stay-hotel-body { min-width: 0; }
+.stay-hotel-body h4 { margin: 0 0 2px; font-size: 15px; }
+.stay-hotel-body h4 a { color: inherit; }
+.stay-hotel-body p { margin: 0 0 6px; color: #5d7275; font-size: 13px; }
+.stay-hotel-body form { margin: 0; }
+
+/* 截圖辨識 */
+.ai-scan { padding: 12px 14px; background: #f5f0fd; border: 1px dashed #b9a2e3; border-radius: 10px; }
+.ai-scan-drop { display: block; cursor: pointer; }
+.ai-scan-drop input { display: block; margin-top: 6px; max-width: 100%; }
+.ai-scan-drop span { font-size: 14px; }
+.ai-scan-result p { margin: 8px 0 0; font-size: 13px; }
+.ai-scan-ok { color: #23683a; font-weight: 700; }
+.ai-scan-warn { color: #8a4b12; }
+.ai-scan-itinerary { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 8px; font-size: 13px; }
+.ai-filled { background: #fffbe6 !important; transition: background 1s; }
+
+@media (max-width: 560px) {
+  .smart-modal-card { padding: 20px 16px 14px; }
+  .smart-modal-actions { margin: 14px -16px -14px; padding: 12px 16px 14px; }
+  .budget-line { grid-template-columns: 1fr auto; }
+  .budget-line-bar { grid-column: 1 / -1; grid-row: 2; }
+  .itinerary-day-divider { flex-wrap: wrap; }
+}

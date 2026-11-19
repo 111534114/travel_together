@@ -24,7 +24,11 @@
       <label>結束日期（最多 7 天） *<input type="date" name="end_date" value="{{ form_values.get('end_date', '') }}" required></label>
       <label>人數 *<input type="number" name="people_count" min="1" max="30" value="{{ form_values.get('people_count', '2') }}" required></label>
       <label>總預算參考（新臺幣）<input type="number" name="budget" min="0" value="{{ form_values.get('budget', '0') }}"></label>
-      <label class="span-2">旅行需求 *<textarea name="user_request" maxlength="1000" required rows="4" placeholder="例如：想去台北三天，喜歡古蹟、夜市與大眾運輸，住宿不要太貴">{{ form_values.get('user_request', '') }}</textarea></label>
+      <label class="span-2">旅行需求 *<textarea id="aiRequest" name="user_request" maxlength="1000" required rows="4" placeholder="例如：想去台北三天，喜歡古蹟、夜市與大眾運輸，住宿不要太貴">{{ form_values.get('user_request', '') }}</textarea></label>
+      <div class="span-2 ai-voice-row">
+        <button type="button" class="member-btn outline small" data-voice-target="aiRequest" data-voice-status="aiVoiceStatus" aria-pressed="false">🎤 語音輸入</button>
+        <small id="aiVoiceStatus" role="status" aria-live="polite"></small>
+      </div>
       <div class="span-2">
         <button class="member-btn primary" id="aiPlanSubmit" type="submit" {% if not ai_ready %}disabled aria-describedby="aiPlanStatus"{% endif %}>{{ '產生草稿' if ai_ready else '智慧規劃尚未啟用' }}</button>
         <p id="aiPlanStatus" class="ai-plan-status{% if form_error %} is-error{% endif %}" role="status" aria-live="polite">
@@ -95,7 +99,37 @@
 
     country.addEventListener('input', filterCities);
     country.addEventListener('change', filterCities);
+
+    // 從旅行需求文字猜目的地：國家、城市欄位還空著時，找文字中出現的城市（或國家）名稱自動帶入
+    var request = document.getElementById('aiRequest');
+    function guessDestination() {
+      if (country.value.trim() || city.value) return;
+      var text = request.value;
+      if (!text) return;
+      var cityMatch = allCities
+        .filter(function (option) { return option.value && text.indexOf(option.text.trim()) !== -1; })
+        .sort(function (a, b) { return b.text.trim().length - a.text.trim().length; })[0];
+      var countryId = cityMatch ? cityMatch.dataset.country : '';
+      if (!countryId) {
+        var countryMatch = countryOptions.find(function (option) { return text.indexOf(option.value.trim()) !== -1; });
+        countryId = countryMatch ? countryMatch.dataset.countryId : '';
+      }
+      var countryOption = countryOptions.find(function (option) { return option.dataset.countryId === countryId; });
+      if (!countryOption) return;
+      country.value = countryOption.value;
+      filterCities();
+      if (cityMatch) city.value = cityMatch.value;
+      status.classList.remove('is-error');
+      status.textContent = '已依你的需求帶入目的地，請確認國家、城市並填寫日期。';
+    }
+    var guessTimer = null;
+    request.addEventListener('change', guessDestination);
+    request.addEventListener('input', function () {
+      clearTimeout(guessTimer);
+      guessTimer = setTimeout(guessDestination, 800);
+    });
     filterCities();
+    guessDestination();
     form.addEventListener('invalid', function () {
       status.textContent = '請先填寫上方所有必填欄位，再產生草稿。';
       status.classList.add('is-error');
@@ -110,4 +144,10 @@
     {% if form_error %}status.scrollIntoView({block: 'center'});{% endif %}
   })();
 </script>
+<style>
+  .ai-voice-row { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin-top: -6px; }
+  .ai-voice-row small { color: #5d7275; }
+  [data-voice-target].is-listening { color: #fff; background: #D9534F; border-color: #D9534F; }
+</style>
+<script src="{{ url_for('static', filename='js/voice-input.js') }}" defer></script>
 {% endblock %}

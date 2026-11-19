@@ -192,3 +192,77 @@ def verify_item(item_type, item_id):  # 定義標記已確認函式
         connection.close()  # 關閉資料庫連線
 
     return redirect(url_for("ai_data.list_ai_data", type=item_type, keyword=request.args.get("keyword", "")))  # 導回 AI 資料維護頁(保留原本類型與搜尋關鍵字)
+
+
+AUTOFILL_BATCH = 10  # 一次最多補 10 筆，控制 Google／AI 的呼叫次數與等待時間
+
+
+@ai_data_bp.route("/<item_type>/autofill", methods=["POST"])  # AI Agent 自動補齊缺漏欄位(單筆或整批)
+@login_required("content_admin")
+def autofill_items(item_type):
+    """依名稱與地點查 Google 地點，必要時請 AI 寫介紹，只補空白欄位，不覆蓋既有資料。"""
+    import place_agent  # 延後匯入，避免沒用到這個功能時也載入外部服務設定
+
+    keyword = request.form.get("keyword", "").strip()
+    back = url_for("ai_data.list_ai_data", type=item_type, keyword=keyword)
+    if item_type not in TYPE_CONFIG:
+        flash("資料類型錯誤", "error")
+        return redirect(url_for("ai_data.list_ai_data"))
+    config = TYPE_CONFIG[item_type]
+    fields = place_agent.FILLABLE[item_type]
+    connection = get_db_connection()
+    if connection is None:
+        flash("資料庫連線失敗", "error")
+        return redirect(back)
+    cursor = connection.cursor(dictionary=True)
+    filled_count, results = 0, []
+    try:
+        conditions = ["t.deleted_at IS NULL", "t.ai_verified_at IS NULL"]
+        params = []
+        item_id = request.form.get("item_id", "")
+        if item_id.isdigit():
+            conditions = ["t.deleted_at IS NULL", f"t.{config['pk']} = %s"]
+            params.append(int(item_id))
+        elif keyword:
+            conditions.append("t.name LIKE %s")
+            params.append(f"%{keyword}%")
+        missing_any = " OR ".join(f"t.{f} IS NULL OR t.{f} = ''" if f not in ("latitude", "longitude") else f"t.{f} IS NULL" for f in fields)
+        cursor.execute(f"""
+            SELECT t.{config['pk']} AS item_id, t.name, co.name AS country_name, ci.name AS city_name,
+                   {", ".join("t." + f for f in fields)}
+            FROM {config['table']} t
+            JOIN countries co ON co.country_id = t.country_id
+            JOIN cities ci ON ci.city_id = t.city_id
+            WHERE {" AND ".join(conditions)} AND ({missing_any})
+            ORDER BY t.{config['pk']}
+            LIMIT {AUTOFILL_BATCH}
+        """, params)
+        rows = cursor.fetchall()
+        if not rows:
+            flash("沒有需要補齊的資料。", "success")
+            return redirect(back)
+        for row in rows:
+            updates, notes = place_agent.autofill(item_type, row)
+            updates = {k: v for k, v in updates.items() if k in fields}  # 只允許更新白名單欄位
+            if updates:
+                assignments = ", ".join(f"{column} = %s" for column in updates)
+                cursor.execute(f"UPDATE {config['table']} SET {assignments} WHERE {config['pk']} = %s",
+                               (*updates.values(), row["item_id"]))
+                log_action(cursor, "autofill_ai_data", item_type, row["item_id"],
+                           f"AI 自動補齊{config['label']}「{row['name']}」：{place_agent.describe(updates)}")
+                connection.commit()
+                filled_count += 1
+                results.append(f"{row['name']}（補上{place_agent.describe(updates)}）")
+            else:
+                results.append(f"{row['name']}（找不到可補的資料{'：' + notes[0] if notes else ''}）")
+    except Exception as error:
+        connection.rollback()
+        print("AI 自動補齊失敗：", error)
+        flash("自動補齊途中發生錯誤，已完成的部分會保留。", "error")
+    finally:
+        cursor.close()
+        connection.close()
+    if results:
+        flash(f"AI 已處理 {len(results)} 筆，成功補齊 {filled_count} 筆：" + "；".join(results)
+              + "。請檢查補上的內容後再標記已確認。", "success")
+    return redirect(back)

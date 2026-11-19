@@ -184,6 +184,61 @@
     .trip-footer { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-top: auto; padding-top: 14px; color: var(--muted); font-size: 13px; }
     .view-button { padding: 7px 12px; color: var(--purple); background: #fff; border: 1px solid #C6DCDF; border-radius: 6px; cursor: pointer; font-weight: 700; }
     .view-button:hover { color: #fff; background: var(--purple); border-color: var(--purple); }
+    .view-button.primary { color: #fff; background: var(--purple); border-color: var(--purple); }
+    .view-button.primary:hover { filter: brightness(1.08); }
+    /* 會員首頁：先行程、後住宿與預算 */
+    .plan-flow { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; margin: 0 0 22px; padding: 0; list-style: none; counter-reset: flow; }
+    .plan-flow li { position: relative; }
+    .plan-flow a { display: block; height: 100%; padding: 14px 16px 14px 54px; color: var(--muted); font-size: 14px; text-decoration: none; background: #fff; border: 1px solid var(--line); border-radius: 8px; transition: border-color 160ms ease, box-shadow 160ms ease, transform 160ms ease; }
+    .plan-flow a:hover, .plan-flow a:focus-visible { border-color: var(--purple); box-shadow: 0 0 0 2px rgba(15, 124, 140, .12); transform: translateY(-2px); }
+    .plan-flow li::before { counter-increment: flow; content: counter(flow); position: absolute; z-index: 1; left: 16px; top: 50%; transform: translateY(-50%); display: grid; width: 28px; height: 28px; place-items: center; color: #fff; background: var(--purple); border-radius: 50%; font-weight: 700; pointer-events: none; }
+    #featured-trips, #planning-trips, #stay-search { scroll-margin-top: 16px; }
+    .planning-trips { margin: 0 0 40px; }
+    .planning-list { display: grid; gap: 12px; }
+    .planning-card { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 16px 20px; color: inherit; text-decoration: none; background: #fff; border: 1px solid var(--line); border-radius: 8px; transition: border-color 160ms ease, box-shadow 160ms ease; }
+    .planning-card:hover { border-color: var(--purple); box-shadow: 0 8px 22px rgba(45, 37, 68, .08); }
+    .planning-card h3 { margin: 0 0 4px; font-size: 18px; }
+    .planning-card p { margin: 0; color: var(--muted); font-size: 14px; }
+    .planning-card .planning-meta { margin-top: 4px; font-size: 13px; }
+    .planning-card .view-button { flex: 0 0 auto; }
+    @media (max-width: 560px) { .planning-card { flex-direction: column; align-items: stretch; } }
+    .plan-flow b { display: block; color: var(--ink, #1f2a2c); font-size: 15px; }
+    .ai-home { margin: 28px 0 0; padding: 24px 26px; background: linear-gradient(135deg, #ffffff 0%, #EAF7F8 100%); border: 1px solid #C6DCDF; border-radius: 12px; box-shadow: 0 8px 22px rgba(45, 37, 68, .06); }
+    .ai-home h2 { margin: 0; font-size: 24px; }
+    .ai-home-hint { margin: 6px 0 14px; color: var(--muted); font-size: 14px; }
+    .ai-home-form textarea { width: 100%; box-sizing: border-box; padding: 14px 16px; font: inherit; font-size: 16px; line-height: 1.6; resize: vertical; background: #fff; border: 1px solid #C6DCDF; border-radius: 10px; }
+    .ai-home-form textarea:focus { outline: none; border-color: var(--purple); box-shadow: 0 0 0 3px rgba(15, 124, 140, .15); }
+    .ai-home-actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 10px; }
+    .ai-voice-btn, .ai-submit-btn { padding: 10px 18px; font: inherit; font-weight: 700; border-radius: 8px; cursor: pointer; }
+    .ai-voice-btn { color: var(--purple); background: #fff; border: 1px solid #C6DCDF; }
+    .ai-voice-btn:hover { border-color: var(--purple); }
+    .ai-voice-btn.is-listening { color: #fff; background: #D9534F; border-color: #D9534F; animation: ai-pulse 1.2s ease-in-out infinite; }
+    @keyframes ai-pulse { 0%, 100% { box-shadow: 0 0 0 0 rgba(217, 83, 79, .45); } 50% { box-shadow: 0 0 0 8px rgba(217, 83, 79, 0); } }
+    .ai-submit-btn { color: #fff; background: var(--purple); border: 1px solid var(--purple); }
+    .ai-submit-btn:hover { filter: brightness(1.08); }
+    .ai-home-examples { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 12px; color: var(--muted); font-size: 13px; }
+    .ai-home-examples button { padding: 5px 12px; color: var(--purple); font: inherit; font-size: 13px; background: #fff; border: 1px solid #C6DCDF; border-radius: 999px; cursor: pointer; }
+    .ai-home-examples button:hover { color: #fff; background: var(--purple); border-color: var(--purple); }
+    .ai-home-status { min-height: 1em; margin: 8px 0 0; color: var(--muted); font-size: 13px; }
+    .visually-hidden { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+    @media (max-width: 560px) { .ai-home { padding: 18px 16px; } .ai-home-actions { flex-direction: column; } }
+    .quick-create { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 10px; margin-top: 16px; padding-top: 14px; border-top: 1px dashed #C6DCDF; }
+    .quick-create-title { align-self: center; color: var(--muted); font-size: 14px; font-weight: 700; }
+    .quick-create label { display: grid; gap: 4px; color: var(--muted); font-size: 12px; font-weight: 700; }
+    .quick-create input { padding: 8px 10px; font: inherit; font-size: 14px; background: #fff; border: 1px solid #C6DCDF; border-radius: 8px; }
+    .quick-create input[type=number] { width: 72px; }
+    @media (max-width: 560px) { .quick-create label { flex: 1 1 40%; } .quick-create input { width: 100%; box-sizing: border-box; } }
+    .featured-trips { margin: 28px 0 40px; }
+    .featured-trips .trip-intro { display: -webkit-box; margin: 0 0 12px; overflow: hidden; color: #4B5D60; font-size: 14px; line-height: 1.6; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+    .featured-trips .trip-badges { display: flex; flex-wrap: wrap; gap: 6px; margin: 0 0 10px; }
+    .featured-trips .trip-badges span { padding: 3px 8px; color: var(--purple); background: #EAF5F6; border-radius: 999px; font-size: 12px; font-weight: 700; }
+    .featured-actions { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 14px; }
+    .featured-actions form { margin: 0; }
+    .featured-cta { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; margin-top: 18px; padding: 16px 20px; background: #fff; border: 1px dashed #C6DCDF; border-radius: 8px; color: var(--muted); font-size: 14px; }
+    .member-step-heading { margin: 0 0 12px; }
+    .member-step-heading h2 { margin: 0; font-size: 22px; }
+    .member-step-heading p { margin: 4px 0 0; color: var(--muted); font-size: 14px; }
+    @media (max-width: 850px) { .plan-flow { grid-template-columns: 1fr; } }
     .empty { grid-column: 1 / -1; display: flex; flex-direction: column; align-items: center; gap: 10px; padding: 30px 36px; color: var(--muted); text-align: center; background: #fff; border: 1px dashed #C6DCDF; border-radius: 8px; }
     .empty-mascot { height: 64px; width: auto; display: block; animation: float-y 3.2s ease-in-out infinite; filter: drop-shadow(0 6px 6px rgba(11,59,74,.15)); }
     .section-sparkle { display: inline-block; vertical-align: -2px; margin-right: 6px; animation: twinkle-spin 2.6s ease-in-out infinite; }
@@ -306,7 +361,7 @@
           <svg class="hero-sparkle" style="left:320px;top:26px;animation-delay:.9s;" width="10" height="10" viewBox="0 0 24 24" fill="#ffffff"><path d="M12 2 L14 10 L22 12 L14 14 L12 22 L10 14 L2 12 L10 10 Z"/></svg>
           <p class="eyebrow">TRAVEL TOGETHER</p>
           <h1>{% if is_member %}嗨，{{ session.get('nickname') or session.get('full_name') }}！一起規劃下一趟旅程{% else %}揪伴同行，一起規劃下一趟旅程{% endif %}</h1>
-          <p>{% if is_member %}探索公開行程與旅伴揪團，也可以直接建立並管理自己的旅行。{% else %}探索大家分享的公開行程與旅伴揪團，找到志同道合的旅伴一起出發。{% endif %}</p>
+          <p>{% if is_member %}先挑一份喜歡的行程一鍵套用、微調路線與時間，再依行程安排住宿與預算。{% else %}探索大家分享的公開行程與旅伴揪團，找到志同道合的旅伴一起出發。{% endif %}</p>
           <div class="member-hero-mascots">
             <img src="{{ url_for('static', filename='images/mascot_chick.png') }}" alt="黃色小雞吉祥物">
             <img src="{{ url_for('static', filename='images/mascot_bear.png') }}" alt="白色小熊吉祥物">
@@ -329,6 +384,118 @@
       </div>
       {% endif %}
     </section>
+    {% if is_member %}
+    <section class="ai-home" aria-labelledby="ai-home-title">
+      <h2 id="ai-home-title">✨ 讓 AI 幫你排行程</h2>
+      <p class="ai-home-hint">說說你想去哪裡、玩幾天、喜歡什麼、預算多少，AI 會先排好每日草稿，你再微調。</p>
+      <form method="get" action="{{ url_for('friend_groups.ai_plan') }}" class="ai-home-form">
+        <label class="visually-hidden" for="aiHomeInput">旅行需求</label>
+        <textarea id="aiHomeInput" name="q" rows="3" maxlength="1000" required placeholder="例如：12 月想跟朋友去東京 5 天，喜歡逛街和美食，住宿希望在車站附近，預算每人 3 萬"></textarea>
+        <div class="ai-home-actions">
+          <button type="button" class="ai-voice-btn" data-voice-target="aiHomeInput" data-voice-status="aiHomeStatus" aria-pressed="false">🎤 語音輸入</button>
+          <button type="submit" class="ai-submit-btn">開始規劃 →</button>
+        </div>
+      </form>
+      <div class="ai-home-examples" aria-label="範例">
+        <span>試試看：</span>
+        <button type="button" data-ai-example="想去台北 3 天，喜歡古蹟、夜市，搭大眾運輸，住宿不要太貴">台北 3 天古蹟夜市</button>
+        <button type="button" data-ai-example="帶爸媽去日本北海道 5 天，行程輕鬆不要太趕，想泡溫泉、吃海鮮">北海道 5 天親子溫泉</button>
+        <button type="button" data-ai-example="和朋友去韓國首爾 4 天，喜歡購物、咖啡廳和韓式烤肉">首爾 4 天購物美食</button>
+      </div>
+      <p id="aiHomeStatus" class="ai-home-status" role="status" aria-live="polite"></p>
+      <form method="get" action="{{ url_for('member.create_trip') }}" class="quick-create" aria-label="快速建立行程">
+        <span class="quick-create-title">或自己快速建立：</span>
+        <label>目的地<input type="text" list="quickCityList" id="quickCityInput" placeholder="城市，例如東京" autocomplete="off"></label>
+        <datalist id="quickCityList">{% for city in quick_cities %}<option value="{{ city.name }}" data-city-id="{{ city.city_id }}"></option>{% endfor %}</datalist>
+        <input type="hidden" name="city_id" id="quickCityId">
+        <label>出發<input type="date" name="start_date"></label>
+        <label>回程<input type="date" name="end_date"></label>
+        <label>人數<input type="number" name="people_count" min="1" max="99" value="2"></label>
+        <button type="submit" class="view-button">建立行程 →</button>
+      </form>
+    </section>
+    <section id="featured-trips" class="featured-trips" aria-labelledby="featured-trips-title">
+      <ol class="plan-flow" aria-label="規劃步驟">
+        <li><a href="#featured-trips"><b>挑選行程</b>從熱門行程一鍵套用，或自己建立</a></li>
+        <li><a href="#planning-trips"><b>微調路線與時間</b>拖曳排序、增減景點與餐廳</a></li>
+        <li><a href="#stay-search"><b>住宿與預算</b>依行程路線找飯店、估算花費</a></li>
+      </ol>
+      <div class="section-header">
+        <div>
+          <p class="eyebrow" style="color: var(--purple-light)">STEP 1 · PICK A TRIP</p>
+          <h2 id="featured-trips-title"><svg class="section-sparkle" width="16" height="16" viewBox="0 0 24 24" fill="var(--purple-light)"><path d="M12 2 L14 10 L22 12 L14 14 L12 22 L10 14 L2 12 L10 10 Z"/></svg>熱門公開行程</h2>
+          <p>不知道去哪、怎麼排？套用別人排好的行程，再改成你的版本。</p>
+        </div>
+        <a class="section-link" href="{{ url_for('member.public_trips') }}">查看全部公開行程 →</a>
+      </div>
+      <div class="trip-grid">
+        {% for trip in featured_trips %}
+          <article class="trip-card">
+            <div class="trip-art {% if trip.cover_image_path %}with-image{% endif %}" {% if trip.cover_image_path %}style="background-image: url('{{ url_for('static', filename=trip.cover_image_path) }}')"{% endif %}>
+              {% if not trip.cover_image_path %}<span>✈</span>{% endif %}
+              {% if loop.index <= 3 and trip.favorite_count %}<span class="visibility">🔥 熱門</span>{% endif %}
+            </div>
+            <div class="trip-content">
+              <h3>{{ trip.trip_name }}</h3>
+              <p class="location">{{ trip.country or '未設定國家' }}{% if trip.city %} · {{ trip.city }}{% endif %} · {{ trip.owner_nickname or trip.owner_name or '未提供' }}</p>
+              <div class="trip-badges">
+                {% if trip.days_count %}<span>{{ trip.days_count }} 天</span>{% endif %}
+                <span>{{ trip.item_count }} 個行程點</span>
+                {% if trip.favorite_count %}<span>⭐ {{ trip.favorite_count }}</span>{% endif %}
+              </div>
+              {% if trip.introduction %}<p class="trip-intro">{{ trip.introduction }}</p>{% endif %}
+              <div class="trip-details">
+                {% if trip.people_count %}<span>{{ trip.people_count }} 人</span>{% endif %}
+                {% if trip.total_budget is not none %}<span>參考預算 {{ trip.currency }} {{ "{:,.0f}".format(trip.total_budget) }}</span>{% endif %}
+              </div>
+              <div class="featured-actions">
+                <button class="view-button" type="button" onclick="openTripModal('{{ trip.trip_id }}')">查看行程</button>
+                {% if trip.can_duplicate %}
+                <form method="post" action="{{ url_for('member.duplicate_trip', trip_id=trip.trip_id) }}"><button class="view-button primary" type="submit">一鍵套用並微調</button></form>
+                {% endif %}
+                <form method="post" action="{{ url_for('member.toggle_trip_favorite', trip_id=trip.trip_id) }}"><input type="hidden" name="next" value="{{ url_for('member.dashboard') }}#featured-trips"><button class="view-button" type="submit">{{ '取消收藏' if trip.is_favorited else '☆ 收藏' }}</button></form>
+              </div>
+            </div>
+          </article>
+        {% else %}
+          <div class="empty"><img class="empty-mascot" src="{{ url_for('static', filename='images/mascot_chick.png') }}" alt="">目前還沒有公開行程，來當第一個分享的人吧！</div>
+        {% endfor %}
+      </div>
+      <div class="featured-cta">
+        <span>已經有想去的地方？直接建立自己的行程，排好路線後再找住宿。</span>
+        <a class="view-button primary" href="{{ url_for('member.create_trip') }}">＋ 建立新行程</a>
+      </div>
+    </section>
+    <section id="planning-trips" class="planning-trips" aria-labelledby="planning-trips-title">
+      <div class="section-header">
+        <div>
+          <p class="eyebrow" style="color: var(--purple-light)">STEP 2 · FINE-TUNE</p>
+          <h2 id="planning-trips-title">微調我的行程</h2>
+          <p>進入行程後可以拖曳調整順序、增減景點與餐廳、修改時間。</p>
+        </div>
+        <a class="section-link" href="{{ url_for('member.my_trips') }}">查看我的全部旅程 →</a>
+      </div>
+      <div class="planning-list">
+        {% for trip in planning_trips %}
+          <a class="planning-card" href="{{ url_for('member.trip_detail', trip_id=trip.trip_id) }}">
+            <div>
+              <h3>{{ trip.trip_name }}</h3>
+              <p>{{ trip.country or '' }}{% if trip.city %} · {{ trip.city }}{% endif %} · {{ trip.start_date }} ～ {{ trip.end_date }}</p>
+              <p class="planning-meta">{{ trip.days_count }} 天 · {{ trip.item_count }} 個行程點{% if not trip.item_count %} · 還沒安排內容{% endif %}</p>
+            </div>
+            <span class="view-button primary">開始微調 →</span>
+          </a>
+        {% else %}
+          <div class="empty">還沒有規劃中的行程。先在上方「一鍵套用並微調」或建立新行程，就會出現在這裡。</div>
+        {% endfor %}
+      </div>
+    </section>
+    <div id="stay-search" class="member-step-heading">
+      <p class="eyebrow" style="color: var(--purple-light)">STEP 3 · STAY &amp; BUDGET</p>
+      <h2>行程排好了？接著找住宿與交通</h2>
+      <p>依你的目的地與日期搜尋飯店、機票與火車票。</p>
+    </div>
+    {% endif %}
     <section class="search-panel">
       <div class="search-tabs" role="tablist">
         <button class="search-tab active" type="button" data-tab="hotel">住宿</button>
@@ -598,7 +765,7 @@
       <div id="modalBody"></div>
       {% if is_member %}
       <form id="duplicateTripForm" method="post" class="issue-trigger" style="margin-top: 10px;">
-        <button type="submit" class="view-button">複製此行程</button>
+        <button type="submit" class="view-button primary">一鍵套用並微調</button>
       </form>
       <button id="issueTrigger" class="view-button issue-trigger" type="button" onclick="openIssueModal()">問題回報</button>
       {% endif %}
@@ -713,7 +880,31 @@
     }
   </script>
   <script src="{{ url_for('static', filename='js/city-autocomplete.js') }}" defer></script>
-{% if is_member %}{% include 'member/_notification_drawer.html' %}<script src="{{ url_for('static', filename='js/member_notifications.js') }}" defer></script>{% endif %}
+{% if is_member %}{% include 'member/_notification_drawer.html' %}<script src="{{ url_for('static', filename='js/member_notifications.js') }}" defer></script>
+<script src="{{ url_for('static', filename='js/voice-input.js') }}" defer></script>
+<script>
+  (function () {  // 快速建立行程：把輸入的城市名稱對應到 city_id
+    var input = document.getElementById('quickCityInput');
+    var hidden = document.getElementById('quickCityId');
+    if (!input) return;
+    function sync() {
+      var name = input.value.trim();
+      var options = Array.prototype.slice.call(document.querySelectorAll('#quickCityList option'));
+      var match = options.find(function (o) { return o.value === name; }) ||
+                  options.find(function (o) { return name && (o.value.indexOf(name) === 0 || name.indexOf(o.value) === 0); });
+      hidden.value = match ? match.dataset.cityId : '';
+    }
+    input.addEventListener('change', sync);
+    input.form.addEventListener('submit', sync);
+  })();
+  document.querySelectorAll('[data-ai-example]').forEach(function (chip) {
+    chip.addEventListener('click', function () {
+      var input = document.getElementById('aiHomeInput');
+      input.value = chip.dataset.aiExample;
+      input.focus();
+    });
+  });
+</script>{% endif %}
 <script src="{{ url_for('static', filename='js/member-nav.js') }}" defer></script>
   <script>
     (function () {  // 首頁圖片跑馬燈：自動輪播、左右切換、圓點切換、滑動切換

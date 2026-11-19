@@ -1,5 +1,5 @@
 from collections import Counter
-from datetime import date, datetime
+from datetime import date, datetime, timedelta, time as dt_time
 from decimal import ROUND_DOWN, Decimal, InvalidOperation
 from io import BytesIO
 import json
@@ -23,8 +23,10 @@ from db import get_db_connection
 from utils import delete_uploaded_image, format_hm, get_cities, get_countries, google_maps_url, save_uploaded_attachment, save_uploaded_image
 from content_moderation import is_image_explicit
 from chat_moderation import REMOVED_CHAT_CONTENT, blocked_term, remove_trip_message
+import smart_trip
 import theme_parks
 import weather
+from ai_client import AIUnavailable, ai_ready, ask_json
 
 
 member_bp = Blueprint("member", __name__, url_prefix="/member")
@@ -511,13 +513,77 @@ def dashboard():
         cursor.execute("SELECT line_sub IS NOT NULL AS linked, line_friend FROM users WHERE user_id=%s", (user_id,))
         line_status = cursor.fetchone()
         home_banners = fetch_active_banners(cursor)
+        featured_trips, trips_timeline_json = _fetch_featured_public_trips(cursor, user_id)
+        planning_trips = _fetch_planning_trips(cursor, user_id)
+        quick_cities = get_cities(cursor)
     finally:
         cursor.close(); connection.close()
     return render_template(
         "visitor.html", is_member=True, line_status=line_status,
-        trips_timeline_json={}, city_weather={}, issue_reasons=ISSUE_REASONS,
-        home_banners=home_banners,
+        trips_timeline_json=trips_timeline_json, city_weather={}, issue_reasons=ISSUE_REASONS,
+        home_banners=home_banners, featured_trips=featured_trips, planning_trips=planning_trips,
+        quick_cities=quick_cities,
     )
+
+
+def _fetch_planning_trips(cursor, user_id, limit=3):
+    """會員首頁 STEP 2：自己建立或已加入、還沒結束的行程，方便直接進去微調路線與時間。"""
+    try:
+        cursor.execute("""
+            SELECT t.trip_id, t.trip_name, co.name AS country, ci.name AS city,
+                   t.start_date, t.end_date, t.owner_id,
+                   DATEDIFF(t.end_date, t.start_date) + 1 AS days_count,
+                   (SELECT COUNT(*) FROM itineraries i WHERE i.trip_id = t.trip_id) AS item_count
+            FROM trips t
+            JOIN trip_members tm ON tm.trip_id = t.trip_id AND tm.user_id = %s AND tm.join_status = 'accepted'
+            JOIN countries co ON co.country_id = t.country_id
+            JOIN cities ci ON ci.city_id = t.city_id
+            WHERE t.deleted_at IS NULL AND t.moderation_status = 'visible' AND t.end_date >= CURDATE()
+            ORDER BY t.start_date ASC, t.trip_id DESC
+            LIMIT %s
+        """, (user_id, limit))
+        return cursor.fetchall()
+    except Exception as error:  # 查詢失敗不影響首頁其他區塊
+        print("會員首頁規劃中行程查詢失敗：", error)
+        return []
+
+
+def _fetch_featured_public_trips(cursor, user_id, limit=6):
+    """會員首頁的熱門公開行程：依收藏數、加入人數排序，並附上「查看行程」彈窗用的明細。"""
+    try:
+        cursor.execute("""
+            SELECT t.trip_id, t.owner_id, t.trip_name, co.name AS country, ci.name AS city,
+                   t.start_date, t.end_date, t.people_count, t.total_budget, t.currency,
+                   t.introduction, t.cover_image_path, t.allow_copy,
+                   u.full_name AS owner_name, u.nickname AS owner_nickname,
+                   DATEDIFF(t.end_date, t.start_date) + 1 AS days_count,
+                   (SELECT COUNT(*) FROM itineraries i WHERE i.trip_id = t.trip_id) AS item_count,
+                   (SELECT COUNT(*) FROM favorites f WHERE f.target_type = 'trip' AND f.trip_id = t.trip_id) AS favorite_count,
+                   (SELECT COUNT(*) FROM trip_members tm WHERE tm.trip_id = t.trip_id AND tm.join_status = 'accepted') AS joined_count
+            FROM trips t
+            JOIN users u ON u.user_id = t.owner_id
+            JOIN countries co ON co.country_id = t.country_id
+            JOIN cities ci ON ci.city_id = t.city_id
+            WHERE t.visibility = 'public' AND t.moderation_status = 'visible' AND t.deleted_at IS NULL
+            ORDER BY favorite_count DESC, joined_count DESC, t.trip_id DESC
+            LIMIT %s
+        """, (limit,))
+        trips = cursor.fetchall()
+        cursor.execute("SELECT trip_id FROM favorites WHERE user_id=%s AND target_type='trip'", (user_id,))
+        favorite_ids = {row["trip_id"] for row in cursor.fetchall()}
+        cursor.execute("""
+            SELECT target_id FROM reports
+            WHERE reporter_id = %s AND target_type = 'trip' AND reason LIKE %s
+              AND status IN ('pending', 'processing')
+        """, (user_id, ISSUE_PREFIX + "%"))
+        reported_ids = {row["target_id"] for row in cursor.fetchall()}
+        for trip in trips:
+            trip["is_favorited"] = trip["trip_id"] in favorite_ids
+            trip["can_duplicate"] = trip["owner_id"] == user_id or bool(trip.get("allow_copy"))
+        return trips, _build_trips_timeline(cursor, trips, user_id, favorite_ids, reported_ids)
+    except Exception as error:  # 熱門行程查詢失敗不影響首頁其他區塊
+        print("會員首頁熱門行程查詢失敗：", error)
+        return [], {}
 
 
 @member_bp.route("/trips")
@@ -1932,7 +1998,7 @@ def create_trip():
                     errors.append(str(error))
             if errors:
                 for error in errors: flash(error, "error")
-                return render_template("member/trip_form.html", trip=form, mode="create", countries=countries, cities=cities)
+                return render_template("member/trip_form.html", trip=form, mode="create", countries=countries, cities=cities, popular_cities=_popular_cities(cursor))
             try:
                 cursor.execute("""INSERT INTO trips (owner_id,trip_name,cover_image_path,country_id,city_id,start_date,end_date,people_count,total_budget,currency,introduction,visibility,allow_copy,status,share_token)
                                   VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,'planning',%s)""",
@@ -1945,9 +2011,45 @@ def create_trip():
             except Exception:
                 current_app.logger.exception("建立行程失敗 user_id=%s", session.get("user_id"))
                 connection.rollback(); flash("建立行程失敗，請再試一次。", "error")
-        return render_template("member/trip_form.html", trip=None, mode="create", countries=countries, cities=cities)
+        # 首頁「快速建立行程」帶過來的目的地、日期、人數，先填進表單
+        prefill = {}
+        city_raw = request.args.get("city_id", "")
+        if city_raw.isdigit():
+            city = next((c for c in cities if str(c["city_id"]) == city_raw), None)
+            if city:
+                prefill.update(city_id=city["city_id"], country_id=city["country_id"])
+        for key in ("start_date", "end_date"):
+            try:
+                prefill[key] = date.fromisoformat(request.args.get(key, "")).isoformat()
+            except ValueError:
+                pass
+        people_raw = request.args.get("people_count", "")
+        if people_raw.isdigit() and 1 <= int(people_raw) <= 99:
+            prefill["people_count"] = int(people_raw)
+        return render_template("member/trip_form.html", trip=prefill or None, mode="create", countries=countries,
+                               cities=cities, popular_cities=_popular_cities(cursor))
     finally:
         cursor.close(); connection.close()
+
+
+def _popular_cities(cursor, limit=10):
+    """熱門目的地：依景點數與行程數排序的城市，給建立行程時一鍵點選。"""
+    try:
+        cursor.execute("""
+            SELECT city_id, name, country_id, country FROM (
+                SELECT ci.city_id, ci.name, ci.country_id, co.name AS country,
+                       (SELECT COUNT(*) FROM attractions a WHERE a.city_id = ci.city_id AND a.status = 'active' AND a.deleted_at IS NULL) AS attraction_count,
+                       (SELECT COUNT(*) FROM trips t WHERE t.city_id = ci.city_id AND t.deleted_at IS NULL) AS trip_count
+                FROM cities ci JOIN countries co ON co.country_id = ci.country_id
+            ) ranked
+            WHERE attraction_count > 0 OR trip_count >= 2
+            ORDER BY attraction_count + trip_count * 2 DESC, city_id
+            LIMIT %s
+        """, (limit,))
+        return cursor.fetchall()
+    except Exception as error:
+        print("熱門目的地查詢失敗：", error)
+        return []
 
 
 def _summarize_transport_time(itinerary):
@@ -2059,11 +2161,17 @@ def trip_detail(trip_id):
         """, (trip["country_id"], trip["city_id"])); popular_attractions = cursor.fetchall()
         cursor.execute("SELECT COALESCE(SUM(amount),0) AS actual FROM expenses WHERE trip_id=%s AND expense_type='actual'", (trip_id,)); actual = cursor.fetchone()["actual"]
         transport_summary = _summarize_transport_time(itinerary)
+        stay_tier = request.args.get("tier") if request.args.get("tier") in smart_trip.LODGING_TIERS else "mid"
+        try:
+            stay_plan, budget_estimate = _build_stay_plan(cursor, trip, _load_planning_items(cursor, trip_id), stay_tier)
+        except Exception as error:  # 住宿與預算建議失敗不影響行程頁其他區塊
+            print("住宿與預算建議失敗：", error)
+            stay_plan, budget_estimate = [], None
         preference_rows = trip_preferences.load_trip_preferences(cursor, trip_id)
         my_preference, my_preference_source = trip_preferences.my_form_values(cursor, preference_rows, session["user_id"])
     finally:
         cursor.close(); connection.close()
-    return render_template("member/trip_detail.html", trip=trip, itinerary=itinerary, place_options=place_options, popular_attractions=popular_attractions, addable_trips=[trip], day_last_coords=day_last_coords, city_weather_days=city_weather_days, members=members, mention_members=[{"name": m["nickname"] or m["full_name"], "full_name": m["full_name"], "is_me": m["user_id"] == session["user_id"]} for m in members], pending_invitations=pending_invitations, pending_requests=pending_requests, invite_link=invite_link, proposals=proposals, votes=votes, comments=comments, itinerary_comments=itinerary_comments, proposal_comments=proposal_comments, reported_comment_ids=reported_comment_ids, comment_report_reasons=COMMENT_REPORT_REASONS, expenses=expenses, balance_summary=balance_summary, attachments=attachments, actual=actual, can_edit=_can_edit(trip), is_owner=trip["member_role"] == "owner", now=datetime.now(), item_type_labels=ITEM_TYPE_LABELS, itinerary_change_field_labels=ITINERARY_CHANGE_FIELD_LABELS, disney_parks=theme_parks.get_disney_parks(), transport_summary=transport_summary, preferences_ready=preference_rows is not None, my_preference=my_preference, my_preference_source=my_preference_source, preference_summary=trip_preferences.summarize(preference_rows), preference_options=trip_preferences, return_group_id=return_group_id)
+    return render_template("member/trip_detail.html", trip=trip, itinerary=itinerary, place_options=place_options, popular_attractions=popular_attractions, addable_trips=[trip], day_last_coords=day_last_coords, city_weather_days=city_weather_days, members=members, mention_members=[{"name": m["nickname"] or m["full_name"], "full_name": m["full_name"], "is_me": m["user_id"] == session["user_id"]} for m in members], pending_invitations=pending_invitations, pending_requests=pending_requests, invite_link=invite_link, proposals=proposals, votes=votes, comments=comments, itinerary_comments=itinerary_comments, proposal_comments=proposal_comments, reported_comment_ids=reported_comment_ids, comment_report_reasons=COMMENT_REPORT_REASONS, expenses=expenses, balance_summary=balance_summary, attachments=attachments, actual=actual, can_edit=_can_edit(trip), is_owner=trip["member_role"] == "owner", now=datetime.now(), item_type_labels=ITEM_TYPE_LABELS, itinerary_change_field_labels=ITINERARY_CHANGE_FIELD_LABELS, disney_parks=theme_parks.get_disney_parks(), transport_summary=transport_summary, preferences_ready=preference_rows is not None, my_preference=my_preference, my_preference_source=my_preference_source, preference_summary=trip_preferences.summarize(preference_rows), preference_options=trip_preferences, return_group_id=return_group_id, stay_plan=stay_plan, budget_estimate=budget_estimate, stay_tier=stay_tier, lodging_tiers=smart_trip.LODGING_TIERS, ai_ready=ai_ready())
 
 
 @member_bp.route("/trips/<int:trip_id>/export/excel")
@@ -2589,6 +2697,254 @@ def reorder_itinerary(trip_id):
     finally:
         cursor.close(); connection.close()
     return jsonify(ok=True)
+
+def _time_value(value):
+    """MySQL 的 TIME 欄位會讀成 timedelta，轉成 time 方便計算。"""
+    if value is None or isinstance(value, dt_time):
+        return value
+    seconds = int(value.total_seconds()) % 86400
+    return dt_time(seconds // 3600, seconds % 3600 // 60)
+
+
+def _load_planning_items(cursor, trip_id, itinerary_date=None):
+    """讀取行程項目，附上景點／餐廳／住宿的座標、營業時間、建議停留時間與價格，給智慧排程與預算估算用。"""
+    sql = """
+        SELECT i.itinerary_id, i.itinerary_date, i.item_type, i.title, i.start_time, i.end_time, i.is_all_day,
+               i.address, i.estimated_cost, i.accommodation_id, i.sort_order, i.transport_method, i.transport_minutes,
+               COALESCE(a.latitude, r.latitude, ac.latitude) AS lat,
+               COALESCE(a.longitude, r.longitude, ac.longitude) AS lng,
+               COALESCE(a.opening_hours, r.opening_hours) AS opening_hours,
+               a.suggested_duration_minutes AS duration, a.ticket_price, r.price_level,
+               ac.price_per_night, ac.name AS accommodation_name
+        FROM itineraries i
+        LEFT JOIN attractions a ON a.attraction_id = i.attraction_id AND a.deleted_at IS NULL
+        LEFT JOIN restaurants r ON r.restaurant_id = i.restaurant_id AND r.deleted_at IS NULL
+        LEFT JOIN accommodations ac ON ac.accommodation_id = i.accommodation_id AND ac.deleted_at IS NULL
+        WHERE i.trip_id = %s"""
+    params = [trip_id]
+    if itinerary_date is not None:
+        sql += " AND i.itinerary_date = %s"
+        params.append(itinerary_date)
+    cursor.execute(sql + " ORDER BY i.itinerary_date, i.sort_order, i.itinerary_id", tuple(params))
+    rows = cursor.fetchall()
+    for row in rows:
+        row["start_time"] = _time_value(row["start_time"])
+        row["end_time"] = _time_value(row["end_time"])
+    return rows
+
+
+@member_bp.route("/trips/<int:trip_id>/smart-schedule", methods=["POST"])
+@login_required("member")
+def smart_schedule_preview(trip_id):
+    """智慧排程預覽：依距離（與 AI）重新排列某一天的行程，回傳建議順序、時間與交通，不會直接改資料。"""
+    data = request.get_json(silent=True) or {}
+    try:
+        day = date.fromisoformat(str(data.get("itinerary_date", "")))
+    except ValueError:
+        return jsonify(error="日期格式錯誤。"), 400
+    connection = get_db_connection()
+    if connection is None: return jsonify(error="目前無法連線資料庫。"), 503
+    cursor = connection.cursor(dictionary=True)
+    try:
+        trip = _member_access(cursor, trip_id, session["user_id"])
+        if not trip or not _can_edit(trip):
+            return jsonify(error="你沒有編輯這個行程的權限。"), 403
+        items = _load_planning_items(cursor, trip_id, day)
+    finally:
+        cursor.close(); connection.close()
+    if len(items) < 2:
+        return jsonify(error="這一天至少要有兩個行程項目才能排順序。"), 400
+    city = f"{trip.get('country') or ''} {trip.get('city') or ''}".strip()
+    result = smart_trip.smart_schedule_day(items, day, city, use_ai=data.get("use_ai", True) is not False)
+    result["itinerary_date"] = day.isoformat()
+    return jsonify(result)
+
+
+@member_bp.route("/trips/<int:trip_id>/smart-schedule/apply", methods=["POST"])
+@login_required("member")
+def smart_schedule_apply(trip_id):
+    """套用智慧排程：更新排序、建議開始時間（保留原本的停留長度）與交通方式／時間。"""
+    data = request.get_json(silent=True) or {}
+    try:
+        day = date.fromisoformat(str(data.get("itinerary_date", "")))
+    except ValueError:
+        return jsonify(error="日期格式錯誤。"), 400
+    rows = data.get("items")
+    if not isinstance(rows, list) or not rows:
+        return jsonify(error="缺少排程內容。"), 400
+    parsed = []
+    for row in rows:
+        if not isinstance(row, dict):
+            return jsonify(error="排程格式錯誤。"), 400
+        try:
+            itinerary_id = int(row.get("itinerary_id"))
+        except (TypeError, ValueError):
+            return jsonify(error="排程格式錯誤。"), 400
+        start = None
+        match = re.fullmatch(r"([01]\d|2[0-3]):([0-5]\d)", str(row.get("start_time") or ""))
+        if match:
+            start = dt_time(int(match.group(1)), int(match.group(2)))
+        method = str(row.get("transport_method") or "").strip()[:100] or None
+        try:
+            minutes = int(row.get("transport_minutes")) if row.get("transport_minutes") not in (None, "") else None
+        except (TypeError, ValueError):
+            minutes = None
+        if minutes is not None and not 0 <= minutes <= 1440:
+            minutes = None
+        parsed.append((itinerary_id, start, method, minutes))
+    connection = get_db_connection()
+    if connection is None: return jsonify(error="目前無法連線資料庫。"), 503
+    cursor = connection.cursor(dictionary=True)
+    try:
+        trip = _member_access(cursor, trip_id, session["user_id"])
+        if not trip or not _can_edit(trip):
+            return jsonify(error="你沒有編輯這個行程的權限。"), 403
+        current = {item["itinerary_id"]: item for item in _load_planning_items(cursor, trip_id, day)}
+        if sorted(current) != sorted(row[0] for row in parsed):
+            return jsonify(error="行程項目已經變動，請重新整理頁面後再排一次。"), 409
+        for index, (itinerary_id, start, method, minutes) in enumerate(parsed, start=1):
+            item = current[itinerary_id]
+            new_start, new_end = item["start_time"], item["end_time"]
+            if start and not item["is_all_day"]:
+                if item["start_time"] and item["end_time"]:
+                    length = ((item["end_time"].hour * 60 + item["end_time"].minute)
+                              - (item["start_time"].hour * 60 + item["start_time"].minute))
+                    end_minutes = min(start.hour * 60 + start.minute + max(length, 0), 23 * 60 + 59)
+                    new_end = dt_time(end_minutes // 60, end_minutes % 60)
+                elif item["end_time"] and item["end_time"] <= start:
+                    new_end = None
+                new_start = start
+            if index > 1 and method:
+                cursor.execute("""UPDATE itineraries SET sort_order=%s, start_time=%s, end_time=%s,
+                                         transport_method=%s, transport_minutes=%s
+                                  WHERE itinerary_id=%s AND trip_id=%s""",
+                               (index, new_start, new_end, method, minutes or 0, itinerary_id, trip_id))
+            else:
+                cursor.execute("UPDATE itineraries SET sort_order=%s, start_time=%s, end_time=%s WHERE itinerary_id=%s AND trip_id=%s",
+                               (index, new_start, new_end, itinerary_id, trip_id))
+        connection.commit()
+    except Exception as error:
+        connection.rollback(); print("套用智慧排程失敗：", error)
+        return jsonify(error="套用排程失敗，請再試一次。"), 500
+    finally:
+        cursor.close(); connection.close()
+    return jsonify(ok=True)
+
+
+def _build_stay_plan(cursor, trip, items, tier):
+    """住宿與預算建議：每一晚依當天最後一站推薦附近住宿，並依已排入的行程估算整趟預算。"""
+    nights = max(0, (trip["end_date"] - trip["start_date"]).days)
+    by_day = {}
+    for item in items:
+        by_day.setdefault(item["itinerary_date"], []).append(item)
+    all_coords = [c for c in (smart_trip.coordinates(i["lat"], i["lng"]) for i in items) if c]
+    center = ((sum(c[0] for c in all_coords) / len(all_coords), sum(c[1] for c in all_coords) / len(all_coords))
+              if all_coords else None)
+    plan, lodging_prices = [], []
+    for night in range(nights):
+        day = trip["start_date"] + timedelta(days=night)
+        day_items = by_day.get(day, [])
+        booked = next((i for i in day_items if i["item_type"] == "accommodation"), None)
+        anchor = next((i for i in reversed(day_items)
+                       if i["item_type"] != "accommodation" and smart_trip.coordinates(i["lat"], i["lng"])), None)
+        origin = smart_trip.coordinates(anchor["lat"], anchor["lng"]) if anchor else center
+        hotels = smart_trip.find_nearby_accommodations(cursor, origin, trip["country_id"]) if origin else []
+        if booked:
+            lodging_prices.append(booked.get("price_per_night") or booked.get("estimated_cost") or None)
+        else:
+            priced = sorted(float(h["price_per_night"]) for h in hotels if h.get("price_per_night"))
+            lodging_prices.append(priced[len(priced) // 2] if priced else None)
+        plan.append({"date": day, "anchor": anchor["title"] if anchor else ("行程中心點" if center else None),
+                     "booked": booked, "hotels": hotels})
+    budget = smart_trip.estimate_budget(items, trip.get("people_count"), nights, lodging_prices, tier)
+    return plan, budget
+
+
+ALLOWED_SCAN_TYPES = {"image/jpeg", "image/png", "image/webp", "image/heic", "image/heif"}
+SCAN_KINDS = {"flight": "機票", "hotel": "訂房", "train": "車票", "ticket": "門票／票券", "receipt": "收據／消費", "other": "其他"}
+SCAN_MAX_BYTES = 8 * 1024 * 1024
+
+
+def _iso_date_or_none(value):
+    try:
+        return date.fromisoformat(str(value)).isoformat()
+    except ValueError:
+        return None
+
+
+@member_bp.route("/trips/<int:trip_id>/expenses/scan", methods=["POST"])
+@login_required("member")
+def scan_expense_image(trip_id):
+    """上傳機票、訂房或消費截圖，由 AI 辨識金額、日期與類型，回傳給前端填入新增費用表單（不會直接儲存）。"""
+    upload = request.files.get("image")
+    if not upload or not upload.filename:
+        return jsonify(error="請選擇一張截圖。"), 400
+    mime = (upload.mimetype or "").lower()
+    if mime not in ALLOWED_SCAN_TYPES:
+        return jsonify(error="只支援 JPG、PNG、WEBP 或 HEIC 圖片。"), 400
+    image = upload.read(SCAN_MAX_BYTES + 1)
+    if len(image) > SCAN_MAX_BYTES:
+        return jsonify(error="圖片超過 8MB，請裁切或壓縮後再上傳。"), 400
+    connection = get_db_connection()
+    if connection is None: return jsonify(error="目前無法連線資料庫。"), 503
+    cursor = connection.cursor(dictionary=True)
+    try:
+        trip = _member_access(cursor, trip_id, session["user_id"])
+    finally:
+        cursor.close(); connection.close()
+    if not trip:
+        return jsonify(error="你沒有這個行程的權限。"), 403
+    if not ai_ready():
+        return jsonify(error="伺服器尚未設定 AI 服務金鑰，暫時無法辨識截圖，請手動填寫。"), 503
+    prompt = (
+        "你是旅遊記帳助手。請辨識這張截圖（機票、訂房確認、車票、門票或消費收據），只回傳 JSON 物件，文字用繁體中文。"
+        f"這趟旅行：{trip.get('country') or ''} {trip.get('city') or ''}，{trip['start_date']} 到 {trip['end_date']}，"
+        f"記帳幣別 {trip['currency']}。"
+        '格式：{"kind":"flight|hotel|train|ticket|receipt|other","expense_name":"簡短名稱，例如「長榮 BR198 台北→東京」",'
+        '"amount":數字或null,"currency":"三碼幣別或null","date":"YYYY-MM-DD 或 null（付款或消費日）",'
+        '"merchant":"商家或航空公司","details":"一句話重點，例如航班時間、入住退房日期、房型",'
+        '"itinerary":{"date":"YYYY-MM-DD 或 null","start_time":"HH:MM 或 null","title":"要放進每日行程的名稱或 null",'
+        '"item_type":"transport|accommodation|attraction|restaurant|other"},"confidence":"high|medium|low"}。'
+        "amount 請填總金額（含稅）；看不清楚的欄位填 null，不要猜。itinerary 只有機票、車票、訂房、門票需要填。"
+    )
+    try:
+        payload = ask_json(prompt, image_bytes=image, image_mime=mime)
+    except AIUnavailable as error:
+        return jsonify(error=str(error)), 502
+    kind = payload.get("kind") if payload.get("kind") in SCAN_KINDS else "other"
+    try:
+        amount = round(float(payload.get("amount")), 2) if payload.get("amount") is not None else None
+        if amount is not None and not 0 <= amount <= 100_000_000:
+            amount = None
+    except (TypeError, ValueError):
+        amount = None
+    currency = str(payload.get("currency") or "").strip().upper()
+    currency = currency if re.fullmatch(r"[A-Z]{3}", currency) else None
+    itinerary = payload.get("itinerary") if isinstance(payload.get("itinerary"), dict) else {}
+    suggestion = None
+    item_date = _iso_date_or_none(itinerary.get("date"))
+    title = str(itinerary.get("title") or "").strip()[:150]
+    if item_date and title and trip["start_date"].isoformat() <= item_date <= trip["end_date"].isoformat():
+        start = str(itinerary.get("start_time") or "")
+        suggestion = {
+            "date": item_date, "title": title,
+            "start_time": start if re.fullmatch(r"([01]\d|2[0-3]):[0-5]\d", start) else "",
+            "item_type": itinerary.get("item_type") if itinerary.get("item_type") in ITEM_TYPE_LABELS else "other",
+        }
+    warnings = ["AI 辨識結果僅供參考，請核對截圖上的金額、日期，與實際付款或訂房網站顯示的價格是否一致。"]
+    if currency and currency != trip["currency"]:
+        warnings.append(f"截圖幣別是 {currency}，這趟行程記帳幣別是 {trip['currency']}，請自行換算後再儲存。")
+    if payload.get("confidence") == "low":
+        warnings.append("截圖不太清楚，部分欄位可能不正確。")
+    return jsonify(
+        kind=kind, kind_label=SCAN_KINDS[kind],
+        expense_name=str(payload.get("expense_name") or "").strip()[:150],
+        amount=amount, currency=currency, date=_iso_date_or_none(payload.get("date")),
+        merchant=str(payload.get("merchant") or "").strip()[:100],
+        details=str(payload.get("details") or "").strip()[:300],
+        itinerary=suggestion, warnings=warnings,
+    )
+
 
 PROPOSAL_TYPES = ("attraction", "restaurant", "accommodation", "activity", "transport", "date", "other")
 

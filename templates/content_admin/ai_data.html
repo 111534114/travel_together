@@ -28,6 +28,17 @@
         <h2>{{ type_config[item_type].label }}資料確認狀態</h2>
         <span>共 {{ items|length }} 筆</span>
     </div>
+    <form method="POST" action="{{ url_for('ai_data.autofill_items', item_type=item_type) }}" class="ai-autofill-bar" onsubmit="this.querySelector('button').disabled=true;this.querySelector('button').textContent='🤖 補齊中，約需 10–60 秒…';">
+        <input type="hidden" name="keyword" value="{{ keyword or '' }}">
+        <button type="submit">🤖 AI 自動補齊缺漏（每次最多 10 筆）</button>
+        <span>依名稱與城市查 Google 地點，補上地址、座標、營業時間、介紹與圖片；只填空白欄位，不會覆蓋既有資料。</span>
+    </form>
+    <style>
+        .ai-autofill-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin: 0 0 14px; padding: 12px 14px; background: #f5f0fd; border: 1px dashed #b9a2e3; border-radius: 10px; }
+        .ai-autofill-bar button { padding: 8px 14px; color: #fff; font-weight: 700; background: #6a3fb5; border: 0; border-radius: 8px; cursor: pointer; }
+        .ai-autofill-bar button:disabled { opacity: .7; cursor: wait; }
+        .ai-autofill-bar span { color: #5d5470; font-size: 13px; }
+    </style>
 
     <div class="table-container">
         <table class="admin-table">
@@ -65,6 +76,12 @@
                     {% endif %}
                 </td>
                 <td>
+                    {% if item.missing_fields %}
+                    <form method="POST" action="{{ url_for('ai_data.autofill_items', item_type=item_type) }}" class="inline-form">
+                        <input type="hidden" name="item_id" value="{{ item.item_id }}"><input type="hidden" name="keyword" value="{{ keyword or '' }}">
+                        <button type="submit" class="small-button">🤖 AI 補齊</button>
+                    </form>
+                    {% endif %}
                     <form method="POST" action="{{ url_for('ai_data.verify_item', item_type=item_type, item_id=item.item_id, keyword=keyword) }}" class="inline-form">
                         <button type="submit" class="small-button">標記今日已確認</button>
                     </form>

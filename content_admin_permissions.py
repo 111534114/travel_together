@@ -84,7 +84,7 @@ _ENDPOINT_ACTIONS = {
         "mark_no_show_participant": "edit", "post_event_announcement": "edit",
         "handle_group_report": "edit",
     },
-    "ai_data": {"verify_item": "edit"},
+    "ai_data": {"verify_item": "edit", "autofill_items": "edit"},
 }
 
 

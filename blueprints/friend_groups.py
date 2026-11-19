@@ -1959,10 +1959,11 @@ def ai_plan():
     if not _has_line_bound(cursor, session["user_id"]):
         cursor.close(); connection.close()
         flash("請先綁定 LINE 帳號，才能使用 AI 規劃。", "error")
-        return redirect(url_for("line_bind", next=url_for("friend_groups.ai_plan")))
+        return redirect(url_for("line_bind", next=url_for("friend_groups.ai_plan", q=request.args.get("q", "")[:1000] or None)))
     countries = []
     cities = []
-    form_values = request.form if request.method == "POST" else {}
+    # 從首頁「讓 AI 幫你排行程」帶過來的需求文字（?q=），先填進旅行需求欄位
+    form_values = request.form if request.method == "POST" else {"user_request": request.args.get("q", "").strip()[:1000]}
     try:
         countries = get_countries(cursor)
         cities = get_cities(cursor)

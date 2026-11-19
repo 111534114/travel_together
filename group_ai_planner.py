@@ -7,6 +7,8 @@ import time
 
 import requests
 
+import currency_rates
+
 from config import ANTHROPIC_API_KEY, GEMINI_API_KEY
 
 
@@ -37,14 +39,18 @@ def normalize_plan(payload, start_date, end_date):
         if start_time and not re.fullmatch(r"(?:[01]\d|2[0-3]):[0-5]\d", start_time):
             start_time = ""
         try:
-            cost = max(0, min(float(entry.get("estimated_cost") or 0), 10_000_000))
+            cost = max(0.0, float(entry.get("estimated_cost") or 0))
         except (TypeError, ValueError):
-            cost = 0
+            cost = 0.0
+        # AI 給的是當地幣別金額（cost_currency），換算成新臺幣；認不得的幣別寧可留 0 也不要放錯的數字
+        if cost and entry.get("cost_currency"):
+            cost = currency_rates.convert(cost, str(entry["cost_currency"])) or 0.0
+        cost = min(cost, 10_000_000)
         items.append({
             "date": item_date.isoformat(), "type": item_type, "title": title,
             "start_time": start_time or None,
             "address": str(entry.get("address") or "").strip()[:255] or None,
-            "estimated_cost": round(cost, 2),
+            "estimated_cost": round(cost),
             "notes": str(entry.get("notes") or "").strip()[:1000] or None,
         })
     if not items:
@@ -60,9 +66,14 @@ def generate_plan(user_request, country, city, start_date, end_date, people_coun
         "格式：{\"summary\":\"...\",\"items\":[{\"date\":\"YYYY-MM-DD\","
         "\"type\":\"attraction|restaurant|accommodation|transport|shopping|meeting|free_time|other\","
         "\"title\":\"...\",\"start_time\":\"HH:MM 或空字串\",\"address\":\"...\","
-        "\"estimated_cost\":0,\"notes\":\"...\"}]}。"
+        "\"estimated_cost\":6500,\"cost_currency\":\"JPY\",\"notes\":\"...\"}]}。"
         "每一天安排景點、交通與住宿建議（當天往返可不排住宿），最多 35 筆。"
-        "不要捏造即時班次、空房、即時價格或宣稱已訂位；不確定的內容在 notes 標示須自行查證。"
+        f"estimated_cost 必填：這一項「全部 {people_count} 人合計」的參考花費，用當地幣別的數字（不要自己換算匯率），"
+        "cost_currency 填該幣別的 ISO 代碼（日本 JPY、韓國 KRW、台灣 TWD、美國 USD、歐元區 EUR…），系統會自動換算成新臺幣；"
+        "依當地一般行情估算（門票、一餐的平均消費、住宿一晚的房價、交通票價等）；"
+        "真的免費（例如免門票的寺廟、公園、自由散步）才填 0。"
+        "這是行前預算參考，不是即時報價，請在 notes 簡短寫出估算依據（例如「門票約 ¥2,000／人」）。"
+        "不要捏造即時班次、空房或宣稱已訂位；不確定的內容在 notes 標示須自行查證。"
         f"目的地：{country} {city}。日期：{start_date} 到 {end_date}。人數：{people_count}。"
         f"總預算參考：{budget} TWD。旅客需求：{user_request}"
     )

@@ -24,6 +24,8 @@ from utils import delete_uploaded_image, format_hm, get_cities, get_countries, g
 from content_moderation import is_image_explicit
 from chat_moderation import REMOVED_CHAT_CONTENT, blocked_term, remove_trip_message
 import smart_trip
+import trip_request
+import currency_rates
 import theme_parks
 import weather
 from ai_client import AIUnavailable, ai_ready, ask_json
@@ -758,8 +760,7 @@ def announcements_page():
     return render_template("member/announcements.html", announcements=announcements)
 
 
-@member_bp.route("/album")
-@login_required("member")
+@member_bp.route("/album")  # 訪客不用登入也能瀏覽(跟探索景點/餐廳/住宿一致)，純粹展示公開核准的相簿貼文，沒有個人化內容
 def album_page():
     connection = _connection_or_home()
     if connection is None:
@@ -974,13 +975,13 @@ def _addable_trips(cursor, user_id):
     return cursor.fetchall()
 
 
-@member_bp.route("/attractions")
-@login_required("member")
+@member_bp.route("/attractions")  # 訪客不用登入也能瀏覽；收藏、加入行程等個人化動作各自的路由還是要求登入
 def browse_attractions():
+    user_id = session.get("user_id")
     keyword = request.args.get("keyword", "").strip()
     country_id = request.args.get("country_id", "").strip()
     city_id = request.args.get("city_id", "").strip()
-    favorites_only = request.args.get("favorites_only") == "1"
+    favorites_only = request.args.get("favorites_only") == "1" and bool(user_id)
 
     connection = _connection_or_home()
     if connection is None:
@@ -991,7 +992,7 @@ def browse_attractions():
     cursor = connection.cursor(dictionary=True)
     try:
         conditions = ["a.status = 'active'", "a.deleted_at IS NULL"]
-        params = [session["user_id"]]
+        params = [user_id]
 
         if keyword:
             conditions.append("(a.name LIKE %s OR a.address LIKE %s)")
@@ -1025,7 +1026,7 @@ def browse_attractions():
         )
         countries = get_countries(cursor)
         cities = get_cities(cursor)
-        addable_trips = _addable_trips(cursor, session["user_id"])
+        addable_trips = _addable_trips(cursor, user_id) if user_id else []
     finally:
         cursor.close(); connection.close()
 
@@ -1071,8 +1072,7 @@ def attraction_rankings():
                            page=page, page_count=page_count, rank_offset=rank_offset)
 
 
-@member_bp.route("/attractions/rankings/data")
-@login_required("member")
+@member_bp.route("/attractions/rankings/data")  # 排行榜彈窗用的 AJAX，純公開統計資料，訪客不用登入也能看
 def attraction_rankings_data():
     """Return one ranking page for the Explore page's in-place dialog."""
     keyword = request.args.get("keyword", "").strip()[:100]
@@ -1135,9 +1135,9 @@ def attraction_rankings_data():
     })
 
 
-@member_bp.route("/attractions/<int:attraction_id>")
-@login_required("member")
+@member_bp.route("/attractions/<int:attraction_id>")  # 訪客不用登入也能瀏覽；收藏、留言、加入行程等個人化動作各自的路由還是要求登入
 def attraction_detail(attraction_id):
+    user_id = session.get("user_id")
     connection = _connection_or_home()
     if connection is None: return redirect(url_for("member.browse_attractions"))
     cursor = connection.cursor(dictionary=True)
@@ -1154,13 +1154,13 @@ def attraction_detail(attraction_id):
             JOIN cities ci ON ci.city_id = a.city_id
             LEFT JOIN favorites f ON f.attraction_id = a.attraction_id AND f.user_id = %s
             WHERE a.attraction_id = %s AND a.status = 'active' AND a.deleted_at IS NULL
-        """, (session["user_id"], attraction_id))
+        """, (user_id, attraction_id))
         attraction = cursor.fetchone()
-        addable_trips = _addable_trips(cursor, session["user_id"]) if attraction else []
+        addable_trips = _addable_trips(cursor, user_id) if attraction and user_id else []
         posts = []
         if attraction:
             added_to = request.args.get("added_to", "")
-            if added_to.isdigit() and len(added_to) <= 20:
+            if user_id and added_to.isdigit() and len(added_to) <= 20:  # 剛加入行程後導回來的「附近景點推薦」區塊，匿名訪客不會有這個情境
                 cursor.execute("""
                     SELECT i.trip_id, i.itinerary_date, t.trip_name
                     FROM itineraries i
@@ -1170,7 +1170,7 @@ def attraction_detail(attraction_id):
                         AND tm.member_role IN ('owner', 'editor')
                     WHERE i.itinerary_id = %s AND i.created_by = %s
                       AND i.item_type = 'attraction'
-                """, (session["user_id"], int(added_to), session["user_id"]))
+                """, (user_id, int(added_to), user_id))
                 nearby_trip = cursor.fetchone()
                 if nearby_trip:
                     nearby_trip_addable = any(
@@ -1184,7 +1184,7 @@ def attraction_detail(attraction_id):
                 FROM attraction_posts p JOIN users u ON u.user_id = p.user_id
                 WHERE p.attraction_id=%s AND (p.review_status='approved' OR p.user_id=%s)
                 ORDER BY p.created_at DESC
-            """, (attraction_id, session["user_id"]))
+            """, (attraction_id, user_id))
             posts = cursor.fetchall()
             if posts:
                 post_ids = [post["post_id"] for post in posts]
@@ -1568,13 +1568,13 @@ def toggle_favorite(attraction_id):
     return redirect(next_url)
 
 
-@member_bp.route("/restaurants")
-@login_required("member")
+@member_bp.route("/restaurants")  # 訪客不用登入也能瀏覽；收藏、加入行程等個人化動作各自的路由還是要求登入
 def browse_restaurants():
+    user_id = session.get("user_id")
     keyword = request.args.get("keyword", "").strip()
     country_id = request.args.get("country_id", "").strip()
     city_id = request.args.get("city_id", "").strip()
-    favorites_only = request.args.get("favorites_only") == "1"
+    favorites_only = request.args.get("favorites_only") == "1" and bool(user_id)
 
     connection = _connection_or_home()
     if connection is None:
@@ -1585,7 +1585,7 @@ def browse_restaurants():
     cursor = connection.cursor(dictionary=True)
     try:
         conditions = ["r.status = 'active'", "r.deleted_at IS NULL"]
-        params = [session["user_id"]]
+        params = [user_id]
 
         if keyword:
             conditions.append("(r.name LIKE %s OR r.address LIKE %s)")
@@ -1620,7 +1620,7 @@ def browse_restaurants():
         )
         countries = get_countries(cursor)
         cities = get_cities(cursor)
-        addable_trips = _addable_trips(cursor, session["user_id"])
+        addable_trips = _addable_trips(cursor, user_id) if user_id else []
     finally:
         cursor.close(); connection.close()
 
@@ -1630,8 +1630,7 @@ def browse_restaurants():
                             taiwan_counties=TAIWAN_COUNTIES)
 
 
-@member_bp.route("/restaurants/rankings/data")
-@login_required("member")
+@member_bp.route("/restaurants/rankings/data")  # 排行榜彈窗用的 AJAX，純公開統計資料，訪客不用登入也能看
 def restaurant_rankings_data():
     """Return the top-5 ranking data for the Explore page's in-place dialog."""
     country_id = request.args.get("country_id", "").strip()
@@ -1663,9 +1662,9 @@ def restaurant_rankings_data():
     } for index, row in enumerate(rankings, start=1)]})
 
 
-@member_bp.route("/restaurants/<int:restaurant_id>")
-@login_required("member")
+@member_bp.route("/restaurants/<int:restaurant_id>")  # 訪客不用登入也能瀏覽；收藏、加入行程等個人化動作各自的路由還是要求登入
 def restaurant_detail(restaurant_id):
+    user_id = session.get("user_id")
     connection = _connection_or_home()
     if connection is None: return redirect(url_for("member.browse_restaurants"))
     cursor = connection.cursor(dictionary=True)
@@ -1679,9 +1678,9 @@ def restaurant_detail(restaurant_id):
             JOIN cities ci ON ci.city_id = r.city_id
             LEFT JOIN favorites f ON f.restaurant_id = r.restaurant_id AND f.user_id = %s
             WHERE r.restaurant_id = %s AND r.status = 'active' AND r.deleted_at IS NULL
-        """, (session["user_id"], restaurant_id))
+        """, (user_id, restaurant_id))
         restaurant = cursor.fetchone()
-        addable_trips = _addable_trips(cursor, session["user_id"]) if restaurant else []
+        addable_trips = _addable_trips(cursor, user_id) if restaurant and user_id else []
     finally:
         cursor.close(); connection.close()
 
@@ -1772,13 +1771,13 @@ def toggle_restaurant_favorite(restaurant_id):
     return redirect(next_url)
 
 
-@member_bp.route("/accommodations")
-@login_required("member")
+@member_bp.route("/accommodations")  # 訪客不用登入也能瀏覽；收藏、加入行程等個人化動作各自的路由還是要求登入
 def browse_accommodations():
+    user_id = session.get("user_id")
     keyword = request.args.get("keyword", "").strip()
     country_id = request.args.get("country_id", "").strip()
     city_id = request.args.get("city_id", "").strip()
-    favorites_only = request.args.get("favorites_only") == "1"
+    favorites_only = request.args.get("favorites_only") == "1" and bool(user_id)
 
     connection = _connection_or_home()
     if connection is None:
@@ -1789,7 +1788,7 @@ def browse_accommodations():
     cursor = connection.cursor(dictionary=True)
     try:
         conditions = ["ac.status = 'active'", "ac.deleted_at IS NULL"]
-        params = [session["user_id"]]
+        params = [user_id]
 
         if keyword:
             conditions.append("(ac.name LIKE %s OR ac.address LIKE %s)")
@@ -1824,7 +1823,7 @@ def browse_accommodations():
         )
         countries = get_countries(cursor)
         cities = get_cities(cursor)
-        addable_trips = _addable_trips(cursor, session["user_id"])
+        addable_trips = _addable_trips(cursor, user_id) if user_id else []
     finally:
         cursor.close(); connection.close()
 
@@ -1834,8 +1833,7 @@ def browse_accommodations():
                             taiwan_counties=TAIWAN_COUNTIES)
 
 
-@member_bp.route("/accommodations/rankings/data")
-@login_required("member")
+@member_bp.route("/accommodations/rankings/data")  # 排行榜彈窗用的 AJAX，純公開統計資料，訪客不用登入也能看
 def accommodation_rankings_data():
     """Return the top-5 ranking data for the Explore page's in-place dialog."""
     country_id = request.args.get("country_id", "").strip()
@@ -1867,9 +1865,9 @@ def accommodation_rankings_data():
     } for index, row in enumerate(rankings, start=1)]})
 
 
-@member_bp.route("/accommodations/<int:accommodation_id>")
-@login_required("member")
+@member_bp.route("/accommodations/<int:accommodation_id>")  # 訪客不用登入也能瀏覽；收藏、加入行程等個人化動作各自的路由還是要求登入
 def accommodation_detail(accommodation_id):
+    user_id = session.get("user_id")
     connection = _connection_or_home()
     if connection is None: return redirect(url_for("member.browse_accommodations"))
     cursor = connection.cursor(dictionary=True)
@@ -1883,9 +1881,9 @@ def accommodation_detail(accommodation_id):
             JOIN cities ci ON ci.city_id = ac.city_id
             LEFT JOIN favorites f ON f.accommodation_id = ac.accommodation_id AND f.user_id = %s
             WHERE ac.accommodation_id = %s AND ac.status = 'active' AND ac.deleted_at IS NULL
-        """, (session["user_id"], accommodation_id))
+        """, (user_id, accommodation_id))
         accommodation = cursor.fetchone()
-        addable_trips = _addable_trips(cursor, session["user_id"]) if accommodation else []
+        addable_trips = _addable_trips(cursor, user_id) if accommodation and user_id else []
     finally:
         cursor.close(); connection.close()
 
@@ -2030,6 +2028,71 @@ def create_trip():
                                cities=cities, popular_cities=_popular_cities(cursor))
     finally:
         cursor.close(); connection.close()
+
+
+
+@member_bp.route("/trips/ai-create", methods=["POST"])
+@login_required("member")
+def ai_create_trip():
+    """首頁「讓 AI 幫你排行程」：從一句需求推測目的地與日期，請 AI 排好每日行程，直接建立成「我的旅程」。"""
+    from group_ai_planner import generate_plan  # 延後載入，避免啟動時的循環匯入
+
+    text = request.form.get("q", "").strip()[:1000]
+    back = redirect(url_for("member.dashboard", q=text or None))
+    if not text:
+        flash("請先寫下你的旅行需求，例如「12 月想去東京 5 天」。", "error")
+        return back
+    if not ai_ready():
+        flash("伺服器尚未設定 AI 服務金鑰，暫時無法自動排行程，請改用「自己快速建立」。", "error")
+        return back
+    connection = get_db_connection()
+    if connection is None:
+        flash("目前無法連線資料庫，請稍後再試。", "error")
+        return back
+    cursor = connection.cursor(dictionary=True)
+    try:
+        countries, cities = get_countries(cursor), get_cities(cursor)
+        cursor.execute("SELECT city_id FROM attractions WHERE city_id IS NOT NULL GROUP BY city_id ORDER BY COUNT(*) DESC LIMIT 60")
+        popular_city_ids = [row["city_id"] for row in cursor.fetchall()]
+        guess = trip_request.complete(text, countries, cities, popular_city_ids)
+        if not guess.get("city_id"):
+            raise ValueError("看不出你想去哪裡，請在需求裡寫上城市或國家，例如「東京」「韓國首爾」。")
+        city = next(c for c in cities if c["city_id"] == guess["city_id"])
+        start_date, end_date = guess["start_date"], guess["end_date"]
+        days = (end_date - start_date).days + 1
+        plan = generate_plan(text, guess["country_name"], city["name"], start_date, end_date,
+                             guess["people_count"], guess["budget"])
+        trip_name = f"{city['name']} {days} 天行程"
+        cursor.execute("""
+            INSERT INTO trips (owner_id,trip_name,country_id,city_id,start_date,end_date,
+                               people_count,total_budget,currency,introduction,visibility,status,share_token)
+            VALUES (%s,%s,%s,%s,%s,%s,%s,%s,'TWD',%s,'private','planning',%s)
+        """, (session["user_id"], trip_name, guess["country_id"], guess["city_id"], start_date, end_date,
+              guess["people_count"], guess["budget"], plan["summary"] or text, secrets.token_urlsafe(16)))
+        trip_id = cursor.lastrowid
+        cursor.execute("INSERT INTO trip_members (trip_id,user_id,member_role,join_status,joined_at) VALUES (%s,%s,'owner','accepted',NOW())",
+                       (trip_id, session["user_id"]))
+        for sort_order, item in enumerate(plan["items"], 1):
+            cursor.execute("""
+                INSERT INTO itineraries
+                  (trip_id,created_by,itinerary_date,item_type,title,start_time,address,estimated_cost,notes,sort_order)
+                VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
+            """, (trip_id, session["user_id"], item["date"], item["type"], item["title"],
+                  item["start_time"], item["address"], item["estimated_cost"], item["notes"], sort_order))
+        connection.commit()
+        flash(f"AI 已建立「{trip_name}」（{start_date:%m/%d}–{end_date:%m/%d}，{guess['people_count']} 人）。"
+              "日期、人數是從你的需求推測的，可按「編輯行程」修改；每日項目也請確認營業時間與價格。", "success")
+        return redirect(url_for("member.trip_detail", trip_id=trip_id))
+    except (ValueError, RuntimeError) as error:
+        connection.rollback()
+        flash(str(error), "error")
+    except Exception as error:
+        connection.rollback()
+        print("AI 建立行程失敗：", error)
+        flash("AI 排行程暫時失敗，請稍後再試，或改用「自己快速建立」。", "error")
+    finally:
+        cursor.close(); connection.close()
+    return back
 
 
 def _popular_cities(cursor, limit=10):
@@ -2731,6 +2794,79 @@ def _load_planning_items(cursor, trip_id, itinerary_date=None):
         row["start_time"] = _time_value(row["start_time"])
         row["end_time"] = _time_value(row["end_time"])
     return rows
+
+
+@member_bp.route("/trips/<int:trip_id>/estimate-costs", methods=["POST"])
+@login_required("member")
+def estimate_item_costs(trip_id):
+    """「💰 AI 估算費用」：替還沒填費用（0 元）的行程項目估一個參考價，寫入預估費用並在備註註明估算依據。"""
+    back = redirect(url_for("member.trip_detail", trip_id=trip_id) + "#itinerary")
+    connection = get_db_connection()
+    if connection is None:
+        flash("目前無法連線資料庫。", "error"); return back
+    cursor = connection.cursor(dictionary=True)
+    try:
+        trip = _member_access(cursor, trip_id, session["user_id"])
+        if not trip or not _can_edit(trip):
+            flash("你沒有編輯這個行程的權限。", "error"); return back
+        cursor.execute("""
+            SELECT i.itinerary_id, i.itinerary_date, i.item_type, i.title, i.address, i.notes,
+                   a.ticket_price, r.price_level
+            FROM itineraries i
+            LEFT JOIN attractions a ON a.attraction_id = i.attraction_id
+            LEFT JOIN restaurants r ON r.restaurant_id = i.restaurant_id
+            WHERE i.trip_id=%s AND COALESCE(i.estimated_cost, 0) = 0
+            ORDER BY i.itinerary_date, i.sort_order LIMIT 40
+        """, (trip_id,))
+        items = cursor.fetchall()
+        if not items:
+            flash("每個項目都已經有費用了。", "success"); return back
+        people = trip.get("people_count") or 1
+        currency = trip.get("currency") or "TWD"
+        lines = [{"id": it["itinerary_id"], "date": str(it["itinerary_date"]), "type": it["item_type"], "title": it["title"],
+                  "address": it["address"] or "", "ticket_price_TWD_per_person": it["ticket_price"],
+                  "price_level": it["price_level"]} for it in items]
+        prompt = (
+            f"你是旅遊預算助手。目的地：{trip['country']} {trip['city']}，{people} 人同行。"
+            f"請替下列每個行程項目估算「{people} 人合計」的參考花費，用當地幣別的數字（不要自己換算匯率），依當地一般行情"
+            "（門票、一餐平均消費、住宿一晚房價、交通票價等）。真的免費（免門票寺廟、公園、散步）才給 0。"
+            "若有 ticket_price_TWD_per_person 請以它為準（那時 currency 填 TWD）。"
+            '只回傳 JSON：{"costs":[{"id":項目id,"cost":數字,"currency":"ISO 幣別代碼，例如 JPY",'
+            '"basis":"20 字內的估算依據，例如 門票約 ¥2,000／人"}]}。'
+            "項目：" + json.dumps(lines, ensure_ascii=False, default=str)
+        )
+        result = ask_json(prompt, timeout=60)
+        by_id = {it["itinerary_id"]: it for it in items}
+        updated = 0
+        for entry in result.get("costs", []) if isinstance(result.get("costs"), list) else []:
+            try:
+                item_id, cost = int(entry.get("id")), float(entry.get("cost"))
+            except (TypeError, ValueError):
+                continue
+            # AI 給當地幣別金額，由程式用匯率換成行程的幣別
+            cost = currency_rates.convert(cost, str(entry.get("currency") or currency), currency)
+            if cost is None:
+                continue
+            cost = round(cost)
+            if item_id not in by_id or not 0 <= cost <= 10_000_000:
+                continue
+            basis = str(entry.get("basis") or "").strip()[:60]
+            note = by_id[item_id]["notes"] or ""
+            if basis:
+                note = (note + "\n" if note else "") + f"💰 AI 估價：{basis}（參考價，請自行查證）"
+            cursor.execute("UPDATE itineraries SET estimated_cost=%s, notes=%s WHERE itinerary_id=%s AND trip_id=%s",
+                           (cost, note[:1000] or None, item_id, trip_id))
+            updated += 1
+        connection.commit()
+        flash(f"已替 {updated} 個項目估算參考費用（{currency}，{people} 人合計），請依實際價格修改。" if updated
+              else "AI 這次沒有給出可用的估價，請稍後再試。", "success" if updated else "error")
+    except AIUnavailable as error:
+        connection.rollback(); flash(f"AI 估價暫時失敗：{error}", "error")
+    except Exception as error:
+        connection.rollback(); print("AI 估價失敗：", error); flash("AI 估價暫時失敗，請稍後再試。", "error")
+    finally:
+        cursor.close(); connection.close()
+    return back
 
 
 @member_bp.route("/trips/<int:trip_id>/smart-schedule", methods=["POST"])

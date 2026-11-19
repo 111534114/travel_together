@@ -281,7 +281,7 @@
       list.appendChild(el('p', 'hd-offer-note', '目前沒有找到可訂房的網站。'));
       return;
     }
-    list.appendChild(el('p', 'hd-offer-note', `共 ${offers.length} 家有這間飯店報價的網站，由低到高排列。價格${party}。${partyNote ? partyNote + '。' : ''}房型、房間照片與剩餘房數，請在訂房網站選房時查看。`));
+    list.appendChild(el('p', 'hd-offer-note', `共 ${offers.length} 家有這間飯店報價的網站，由低到高排列。價格${party}。各網站為即時報價，可能與列表上的最低價略有差異，實際金額以訂房網站為準。${partyNote ? partyNote + '。' : ''}房型、房間照片與剩餘房數，請在訂房網站選房時查看。`));
     const VISIBLE = 5;
     const extraBox = el('div', 'hd-offer-more');
     extraBox.hidden = true;
@@ -315,7 +315,7 @@
     const side = el('aside', 'hd-side');
     const rooms = query ? Number(query.rooms) || 1 : 1;
     const price = el('div', 'hd-price');
-    const priceLabel = el('small', 'hd-price-label', 'Google 最低價');
+    const priceLabel = el('small', 'hd-price-label', '搜尋列表最低價');
     const priceValue = el('span', '', money(d.price));
     price.append(priceLabel, el('br'), priceValue, el('small', '', rooms > 1 ? ' / 晚・每間' : ' / 晚'));
     side.appendChild(price);
@@ -327,12 +327,8 @@
     if (d.check_out_time) times.appendChild(el('li', '', `退房時間　${d.check_out_time}`));
     if (times.children.length) side.appendChild(times);
     if (query) side.appendChild(el('div', 'hd-total', query.party));
-    side.appendChild(buildOffers(d, query, (best) => {
-      // 換成實際訂房網站的最低報價，跟下面的清單一致
-      priceLabel.textContent = `${best.source} 報價`;
-      priceValue.textContent = money(best.price);
-      totalNode.textContent = totalText(best.total_price);
-    }));
+    // 上方價格固定跟列表一致，不隨比價結果改變，避免跟列表上看到的價格對不起來
+    side.appendChild(buildOffers(d, query, () => {}));
     if (d.website_url) {
       const a = el('a', 'hd-btn primary', '前往飯店官網');
       a.href = d.website_url; a.target = '_blank'; a.rel = 'noopener';

@@ -177,6 +177,9 @@
     .trip-art.with-image::after { content: ""; position: absolute; inset: 0; background: rgba(25, 35, 55, .16); }
     .trip-art span { position: relative; z-index: 1; }
     .trip-art .visibility { position: absolute; z-index: 2; top: 12px; right: 12px; padding: 5px 8px; color: #365A5F; background: rgba(255, 255, 255, .92); border-radius: 999px; font-size: 12px; font-weight: 600; }
+    .trip-art .joined-badge { position: absolute; z-index: 2; top: 12px; left: 12px; padding: 5px 9px; color: #fff; background: linear-gradient(135deg, #FFA6CC, #FF6FA8); border-radius: 999px; font-size: 12px; font-weight: 700; box-shadow: 0 4px 10px rgba(255, 111, 168, .35); animation: joined-badge-float 2.4s ease-in-out infinite; }
+    @keyframes joined-badge-float { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-4px); } }
+    @media (prefers-reduced-motion: reduce) { .trip-art .joined-badge { animation: none; } }
     .trip-content { display: flex; flex: 1; flex-direction: column; padding: 18px; }
     .trip-content h3 { margin: 0 0 8px; font-size: 20px; line-height: 1.4; }
     .location { min-height: 22px; margin: 0 0 14px; color: var(--muted); font-size: 14px; }
@@ -385,15 +388,15 @@
       {% endif %}
     </section>
     {% if is_member %}
-    <section class="ai-home" aria-labelledby="ai-home-title">
+    <section class="ai-home" id="ai-home" aria-labelledby="ai-home-title">
       <h2 id="ai-home-title">✨ 讓 AI 幫你排行程</h2>
-      <p class="ai-home-hint">說說你想去哪裡、玩幾天、喜歡什麼、預算多少，AI 會先排好每日草稿，你再微調。</p>
-      <form method="get" action="{{ url_for('friend_groups.ai_plan') }}" class="ai-home-form">
+      <p class="ai-home-hint">說說你想去哪裡、玩幾天、喜歡什麼、預算多少，AI 會直接幫你建立行程並排好每一天，之後再到行程頁微調。沒寫日期就預設兩週後出發、玩 3 天。</p>
+      <form method="post" action="{{ url_for('member.ai_create_trip') }}" class="ai-home-form" id="aiHomeForm">
         <label class="visually-hidden" for="aiHomeInput">旅行需求</label>
-        <textarea id="aiHomeInput" name="q" rows="3" maxlength="1000" required placeholder="例如：12 月想跟朋友去東京 5 天，喜歡逛街和美食，住宿希望在車站附近，預算每人 3 萬"></textarea>
+        <textarea id="aiHomeInput" name="q" rows="3" maxlength="1000" required placeholder="例如：12 月想跟朋友去東京 5 天，喜歡逛街和美食，住宿希望在車站附近，預算每人 3 萬">{{ request.args.get('q', '') }}</textarea>
         <div class="ai-home-actions">
           <button type="button" class="ai-voice-btn" data-voice-target="aiHomeInput" data-voice-status="aiHomeStatus" aria-pressed="false">🎤 語音輸入</button>
-          <button type="submit" class="ai-submit-btn">開始規劃 →</button>
+          <button type="submit" class="ai-submit-btn" id="aiHomeSubmit">開始規劃 →</button>
         </div>
       </form>
       <div class="ai-home-examples" aria-label="範例">
@@ -434,6 +437,7 @@
             <div class="trip-art {% if trip.cover_image_path %}with-image{% endif %}" {% if trip.cover_image_path %}style="background-image: url('{{ url_for('static', filename=trip.cover_image_path) }}')"{% endif %}>
               {% if not trip.cover_image_path %}<span>✈</span>{% endif %}
               {% if loop.index <= 3 and trip.favorite_count %}<span class="visibility">🔥 熱門</span>{% endif %}
+              {% if trip.joined_count and trip.joined_count > 1 %}<span class="joined-badge">🙋 {{ trip.joined_count }} 人加入</span>{% endif %}
             </div>
             <div class="trip-content">
               <h3>{{ trip.trip_name }}</h3>
@@ -896,6 +900,17 @@
     }
     input.addEventListener('change', sync);
     input.form.addEventListener('submit', sync);
+  })();
+  (function () {  // 送出後 AI 需要一點時間，鎖住按鈕並告訴使用者正在做什麼
+    var form = document.getElementById('aiHomeForm');
+    if (!form) return;
+    form.addEventListener('submit', function () {
+      var button = document.getElementById('aiHomeSubmit');
+      button.disabled = true;
+      button.textContent = 'AI 排行程中…';
+      form.setAttribute('aria-busy', 'true');
+      document.getElementById('aiHomeStatus').textContent = 'AI 正在判斷目的地與日期，並排好每一天的行程，約需 30–60 秒，完成後會自動打開新行程，請勿關閉頁面。';
+    });
   })();
   document.querySelectorAll('[data-ai-example]').forEach(function (chip) {
     chip.addEventListener('click', function () {

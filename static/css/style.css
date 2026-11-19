@@ -2979,13 +2979,27 @@ body {
 .vote-card {
     padding: 16px 0;
     border-bottom: 1px solid #E9F0F1;
+    transition: background-color .4s ease;
+}
+
+.vote-card-highlight {
+    background-color: #FFF6D6;
 }
 
 .vote-card-head {
     display: flex;
     align-items: center;
-    justify-content: space-between;
     gap: 10px;
+}
+
+.vote-card-head b {
+    flex: 1;
+    min-width: 0;
+}
+
+.vote-share-btn {
+    flex-shrink: 0;
+    white-space: nowrap;
 }
 
 .vote-bars {
@@ -3584,6 +3598,16 @@ body {
 
     .itinerary-row.has-weather .weather-badge {
         display: none;
+    }
+
+    .chart-label {
+        width: 92px;
+        flex: 0 0 92px;
+        font-size: 12px;
+    }
+
+    .vote-card-head {
+        flex-wrap: wrap;
     }
 }
 

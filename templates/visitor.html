@@ -385,15 +385,15 @@
       {% endif %}
     </section>
     {% if is_member %}
-    <section class="ai-home" aria-labelledby="ai-home-title">
+    <section class="ai-home" id="ai-home" aria-labelledby="ai-home-title">
       <h2 id="ai-home-title">✨ 讓 AI 幫你排行程</h2>
-      <p class="ai-home-hint">說說你想去哪裡、玩幾天、喜歡什麼、預算多少，AI 會先排好每日草稿，你再微調。</p>
-      <form method="get" action="{{ url_for('friend_groups.ai_plan') }}" class="ai-home-form">
+      <p class="ai-home-hint">說說你想去哪裡、玩幾天、喜歡什麼、預算多少，AI 會直接幫你建立行程並排好每一天，之後再到行程頁微調。沒寫日期就預設兩週後出發、玩 3 天。</p>
+      <form method="post" action="{{ url_for('member.ai_create_trip') }}" class="ai-home-form" id="aiHomeForm">
         <label class="visually-hidden" for="aiHomeInput">旅行需求</label>
-        <textarea id="aiHomeInput" name="q" rows="3" maxlength="1000" required placeholder="例如：12 月想跟朋友去東京 5 天，喜歡逛街和美食，住宿希望在車站附近，預算每人 3 萬"></textarea>
+        <textarea id="aiHomeInput" name="q" rows="3" maxlength="1000" required placeholder="例如：12 月想跟朋友去東京 5 天，喜歡逛街和美食，住宿希望在車站附近，預算每人 3 萬">{{ request.args.get('q', '') }}</textarea>
         <div class="ai-home-actions">
           <button type="button" class="ai-voice-btn" data-voice-target="aiHomeInput" data-voice-status="aiHomeStatus" aria-pressed="false">🎤 語音輸入</button>
-          <button type="submit" class="ai-submit-btn">開始規劃 →</button>
+          <button type="submit" class="ai-submit-btn" id="aiHomeSubmit">開始規劃 →</button>
         </div>
       </form>
       <div class="ai-home-examples" aria-label="範例">
@@ -896,6 +896,17 @@
     }
     input.addEventListener('change', sync);
     input.form.addEventListener('submit', sync);
+  })();
+  (function () {  // 送出後 AI 需要一點時間，鎖住按鈕並告訴使用者正在做什麼
+    var form = document.getElementById('aiHomeForm');
+    if (!form) return;
+    form.addEventListener('submit', function () {
+      var button = document.getElementById('aiHomeSubmit');
+      button.disabled = true;
+      button.textContent = 'AI 排行程中…';
+      form.setAttribute('aria-busy', 'true');
+      document.getElementById('aiHomeStatus').textContent = 'AI 正在判斷目的地與日期，並排好每一天的行程，約需 30–60 秒，完成後會自動打開新行程，請勿關閉頁面。';
+    });
   })();
   document.querySelectorAll('[data-ai-example]').forEach(function (chip) {
     chip.addEventListener('click', function () {

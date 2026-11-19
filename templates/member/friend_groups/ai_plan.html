@@ -6,22 +6,23 @@
   <div class="panel">
     <h1>智慧規劃行程草稿</h1>
     <p class="form-hint">告訴系統你想去哪裡、偏好什麼，再檢查產生的交通、住宿與每日安排。這些只是建議，不代表即時價格、空房或已訂位。</p>
+    <p class="form-hint ai-autofill-hint">💡 只要寫「旅行需求」就能產生：國家、城市、日期沒填的話，系統會從你的需求推測（例如「12 月去東京 5 天」）；沒寫日期就預設兩週後出發、玩 3 天。</p>
     <form method="post" class="form-grid-member" id="aiPlanForm">
-      <label>國家 *
-        <input type="text" name="country_name" id="aiCountry" list="aiCountrySuggestions" value="{{ form_values.get('country_name', '') }}" placeholder="輸入或選擇國家" autocomplete="off" required>
+      <label>國家
+        <input type="text" name="country_name" id="aiCountry" list="aiCountrySuggestions" value="{{ form_values.get('country_name', '') }}" placeholder="可留空，從需求推測" autocomplete="off">
         <datalist id="aiCountrySuggestions">
           {% for country in countries %}<option value="{{ country.name }}" data-country-id="{{ country.country_id }}"></option>{% endfor %}
         </datalist>
         <small>可直接輸入國家名稱，並從建議中選擇。城市會依國家顯示。</small>
       </label>
-      <label>城市 *
-        <select name="city_id" id="aiCity" required>
-          <option value="">選擇城市</option>
+      <label>城市
+        <select name="city_id" id="aiCity">
+          <option value="">可留空，從需求推測</option>
           {% for city in cities %}<option value="{{ city.city_id }}" data-country="{{ city.country_id }}" {% if form_values.get('city_id', '')|string == city.city_id|string %}selected{% endif %}>{{ city.name }}</option>{% endfor %}
         </select>
       </label>
-      <label>出發日期 *<input type="date" name="start_date" value="{{ form_values.get('start_date', '') }}" required></label>
-      <label>結束日期（最多 7 天） *<input type="date" name="end_date" value="{{ form_values.get('end_date', '') }}" required></label>
+      <label>出發日期<input type="date" name="start_date" value="{{ form_values.get('start_date', '') }}"></label>
+      <label>結束日期（最多 7 天）<input type="date" name="end_date" value="{{ form_values.get('end_date', '') }}"></label>
       <label>人數 *<input type="number" name="people_count" min="1" max="30" value="{{ form_values.get('people_count', '2') }}" required></label>
       <label>總預算參考（新臺幣）<input type="number" name="budget" min="0" value="{{ form_values.get('budget', '0') }}"></label>
       <label class="span-2">旅行需求 *<textarea id="aiRequest" name="user_request" maxlength="1000" required rows="4" placeholder="例如：想去台北三天，喜歡古蹟、夜市與大眾運輸，住宿不要太貴">{{ form_values.get('user_request', '') }}</textarea></label>
@@ -131,7 +132,7 @@
     filterCities();
     guessDestination();
     form.addEventListener('invalid', function () {
-      status.textContent = '請先填寫上方所有必填欄位，再產生草稿。';
+      status.textContent = '請先填寫「旅行需求」，再產生草稿。';
       status.classList.add('is-error');
     }, true);
     form.addEventListener('submit', function () {
@@ -142,6 +143,10 @@
       form.setAttribute('aria-busy', 'true');
     });
     {% if form_error %}status.scrollIntoView({block: 'center'});{% endif %}
+    {% if auto_submit and ai_ready and not draft %}
+    // 從首頁送來的需求已推測好目的地與日期，直接開始產生草稿
+    if (form.checkValidity()) { form.requestSubmit ? form.requestSubmit() : form.submit(); }
+    {% endif %}
   })();
 </script>
 <style>

@@ -12,6 +12,7 @@ from db import get_db_connection
 from notification_preferences import send_notification
 from utils import get_cities, get_countries
 from group_ai_planner import generate_plan, normalize_plan
+import trip_request
 from chat_moderation import blocked_term
 from config import ANTHROPIC_API_KEY, GEMINI_API_KEY
 
@@ -1950,6 +1951,12 @@ def report_group_content(group_id):
     return redirect(url_for("friend_groups.group_album" if request.form.get("photo_id") else "friend_groups.group_detail", group_id=group_id))
 
 
+def _popular_city_ids(cursor, limit=60):
+    """景點最多的城市（推測目的地時，同名比對的排序依據）。"""
+    cursor.execute("SELECT city_id FROM attractions WHERE city_id IS NOT NULL GROUP BY city_id ORDER BY COUNT(*) DESC LIMIT %s", (limit,))
+    return [row["city_id"] for row in cursor.fetchall()]
+
+
 @friend_groups_bp.route("/ai-plan", methods=["GET", "POST"])
 @login_required("member")
 def ai_plan():
@@ -1959,19 +1966,56 @@ def ai_plan():
     if not _has_line_bound(cursor, session["user_id"]):
         cursor.close(); connection.close()
         flash("請先綁定 LINE 帳號，才能使用 AI 規劃。", "error")
-        return redirect(url_for("line_bind", next=url_for("friend_groups.ai_plan", q=request.args.get("q", "")[:1000] or None)))
+        return redirect(url_for("line_bind", next=url_for("friend_groups.ai_plan", q=request.args.get("q", "")[:1000] or None,
+                                                         auto=request.args.get("auto") or None)))
     countries = []
     cities = []
-    # 從首頁「讓 AI 幫你排行程」帶過來的需求文字（?q=），先填進旅行需求欄位
-    form_values = request.form if request.method == "POST" else {"user_request": request.args.get("q", "").strip()[:1000]}
+    form_values = request.form if request.method == "POST" else {}
+    auto_submit = False
     try:
         countries = get_countries(cursor)
         cities = get_cities(cursor)
+        popular_city_ids = _popular_city_ids(cursor)
+        if request.method == "GET" and request.args.get("q", "").strip():
+            # 從首頁「讓 AI 幫你排行程」帶過來的需求（?q=）：從文字推測目的地、日期、人數、預算並填好；
+            # 推得出目的地就直接送出產生草稿（auto=1），不用使用者再填一次表單
+            text = request.args.get("q", "").strip()[:1000]
+            guess = trip_request.complete(text, countries, cities, popular_city_ids)
+            form_values = {"user_request": text, "country_name": guess.get("country_name", ""),
+                           "city_id": guess.get("city_id", ""), "start_date": guess["start_date"].isoformat(),
+                           "end_date": guess["end_date"].isoformat(), "people_count": guess["people_count"],
+                           "budget": guess["budget"]}
+            auto_submit = request.args.get("auto") == "1" and bool(guess.get("city_id"))
         if request.method == "POST":
+            # 沒填的國家／城市／日期，從旅行需求文字推測補上（例如只寫「我想要去日本」）
+            form_values = request.form.to_dict()
+            guess = trip_request.complete(form_values.get("user_request", ""), countries, cities, popular_city_ids)
+            if not form_values.get("city_id"):
+                typed_country = next((c for c in countries if c["name"].strip().casefold()
+                                      == form_values.get("country_name", "").strip().casefold()), None)
+                if typed_country and guess.get("country_id") != typed_country["country_id"]:
+                    guess["city_id"] = trip_request.default_city_id(typed_country, cities, popular_city_ids)
+                    guess["country_name"] = typed_country["name"]
+                if guess.get("city_id"):
+                    form_values["city_id"] = str(guess["city_id"])
+                    form_values["country_name"] = guess["country_name"]
+            if not form_values.get("start_date"):
+                form_values["start_date"] = guess["start_date"].isoformat()
+                if not form_values.get("end_date"):
+                    form_values["end_date"] = guess["end_date"].isoformat()
+            if not form_values.get("end_date"):
+                days = (guess["end_date"] - guess["start_date"]).days
+                form_values["end_date"] = (date.fromisoformat(form_values["start_date"]) + timedelta(days=days)).isoformat()
+            if not form_values.get("people_count"):
+                form_values["people_count"] = str(guess["people_count"])
+            if not form_values.get("budget") or form_values.get("budget") == "0":
+                form_values["budget"] = str(guess["budget"])
+            if not form_values.get("city_id"):
+                raise ValueError("看不出你想去哪裡，請在需求裡寫上城市或國家（例如「東京」「韓國」），或直接在上方選擇。")
             if not (GEMINI_API_KEY or ANTHROPIC_API_KEY):
                 raise ValueError("尚未設定 AI 服務金鑰，請先在伺服器設定 GEMINI_API_KEY 或 ANTHROPIC_API_KEY。")
-            country_raw = request.form.get("country_id", "")
-            country_name = request.form.get("country_name", "").strip()
+            country_raw = form_values.get("country_id", "")
+            country_name = form_values.get("country_name", "").strip()
             if country_name:
                 selected_country = next(
                     (item for item in countries if item["name"].strip().casefold() == country_name.casefold()),
@@ -1980,13 +2024,13 @@ def ai_plan():
                 if not selected_country:
                     raise ValueError("請輸入清單中的國家名稱，再選擇對應城市。")
                 country_raw = str(selected_country["country_id"])
-            city_raw = request.form.get("city_id", "")
-            user_request = request.form.get("user_request", "").strip()[:1000]
+            city_raw = form_values.get("city_id", "")
+            user_request = form_values.get("user_request", "").strip()[:1000]
             try:
-                start_date = date.fromisoformat(request.form.get("start_date", ""))
-                end_date = date.fromisoformat(request.form.get("end_date", ""))
-                people_count = int(request.form.get("people_count", "1"))
-                budget = float(request.form.get("budget", "0") or 0)
+                start_date = date.fromisoformat(form_values.get("start_date", ""))
+                end_date = date.fromisoformat(form_values.get("end_date", ""))
+                people_count = int(form_values.get("people_count", "1"))
+                budget = float(form_values.get("budget", "0") or 0)
             except (ValueError, TypeError) as error:
                 raise ValueError("請填寫有效的日期、人數與預算。") from error
             if not country_raw.isdigit() or not city_raw.isdigit() or not _city_matches_country(cursor, country_raw, city_raw):
@@ -2028,7 +2072,7 @@ def ai_plan():
                 draft["plan"] = json.loads(draft["draft_json"])
         return render_template("member/friend_groups/ai_plan.html", countries=countries, cities=cities,
                                draft=draft, ai_ready=bool(GEMINI_API_KEY or ANTHROPIC_API_KEY), form_values=form_values,
-                               form_error=None)
+                               form_error=None, auto_submit=auto_submit)
     except ValueError as error:
         connection.rollback()
         message = str(error)

@@ -80,3 +80,7 @@ body.smart-modal-open { overflow: hidden; }
   .budget-line-bar { grid-column: 1 / -1; grid-row: 2; }
   .itinerary-day-divider { flex-wrap: wrap; }
 }
+
+/* 每日行程：AI 估算費用 */
+.estimate-cost-form { margin: 0 0 0 auto; }
+.itinerary-cost-empty { color: #9aa9ac; font-size: 13px; font-weight: 600; }

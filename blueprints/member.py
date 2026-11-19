@@ -758,8 +758,7 @@ def announcements_page():
     return render_template("member/announcements.html", announcements=announcements)
 
 
-@member_bp.route("/album")
-@login_required("member")
+@member_bp.route("/album")  # 訪客不用登入也能瀏覽(跟探索景點/餐廳/住宿一致)，純粹展示公開核准的相簿貼文，沒有個人化內容
 def album_page():
     connection = _connection_or_home()
     if connection is None:
@@ -974,13 +973,13 @@ def _addable_trips(cursor, user_id):
     return cursor.fetchall()
 
 
-@member_bp.route("/attractions")
-@login_required("member")
+@member_bp.route("/attractions")  # 訪客不用登入也能瀏覽；收藏、加入行程等個人化動作各自的路由還是要求登入
 def browse_attractions():
+    user_id = session.get("user_id")
     keyword = request.args.get("keyword", "").strip()
     country_id = request.args.get("country_id", "").strip()
     city_id = request.args.get("city_id", "").strip()
-    favorites_only = request.args.get("favorites_only") == "1"
+    favorites_only = request.args.get("favorites_only") == "1" and bool(user_id)
 
     connection = _connection_or_home()
     if connection is None:
@@ -991,7 +990,7 @@ def browse_attractions():
     cursor = connection.cursor(dictionary=True)
     try:
         conditions = ["a.status = 'active'", "a.deleted_at IS NULL"]
-        params = [session["user_id"]]
+        params = [user_id]
 
         if keyword:
             conditions.append("(a.name LIKE %s OR a.address LIKE %s)")
@@ -1025,7 +1024,7 @@ def browse_attractions():
         )
         countries = get_countries(cursor)
         cities = get_cities(cursor)
-        addable_trips = _addable_trips(cursor, session["user_id"])
+        addable_trips = _addable_trips(cursor, user_id) if user_id else []
     finally:
         cursor.close(); connection.close()
 
@@ -1071,8 +1070,7 @@ def attraction_rankings():
                            page=page, page_count=page_count, rank_offset=rank_offset)
 
 
-@member_bp.route("/attractions/rankings/data")
-@login_required("member")
+@member_bp.route("/attractions/rankings/data")  # 排行榜彈窗用的 AJAX，純公開統計資料，訪客不用登入也能看
 def attraction_rankings_data():
     """Return one ranking page for the Explore page's in-place dialog."""
     keyword = request.args.get("keyword", "").strip()[:100]
@@ -1135,9 +1133,9 @@ def attraction_rankings_data():
     })
 
 
-@member_bp.route("/attractions/<int:attraction_id>")
-@login_required("member")
+@member_bp.route("/attractions/<int:attraction_id>")  # 訪客不用登入也能瀏覽；收藏、留言、加入行程等個人化動作各自的路由還是要求登入
 def attraction_detail(attraction_id):
+    user_id = session.get("user_id")
     connection = _connection_or_home()
     if connection is None: return redirect(url_for("member.browse_attractions"))
     cursor = connection.cursor(dictionary=True)
@@ -1154,13 +1152,13 @@ def attraction_detail(attraction_id):
             JOIN cities ci ON ci.city_id = a.city_id
             LEFT JOIN favorites f ON f.attraction_id = a.attraction_id AND f.user_id = %s
             WHERE a.attraction_id = %s AND a.status = 'active' AND a.deleted_at IS NULL
-        """, (session["user_id"], attraction_id))
+        """, (user_id, attraction_id))
         attraction = cursor.fetchone()
-        addable_trips = _addable_trips(cursor, session["user_id"]) if attraction else []
+        addable_trips = _addable_trips(cursor, user_id) if attraction and user_id else []
         posts = []
         if attraction:
             added_to = request.args.get("added_to", "")
-            if added_to.isdigit() and len(added_to) <= 20:
+            if user_id and added_to.isdigit() and len(added_to) <= 20:  # 剛加入行程後導回來的「附近景點推薦」區塊，匿名訪客不會有這個情境
                 cursor.execute("""
                     SELECT i.trip_id, i.itinerary_date, t.trip_name
                     FROM itineraries i
@@ -1170,7 +1168,7 @@ def attraction_detail(attraction_id):
                         AND tm.member_role IN ('owner', 'editor')
                     WHERE i.itinerary_id = %s AND i.created_by = %s
                       AND i.item_type = 'attraction'
-                """, (session["user_id"], int(added_to), session["user_id"]))
+                """, (user_id, int(added_to), user_id))
                 nearby_trip = cursor.fetchone()
                 if nearby_trip:
                     nearby_trip_addable = any(
@@ -1184,7 +1182,7 @@ def attraction_detail(attraction_id):
                 FROM attraction_posts p JOIN users u ON u.user_id = p.user_id
                 WHERE p.attraction_id=%s AND (p.review_status='approved' OR p.user_id=%s)
                 ORDER BY p.created_at DESC
-            """, (attraction_id, session["user_id"]))
+            """, (attraction_id, user_id))
             posts = cursor.fetchall()
             if posts:
                 post_ids = [post["post_id"] for post in posts]
@@ -1568,13 +1566,13 @@ def toggle_favorite(attraction_id):
     return redirect(next_url)
 
 
-@member_bp.route("/restaurants")
-@login_required("member")
+@member_bp.route("/restaurants")  # 訪客不用登入也能瀏覽；收藏、加入行程等個人化動作各自的路由還是要求登入
 def browse_restaurants():
+    user_id = session.get("user_id")
     keyword = request.args.get("keyword", "").strip()
     country_id = request.args.get("country_id", "").strip()
     city_id = request.args.get("city_id", "").strip()
-    favorites_only = request.args.get("favorites_only") == "1"
+    favorites_only = request.args.get("favorites_only") == "1" and bool(user_id)
 
     connection = _connection_or_home()
     if connection is None:
@@ -1585,7 +1583,7 @@ def browse_restaurants():
     cursor = connection.cursor(dictionary=True)
     try:
         conditions = ["r.status = 'active'", "r.deleted_at IS NULL"]
-        params = [session["user_id"]]
+        params = [user_id]
 
         if keyword:
             conditions.append("(r.name LIKE %s OR r.address LIKE %s)")
@@ -1620,7 +1618,7 @@ def browse_restaurants():
         )
         countries = get_countries(cursor)
         cities = get_cities(cursor)
-        addable_trips = _addable_trips(cursor, session["user_id"])
+        addable_trips = _addable_trips(cursor, user_id) if user_id else []
     finally:
         cursor.close(); connection.close()
 
@@ -1630,8 +1628,7 @@ def browse_restaurants():
                             taiwan_counties=TAIWAN_COUNTIES)
 
 
-@member_bp.route("/restaurants/rankings/data")
-@login_required("member")
+@member_bp.route("/restaurants/rankings/data")  # 排行榜彈窗用的 AJAX，純公開統計資料，訪客不用登入也能看
 def restaurant_rankings_data():
     """Return the top-5 ranking data for the Explore page's in-place dialog."""
     country_id = request.args.get("country_id", "").strip()
@@ -1663,9 +1660,9 @@ def restaurant_rankings_data():
     } for index, row in enumerate(rankings, start=1)]})
 
 
-@member_bp.route("/restaurants/<int:restaurant_id>")
-@login_required("member")
+@member_bp.route("/restaurants/<int:restaurant_id>")  # 訪客不用登入也能瀏覽；收藏、加入行程等個人化動作各自的路由還是要求登入
 def restaurant_detail(restaurant_id):
+    user_id = session.get("user_id")
     connection = _connection_or_home()
     if connection is None: return redirect(url_for("member.browse_restaurants"))
     cursor = connection.cursor(dictionary=True)
@@ -1679,9 +1676,9 @@ def restaurant_detail(restaurant_id):
             JOIN cities ci ON ci.city_id = r.city_id
             LEFT JOIN favorites f ON f.restaurant_id = r.restaurant_id AND f.user_id = %s
             WHERE r.restaurant_id = %s AND r.status = 'active' AND r.deleted_at IS NULL
-        """, (session["user_id"], restaurant_id))
+        """, (user_id, restaurant_id))
         restaurant = cursor.fetchone()
-        addable_trips = _addable_trips(cursor, session["user_id"]) if restaurant else []
+        addable_trips = _addable_trips(cursor, user_id) if restaurant and user_id else []
     finally:
         cursor.close(); connection.close()
 
@@ -1772,13 +1769,13 @@ def toggle_restaurant_favorite(restaurant_id):
     return redirect(next_url)
 
 
-@member_bp.route("/accommodations")
-@login_required("member")
+@member_bp.route("/accommodations")  # 訪客不用登入也能瀏覽；收藏、加入行程等個人化動作各自的路由還是要求登入
 def browse_accommodations():
+    user_id = session.get("user_id")
     keyword = request.args.get("keyword", "").strip()
     country_id = request.args.get("country_id", "").strip()
     city_id = request.args.get("city_id", "").strip()
-    favorites_only = request.args.get("favorites_only") == "1"
+    favorites_only = request.args.get("favorites_only") == "1" and bool(user_id)
 
     connection = _connection_or_home()
     if connection is None:
@@ -1789,7 +1786,7 @@ def browse_accommodations():
     cursor = connection.cursor(dictionary=True)
     try:
         conditions = ["ac.status = 'active'", "ac.deleted_at IS NULL"]
-        params = [session["user_id"]]
+        params = [user_id]
 
         if keyword:
             conditions.append("(ac.name LIKE %s OR ac.address LIKE %s)")
@@ -1824,7 +1821,7 @@ def browse_accommodations():
         )
         countries = get_countries(cursor)
         cities = get_cities(cursor)
-        addable_trips = _addable_trips(cursor, session["user_id"])
+        addable_trips = _addable_trips(cursor, user_id) if user_id else []
     finally:
         cursor.close(); connection.close()
 
@@ -1834,8 +1831,7 @@ def browse_accommodations():
                             taiwan_counties=TAIWAN_COUNTIES)
 
 
-@member_bp.route("/accommodations/rankings/data")
-@login_required("member")
+@member_bp.route("/accommodations/rankings/data")  # 排行榜彈窗用的 AJAX，純公開統計資料，訪客不用登入也能看
 def accommodation_rankings_data():
     """Return the top-5 ranking data for the Explore page's in-place dialog."""
     country_id = request.args.get("country_id", "").strip()
@@ -1867,9 +1863,9 @@ def accommodation_rankings_data():
     } for index, row in enumerate(rankings, start=1)]})
 
 
-@member_bp.route("/accommodations/<int:accommodation_id>")
-@login_required("member")
+@member_bp.route("/accommodations/<int:accommodation_id>")  # 訪客不用登入也能瀏覽；收藏、加入行程等個人化動作各自的路由還是要求登入
 def accommodation_detail(accommodation_id):
+    user_id = session.get("user_id")
     connection = _connection_or_home()
     if connection is None: return redirect(url_for("member.browse_accommodations"))
     cursor = connection.cursor(dictionary=True)
@@ -1883,9 +1879,9 @@ def accommodation_detail(accommodation_id):
             JOIN cities ci ON ci.city_id = ac.city_id
             LEFT JOIN favorites f ON f.accommodation_id = ac.accommodation_id AND f.user_id = %s
             WHERE ac.accommodation_id = %s AND ac.status = 'active' AND ac.deleted_at IS NULL
-        """, (session["user_id"], accommodation_id))
+        """, (user_id, accommodation_id))
         accommodation = cursor.fetchone()
-        addable_trips = _addable_trips(cursor, session["user_id"]) if accommodation else []
+        addable_trips = _addable_trips(cursor, user_id) if accommodation and user_id else []
     finally:
         cursor.close(); connection.close()
 

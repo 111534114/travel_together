@@ -177,6 +177,9 @@
     .trip-art.with-image::after { content: ""; position: absolute; inset: 0; background: rgba(25, 35, 55, .16); }
     .trip-art span { position: relative; z-index: 1; }
     .trip-art .visibility { position: absolute; z-index: 2; top: 12px; right: 12px; padding: 5px 8px; color: #365A5F; background: rgba(255, 255, 255, .92); border-radius: 999px; font-size: 12px; font-weight: 600; }
+    .trip-art .joined-badge { position: absolute; z-index: 2; top: 12px; left: 12px; padding: 5px 9px; color: #fff; background: linear-gradient(135deg, #FFA6CC, #FF6FA8); border-radius: 999px; font-size: 12px; font-weight: 700; box-shadow: 0 4px 10px rgba(255, 111, 168, .35); animation: joined-badge-float 2.4s ease-in-out infinite; }
+    @keyframes joined-badge-float { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-4px); } }
+    @media (prefers-reduced-motion: reduce) { .trip-art .joined-badge { animation: none; } }
     .trip-content { display: flex; flex: 1; flex-direction: column; padding: 18px; }
     .trip-content h3 { margin: 0 0 8px; font-size: 20px; line-height: 1.4; }
     .location { min-height: 22px; margin: 0 0 14px; color: var(--muted); font-size: 14px; }
@@ -434,6 +437,7 @@
             <div class="trip-art {% if trip.cover_image_path %}with-image{% endif %}" {% if trip.cover_image_path %}style="background-image: url('{{ url_for('static', filename=trip.cover_image_path) }}')"{% endif %}>
               {% if not trip.cover_image_path %}<span>✈</span>{% endif %}
               {% if loop.index <= 3 and trip.favorite_count %}<span class="visibility">🔥 熱門</span>{% endif %}
+              {% if trip.joined_count and trip.joined_count > 1 %}<span class="joined-badge">🙋 {{ trip.joined_count }} 人加入</span>{% endif %}
             </div>
             <div class="trip-content">
               <h3>{{ trip.trip_name }}</h3>

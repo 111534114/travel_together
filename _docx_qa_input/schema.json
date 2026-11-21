@@ -1,0 +1,5098 @@
+{
+  "tables": [
+    {
+      "TABLE_NAME": "accommodations",
+      "TABLE_TYPE": "BASE TABLE"
+    },
+    {
+      "TABLE_NAME": "admin_logs",
+      "TABLE_TYPE": "BASE TABLE"
+    },
+    {
+      "TABLE_NAME": "announcements",
+      "TABLE_TYPE": "BASE TABLE"
+    },
+    {
+      "TABLE_NAME": "app_settings",
+      "TABLE_TYPE": "BASE TABLE"
+    },
+    {
+      "TABLE_NAME": "attachments",
+      "TABLE_TYPE": "BASE TABLE"
+    },
+    {
+      "TABLE_NAME": "attractions",
+      "TABLE_TYPE": "BASE TABLE"
+    },
+    {
+      "TABLE_NAME": "attraction_posts",
+      "TABLE_TYPE": "BASE TABLE"
+    },
+    {
+      "TABLE_NAME": "attraction_post_images",
+      "TABLE_TYPE": "BASE TABLE"
+    },
+    {
+      "TABLE_NAME": "booking_favorites",
+      "TABLE_TYPE": "BASE TABLE"
+    },
+    {
+      "TABLE_NAME": "booking_live_favorites",
+      "TABLE_TYPE": "BASE TABLE"
+    },
+    {
+      "TABLE_NAME": "categories",
+      "TABLE_TYPE": "BASE TABLE"
+    },
+    {
+      "TABLE_NAME": "cities",
+      "TABLE_TYPE": "BASE TABLE"
+    },
+    {
+      "TABLE_NAME": "comments",
+      "TABLE_TYPE": "BASE TABLE"
+    },
+    {
+      "TABLE_NAME": "content_admin_denials",
+      "TABLE_TYPE": "BASE TABLE"
+    },
+    {
+      "TABLE_NAME": "countries",
+      "TABLE_TYPE": "BASE TABLE"
+    },
+    {
+      "TABLE_NAME": "edit_logs",
+      "TABLE_TYPE": "BASE TABLE"
+    },
+    {
+      "TABLE_NAME": "expenses",
+      "TABLE_TYPE": "BASE TABLE"
+    },
+    {
+      "TABLE_NAME": "expense_items",
+      "TABLE_TYPE": "BASE TABLE"
+    },
+    {
+      "TABLE_NAME": "expense_splits",
+      "TABLE_TYPE": "BASE TABLE"
+    },
+    {
+      "TABLE_NAME": "favorites",
+      "TABLE_TYPE": "BASE TABLE"
+    },
+    {
+      "TABLE_NAME": "flights",
+      "TABLE_TYPE": "BASE TABLE"
+    },
+    {
+      "TABLE_NAME": "friend_groups",
+      "TABLE_TYPE": "BASE TABLE"
+    },
+    {
+      "TABLE_NAME": "friend_group_ai_drafts",
+      "TABLE_TYPE": "BASE TABLE"
+    },
+    {
+      "TABLE_NAME": "friend_group_album_photos",
+      "TABLE_TYPE": "BASE TABLE"
+    },
+    {
+      "TABLE_NAME": "friend_group_applications",
+      "TABLE_TYPE": "BASE TABLE"
+    },
+    {
+      "TABLE_NAME": "friend_group_content_reports",
+      "TABLE_TYPE": "BASE TABLE"
+    },
+    {
+      "TABLE_NAME": "friend_group_events",
+      "TABLE_TYPE": "BASE TABLE"
+    },
+    {
+      "TABLE_NAME": "friend_group_event_announcements",
+      "TABLE_TYPE": "BASE TABLE"
+    },
+    {
+      "TABLE_NAME": "friend_group_event_chat_messages",
+      "TABLE_TYPE": "BASE TABLE"
+    },
+    {
+      "TABLE_NAME": "friend_group_event_items",
+      "TABLE_TYPE": "BASE TABLE"
+    },
+    {
+      "TABLE_NAME": "friend_group_event_participants",
+      "TABLE_TYPE": "BASE TABLE"
+    },
+    {
+      "TABLE_NAME": "friend_group_members",
+      "TABLE_TYPE": "BASE TABLE"
+    },
+    {
+      "TABLE_NAME": "friend_group_onboarding",
+      "TABLE_TYPE": "BASE TABLE"
+    },
+    {
+      "TABLE_NAME": "friend_group_reviews",
+      "TABLE_TYPE": "BASE TABLE"
+    },
+    {
+      "TABLE_NAME": "friend_group_trip_reviews",
+      "TABLE_TYPE": "BASE TABLE"
+    },
+    {
+      "TABLE_NAME": "home_banners",
+      "TABLE_TYPE": "BASE TABLE"
+    },
+    {
+      "TABLE_NAME": "itineraries",
+      "TABLE_TYPE": "BASE TABLE"
+    },
+    {
+      "TABLE_NAME": "line_notification_logs",
+      "TABLE_TYPE": "BASE TABLE"
+    },
+    {
+      "TABLE_NAME": "notifications",
+      "TABLE_TYPE": "BASE TABLE"
+    },
+    {
+      "TABLE_NAME": "notification_preferences",
+      "TABLE_TYPE": "BASE TABLE"
+    },
+    {
+      "TABLE_NAME": "password_resets",
+      "TABLE_TYPE": "BASE TABLE"
+    },
+    {
+      "TABLE_NAME": "proposals",
+      "TABLE_TYPE": "BASE TABLE"
+    },
+    {
+      "TABLE_NAME": "reports",
+      "TABLE_TYPE": "BASE TABLE"
+    },
+    {
+      "TABLE_NAME": "restaurants",
+      "TABLE_TYPE": "BASE TABLE"
+    },
+    {
+      "TABLE_NAME": "trains",
+      "TABLE_TYPE": "BASE TABLE"
+    },
+    {
+      "TABLE_NAME": "traveler_profiles",
+      "TABLE_TYPE": "BASE TABLE"
+    },
+    {
+      "TABLE_NAME": "trips",
+      "TABLE_TYPE": "BASE TABLE"
+    },
+    {
+      "TABLE_NAME": "trip_chat_messages",
+      "TABLE_TYPE": "BASE TABLE"
+    },
+    {
+      "TABLE_NAME": "trip_chat_reads",
+      "TABLE_TYPE": "BASE TABLE"
+    },
+    {
+      "TABLE_NAME": "trip_invitations",
+      "TABLE_TYPE": "BASE TABLE"
+    },
+    {
+      "TABLE_NAME": "trip_members",
+      "TABLE_TYPE": "BASE TABLE"
+    },
+    {
+      "TABLE_NAME": "trip_moderation_history",
+      "TABLE_TYPE": "BASE TABLE"
+    },
+    {
+      "TABLE_NAME": "trip_preferences",
+      "TABLE_TYPE": "BASE TABLE"
+    },
+    {
+      "TABLE_NAME": "users",
+      "TABLE_TYPE": "BASE TABLE"
+    },
+    {
+      "TABLE_NAME": "user_moderation_history",
+      "TABLE_TYPE": "BASE TABLE"
+    },
+    {
+      "TABLE_NAME": "votes",
+      "TABLE_TYPE": "BASE TABLE"
+    },
+    {
+      "TABLE_NAME": "vote_options",
+      "TABLE_TYPE": "BASE TABLE"
+    },
+    {
+      "TABLE_NAME": "vote_records",
+      "TABLE_TYPE": "BASE TABLE"
+    },
+    {
+      "TABLE_NAME": "vw_popular_attractions",
+      "TABLE_TYPE": "VIEW"
+    },
+    {
+      "TABLE_NAME": "vw_trip_expense_summary",
+      "TABLE_TYPE": "VIEW"
+    }
+  ],
+  "columns": [
+    {
+      "TABLE_NAME": "accommodations",
+      "COLUMN_NAME": "accommodation_id",
+      "COLUMN_TYPE": "bigint(20) unsigned",
+      "COLUMN_KEY": "PRI",
+      "IS_NULLABLE": "NO"
+    },
+    {
+      "TABLE_NAME": "accommodations",
+      "COLUMN_NAME": "category_id",
+      "COLUMN_TYPE": "bigint(20) unsigned",
+      "COLUMN_KEY": "MUL",
+      "IS_NULLABLE": "YES"
+    },
+    {
+      "TABLE_NAME": "accommodations",
+      "COLUMN_NAME": "name",
+      "COLUMN_TYPE": "varchar(150)",
+      "COLUMN_KEY": "",
+      "IS_NULLABLE": "NO"
+    },
+    {
+      "TABLE_NAME": "accommodations",
+      "COLUMN_NAME": "country_id",
+      "COLUMN_TYPE": "bigint(20) unsigned",
+      "COLUMN_KEY": "MUL",
+      "IS_NULLABLE": "NO"
+    },
+    {
+      "TABLE_NAME": "accommodations",
+      "COLUMN_NAME": "city_id",
+      "COLUMN_TYPE": "bigint(20) unsigned",
+      "COLUMN_KEY": "MUL",
+      "IS_NULLABLE": "NO"
+    },
+    {
+      "TABLE_NAME": "accommodations",
+      "COLUMN_NAME": "address",
+      "COLUMN_TYPE": "varchar(255)",
+      "COLUMN_KEY": "",
+      "IS_NULLABLE": "YES"
+    },
+    {
+      "TABLE_NAME": "accommodations",
+      "COLUMN_NAME": "latitude",
+      "COLUMN_TYPE": "decimal(10,7)",
+      "COLUMN_KEY": "",
+      "IS_NULLABLE": "YES"
+    },
+    {
+      "TABLE_NAME": "accommodations",
+      "COLUMN_NAME": "longitude",
+      "COLUMN_TYPE": "decimal(10,7)",
+      "COLUMN_KEY": "",
+      "IS_NULLABLE": "YES"
+    },
+    {
+      "TABLE_NAME": "accommodations",
+      "COLUMN_NAME": "accommodation_type",
+      "COLUMN_TYPE": "varchar(100)",
+      "COLUMN_KEY": "",
+      "IS_NULLABLE": "YES"
+    },
+    {
+      "TABLE_NAME": "accommodations",
+      "COLUMN_NAME": "price_per_night",
+      "COLUMN_TYPE": "decimal(12,2)",
+      "COLUMN_KEY": "",
+      "IS_NULLABLE": "NO"
+    },
+    {
+      "TABLE_NAME": "accommodations",
+      "COLUMN_NAME": "check_in_time",
+      "COLUMN_TYPE": "time",
+      "COLUMN_KEY": "",
+      "IS_NULLABLE": "YES"
+    },
+    {
+      "TABLE_NAME": "accommodations",
+      "COLUMN_NAME": "check_out_time",
+      "COLUMN_TYPE": "time",
+      "COLUMN_KEY": "",
+      "IS_NULLABLE": "YES"
+    },
+    {
+      "TABLE_NAME": "accommodations",
+      "COLUMN_NAME": "description",
+      "COLUMN_TYPE": "text",
+      "COLUMN_KEY": "",
+      "IS_NULLABLE": "YES"
+    },
+    {
+      "TABLE_NAME": "accommodations",
+      "COLUMN_NAME": "website_url",
+      "COLUMN_TYPE": "varchar(500)",
+      "COLUMN_KEY": "",
+      "IS_NULLABLE": "YES"
+    },
+    {
+      "TABLE_NAME": "accommodations",
+      "COLUMN_NAME": "image_path",
+      "COLUMN_TYPE": "varchar(255)",
+      "COLUMN_KEY": "",
+      "IS_NULLABLE": "YES"
+    },
+    {
+      "TABLE_NAME": "accommodations",
+      "COLUMN_NAME": "status",
+      "COLUMN_TYPE": "enum('active','hidden','pending')",
+      "COLUMN_KEY": "",
+      "IS_NULLABLE": "NO"
+    },
+    {
+      "TABLE_NAME": "accommodations",
+      "COLUMN_NAME": "deleted_at",
+      "COLUMN_TYPE": "datetime",
+      "COLUMN_KEY": "",
+      "IS_NULLABLE": "YES"
+    },
+    {
+      "TABLE_NAME": "accommodations",
+      "COLUMN_NAME": "ai_verified_at",
+      "COLUMN_TYPE": "datetime",
+      "COLUMN_KEY": "",
+      "IS_NULLABLE": "YES"
+    },
+    {
+      "TABLE_NAME": "accommodations",
+      "COLUMN_NAME": "ai_verified_by",
+      "COLUMN_TYPE": "bigint(20) unsigned",
+      "COLUMN_KEY": "MUL",
+      "IS_NULLABLE": "YES"
+    },
+    {
+      "TABLE_NAME": "accommodations",
+      "COLUMN_NAME": "created_by",
+      "COLUMN_TYPE": "bigint(20) unsigned",
+      "COLUMN_KEY": "MUL",
+      "IS_NULLABLE": "YES"
+    },
+    {
+      "TABLE_NAME": "accommodations",
+      "COLUMN_NAME": "created_at",
+      "COLUMN_TYPE": "datetime",
+      "COLUMN_KEY": "",
+      "IS_NULLABLE": "NO"
+    },
+    {
+      "TABLE_NAME": "accommodations",
+      "COLUMN_NAME": "updated_at",
+      "COLUMN_TYPE": "datetime",
+      "COLUMN_KEY": "",
+      "IS_NULLABLE": "NO"
+    },
+    {
+      "TABLE_NAME": "admin_logs",
+      "COLUMN_NAME": "admin_log_id",
+      "COLUMN_TYPE": "bigint(20) unsigned",
+      "COLUMN_KEY": "PRI",
+      "IS_NULLABLE": "NO"
+    },
+    {
+      "TABLE_NAME": "admin_logs",
+      "COLUMN_NAME": "admin_id",
+      "COLUMN_TYPE": "bigint(20) unsigned",
+      "COLUMN_KEY": "MUL",
+      "IS_NULLABLE": "NO"
+    },
+    {
+      "TABLE_NAME": "admin_logs",
+      "COLUMN_NAME": "action",
+      "COLUMN_TYPE": "varchar(100)",
+      "COLUMN_KEY": "",
+      "IS_NULLABLE": "NO"
+    },
+    {
+      "TABLE_NAME": "admin_logs",
+      "COLUMN_NAME": "target_type",
+      "COLUMN_TYPE": "varchar(100)",
+      "COLUMN_KEY": "",
+      "IS_NULLABLE": "YES"
+    },
+    {
+      "TABLE_NAME": "admin_logs",
+      "COLUMN_NAME": "target_id",
+      "COLUMN_TYPE": "bigint(20) unsigned",
+      "COLUMN_KEY": "",
+      "IS_NULLABLE": "YES"
+    },
+    {
+      "TABLE_NAME": "admin_logs",
+      "COLUMN_NAME": "description",
+      "COLUMN_TYPE": "text",
+      "COLUMN_KEY": "",
+      "IS_NULLABLE": "YES"
+    },
+    {
+      "TABLE_NAME": "admin_logs",
+      "COLUMN_NAME": "ip_address",
+      "COLUMN_TYPE": "varchar(45)",
+      "COLUMN_KEY": "",
+      "IS_NULLABLE": "YES"
+    },
+    {
+      "TABLE_NAME": "admin_logs",
+      "COLUMN_NAME": "created_at",
+      "COLUMN_TYPE": "datetime",
+      "COLUMN_KEY": "",
+      "IS_NULLABLE": "NO"
+    },
+    {
+      "TABLE_NAME": "announcements",
+      "COLUMN_NAME": "announcement_id",
+      "COLUMN_TYPE": "bigint(20) unsigned",
+      "COLUMN_KEY": "PRI",
+      "IS_NULLABLE": "NO"
+    },
+    {
+      "TABLE_NAME": "announcements",
+      "COLUMN_NAME": "created_by",
+      "COLUMN_TYPE": "bigint(20) unsigned",
+      "COLUMN_KEY": "MUL",
+      "IS_NULLABLE": "NO"
+    },
+    {
+      "TABLE_NAME": "announcements",
+      "COLUMN_NAME": "title",
+      "COLUMN_TYPE": "varchar(150)",
+      "COLUMN_KEY": "",
+      "IS_NULLABLE": "NO"
+    },
+    {
+      "TABLE_NAME": "announcements",
+      "COLUMN_NAME": "content",
+      "COLUMN_TYPE": "text",
+      "COLUMN_KEY": "",
+      "IS_NULLABLE": "NO"
+    },
+    {
+      "TABLE_NAME": "announcements",
+      "COLUMN_NAME": "is_pinned",
+      "COLUMN_TYPE": "tinyint(1)",
+      "COLUMN_KEY": "",
+      "IS_NULLABLE": "NO"
+    },
+    {
+      "TABLE_NAME": "announcements",
+      "COLUMN_NAME": "status",
+      "COLUMN_TYPE": "enum('draft','published','hidden')",
+      "COLUMN_KEY": "",
+      "IS_NULLABLE": "NO"
+    },
+    {
+      "TABLE_NAME": "announcements",
+      "COLUMN_NAME": "publish_at",
+      "COLUMN_TYPE": "datetime",
+      "COLUMN_KEY": "",
+      "IS_NULLABLE": "YES"
+    },
+    {
+      "TABLE_NAME": "announcements",
+      "COLUMN_NAME": "line_pushed_at",
+      "COLUMN_TYPE": "datetime",
+      "COLUMN_KEY": "",
+      "IS_NULLABLE": "YES"
+    },
+    {
+      "TABLE_NAME": "announcements",
+      "COLUMN_NAME": "created_at",
+      "COLUMN_TYPE": "datetime",
+      "COLUMN_KEY": "",
+      "IS_NULLABLE": "NO"
+    },
+    {
+      "TABLE_NAME": "announcements",
+      "COLUMN_NAME": "updated_at",
+      "COLUMN_TYPE": "datetime",
+      "COLUMN_KEY": "",
+      "IS_NULLABLE": "NO"
+    },
+    {
+      "TABLE_NAME": "app_settings",
+      "COLUMN_NAME": "setting_key",
+      "COLUMN_TYPE": "varchar(50)",
+      "COLUMN_KEY": "PRI",
+      "IS_NULLABLE": "NO"
+    },
+    {
+      "TABLE_NAME": "app_settings",
+      "COLUMN_NAME": "setting_value",
+      "COLUMN_TYPE": "varchar(255)",
+      "COLUMN_KEY": "",
+      "IS_NULLABLE": "NO"
+    },
+    {
+      "TABLE_NAME": "app_settings",
+      "COLUMN_NAME": "updated_by",
+      "COLUMN_TYPE": "bigint(20) unsigned",
+      "COLUMN_KEY": "MUL",
+      "IS_NULLABLE": "YES"
+    },
+    {
+      "TABLE_NAME": "app_settings",
+      "COLUMN_NAME": "updated_at",
+      "COLUMN_TYPE": "datetime",
+      "COLUMN_KEY": "",
+      "IS_NULLABLE": "NO"
+    },
+    {
+      "TABLE_NAME": "attachments",
+      "COLUMN_NAME": "attachment_id",
+      "COLUMN_TYPE": "bigint(20) unsigned",
+      "COLUMN_KEY": "PRI",
+      "IS_NULLABLE": "NO"
+    },
+    {
+      "TABLE_NAME": "attachments",
+      "COLUMN_NAME": "uploaded_by",
+      "COLUMN_TYPE": "bigint(20) unsigned",
+      "COLUMN_KEY": "MUL",
+      "IS_NULLABLE": "NO"
+    },
+    {
+      "TABLE_NAME": "attachments",
+      "COLUMN_NAME": "trip_id",
+      "COLUMN_TYPE": "bigint(20) unsigned",
+      "COLUMN_KEY": "MUL",
+      "IS_NULLABLE": "YES"
+    },
+    {
+      "TABLE_NAME": "attachments",
+      "COLUMN_NAME": "itinerary_id",
+      "COLUMN_TYPE": "bigint(20) unsigned",
+      "COLUMN_KEY": "MUL",
+      "IS_NULLABLE": "YES"
+    },
+    {
+      "TABLE_NAME": "attachments",
+      "COLUMN_NAME": "proposal_id",
+      "COLUMN_TYPE": "bigint(20) unsigned",
+      "COLUMN_KEY": "MUL",
+      "IS_NULLABLE": "YES"
+    },
+    {
+      "TABLE_NAME": "attachments",
+      "COLUMN_NAME": "file_name",
+      "COLUMN_TYPE": "varchar(255)",
+      "COLUMN_KEY": "",
+      "IS_NULLABLE": "NO"
+    },
+    {
+      "TABLE_NAME": "attachments",
+      "COLUMN_NAME": "stored_name",
+      "COLUMN_TYPE": "varchar(255)",
+      "COLUMN_KEY": "",
+      "IS_NULLABLE": "NO"
+    },
+    {
+      "TABLE_NAME": "attachments",
+      "COLUMN_NAME": "file_path",
+      "COLUMN_TYPE": "varchar(500)",
+      "COLUMN_KEY": "",
+      "IS_NULLABLE": "NO"
+    },
+    {
+      "TABLE_NAME": "attachments",
+      "COLUMN_NAME": "file_type",
+      "COLUMN_TYPE": "varchar(100)",
+      "COLUMN_KEY": "",
+      "IS_NULLABLE": "NO"
+    },
+    {
+      "TABLE_NAME": "attachments",
+      "COLUMN_NAME": "file_size",
+      "COLUMN_TYPE": "bigint(20) unsigned",
+      "COLUMN_KEY": "",
+      "IS_NULLABLE": "NO"
+    },
+    {
+      "TABLE_NAME": "attachments",
+      "COLUMN_NAME": "created_at",
+      "COLUMN_TYPE": "datetime",
+      "COLUMN_KEY": "",
+      "IS_NULLABLE": "NO"
+    },
+    {
+      "TABLE_NAME": "attractions",
+      "COLUMN_NAME": "attraction_id",
+      "COLUMN_TYPE": "bigint(20) unsigned",
+      "COLUMN_KEY": "PRI",
+      "IS_NULLABLE": "NO"
+    },
+    {
+      "TABLE_NAME": "attractions",
+      "COLUMN_NAME": "category_id",
+      "COLUMN_TYPE": "bigint(20) unsigned",
+      "COLUMN_KEY": "MUL",
+      "IS_NULLABLE": "YES"
+    },
+    {
+      "TABLE_NAME": "attractions",
+      "COLUMN_NAME": "name",
+      "COLUMN_TYPE": "varchar(150)",
+      "COLUMN_KEY": "",
+      "IS_NULLABLE": "NO"
+    },
+    {
+      "TABLE_NAME": "attractions",
+      "COLUMN_NAME": "country_id",
+      "COLUMN_TYPE": "bigint(20) unsigned",
+      "COLUMN_KEY": "MUL",
+      "IS_NULLABLE": "NO"
+    },
+    {
+      "TABLE_NAME": "attractions",
+      "COLUMN_NAME": "city_id",
+      "COLUMN_TYPE": "bigint(20) unsigned",
+      "COLUMN_KEY": "MUL",
+      "IS_NULLABLE": "NO"
+    },
+    {
+      "TABLE_NAME": "attractions",
+      "COLUMN_NAME": "address",
+      "COLUMN_TYPE": "varchar(255)",
+      "COLUMN_KEY": "",
+      "IS_NULLABLE": "YES"
+    },
+    {
+      "TABLE_NAME": "attractions",
+      "COLUMN_NAME": "latitude",
+      "COLUMN_TYPE": "decimal(10,7)",
+      "COLUMN_KEY": "",
+      "IS_NULLABLE": "YES"
+    },
+    {
+      "TABLE_NAME": "attractions",
+      "COLUMN_NAME": "longitude",
+      "COLUMN_TYPE": "decimal(10,7)",
+      "COLUMN_KEY": "",
+      "IS_NULLABLE": "YES"
+    },
+    {
+      "TABLE_NAME": "attractions",
+      "COLUMN_NAME": "opening_hours",
+      "COLUMN_TYPE": "varchar(255)",
+      "COLUMN_KEY": "",
+      "IS_NULLABLE": "YES"
+    },
+    {
+      "TABLE_NAME": "attractions",
+      "COLUMN_NAME": "ticket_price",
+      "COLUMN_TYPE": "decimal(12,2)",
+      "COLUMN_KEY": "",
+      "IS_NULLABLE": "NO"
+    },
+    {
+      "TABLE_NAME": "attractions",
+      "COLUMN_NAME": "suggested_duration_minutes",
+      "COLUMN_TYPE": "int(10) unsigned",
+      "COLUMN_KEY": "",
+      "IS_NULLABLE": "YES"
+    },
+    {
+      "TABLE_NAME": "attractions",
+      "COLUMN_NAME": "description",
+      "COLUMN_TYPE": "text",
+      "COLUMN_KEY": "",
+      "IS_NULLABLE": "YES"
+    },
+    {
+      "TABLE_NAME": "attractions",
+      "COLUMN_NAME": "website_url",
+      "COLUMN_TYPE": "varchar(500)",
+      "COLUMN_KEY": "",
+      "IS_NULLABLE": "YES"
+    },
+    {
+      "TABLE_NAME": "attractions",
+      "COLUMN_NAME": "image_path",
+      "COLUMN_TYPE": "varchar(255)",
+      "COLUMN_KEY": "",
+      "IS_NULLABLE": "YES"
+    },
+    {
+      "TABLE_NAME": "attractions",
+      "COLUMN_NAME": "is_popular",
+      "COLUMN_TYPE": "tinyint(1)",
+      "COLUMN_KEY": "",
+      "IS_NULLABLE": "NO"
+    },
+    {
+      "TABLE_NAME": "attractions",
+      "COLUMN_NAME": "status",
+      "COLUMN_TYPE": "enum('active','hidden','pending')",
+      "COLUMN_KEY": "",
+      "IS_NULLABLE": "NO"
+    },
+    {
+      "TABLE_NAME": "attractions",
+      "COLUMN_NAME": "deleted_at",
+      "COLUMN_TYPE": "datetime",
+      "COLUMN_KEY": "",
+      "IS_NULLABLE": "YES"
+    },
+    {
+      "TABLE_NAME": "attractions",
+      "COLUMN_NAME": "ai_verified_at",
+      "COLUMN_TYPE": "datetime",
+      "COLUMN_KEY": "",
+      "IS_NULLABLE": "YES"
+    },
+    {
+      "TABLE_NAME": "attractions",
+      "COLUMN_NAME": "ai_verified_by",
+      "COLUMN_TYPE": "bigint(20) unsigned",
+      "COLUMN_KEY": "MUL",
+      "IS_NULLABLE": "YES"
+    },
+    {
+      "TABLE_NAME": "attractions",
+      "COLUMN_NAME": "created_by",
+      "COLUMN_TYPE": "bigint(20) unsigned",
+      "COLUMN_KEY": "MUL",
+      "IS_NULLABLE": "YES"
+    },
+    {
+      "TABLE_NAME": "attractions",
+      "COLUMN_NAME": "created_at",
+      "COLUMN_TYPE": "datetime",
+      "COLUMN_KEY": "",
+      "IS_NULLABLE": "NO"
+    },
+    {
+      "TABLE_NAME": "attractions",
+      "COLUMN_NAME": "updated_at",
+      "COLUMN_TYPE": "datetime",
+      "COLUMN_KEY": "",
+      "IS_NULLABLE": "NO"
+    },
+    {
+      "TABLE_NAME": "attraction_posts",
+      "COLUMN_NAME": "post_id",
+      "COLUMN_TYPE": "bigint(20) unsigned",
+      "COLUMN_KEY": "PRI",
+      "IS_NULLABLE": "NO"
+    },
+    {
+      "TABLE_NAME": "attraction_posts",
+      "COLUMN_NAME": "attraction_id",
+      "COLUMN_TYPE": "bigint(20) unsigned",
+      "COLUMN_KEY": "MUL",
+      "IS_NULLABLE": "NO"
+    },
+    {
+      "TABLE_NAME": "attraction_posts",
+      "COLUMN_NAME": "user_id",
+      "COLUMN_TYPE": "bigint(20) unsigned",
+      "COLUMN_KEY": "MUL",
+      "IS_NULLABLE": "NO"
+    },
+    {
+      "TABLE_NAME": "attraction_posts",
+      "COLUMN_NAME": "caption",
+      "COLUMN_TYPE": "text",
+      "COLUMN_KEY": "",
+      "IS_NULLABLE": "YES"
+    },
+    {
+      "TABLE_NAME": "attraction_posts",
+      "COLUMN_NAME": "review_status",
+      "COLUMN_TYPE": "enum('pending','approved','rejected')",
+      "COLUMN_KEY": "",
+      "IS_NULLABLE": "NO"
+    },
+    {
+      "TABLE_NAME": "attraction_posts",
+      "COLUMN_NAME": "reviewed_by",
+      "COLUMN_TYPE": "bigint(20) unsigned",
+      "COLUMN_KEY": "MUL",
+      "IS_NULLABLE": "YES"
+    },
+    {
+      "TABLE_NAME": "attraction_posts",
+      "COLUMN_NAME": "reviewed_at",
+      "COLUMN_TYPE": "datetime",
+      "COLUMN_KEY": "",
+      "IS_NULLABLE": "YES"
+    },
+    {
+      "TABLE_NAME": "attraction_posts",
+      "COLUMN_NAME": "review_note",
+      "COLUMN_TYPE": "varchar(255)",
+      "COLUMN_KEY": "",
+      "IS_NULLABLE": "YES"
+    },
+    {
+      "TABLE_NAME": "attraction_posts",
+      "COLUMN_NAME": "created_at",
+      "COLUMN_TYPE": "datetime",
+      "COLUMN_KEY": "",
+      "IS_NULLABLE": "NO"
+    },
+    {
+      "TABLE_NAME": "attraction_post_images",
+      "COLUMN_NAME": "image_id",
+      "COLUMN_TYPE": "bigint(20) unsigned",
+      "COLUMN_KEY": "PRI",
+      "IS_NULLABLE": "NO"
+    },
+    {
+      "TABLE_NAME": "attraction_post_images",
+      "COLUMN_NAME": "post_id",
+      "COLUMN_TYPE": "bigint(20) unsigned",
+      "COLUMN_KEY": "MUL",
+      "IS_NULLABLE": "NO"
+    },
+    {
+      "TABLE_NAME": "attraction_post_images",
+      "COLUMN_NAME": "image_path",
+      "COLUMN_TYPE": "varchar(255)",
+      "COLUMN_KEY": "",
+      "IS_NULLABLE": "NO"
+    },
+    {
+      "TABLE_NAME": "attraction_post_images",
+      "COLUMN_NAME": "sort_order",
+      "COLUMN_TYPE": "int(11)",
+      "COLUMN_KEY": "",
+      "IS_NULLABLE": "NO"
+    },
+    {
+      "TABLE_NAME": "booking_favorites",
+      "COLUMN_NAME": "user_id",
+      "COLUMN_TYPE": "bigint(20) unsigned",
+      "COLUMN_KEY": "PRI",
+      "IS_NULLABLE": "NO"
+    },
+    {
+      "TABLE_NAME": "booking_favorites",
+      "COLUMN_NAME": "kind",
+      "COLUMN_TYPE": "enum('hotel','flight','train')",
+      "COLUMN_KEY": "PRI",
+      "IS_NULLABLE": "NO"
+    },
+    {
+      "TABLE_NAME": "booking_favorites",
+      "COLUMN_NAME": "target_id",
+      "COLUMN_TYPE": "bigint(20) unsigned",
+      "COLUMN_KEY": "PRI",
+      "IS_NULLABLE": "NO"
+    },
+    {
+      "TABLE_NAME": "booking_favorites",
+      "COLUMN_NAME": "created_at",
+      "COLUMN_TYPE": "datetime",
+      "COLUMN_KEY": "",
+      "IS_NULLABLE": "NO"
+    },
+    {
+      "TABLE_NAME": "booking_live_favorites",
+      "COLUMN_NAME": "user_id",
+      "COLUMN_TYPE": "bigint(20) unsigned",
+      "COLUMN_KEY": "PRI",
+      "IS_NULLABLE": "NO"
+    },
+    {
+      "TABLE_NAME": "booking_live_favorites",
+      "COLUMN_NAME": "kind",
+      "COLUMN_TYPE": "enum('hotel','flight')",
+      "COLUMN_KEY": "PRI",
+      "IS_NULLABLE": "NO"
+    },
+    {
+      "TABLE_NAME": "booking_live_favorites",
+      "COLUMN_NAME": "item_key",
+      "COLUMN_TYPE": "varchar(190)",
+      "COLUMN_KEY": "PRI",
+      "IS_NULLABLE": "NO"
+    },
+    {
+      "TABLE_NAME": "booking_live_favorites",
+      "COLUMN_NAME": "title",
+      "COLUMN_TYPE": "varchar(200)",
+      "COLUMN_KEY": "",
+      "IS_NULLABLE": "NO"
+    },
+    {
+      "TABLE_NAME": "booking_live_favorites",
+      "COLUMN_NAME": "subtitle",
+      "COLUMN_TYPE": "varchar(300)",
+      "COLUMN_KEY": "",
+      "IS_NULLABLE": "YES"
+    },
+    {
+      "TABLE_NAME": "booking_live_favorites",
+      "COLUMN_NAME": "price",
+      "COLUMN_TYPE": "decimal(12,2)",
+      "COLUMN_KEY": "",
+      "IS_NULLABLE": "YES"
+    },
+    {
+      "TABLE_NAME": "booking_live_favorites",
+      "COLUMN_NAME": "link",
+      "COLUMN_TYPE": "varchar(1000)",
+      "COLUMN_KEY": "",
+      "IS_NULLABLE": "YES"
+    },
+    {
+      "TABLE_NAME": "booking_live_favorites",
+      "COLUMN_NAME": "created_at",
+      "COLUMN_TYPE": "datetime",
+      "COLUMN_KEY": "",
+      "IS_NULLABLE": "NO"
+    },
+    {
+      "TABLE_NAME": "categories",
+      "COLUMN_NAME": "category_id",
+      "COLUMN_TYPE": "bigint(20) unsigned",
+      "COLUMN_KEY": "PRI",
+      "IS_NULLABLE": "NO"
+    },
+    {
+      "TABLE_NAME": "categories",
+      "COLUMN_NAME": "category_type",
+      "COLUMN_TYPE": "enum('trip','attraction','restaurant','accommodation','expense')",
+      "COLUMN_KEY": "MUL",
+      "IS_NULLABLE": "NO"
+    },
+    {
+      "TABLE_NAME": "categories",
+      "COLUMN_NAME": "category_name",
+      "COLUMN_TYPE": "varchar(100)",
+      "COLUMN_KEY": "",
+      "IS_NULLABLE": "NO"
+    },
+    {
+      "TABLE_NAME": "categories",
+      "COLUMN_NAME": "description",
+      "COLUMN_TYPE": "varchar(255)",
+      "COLUMN_KEY": "",
+      "IS_NULLABLE": "YES"
+    },
+    {
+      "TABLE_NAME": "categories",
+      "COLUMN_NAME": "status",
+      "COLUMN_TYPE": "enum('active','hidden')",
+      "COLUMN_KEY": "",
+      "IS_NULLABLE": "NO"
+    },
+    {
+      "TABLE_NAME": "categories",
+      "COLUMN_NAME": "created_by",
+      "COLUMN_TYPE": "bigint(20) unsigned",
+      "COLUMN_KEY": "MUL",
+      "IS_NULLABLE": "YES"
+    },
+    {
+      "TABLE_NAME": "categories",
+      "COLUMN_NAME": "created_at",
+      "COLUMN_TYPE": "datetime",
+      "COLUMN_KEY": "",
+      "IS_NULLABLE": "NO"
+    },
+    {
+      "TABLE_NAME": "categories",
+      "COLUMN_NAME": "updated_at",
+      "COLUMN_TYPE": "datetime",
+      "COLUMN_KEY": "",
+      "IS_NULLABLE": "NO"
+    },
+    {
+      "TABLE_NAME": "cities",
+      "COLUMN_NAME": "city_id",
+      "COLUMN_TYPE": "bigint(20) unsigned",
+      "COLUMN_KEY": "PRI",
+      "IS_NULLABLE": "NO"
+    },
+    {
+      "TABLE_NAME": "cities",
+      "COLUMN_NAME": "country_id",
+      "COLUMN_TYPE": "bigint(20) unsigned",
+      "COLUMN_KEY": "MUL",
+      "IS_NULLABLE": "NO"
+    },
+    {
+      "TABLE_NAME": "cities",
+      "COLUMN_NAME": "name",
+      "COLUMN_TYPE": "varchar(100)",
+      "COLUMN_KEY": "",
+      "IS_NULLABLE": "NO"
+    },
+    {
+      "TABLE_NAME": "cities",
+      "COLUMN_NAME": "region",
+      "COLUMN_TYPE": "varchar(50)",
+      "COLUMN_KEY": "",
+      "IS_NULLABLE": "YES"
+    },
+    {
+      "TABLE_NAME": "cities",
+      "COLUMN_NAME": "created_at",
+      "COLUMN_TYPE": "datetime",
+      "COLUMN_KEY": "",
+      "IS_NULLABLE": "NO"
+    },
+    {
+      "TABLE_NAME": "cities",
+      "COLUMN_NAME": "updated_at",
+      "COLUMN_TYPE": "datetime",
+      "COLUMN_KEY": "",
+      "IS_NULLABLE": "NO"
+    },
+    {
+      "TABLE_NAME": "comments",
+      "COLUMN_NAME": "comment_id",
+      "COLUMN_TYPE": "bigint(20) unsigned",
+      "COLUMN_KEY": "PRI",
+      "IS_NULLABLE": "NO"
+    },
+    {
+      "TABLE_NAME": "comments",
+      "COLUMN_NAME": "trip_id",
+      "COLUMN_TYPE": "bigint(20) unsigned",
+      "COLUMN_KEY": "MUL",
+      "IS_NULLABLE": "NO"
+    },
+    {
+      "TABLE_NAME": "comments",
+      "COLUMN_NAME": "itinerary_id",
+      "COLUMN_TYPE": "bigint(20) unsigned",
+      "COLUMN_KEY": "MUL",
+      "IS_NULLABLE": "YES"
+    },
+    {
+      "TABLE_NAME": "comments",
+      "COLUMN_NAME": "proposal_id",
+      "COLUMN_TYPE": "bigint(20) unsigned",
+      "COLUMN_KEY": "MUL",
+      "IS_NULLABLE": "YES"
+    },
+    {
+      "TABLE_NAME": "comments",
+      "COLUMN_NAME": "user_id",
+      "COLUMN_TYPE": "bigint(20) unsigned",
+      "COLUMN_KEY": "MUL",
+      "IS_NULLABLE": "NO"
+    },
+    {
+      "TABLE_NAME": "comments",
+      "COLUMN_NAME": "parent_comment_id",
+      "COLUMN_TYPE": "bigint(20) unsigned",
+      "COLUMN_KEY": "MUL",
+      "IS_NULLABLE": "YES"
+    },
+    {
+      "TABLE_NAME": "comments",
+      "COLUMN_NAME": "content",
+      "COLUMN_TYPE": "text",
+      "COLUMN_KEY": "",
+      "IS_NULLABLE": "NO"
+    },
+    {
+      "TABLE_NAME": "comments",
+      "COLUMN_NAME": "status",
+      "COLUMN_TYPE": "enum('visible','hidden','deleted')",
+      "COLUMN_KEY": "",
+      "IS_NULLABLE": "NO"
+    },
+    {
+      "TABLE_NAME": "comments",
+      "COLUMN_NAME": "created_at",
+      "COLUMN_TYPE": "datetime",
+      "COLUMN_KEY": "",
+      "IS_NULLABLE": "NO"
+    },
+    {
+      "TABLE_NAME": "comments",
+      "COLUMN_NAME": "updated_at",
+      "COLUMN_TYPE": "datetime",
+      "COLUMN_KEY": "",
+      "IS_NULLABLE": "NO"
+    },
+    {
+      "TABLE_NAME": "content_admin_denials",
+      "COLUMN_NAME": "user_id",
+      "COLUMN_TYPE": "bigint(20) unsigned",
+      "COLUMN_KEY": "PRI",
+      "IS_NULLABLE": "NO"
+    },
+    {
+      "TABLE_NAME": "content_admin_denials",
+      "COLUMN_NAME": "module",
+      "COLUMN_TYPE": "varchar(40)",
+      "COLUMN_KEY": "PRI",
+      "IS_NULLABLE": "NO"
+    },
+    {
+      "TABLE_NAME": "countries",
+      "COLUMN_NAME": "country_id",
+      "COLUMN_TYPE": "bigint(20) unsigned",
+      "COLUMN_KEY": "PRI",
+      "IS_NULLABLE": "NO"
+    },
+    {
+      "TABLE_NAME": "countries",
+      "COLUMN_NAME": "name",
+      "COLUMN_TYPE": "varchar(100)",
+      "COLUMN_KEY": "UNI",
+      "IS_NULLABLE": "NO"
+    },
+    {
+      "TABLE_NAME": "countries",
+      "COLUMN_NAME": "created_at",
+      "COLUMN_TYPE": "datetime",
+      "COLUMN_KEY": "",
+      "IS_NULLABLE": "NO"
+    },
+    {
+      "TABLE_NAME": "countries",
+      "COLUMN_NAME": "updated_at",
+      "COLUMN_TYPE": "datetime",
+      "COLUMN_KEY": "",
+      "IS_NULLABLE": "NO"
+    },
+    {
+      "TABLE_NAME": "edit_logs",
+      "COLUMN_NAME": "edit_log_id",
+      "COLUMN_TYPE": "bigint(20) unsigned",
+      "COLUMN_KEY": "PRI",
+      "IS_NULLABLE": "NO"
+    },
+    {
+      "TABLE_NAME": "edit_logs",
+      "COLUMN_NAME": "trip_id",
+      "COLUMN_TYPE": "bigint(20) unsigned",
+      "COLUMN_KEY": "MUL",
+      "IS_NULLABLE": "NO"
+    },
+    {
+      "TABLE_NAME": "edit_logs",
+      "COLUMN_NAME": "user_id",
+      "COLUMN_TYPE": "bigint(20) unsigned",
+      "COLUMN_KEY": "MUL",
+      "IS_NULLABLE": "NO"
+    },
+    {
+      "TABLE_NAME": "edit_logs",
+      "COLUMN_NAME": "target_table",
+      "COLUMN_TYPE": "varchar(100)",
+      "COLUMN_KEY": "",
+      "IS_NULLABLE": "NO"
+    },
+    {
+      "TABLE_NAME": "edit_logs",
+      "COLUMN_NAME": "target_id",
+      "COLUMN_TYPE": "bigint(20) unsigned",
+      "COLUMN_KEY": "",
+      "IS_NULLABLE": "NO"
+    },
+    {
+      "TABLE_NAME": "edit_logs",
+      "COLUMN_NAME": "action",
+      "COLUMN_TYPE": "enum('create','update','delete','restore')",
+      "COLUMN_KEY": "",
+      "IS_NULLABLE": "NO"
+    },
+    {
+      "TABLE_NAME": "edit_logs",
+      "COLUMN_NAME": "before_data",
+      "COLUMN_TYPE": "longtext",
+      "COLUMN_KEY": "",
+      "IS_NULLABLE": "YES"
+    },
+    {
+      "TABLE_NAME": "edit_logs",
+      "COLUMN_NAME": "after_data",
+      "COLUMN_TYPE": "longtext",
+      "COLUMN_KEY": "",
+      "IS_NULLABLE": "YES"
+    },
+    {
+      "TABLE_NAME": "edit_logs",
+      "COLUMN_NAME": "created_at",
+      "COLUMN_TYPE": "datetime",
+      "COLUMN_KEY": "",
+      "IS_NULLABLE": "NO"
+    },
+    {
+      "TABLE_NAME": "expenses",
+      "COLUMN_NAME": "expense_id",
+      "COLUMN_TYPE": "bigint(20) unsigned",
+      "COLUMN_KEY": "PRI",
+      "IS_NULLABLE": "NO"
+    },
+    {
+      "TABLE_NAME": "expenses",
+      "COLUMN_NAME": "trip_id",
+      "COLUMN_TYPE": "bigint(20) unsigned",
+      "COLUMN_KEY": "MUL",
+      "IS_NULLABLE": "NO"
+    },
+    {
+      "TABLE_NAME": "expenses",
+      "COLUMN_NAME": "category_id",
+      "COLUMN_TYPE": "bigint(20) unsigned",
+      "COLUMN_KEY": "MUL",
+      "IS_NULLABLE": "YES"
+    },
+    {
+      "TABLE_NAME": "expenses",
+      "COLUMN_NAME": "created_by",
+      "COLUMN_TYPE": "bigint(20) unsigned",
+      "COLUMN_KEY": "MUL",
+      "IS_NULLABLE": "NO"
+    },
+    {
+      "TABLE_NAME": "expenses",
+      "COLUMN_NAME": "payer_id",
+      "COLUMN_TYPE": "bigint(20) unsigned",
+      "COLUMN_KEY": "MUL",
+      "IS_NULLABLE": "NO"
+    },
+    {
+      "TABLE_NAME": "expenses",
+      "COLUMN_NAME": "expense_name",
+      "COLUMN_TYPE": "varchar(150)",
+      "COLUMN_KEY": "",
+      "IS_NULLABLE": "NO"
+    },
+    {
+      "TABLE_NAME": "expenses",
+      "COLUMN_NAME": "expense_type",
+      "COLUMN_TYPE": "enum('estimated','actual')",
+      "COLUMN_KEY": "",
+      "IS_NULLABLE": "NO"
+    },
+    {
+      "TABLE_NAME": "expenses",
+      "COLUMN_NAME": "scope",
+      "COLUMN_TYPE": "enum('shared','personal')",
+      "COLUMN_KEY": "",
+      "IS_NULLABLE": "NO"
+    },
+    {
+      "TABLE_NAME": "expenses",
+      "COLUMN_NAME": "amount",
+      "COLUMN_TYPE": "decimal(14,2)",
+      "COLUMN_KEY": "",
+      "IS_NULLABLE": "NO"
+    },
+    {
+      "TABLE_NAME": "expenses",
+      "COLUMN_NAME": "currency",
+      "COLUMN_TYPE": "char(3)",
+      "COLUMN_KEY": "",
+      "IS_NULLABLE": "NO"
+    },
+    {
+      "TABLE_NAME": "expenses",
+      "COLUMN_NAME": "expense_date",
+      "COLUMN_TYPE": "date",
+      "COLUMN_KEY": "",
+      "IS_NULLABLE": "NO"
+    },
+    {
+      "TABLE_NAME": "expenses",
+      "COLUMN_NAME": "note",
+      "COLUMN_TYPE": "text",
+      "COLUMN_KEY": "",
+      "IS_NULLABLE": "YES"
+    },
+    {
+      "TABLE_NAME": "expenses",
+      "COLUMN_NAME": "receipt_path",
+      "COLUMN_TYPE": "varchar(255)",
+      "COLUMN_KEY": "",
+      "IS_NULLABLE": "YES"
+    },
+    {
+      "TABLE_NAME": "expenses",
+      "COLUMN_NAME": "created_at",
+      "COLUMN_TYPE": "datetime",
+      "COLUMN_KEY": "",
+      "IS_NULLABLE": "NO"
+    },
+    {
+      "TABLE_NAME": "expenses",
+      "COLUMN_NAME": "updated_at",
+      "COLUMN_TYPE": "datetime",
+      "COLUMN_KEY": "",
+      "IS_NULLABLE": "NO"
+    },
+    {
+      "TABLE_NAME": "expense_items",
+      "COLUMN_NAME": "item_id",
+      "COLUMN_TYPE": "bigint(20) unsigned",
+      "COLUMN_KEY": "PRI",
+      "IS_NULLABLE": "NO"
+    },
+    {
+      "TABLE_NAME": "expense_items",
+      "COLUMN_NAME": "expense_id",
+      "COLUMN_TYPE": "bigint(20) unsigned",
+      "COLUMN_KEY": "MUL",
+      "IS_NULLABLE": "NO"
+    },
+    {
+      "TABLE_NAME": "expense_items",
+      "COLUMN_NAME": "item_date",
+      "COLUMN_TYPE": "date",
+      "COLUMN_KEY": "",
+      "IS_NULLABLE": "NO"
+    },
+    {
+      "TABLE_NAME": "expense_items",
+      "COLUMN_NAME": "description",
+      "COLUMN_TYPE": "varchar(255)",
+      "COLUMN_KEY": "",
+      "IS_NULLABLE": "NO"
+    },
+    {
+      "TABLE_NAME": "expense_items",
+      "COLUMN_NAME": "amount",
+      "COLUMN_TYPE": "decimal(14,2)",
+      "COLUMN_KEY": "",
+      "IS_NULLABLE": "NO"
+    },
+    {
+      "TABLE_NAME": "expense_items",
+      "COLUMN_NAME": "receipt_path",
+      "COLUMN_TYPE": "varchar(255)",
+      "COLUMN_KEY": "",
+      "IS_NULLABLE": "YES"
+    },
+    {
+      "TABLE_NAME": "expense_items",
+      "COLUMN_NAME": "sort_order",
+      "COLUMN_TYPE": "int(11)",
+      "COLUMN_KEY": "",
+      "IS_NULLABLE": "NO"
+    },
+    {
+      "TABLE_NAME": "expense_splits",
+      "COLUMN_NAME": "split_id",
+      "COLUMN_TYPE": "bigint(20) unsigned",
+      "COLUMN_KEY": "PRI",
+      "IS_NULLABLE": "NO"
+    },
+    {
+      "TABLE_NAME": "expense_splits",
+      "COLUMN_NAME": "expense_id",
+      "COLUMN_TYPE": "bigint(20) unsigned",
+      "COLUMN_KEY": "MUL",
+      "IS_NULLABLE": "NO"
+    },
+    {
+      "TABLE_NAME": "expense_splits",
+      "COLUMN_NAME": "user_id",
+      "COLUMN_TYPE": "bigint(20) unsigned",
+      "COLUMN_KEY": "MUL",
+      "IS_NULLABLE": "NO"
+    },
+    {
+      "TABLE_NAME": "expense_splits",
+      "COLUMN_NAME": "split_amount",
+      "COLUMN_TYPE": "decimal(14,2)",
+      "COLUMN_KEY": "",
+      "IS_NULLABLE": "NO"
+    },
+    {
+      "TABLE_NAME": "expense_splits",
+      "COLUMN_NAME": "settlement_status",
+      "COLUMN_TYPE": "enum('unpaid','paid','waived')",
+      "COLUMN_KEY": "",
+      "IS_NULLABLE": "NO"
+    },
+    {
+      "TABLE_NAME": "expense_splits",
+      "COLUMN_NAME": "paid_at",
+      "COLUMN_TYPE": "datetime",
+      "COLUMN_KEY": "",
+      "IS_NULLABLE": "YES"
+    },
+    {
+      "TABLE_NAME": "favorites",
+      "COLUMN_NAME": "favorite_id",
+      "COLUMN_TYPE": "bigint(20) unsigned",
+      "COLUMN_KEY": "PRI",
+      "IS_NULLABLE": "NO"
+    },
+    {
+      "TABLE_NAME": "favorites",
+      "COLUMN_NAME": "user_id",
+      "COLUMN_TYPE": "bigint(20) unsigned",
+      "COLUMN_KEY": "MUL",
+      "IS_NULLABLE": "NO"
+    },
+    {
+      "TABLE_NAME": "favorites",
+      "COLUMN_NAME": "target_type",
+      "COLUMN_TYPE": "enum('trip','attraction','restaurant','accommodation')",
+      "COLUMN_KEY": "",
+      "IS_NULLABLE": "NO"
+    },
+    {
+      "TABLE_NAME": "favorites",
+      "COLUMN_NAME": "trip_id",
+      "COLUMN_TYPE": "bigint(20) unsigned",
+      "COLUMN_KEY": "MUL",
+      "IS_NULLABLE": "YES"
+    },
+    {
+      "TABLE_NAME": "favorites",
+      "COLUMN_NAME": "attraction_id",
+      "COLUMN_TYPE": "bigint(20) unsigned",
+      "COLUMN_KEY": "MUL",
+      "IS_NULLABLE": "YES"
+    },
+    {
+      "TABLE_NAME": "favorites",
+      "COLUMN_NAME": "restaurant_id",
+      "COLUMN_TYPE": "bigint(20) unsigned",
+      "COLUMN_KEY": "MUL",
+      "IS_NULLABLE": "YES"
+    },
+    {
+      "TABLE_NAME": "favorites",
+      "COLUMN_NAME": "accommodation_id",
+      "COLUMN_TYPE": "bigint(20) unsigned",
+      "COLUMN_KEY": "MUL",
+      "IS_NULLABLE": "YES"
+    },
+    {
+      "TABLE_NAME": "favorites",
+      "COLUMN_NAME": "created_at",
+      "COLUMN_TYPE": "datetime",
+      "COLUMN_KEY": "",
+      "IS_NULLABLE": "NO"
+    },
+    {
+      "TABLE_NAME": "flights",
+      "COLUMN_NAME": "flight_id",
+      "COLUMN_TYPE": "bigint(20) unsigned",
+      "COLUMN_KEY": "PRI",
+      "IS_NULLABLE": "NO"
+    },
+    {
+      "TABLE_NAME": "flights",
+      "COLUMN_NAME": "airline_name",
+      "COLUMN_TYPE": "varchar(100)",
+      "COLUMN_KEY": "",
+      "IS_NULLABLE": "NO"
+    },
+    {
+      "TABLE_NAME": "flights",
+      "COLUMN_NAME": "flight_number",
+      "COLUMN_TYPE": "varchar(20)",
+      "COLUMN_KEY": "",
+      "IS_NULLABLE": "NO"
+    },
+    {
+      "TABLE_NAME": "flights",
+      "COLUMN_NAME": "origin_country_id",
+      "COLUMN_TYPE": "bigint(20) unsigned",
+      "COLUMN_KEY": "MUL",
+      "IS_NULLABLE": "NO"
+    },
+    {
+      "TABLE_NAME": "flights",
+      "COLUMN_NAME": "origin_city_id",
+      "COLUMN_TYPE": "bigint(20) unsigned",
+      "COLUMN_KEY": "MUL",
+      "IS_NULLABLE": "NO"
+    },
+    {
+      "TABLE_NAME": "flights",
+      "COLUMN_NAME": "destination_country_id",
+      "COLUMN_TYPE": "bigint(20) unsigned",
+      "COLUMN_KEY": "MUL",
+      "IS_NULLABLE": "NO"
+    },
+    {
+      "TABLE_NAME": "flights",
+      "COLUMN_NAME": "destination_city_id",
+      "COLUMN_TYPE": "bigint(20) unsigned",
+      "COLUMN_KEY": "MUL",
+      "IS_NULLABLE": "NO"
+    },
+    {
+      "TABLE_NAME": "flights",
+      "COLUMN_NAME": "departure_time",
+      "COLUMN_TYPE": "time",
+      "COLUMN_KEY": "",
+      "IS_NULLABLE": "NO"
+    },
+    {
+      "TABLE_NAME": "flights",
+      "COLUMN_NAME": "arrival_time",
+      "COLUMN_TYPE": "time",
+      "COLUMN_KEY": "",
+      "IS_NULLABLE": "NO"
+    },
+    {
+      "TABLE_NAME": "flights",
+      "COLUMN_NAME": "duration_minutes",
+      "COLUMN_TYPE": "int(11)",
+      "COLUMN_KEY": "",
+      "IS_NULLABLE": "NO"
+    },
+    {
+      "TABLE_NAME": "flights",
+      "COLUMN_NAME": "price",
+      "COLUMN_TYPE": "decimal(10,2)",
+      "COLUMN_KEY": "",
+      "IS_NULLABLE": "NO"
+    },
+    {
+      "TABLE_NAME": "flights",
+      "COLUMN_NAME": "cabin_class",
+      "COLUMN_TYPE": "varchar(50)",
+      "COLUMN_KEY": "",
+      "IS_NULLABLE": "NO"
+    },
+    {
+      "TABLE_NAME": "flights",
+      "COLUMN_NAME": "stops",
+      "COLUMN_TYPE": "tinyint(3) unsigned",
+      "COLUMN_KEY": "",
+      "IS_NULLABLE": "NO"
+    },
+    {
+      "TABLE_NAME": "flights",
+      "COLUMN_NAME": "seats_available",
+      "COLUMN_TYPE": "int(11)",
+      "COLUMN_KEY": "",
+      "IS_NULLABLE": "NO"
+    },
+    {
+      "TABLE_NAME": "flights",
+      "COLUMN_NAME": "status",
+      "COLUMN_TYPE": "enum('active','hidden')",
+      "COLUMN_KEY": "",
+      "IS_NULLABLE": "NO"
+    },
+    {
+      "TABLE_NAME": "flights",
+      "COLUMN_NAME": "created_at",
+      "COLUMN_TYPE": "datetime",
+      "COLUMN_KEY": "",
+      "IS_NULLABLE": "NO"
+    },
+    {
+      "TABLE_NAME": "flights",
+      "COLUMN_NAME": "updated_at",
+      "COLUMN_TYPE": "datetime",
+      "COLUMN_KEY": "",
+      "IS_NULLABLE": "NO"
+    },
+    {
+      "TABLE_NAME": "friend_groups",
+      "COLUMN_NAME": "group_id",
+      "COLUMN_TYPE": "bigint(20) unsigned",
+      "COLUMN_KEY": "PRI",
+      "IS_NULLABLE": "NO"
+    },
+    {
+      "TABLE_NAME": "friend_groups",
+      "COLUMN_NAME": "trip_id",
+      "COLUMN_TYPE": "bigint(20) unsigned",
+      "COLUMN_KEY": "MUL",
+      "IS_NULLABLE": "YES"
+    },
+    {
+      "TABLE_NAME": "friend_groups",
+      "COLUMN_NAME": "host_user_id",
+      "COLUMN_TYPE": "bigint(20) unsigned",
+      "COLUMN_KEY": "MUL",
+      "IS_NULLABLE": "NO"
+    },
+    {
+      "TABLE_NAME": "friend_groups",
+      "COLUMN_NAME": "title",
+      "COLUMN_TYPE": "varchar(150)",
+      "COLUMN_KEY": "",
+      "IS_NULLABLE": "NO"
+    },
+    {
+      "TABLE_NAME": "friend_groups",
+      "COLUMN_NAME": "description",
+      "COLUMN_TYPE": "text",
+      "COLUMN_KEY": "",
+      "IS_NULLABLE": "YES"
+    },
+    {
+      "TABLE_NAME": "friend_groups",
+      "COLUMN_NAME": "location",
+      "COLUMN_TYPE": "varchar(255)",
+      "COLUMN_KEY": "",
+      "IS_NULLABLE": "YES"
+    },
+    {
+      "TABLE_NAME": "friend_groups",
+      "COLUMN_NAME": "event_date",
+      "COLUMN_TYPE": "date",
+      "COLUMN_KEY": "",
+      "IS_NULLABLE": "NO"
+    },
+    {
+      "TABLE_NAME": "friend_groups",
+      "COLUMN_NAME": "end_date",
+      "COLUMN_TYPE": "date",
+      "COLUMN_KEY": "",
+      "IS_NULLABLE": "YES"
+    },
+    {
+      "TABLE_NAME": "friend_groups",
+      "COLUMN_NAME": "start_time",
+      "COLUMN_TYPE": "time",
+      "COLUMN_KEY": "",
+      "IS_NULLABLE": "YES"
+    },
+    {
+      "TABLE_NAME": "friend_groups",
+      "COLUMN_NAME": "end_time",
+      "COLUMN_TYPE": "time",
+      "COLUMN_KEY": "",
+      "IS_NULLABLE": "YES"
+    },
+    {
+      "TABLE_NAME": "friend_groups",
+      "COLUMN_NAME": "capacity",
+      "COLUMN_TYPE": "int(10) unsigned",
+      "COLUMN_KEY": "",
+      "IS_NULLABLE": "YES"
+    },
+    {
+      "TABLE_NAME": "friend_groups",
+      "COLUMN_NAME": "pace_filter",
+      "COLUMN_TYPE": "enum('relaxed','balanced','packed')",
+      "COLUMN_KEY": "",
+      "IS_NULLABLE": "YES"
+    },
+    {
+      "TABLE_NAME": "friend_groups",
+      "COLUMN_NAME": "social_style_filter",
+      "COLUMN_TYPE": "enum('group','small_group','solo')",
+      "COLUMN_KEY": "",
+      "IS_NULLABLE": "YES"
+    },
+    {
+      "TABLE_NAME": "friend_groups",
+      "COLUMN_NAME": "status",
+      "COLUMN_TYPE": "enum('open','closed','cancelled')",
+      "COLUMN_KEY": "",
+      "IS_NULLABLE": "NO"
+    },
+    {
+      "TABLE_NAME": "friend_groups",
+      "COLUMN_NAME": "created_at",
+      "COLUMN_TYPE": "datetime",
+      "COLUMN_KEY": "",
+      "IS_NULLABLE": "NO"
+    },
+    {
+      "TABLE_NAME": "friend_groups",
+      "COLUMN_NAME": "show_member_list",
+      "COLUMN_TYPE": "tinyint(1)",
+      "COLUMN_KEY": "",
+      "IS_NULLABLE": "NO"
+    },
+    {
+      "TABLE_NAME": "friend_groups",
+      "COLUMN_NAME": "meeting_info",
+      "COLUMN_TYPE": "text",
+      "COLUMN_KEY": "",
+      "IS_NULLABLE": "YES"
+    },
+    {
+      "TABLE_NAME": "friend_groups",
+      "COLUMN_NAME": "moderation_locked",
+      "COLUMN_TYPE": "tinyint(1)",
+      "COLUMN_KEY": "",
+      "IS_NULLABLE": "NO"
+    },
+    {
+      "TABLE_NAME": "friend_group_ai_drafts",
+      "COLUMN_NAME": "draft_id",
+      "COLUMN_TYPE": "bigint(20) unsigned",
+      "COLUMN_KEY": "PRI",
+      "IS_NULLABLE": "NO"
+    },
+    {
+      "TABLE_NAME": "friend_group_ai_drafts",
+      "COLUMN_NAME": "user_id",
+      "COLUMN_TYPE": "bigint(20) unsigned",
+      "COLUMN_KEY": "MUL",
+      "IS_NULLABLE": "NO"
+    },
+    {
+      "TABLE_NAME": "friend_group_ai_drafts",
+      "COLUMN_NAME": "country_id",
+      "COLUMN_TYPE": "bigint(20) unsigned",
+      "COLUMN_KEY": "MUL",
+      "IS_NULLABLE": "NO"
+    },
+    {
+      "TABLE_NAME": "friend_group_ai_drafts",
+      "COLUMN_NAME": "city_id",
+      "COLUMN_TYPE": "bigint(20) unsigned",
+      "COLUMN_KEY": "MUL",
+      "IS_NULLABLE": "NO"
+    },
+    {
+      "TABLE_NAME": "friend_group_ai_drafts",
+      "COLUMN_NAME": "start_date",
+      "COLUMN_TYPE": "date",
+      "COLUMN_KEY": "",
+      "IS_NULLABLE": "NO"
+    },
+    {
+      "TABLE_NAME": "friend_group_ai_drafts",
+      "COLUMN_NAME": "end_date",
+      "COLUMN_TYPE": "date",
+      "COLUMN_KEY": "",
+      "IS_NULLABLE": "NO"
+    },
+    {
+      "TABLE_NAME": "friend_group_ai_drafts",
+      "COLUMN_NAME": "people_count",
+      "COLUMN_TYPE": "int(10) unsigned",
+      "COLUMN_KEY": "",
+      "IS_NULLABLE": "NO"
+    },
+    {
+      "TABLE_NAME": "friend_group_ai_drafts",
+      "COLUMN_NAME": "budget",
+      "COLUMN_TYPE": "decimal(14,2)",
+      "COLUMN_KEY": "",
+      "IS_NULLABLE": "NO"
+    },
+    {
+      "TABLE_NAME": "friend_group_ai_drafts",
+      "COLUMN_NAME": "user_request",
+      "COLUMN_TYPE": "varchar(1000)",
+      "COLUMN_KEY": "",
+      "IS_NULLABLE": "NO"
+    },
+    {
+      "TABLE_NAME": "friend_group_ai_drafts",
+      "COLUMN_NAME": "draft_json",
+      "COLUMN_TYPE": "longtext",
+      "COLUMN_KEY": "",
+      "IS_NULLABLE": "NO"
+    },
+    {
+      "TABLE_NAME": "friend_group_ai_drafts",
+      "COLUMN_NAME": "created_at",
+      "COLUMN_TYPE": "datetime",
+      "COLUMN_KEY": "",
+      "IS_NULLABLE": "NO"
+    },
+    {
+      "TABLE_NAME": "friend_group_ai_drafts",
+      "COLUMN_NAME": "consumed_at",
+      "COLUMN_TYPE": "datetime",
+      "COLUMN_KEY": "",
+      "IS_NULLABLE": "YES"
+    },
+    {
+      "TABLE_NAME": "friend_group_album_photos",
+      "COLUMN_NAME": "photo_id",
+      "COLUMN_TYPE": "bigint(20) unsigned",
+      "COLUMN_KEY": "PRI",
+      "IS_NULLABLE": "NO"
+    },
+    {
+      "TABLE_NAME": "friend_group_album_photos",
+      "COLUMN_NAME": "group_id",
+      "COLUMN_TYPE": "bigint(20) unsigned",
+      "COLUMN_KEY": "MUL",
+      "IS_NULLABLE": "NO"
+    },
+    {
+      "TABLE_NAME": "friend_group_album_photos",
+      "COLUMN_NAME": "uploaded_by",
+      "COLUMN_TYPE": "bigint(20) unsigned",
+      "COLUMN_KEY": "MUL",
+      "IS_NULLABLE": "NO"
+    },
+    {
+      "TABLE_NAME": "friend_group_album_photos",
+      "COLUMN_NAME": "stored_name",
+      "COLUMN_TYPE": "varchar(80)",
+      "COLUMN_KEY": "",
+      "IS_NULLABLE": "NO"
+    },
+    {
+      "TABLE_NAME": "friend_group_album_photos",
+      "COLUMN_NAME": "caption",
+      "COLUMN_TYPE": "varchar(300)",
+      "COLUMN_KEY": "",
+      "IS_NULLABLE": "YES"
+    },
+    {
+      "TABLE_NAME": "friend_group_album_photos",
+      "COLUMN_NAME": "created_at",
+      "COLUMN_TYPE": "datetime",
+      "COLUMN_KEY": "",
+      "IS_NULLABLE": "NO"
+    },
+    {
+      "TABLE_NAME": "friend_group_applications",
+      "COLUMN_NAME": "application_id",
+      "COLUMN_TYPE": "bigint(20) unsigned",
+      "COLUMN_KEY": "PRI",
+      "IS_NULLABLE": "NO"
+    },
+    {
+      "TABLE_NAME": "friend_group_applications",
+      "COLUMN_NAME": "user_id",
+      "COLUMN_TYPE": "bigint(20) unsigned",
+      "COLUMN_KEY": "MUL",
+      "IS_NULLABLE": "NO"
+    },
+    {
+      "TABLE_NAME": "friend_group_applications",
+      "COLUMN_NAME": "note",
+      "COLUMN_TYPE": "varchar(500)",
+      "COLUMN_KEY": "",
+      "IS_NULLABLE": "YES"
+    },
+    {
+      "TABLE_NAME": "friend_group_applications",
+      "COLUMN_NAME": "status",
+      "COLUMN_TYPE": "enum('pending','approved','rejected')",
+      "COLUMN_KEY": "",
+      "IS_NULLABLE": "NO"
+    },
+    {
+      "TABLE_NAME": "friend_group_applications",
+      "COLUMN_NAME": "reviewed_by",
+      "COLUMN_TYPE": "bigint(20) unsigned",
+      "COLUMN_KEY": "MUL",
+      "IS_NULLABLE": "YES"
+    },
+    {
+      "TABLE_NAME": "friend_group_applications",
+      "COLUMN_NAME": "reviewed_at",
+      "COLUMN_TYPE": "datetime",
+      "COLUMN_KEY": "",
+      "IS_NULLABLE": "YES"
+    },
+    {
+      "TABLE_NAME": "friend_group_applications",
+      "COLUMN_NAME": "review_note",
+      "COLUMN_TYPE": "varchar(255)",
+      "COLUMN_KEY": "",
+      "IS_NULLABLE": "YES"
+    },
+    {
+      "TABLE_NAME": "friend_group_applications",
+      "COLUMN_NAME": "created_at",
+      "COLUMN_TYPE": "datetime",
+      "COLUMN_KEY": "",
+      "IS_NULLABLE": "NO"
+    },
+    {
+      "TABLE_NAME": "friend_group_content_reports",
+      "COLUMN_NAME": "report_id",
+      "COLUMN_TYPE": "bigint(20) unsigned",
+      "COLUMN_KEY": "PRI",
+      "IS_NULLABLE": "NO"
+    },
+    {
+      "TABLE_NAME": "friend_group_content_reports",
+      "COLUMN_NAME": "group_id",
+      "COLUMN_TYPE": "bigint(20) unsigned",
+      "COLUMN_KEY": "MUL",
+      "IS_NULLABLE": "NO"
+    },
+    {
+      "TABLE_NAME": "friend_group_content_reports",
+      "COLUMN_NAME": "photo_id",
+      "COLUMN_TYPE": "bigint(20) unsigned",
+      "COLUMN_KEY": "MUL",
+      "IS_NULLABLE": "YES"
+    },
+    {
+      "TABLE_NAME": "friend_group_content_reports",
+      "COLUMN_NAME": "reporter_id",
+      "COLUMN_TYPE": "bigint(20) unsigned",
+      "COLUMN_KEY": "MUL",
+      "IS_NULLABLE": "NO"
+    },
+    {
+      "TABLE_NAME": "friend_group_content_reports",
+      "COLUMN_NAME": "reason",
+      "COLUMN_TYPE": "varchar(255)",
+      "COLUMN_KEY": "",
+      "IS_NULLABLE": "NO"
+    },
+    {
+      "TABLE_NAME": "friend_group_content_reports",
+      "COLUMN_NAME": "description",
+      "COLUMN_TYPE": "varchar(1000)",
+      "COLUMN_KEY": "",
+      "IS_NULLABLE": "YES"
+    },
+    {
+      "TABLE_NAME": "friend_group_content_reports",
+      "COLUMN_NAME": "status",
+      "COLUMN_TYPE": "enum('pending','resolved','rejected')",
+      "COLUMN_KEY": "MUL",
+      "IS_NULLABLE": "NO"
+    },
+    {
+      "TABLE_NAME": "friend_group_content_reports",
+      "COLUMN_NAME": "handled_by",
+      "COLUMN_TYPE": "bigint(20) unsigned",
+      "COLUMN_KEY": "MUL",
+      "IS_NULLABLE": "YES"
+    },
+    {
+      "TABLE_NAME": "friend_group_content_reports",
+      "COLUMN_NAME": "handled_at",
+      "COLUMN_TYPE": "datetime",
+      "COLUMN_KEY": "",
+      "IS_NULLABLE": "YES"
+    },
+    {
+      "TABLE_NAME": "friend_group_content_reports",
+      "COLUMN_NAME": "handling_result",
+      "COLUMN_TYPE": "varchar(1000)",
+      "COLUMN_KEY": "",
+      "IS_NULLABLE": "YES"
+    },
+    {
+      "TABLE_NAME": "friend_group_content_reports",
+      "COLUMN_NAME": "action_taken",
+      "COLUMN_TYPE": "enum('none','close_group','remove_photo')",
+      "COLUMN_KEY": "",
+      "IS_NULLABLE": "NO"
+    },
+    {
+      "TABLE_NAME": "friend_group_content_reports",
+      "COLUMN_NAME": "created_at",
+      "COLUMN_TYPE": "datetime",
+      "COLUMN_KEY": "",
+      "IS_NULLABLE": "NO"
+    },
+    {
+      "TABLE_NAME": "friend_group_events",
+      "COLUMN_NAME": "event_id",
+      "COLUMN_TYPE": "bigint(20) unsigned",
+      "COLUMN_KEY": "PRI",
+      "IS_NULLABLE": "NO"
+    },
+    {
+      "TABLE_NAME": "friend_group_events",
+      "COLUMN_NAME": "title",
+      "COLUMN_TYPE": "varchar(150)",
+      "COLUMN_KEY": "",
+      "IS_NULLABLE": "NO"
+    },
+    {
+      "TABLE_NAME": "friend_group_events",
+      "COLUMN_NAME": "description",
+      "COLUMN_TYPE": "text",
+      "COLUMN_KEY": "",
+      "IS_NULLABLE": "YES"
+    },
+    {
+      "TABLE_NAME": "friend_group_events",
+      "COLUMN_NAME": "location",
+      "COLUMN_TYPE": "varchar(255)",
+      "COLUMN_KEY": "",
+      "IS_NULLABLE": "YES"
+    },
+    {
+      "TABLE_NAME": "friend_group_events",
+      "COLUMN_NAME": "event_date",
+      "COLUMN_TYPE": "date",
+      "COLUMN_KEY": "",
+      "IS_NULLABLE": "NO"
+    },
+    {
+      "TABLE_NAME": "friend_group_events",
+      "COLUMN_NAME": "start_time",
+      "COLUMN_TYPE": "time",
+      "COLUMN_KEY": "",
+      "IS_NULLABLE": "YES"
+    },
+    {
+      "TABLE_NAME": "friend_group_events",
+      "COLUMN_NAME": "end_time",
+      "COLUMN_TYPE": "time",
+      "COLUMN_KEY": "",
+      "IS_NULLABLE": "YES"
+    },
+    {
+      "TABLE_NAME": "friend_group_events",
+      "COLUMN_NAME": "registration_deadline",
+      "COLUMN_TYPE": "datetime",
+      "COLUMN_KEY": "",
+      "IS_NULLABLE": "YES"
+    },
+    {
+      "TABLE_NAME": "friend_group_events",
+      "COLUMN_NAME": "capacity",
+      "COLUMN_TYPE": "int(10) unsigned",
+      "COLUMN_KEY": "",
+      "IS_NULLABLE": "YES"
+    },
+    {
+      "TABLE_NAME": "friend_group_events",
+      "COLUMN_NAME": "status",
+      "COLUMN_TYPE": "enum('open','closed','cancelled')",
+      "COLUMN_KEY": "",
+      "IS_NULLABLE": "NO"
+    },
+    {
+      "TABLE_NAME": "friend_group_events",
+      "COLUMN_NAME": "created_by",
+      "COLUMN_TYPE": "bigint(20) unsigned",
+      "COLUMN_KEY": "MUL",
+      "IS_NULLABLE": "NO"
+    },
+    {
+      "TABLE_NAME": "friend_group_events",
+      "COLUMN_NAME": "created_at",
+      "COLUMN_TYPE": "datetime",
+      "COLUMN_KEY": "",
+      "IS_NULLABLE": "NO"
+    },
+    {
+      "TABLE_NAME": "friend_group_event_announcements",
+      "COLUMN_NAME": "announcement_id",
+      "COLUMN_TYPE": "bigint(20) unsigned",
+      "COLUMN_KEY": "PRI",
+      "IS_NULLABLE": "NO"
+    },
+    {
+      "TABLE_NAME": "friend_group_event_announcements",
+      "COLUMN_NAME": "event_id",
+      "COLUMN_TYPE": "bigint(20) unsigned",
+      "COLUMN_KEY": "MUL",
+      "IS_NULLABLE": "NO"
+    },
+    {
+      "TABLE_NAME": "friend_group_event_announcements",
+      "COLUMN_NAME": "posted_by",
+      "COLUMN_TYPE": "bigint(20) unsigned",
+      "COLUMN_KEY": "MUL",
+      "IS_NULLABLE": "NO"
+    },
+    {
+      "TABLE_NAME": "friend_group_event_announcements",
+      "COLUMN_NAME": "content",
+      "COLUMN_TYPE": "varchar(1000)",
+      "COLUMN_KEY": "",
+      "IS_NULLABLE": "NO"
+    },
+    {
+      "TABLE_NAME": "friend_group_event_announcements",
+      "COLUMN_NAME": "created_at",
+      "COLUMN_TYPE": "datetime",
+      "COLUMN_KEY": "",
+      "IS_NULLABLE": "NO"
+    },
+    {
+      "TABLE_NAME": "friend_group_event_chat_messages",
+      "COLUMN_NAME": "message_id",
+      "COLUMN_TYPE": "bigint(20) unsigned",
+      "COLUMN_KEY": "PRI",
+      "IS_NULLABLE": "NO"
+    },
+    {
+      "TABLE_NAME": "friend_group_event_chat_messages",
+      "COLUMN_NAME": "event_id",
+      "COLUMN_TYPE": "bigint(20) unsigned",
+      "COLUMN_KEY": "MUL",
+      "IS_NULLABLE": "NO"
+    },
+    {
+      "TABLE_NAME": "friend_group_event_chat_messages",
+      "COLUMN_NAME": "user_id",
+      "COLUMN_TYPE": "bigint(20) unsigned",
+      "COLUMN_KEY": "MUL",
+      "IS_NULLABLE": "NO"
+    },
+    {
+      "TABLE_NAME": "friend_group_event_chat_messages",
+      "COLUMN_NAME": "content",
+      "COLUMN_TYPE": "varchar(1000)",
+      "COLUMN_KEY": "",
+      "IS_NULLABLE": "NO"
+    },
+    {
+      "TABLE_NAME": "friend_group_event_chat_messages",
+      "COLUMN_NAME": "created_at",
+      "COLUMN_TYPE": "datetime",
+      "COLUMN_KEY": "",
+      "IS_NULLABLE": "NO"
+    },
+    {
+      "TABLE_NAME": "friend_group_event_items",
+      "COLUMN_NAME": "item_id",
+      "COLUMN_TYPE": "bigint(20) unsigned",
+      "COLUMN_KEY": "PRI",
+      "IS_NULLABLE": "NO"
+    },
+    {
+      "TABLE_NAME": "friend_group_event_items",
+      "COLUMN_NAME": "event_id",
+      "COLUMN_TYPE": "bigint(20) unsigned",
+      "COLUMN_KEY": "MUL",
+      "IS_NULLABLE": "NO"
+    },
+    {
+      "TABLE_NAME": "friend_group_event_items",
+      "COLUMN_NAME": "start_time",
+      "COLUMN_TYPE": "time",
+      "COLUMN_KEY": "",
+      "IS_NULLABLE": "NO"
+    },
+    {
+      "TABLE_NAME": "friend_group_event_items",
+      "COLUMN_NAME": "end_time",
+      "COLUMN_TYPE": "time",
+      "COLUMN_KEY": "",
+      "IS_NULLABLE": "YES"
+    },
+    {
+      "TABLE_NAME": "friend_group_event_items",
+      "COLUMN_NAME": "title",
+      "COLUMN_TYPE": "varchar(150)",
+      "COLUMN_KEY": "",
+      "IS_NULLABLE": "NO"
+    },
+    {
+      "TABLE_NAME": "friend_group_event_items",
+      "COLUMN_NAME": "location",
+      "COLUMN_TYPE": "varchar(255)",
+      "COLUMN_KEY": "",
+      "IS_NULLABLE": "YES"
+    },
+    {
+      "TABLE_NAME": "friend_group_event_items",
+      "COLUMN_NAME": "sort_order",
+      "COLUMN_TYPE": "int(10) unsigned",
+      "COLUMN_KEY": "",
+      "IS_NULLABLE": "NO"
+    },
+    {
+      "TABLE_NAME": "friend_group_event_participants",
+      "COLUMN_NAME": "participant_id",
+      "COLUMN_TYPE": "bigint(20) unsigned",
+      "COLUMN_KEY": "PRI",
+      "IS_NULLABLE": "NO"
+    },
+    {
+      "TABLE_NAME": "friend_group_event_participants",
+      "COLUMN_NAME": "event_id",
+      "COLUMN_TYPE": "bigint(20) unsigned",
+      "COLUMN_KEY": "MUL",
+      "IS_NULLABLE": "NO"
+    },
+    {
+      "TABLE_NAME": "friend_group_event_participants",
+      "COLUMN_NAME": "user_id",
+      "COLUMN_TYPE": "bigint(20) unsigned",
+      "COLUMN_KEY": "MUL",
+      "IS_NULLABLE": "NO"
+    },
+    {
+      "TABLE_NAME": "friend_group_event_participants",
+      "COLUMN_NAME": "status",
+      "COLUMN_TYPE": "enum('registered','attended','no_show','cancelled')",
+      "COLUMN_KEY": "",
+      "IS_NULLABLE": "NO"
+    },
+    {
+      "TABLE_NAME": "friend_group_event_participants",
+      "COLUMN_NAME": "registered_at",
+      "COLUMN_TYPE": "datetime",
+      "COLUMN_KEY": "",
+      "IS_NULLABLE": "NO"
+    },
+    {
+      "TABLE_NAME": "friend_group_event_participants",
+      "COLUMN_NAME": "checked_in_at",
+      "COLUMN_TYPE": "datetime",
+      "COLUMN_KEY": "",
+      "IS_NULLABLE": "YES"
+    },
+    {
+      "TABLE_NAME": "friend_group_members",
+      "COLUMN_NAME": "member_id",
+      "COLUMN_TYPE": "bigint(20) unsigned",
+      "COLUMN_KEY": "PRI",
+      "IS_NULLABLE": "NO"
+    },
+    {
+      "TABLE_NAME": "friend_group_members",
+      "COLUMN_NAME": "group_id",
+      "COLUMN_TYPE": "bigint(20) unsigned",
+      "COLUMN_KEY": "MUL",
+      "IS_NULLABLE": "NO"
+    },
+    {
+      "TABLE_NAME": "friend_group_members",
+      "COLUMN_NAME": "user_id",
+      "COLUMN_TYPE": "bigint(20) unsigned",
+      "COLUMN_KEY": "MUL",
+      "IS_NULLABLE": "NO"
+    },
+    {
+      "TABLE_NAME": "friend_group_members",
+      "COLUMN_NAME": "status",
+      "COLUMN_TYPE": "enum('pending','approved','rejected','left')",
+      "COLUMN_KEY": "",
+      "IS_NULLABLE": "NO"
+    },
+    {
+      "TABLE_NAME": "friend_group_members",
+      "COLUMN_NAME": "applied_at",
+      "COLUMN_TYPE": "datetime",
+      "COLUMN_KEY": "",
+      "IS_NULLABLE": "NO"
+    },
+    {
+      "TABLE_NAME": "friend_group_members",
+      "COLUMN_NAME": "responded_at",
+      "COLUMN_TYPE": "datetime",
+      "COLUMN_KEY": "",
+      "IS_NULLABLE": "YES"
+    },
+    {
+      "TABLE_NAME": "friend_group_members",
+      "COLUMN_NAME": "application_note",
+      "COLUMN_TYPE": "varchar(300)",
+      "COLUMN_KEY": "",
+      "IS_NULLABLE": "YES"
+    },
+    {
+      "TABLE_NAME": "friend_group_members",
+      "COLUMN_NAME": "show_profile",
+      "COLUMN_TYPE": "tinyint(1)",
+      "COLUMN_KEY": "",
+      "IS_NULLABLE": "NO"
+    },
+    {
+      "TABLE_NAME": "friend_group_onboarding",
+      "COLUMN_NAME": "user_id",
+      "COLUMN_TYPE": "bigint(20) unsigned",
+      "COLUMN_KEY": "PRI",
+      "IS_NULLABLE": "NO"
+    },
+    {
+      "TABLE_NAME": "friend_group_onboarding",
+      "COLUMN_NAME": "completed_at",
+      "COLUMN_TYPE": "datetime",
+      "COLUMN_KEY": "",
+      "IS_NULLABLE": "NO"
+    },
+    {
+      "TABLE_NAME": "friend_group_reviews",
+      "COLUMN_NAME": "review_id",
+      "COLUMN_TYPE": "bigint(20) unsigned",
+      "COLUMN_KEY": "PRI",
+      "IS_NULLABLE": "NO"
+    },
+    {
+      "TABLE_NAME": "friend_group_reviews",
+      "COLUMN_NAME": "group_id",
+      "COLUMN_TYPE": "bigint(20) unsigned",
+      "COLUMN_KEY": "MUL",
+      "IS_NULLABLE": "NO"
+    },
+    {
+      "TABLE_NAME": "friend_group_reviews",
+      "COLUMN_NAME": "reviewer_id",
+      "COLUMN_TYPE": "bigint(20) unsigned",
+      "COLUMN_KEY": "MUL",
+      "IS_NULLABLE": "NO"
+    },
+    {
+      "TABLE_NAME": "friend_group_reviews",
+      "COLUMN_NAME": "reviewee_id",
+      "COLUMN_TYPE": "bigint(20) unsigned",
+      "COLUMN_KEY": "MUL",
+      "IS_NULLABLE": "NO"
+    },
+    {
+      "TABLE_NAME": "friend_group_reviews",
+      "COLUMN_NAME": "rating",
+      "COLUMN_TYPE": "tinyint(3) unsigned",
+      "COLUMN_KEY": "",
+      "IS_NULLABLE": "NO"
+    },
+    {
+      "TABLE_NAME": "friend_group_reviews",
+      "COLUMN_NAME": "tags",
+      "COLUMN_TYPE": "varchar(255)",
+      "COLUMN_KEY": "",
+      "IS_NULLABLE": "YES"
+    },
+    {
+      "TABLE_NAME": "friend_group_reviews",
+      "COLUMN_NAME": "comment",
+      "COLUMN_TYPE": "varchar(500)",
+      "COLUMN_KEY": "",
+      "IS_NULLABLE": "YES"
+    },
+    {
+      "TABLE_NAME": "friend_group_reviews",
+      "COLUMN_NAME": "created_at",
+      "COLUMN_TYPE": "datetime",
+      "COLUMN_KEY": "",
+      "IS_NULLABLE": "NO"
+    },
+    {
+      "TABLE_NAME": "friend_group_reviews",
+      "COLUMN_NAME": "updated_at",
+      "COLUMN_TYPE": "datetime",
+      "COLUMN_KEY": "",
+      "IS_NULLABLE": "NO"
+    },
+    {
+      "TABLE_NAME": "friend_group_trip_reviews",
+      "COLUMN_NAME": "review_id",
+      "COLUMN_TYPE": "bigint(20) unsigned",
+      "COLUMN_KEY": "PRI",
+      "IS_NULLABLE": "NO"
+    },
+    {
+      "TABLE_NAME": "friend_group_trip_reviews",
+      "COLUMN_NAME": "group_id",
+      "COLUMN_TYPE": "bigint(20) unsigned",
+      "COLUMN_KEY": "MUL",
+      "IS_NULLABLE": "NO"
+    },
+    {
+      "TABLE_NAME": "friend_group_trip_reviews",
+      "COLUMN_NAME": "user_id",
+      "COLUMN_TYPE": "bigint(20) unsigned",
+      "COLUMN_KEY": "MUL",
+      "IS_NULLABLE": "NO"
+    },
+    {
+      "TABLE_NAME": "friend_group_trip_reviews",
+      "COLUMN_NAME": "rating",
+      "COLUMN_TYPE": "tinyint(3) unsigned",
+      "COLUMN_KEY": "",
+      "IS_NULLABLE": "NO"
+    },
+    {
+      "TABLE_NAME": "friend_group_trip_reviews",
+      "COLUMN_NAME": "comment",
+      "COLUMN_TYPE": "varchar(1000)",
+      "COLUMN_KEY": "",
+      "IS_NULLABLE": "YES"
+    },
+    {
+      "TABLE_NAME": "friend_group_trip_reviews",
+      "COLUMN_NAME": "created_at",
+      "COLUMN_TYPE": "datetime",
+      "COLUMN_KEY": "",
+      "IS_NULLABLE": "NO"
+    },
+    {
+      "TABLE_NAME": "friend_group_trip_reviews",
+      "COLUMN_NAME": "updated_at",
+      "COLUMN_TYPE": "datetime",
+      "COLUMN_KEY": "",
+      "IS_NULLABLE": "NO"
+    },
+    {
+      "TABLE_NAME": "home_banners",
+      "COLUMN_NAME": "banner_id",
+      "COLUMN_TYPE": "int(11)",
+      "COLUMN_KEY": "PRI",
+      "IS_NULLABLE": "NO"
+    },
+    {
+      "TABLE_NAME": "home_banners",
+      "COLUMN_NAME": "image_path",
+      "COLUMN_TYPE": "varchar(255)",
+      "COLUMN_KEY": "",
+      "IS_NULLABLE": "NO"
+    },
+    {
+      "TABLE_NAME": "home_banners",
+      "COLUMN_NAME": "title",
+      "COLUMN_TYPE": "varchar(100)",
+      "COLUMN_KEY": "",
+      "IS_NULLABLE": "YES"
+    },
+    {
+      "TABLE_NAME": "home_banners",
+      "COLUMN_NAME": "link_url",
+      "COLUMN_TYPE": "varchar(500)",
+      "COLUMN_KEY": "",
+      "IS_NULLABLE": "YES"
+    },
+    {
+      "TABLE_NAME": "home_banners",
+      "COLUMN_NAME": "sort_order",
+      "COLUMN_TYPE": "int(11)",
+      "COLUMN_KEY": "",
+      "IS_NULLABLE": "NO"
+    },
+    {
+      "TABLE_NAME": "home_banners",
+      "COLUMN_NAME": "is_active",
+      "COLUMN_TYPE": "tinyint(1)",
+      "COLUMN_KEY": "MUL",
+      "IS_NULLABLE": "NO"
+    },
+    {
+      "TABLE_NAME": "home_banners",
+      "COLUMN_NAME": "focus_x",
+      "COLUMN_TYPE": "tinyint(3) unsigned",
+      "COLUMN_KEY": "",
+      "IS_NULLABLE": "NO"
+    },
+    {
+      "TABLE_NAME": "home_banners",
+      "COLUMN_NAME": "focus_y",
+      "COLUMN_TYPE": "tinyint(3) unsigned",
+      "COLUMN_KEY": "",
+      "IS_NULLABLE": "NO"
+    },
+    {
+      "TABLE_NAME": "home_banners",
+      "COLUMN_NAME": "created_by",
+      "COLUMN_TYPE": "int(11)",
+      "COLUMN_KEY": "",
+      "IS_NULLABLE": "YES"
+    },
+    {
+      "TABLE_NAME": "home_banners",
+      "COLUMN_NAME": "created_at",
+      "COLUMN_TYPE": "datetime",
+      "COLUMN_KEY": "",
+      "IS_NULLABLE": "NO"
+    },
+    {
+      "TABLE_NAME": "home_banners",
+      "COLUMN_NAME": "updated_at",
+      "COLUMN_TYPE": "datetime",
+      "COLUMN_KEY": "",
+      "IS_NULLABLE": "NO"
+    },
+    {
+      "TABLE_NAME": "itineraries",
+      "COLUMN_NAME": "itinerary_id",
+      "COLUMN_TYPE": "bigint(20) unsigned",
+      "COLUMN_KEY": "PRI",
+      "IS_NULLABLE": "NO"
+    },
+    {
+      "TABLE_NAME": "itineraries",
+      "COLUMN_NAME": "trip_id",
+      "COLUMN_TYPE": "bigint(20) unsigned",
+      "COLUMN_KEY": "MUL",
+      "IS_NULLABLE": "NO"
+    },
+    {
+      "TABLE_NAME": "itineraries",
+      "COLUMN_NAME": "created_by",
+      "COLUMN_TYPE": "bigint(20) unsigned",
+      "COLUMN_KEY": "MUL",
+      "IS_NULLABLE": "NO"
+    },
+    {
+      "TABLE_NAME": "itineraries",
+      "COLUMN_NAME": "itinerary_date",
+      "COLUMN_TYPE": "date",
+      "COLUMN_KEY": "",
+      "IS_NULLABLE": "NO"
+    },
+    {
+      "TABLE_NAME": "itineraries",
+      "COLUMN_NAME": "item_type",
+      "COLUMN_TYPE": "enum('attraction','restaurant','accommodation','transport','shopping','meeting','free_time','amusement_park','other')",
+      "COLUMN_KEY": "",
+      "IS_NULLABLE": "NO"
+    },
+    {
+      "TABLE_NAME": "itineraries",
+      "COLUMN_NAME": "title",
+      "COLUMN_TYPE": "varchar(150)",
+      "COLUMN_KEY": "",
+      "IS_NULLABLE": "NO"
+    },
+    {
+      "TABLE_NAME": "itineraries",
+      "COLUMN_NAME": "start_time",
+      "COLUMN_TYPE": "time",
+      "COLUMN_KEY": "",
+      "IS_NULLABLE": "YES"
+    },
+    {
+      "TABLE_NAME": "itineraries",
+      "COLUMN_NAME": "end_time",
+      "COLUMN_TYPE": "time",
+      "COLUMN_KEY": "",
+      "IS_NULLABLE": "YES"
+    },
+    {
+      "TABLE_NAME": "itineraries",
+      "COLUMN_NAME": "is_all_day",
+      "COLUMN_TYPE": "tinyint(1)",
+      "COLUMN_KEY": "",
+      "IS_NULLABLE": "NO"
+    },
+    {
+      "TABLE_NAME": "itineraries",
+      "COLUMN_NAME": "address",
+      "COLUMN_TYPE": "varchar(255)",
+      "COLUMN_KEY": "",
+      "IS_NULLABLE": "YES"
+    },
+    {
+      "TABLE_NAME": "itineraries",
+      "COLUMN_NAME": "transport_method",
+      "COLUMN_TYPE": "varchar(100)",
+      "COLUMN_KEY": "",
+      "IS_NULLABLE": "YES"
+    },
+    {
+      "TABLE_NAME": "itineraries",
+      "COLUMN_NAME": "transport_minutes",
+      "COLUMN_TYPE": "int(10) unsigned",
+      "COLUMN_KEY": "",
+      "IS_NULLABLE": "YES"
+    },
+    {
+      "TABLE_NAME": "itineraries",
+      "COLUMN_NAME": "estimated_cost",
+      "COLUMN_TYPE": "decimal(12,2)",
+      "COLUMN_KEY": "",
+      "IS_NULLABLE": "NO"
+    },
+    {
+      "TABLE_NAME": "itineraries",
+      "COLUMN_NAME": "notes",
+      "COLUMN_TYPE": "text",
+      "COLUMN_KEY": "",
+      "IS_NULLABLE": "YES"
+    },
+    {
+      "TABLE_NAME": "itineraries",
+      "COLUMN_NAME": "attraction_id",
+      "COLUMN_TYPE": "bigint(20) unsigned",
+      "COLUMN_KEY": "MUL",
+      "IS_NULLABLE": "YES"
+    },
+    {
+      "TABLE_NAME": "itineraries",
+      "COLUMN_NAME": "restaurant_id",
+      "COLUMN_TYPE": "bigint(20) unsigned",
+      "COLUMN_KEY": "MUL",
+      "IS_NULLABLE": "YES"
+    },
+    {
+      "TABLE_NAME": "itineraries",
+      "COLUMN_NAME": "accommodation_id",
+      "COLUMN_TYPE": "bigint(20) unsigned",
+      "COLUMN_KEY": "MUL",
+      "IS_NULLABLE": "YES"
+    },
+    {
+      "TABLE_NAME": "itineraries",
+      "COLUMN_NAME": "sort_order",
+      "COLUMN_TYPE": "int(10) unsigned",
+      "COLUMN_KEY": "",
+      "IS_NULLABLE": "NO"
+    },
+    {
+      "TABLE_NAME": "itineraries",
+      "COLUMN_NAME": "created_at",
+      "COLUMN_TYPE": "datetime",
+      "COLUMN_KEY": "",
+      "IS_NULLABLE": "NO"
+    },
+    {
+      "TABLE_NAME": "itineraries",
+      "COLUMN_NAME": "updated_at",
+      "COLUMN_TYPE": "datetime",
+      "COLUMN_KEY": "",
+      "IS_NULLABLE": "NO"
+    },
+    {
+      "TABLE_NAME": "line_notification_logs",
+      "COLUMN_NAME": "log_id",
+      "COLUMN_TYPE": "bigint(20) unsigned",
+      "COLUMN_KEY": "PRI",
+      "IS_NULLABLE": "NO"
+    },
+    {
+      "TABLE_NAME": "line_notification_logs",
+      "COLUMN_NAME": "trip_id",
+      "COLUMN_TYPE": "bigint(20) unsigned",
+      "COLUMN_KEY": "MUL",
+      "IS_NULLABLE": "NO"
+    },
+    {
+      "TABLE_NAME": "line_notification_logs",
+      "COLUMN_NAME": "user_id",
+      "COLUMN_TYPE": "bigint(20) unsigned",
+      "COLUMN_KEY": "MUL",
+      "IS_NULLABLE": "NO"
+    },
+    {
+      "TABLE_NAME": "line_notification_logs",
+      "COLUMN_NAME": "notify_type",
+      "COLUMN_TYPE": "varchar(30)",
+      "COLUMN_KEY": "",
+      "IS_NULLABLE": "NO"
+    },
+    {
+      "TABLE_NAME": "line_notification_logs",
+      "COLUMN_NAME": "notify_date",
+      "COLUMN_TYPE": "date",
+      "COLUMN_KEY": "",
+      "IS_NULLABLE": "NO"
+    },
+    {
+      "TABLE_NAME": "line_notification_logs",
+      "COLUMN_NAME": "sent_at",
+      "COLUMN_TYPE": "datetime",
+      "COLUMN_KEY": "",
+      "IS_NULLABLE": "NO"
+    },
+    {
+      "TABLE_NAME": "notifications",
+      "COLUMN_NAME": "notification_id",
+      "COLUMN_TYPE": "bigint(20) unsigned",
+      "COLUMN_KEY": "PRI",
+      "IS_NULLABLE": "NO"
+    },
+    {
+      "TABLE_NAME": "notifications",
+      "COLUMN_NAME": "user_id",
+      "COLUMN_TYPE": "bigint(20) unsigned",
+      "COLUMN_KEY": "MUL",
+      "IS_NULLABLE": "NO"
+    },
+    {
+      "TABLE_NAME": "notifications",
+      "COLUMN_NAME": "trip_id",
+      "COLUMN_TYPE": "bigint(20) unsigned",
+      "COLUMN_KEY": "MUL",
+      "IS_NULLABLE": "YES"
+    },
+    {
+      "TABLE_NAME": "notifications",
+      "COLUMN_NAME": "notification_type",
+      "COLUMN_TYPE": "enum('invitation','trip_edit','comment','vote','permission','departure','system')",
+      "COLUMN_KEY": "",
+      "IS_NULLABLE": "NO"
+    },
+    {
+      "TABLE_NAME": "notifications",
+      "COLUMN_NAME": "title",
+      "COLUMN_TYPE": "varchar(150)",
+      "COLUMN_KEY": "",
+      "IS_NULLABLE": "NO"
+    },
+    {
+      "TABLE_NAME": "notifications",
+      "COLUMN_NAME": "message",
+      "COLUMN_TYPE": "text",
+      "COLUMN_KEY": "",
+      "IS_NULLABLE": "NO"
+    },
+    {
+      "TABLE_NAME": "notifications",
+      "COLUMN_NAME": "target_url",
+      "COLUMN_TYPE": "varchar(500)",
+      "COLUMN_KEY": "",
+      "IS_NULLABLE": "YES"
+    },
+    {
+      "TABLE_NAME": "notifications",
+      "COLUMN_NAME": "is_read",
+      "COLUMN_TYPE": "tinyint(1)",
+      "COLUMN_KEY": "",
+      "IS_NULLABLE": "NO"
+    },
+    {
+      "TABLE_NAME": "notifications",
+      "COLUMN_NAME": "read_at",
+      "COLUMN_TYPE": "datetime",
+      "COLUMN_KEY": "",
+      "IS_NULLABLE": "YES"
+    },
+    {
+      "TABLE_NAME": "notifications",
+      "COLUMN_NAME": "created_at",
+      "COLUMN_TYPE": "datetime",
+      "COLUMN_KEY": "",
+      "IS_NULLABLE": "NO"
+    },
+    {
+      "TABLE_NAME": "notification_preferences",
+      "COLUMN_NAME": "user_id",
+      "COLUMN_TYPE": "bigint(20) unsigned",
+      "COLUMN_KEY": "PRI",
+      "IS_NULLABLE": "NO"
+    },
+    {
+      "TABLE_NAME": "notification_preferences",
+      "COLUMN_NAME": "category",
+      "COLUMN_TYPE": "varchar(30)",
+      "COLUMN_KEY": "PRI",
+      "IS_NULLABLE": "NO"
+    },
+    {
+      "TABLE_NAME": "notification_preferences",
+      "COLUMN_NAME": "enabled",
+      "COLUMN_TYPE": "tinyint(1)",
+      "COLUMN_KEY": "",
+      "IS_NULLABLE": "NO"
+    },
+    {
+      "TABLE_NAME": "notification_preferences",
+      "COLUMN_NAME": "updated_at",
+      "COLUMN_TYPE": "datetime",
+      "COLUMN_KEY": "",
+      "IS_NULLABLE": "NO"
+    },
+    {
+      "TABLE_NAME": "password_resets",
+      "COLUMN_NAME": "reset_id",
+      "COLUMN_TYPE": "bigint(20) unsigned",
+      "COLUMN_KEY": "PRI",
+      "IS_NULLABLE": "NO"
+    },
+    {
+      "TABLE_NAME": "password_resets",
+      "COLUMN_NAME": "user_id",
+      "COLUMN_TYPE": "bigint(20) unsigned",
+      "COLUMN_KEY": "MUL",
+      "IS_NULLABLE": "NO"
+    },
+    {
+      "TABLE_NAME": "password_resets",
+      "COLUMN_NAME": "token",
+      "COLUMN_TYPE": "varchar(64)",
+      "COLUMN_KEY": "UNI",
+      "IS_NULLABLE": "NO"
+    },
+    {
+      "TABLE_NAME": "password_resets",
+      "COLUMN_NAME": "expires_at",
+      "COLUMN_TYPE": "datetime",
+      "COLUMN_KEY": "",
+      "IS_NULLABLE": "NO"
+    },
+    {
+      "TABLE_NAME": "password_resets",
+      "COLUMN_NAME": "used_at",
+      "COLUMN_TYPE": "datetime",
+      "COLUMN_KEY": "",
+      "IS_NULLABLE": "YES"
+    },
+    {
+      "TABLE_NAME": "password_resets",
+      "COLUMN_NAME": "created_at",
+      "COLUMN_TYPE": "datetime",
+      "COLUMN_KEY": "",
+      "IS_NULLABLE": "NO"
+    },
+    {
+      "TABLE_NAME": "proposals",
+      "COLUMN_NAME": "proposal_id",
+      "COLUMN_TYPE": "bigint(20) unsigned",
+      "COLUMN_KEY": "PRI",
+      "IS_NULLABLE": "NO"
+    },
+    {
+      "TABLE_NAME": "proposals",
+      "COLUMN_NAME": "trip_id",
+      "COLUMN_TYPE": "bigint(20) unsigned",
+      "COLUMN_KEY": "MUL",
+      "IS_NULLABLE": "NO"
+    },
+    {
+      "TABLE_NAME": "proposals",
+      "COLUMN_NAME": "proposer_id",
+      "COLUMN_TYPE": "bigint(20) unsigned",
+      "COLUMN_KEY": "MUL",
+      "IS_NULLABLE": "NO"
+    },
+    {
+      "TABLE_NAME": "proposals",
+      "COLUMN_NAME": "proposal_type",
+      "COLUMN_TYPE": "enum('attraction','restaurant','accommodation','activity','transport','date','itinerary_change','other')",
+      "COLUMN_KEY": "",
+      "IS_NULLABLE": "NO"
+    },
+    {
+      "TABLE_NAME": "proposals",
+      "COLUMN_NAME": "target_itinerary_id",
+      "COLUMN_TYPE": "bigint(20) unsigned",
+      "COLUMN_KEY": "MUL",
+      "IS_NULLABLE": "YES"
+    },
+    {
+      "TABLE_NAME": "proposals",
+      "COLUMN_NAME": "change_type",
+      "COLUMN_TYPE": "enum('update','delete','create')",
+      "COLUMN_KEY": "",
+      "IS_NULLABLE": "YES"
+    },
+    {
+      "TABLE_NAME": "proposals",
+      "COLUMN_NAME": "before_data",
+      "COLUMN_TYPE": "longtext",
+      "COLUMN_KEY": "",
+      "IS_NULLABLE": "YES"
+    },
+    {
+      "TABLE_NAME": "proposals",
+      "COLUMN_NAME": "after_data",
+      "COLUMN_TYPE": "longtext",
+      "COLUMN_KEY": "",
+      "IS_NULLABLE": "YES"
+    },
+    {
+      "TABLE_NAME": "proposals",
+      "COLUMN_NAME": "title",
+      "COLUMN_TYPE": "varchar(150)",
+      "COLUMN_KEY": "",
+      "IS_NULLABLE": "NO"
+    },
+    {
+      "TABLE_NAME": "proposals",
+      "COLUMN_NAME": "location",
+      "COLUMN_TYPE": "varchar(255)",
+      "COLUMN_KEY": "",
+      "IS_NULLABLE": "YES"
+    },
+    {
+      "TABLE_NAME": "proposals",
+      "COLUMN_NAME": "description",
+      "COLUMN_TYPE": "text",
+      "COLUMN_KEY": "",
+      "IS_NULLABLE": "YES"
+    },
+    {
+      "TABLE_NAME": "proposals",
+      "COLUMN_NAME": "estimated_cost",
+      "COLUMN_TYPE": "decimal(12,2)",
+      "COLUMN_KEY": "",
+      "IS_NULLABLE": "NO"
+    },
+    {
+      "TABLE_NAME": "proposals",
+      "COLUMN_NAME": "proposed_date",
+      "COLUMN_TYPE": "date",
+      "COLUMN_KEY": "",
+      "IS_NULLABLE": "YES"
+    },
+    {
+      "TABLE_NAME": "proposals",
+      "COLUMN_NAME": "website_url",
+      "COLUMN_TYPE": "varchar(500)",
+      "COLUMN_KEY": "",
+      "IS_NULLABLE": "YES"
+    },
+    {
+      "TABLE_NAME": "proposals",
+      "COLUMN_NAME": "image_path",
+      "COLUMN_TYPE": "varchar(255)",
+      "COLUMN_KEY": "",
+      "IS_NULLABLE": "YES"
+    },
+    {
+      "TABLE_NAME": "proposals",
+      "COLUMN_NAME": "status",
+      "COLUMN_TYPE": "enum('discussing','voting','approved','rejected','added','cancelled')",
+      "COLUMN_KEY": "",
+      "IS_NULLABLE": "NO"
+    },
+    {
+      "TABLE_NAME": "proposals",
+      "COLUMN_NAME": "content_review_status",
+      "COLUMN_TYPE": "enum('not_required','pending','approved','returned')",
+      "COLUMN_KEY": "",
+      "IS_NULLABLE": "NO"
+    },
+    {
+      "TABLE_NAME": "proposals",
+      "COLUMN_NAME": "is_catalog_submission",
+      "COLUMN_TYPE": "tinyint(1)",
+      "COLUMN_KEY": "",
+      "IS_NULLABLE": "NO"
+    },
+    {
+      "TABLE_NAME": "proposals",
+      "COLUMN_NAME": "reviewed_by",
+      "COLUMN_TYPE": "bigint(20) unsigned",
+      "COLUMN_KEY": "MUL",
+      "IS_NULLABLE": "YES"
+    },
+    {
+      "TABLE_NAME": "proposals",
+      "COLUMN_NAME": "reviewed_at",
+      "COLUMN_TYPE": "datetime",
+      "COLUMN_KEY": "",
+      "IS_NULLABLE": "YES"
+    },
+    {
+      "TABLE_NAME": "proposals",
+      "COLUMN_NAME": "review_note",
+      "COLUMN_TYPE": "varchar(500)",
+      "COLUMN_KEY": "",
+      "IS_NULLABLE": "YES"
+    },
+    {
+      "TABLE_NAME": "proposals",
+      "COLUMN_NAME": "linked_item_id",
+      "COLUMN_TYPE": "bigint(20) unsigned",
+      "COLUMN_KEY": "",
+      "IS_NULLABLE": "YES"
+    },
+    {
+      "TABLE_NAME": "proposals",
+      "COLUMN_NAME": "deadline_at",
+      "COLUMN_TYPE": "datetime",
+      "COLUMN_KEY": "",
+      "IS_NULLABLE": "YES"
+    },
+    {
+      "TABLE_NAME": "proposals",
+      "COLUMN_NAME": "created_at",
+      "COLUMN_TYPE": "datetime",
+      "COLUMN_KEY": "",
+      "IS_NULLABLE": "NO"
+    },
+    {
+      "TABLE_NAME": "proposals",
+      "COLUMN_NAME": "updated_at",
+      "COLUMN_TYPE": "datetime",
+      "COLUMN_KEY": "",
+      "IS_NULLABLE": "NO"
+    },
+    {
+      "TABLE_NAME": "reports",
+      "COLUMN_NAME": "report_id",
+      "COLUMN_TYPE": "bigint(20) unsigned",
+      "COLUMN_KEY": "PRI",
+      "IS_NULLABLE": "NO"
+    },
+    {
+      "TABLE_NAME": "reports",
+      "COLUMN_NAME": "reporter_id",
+      "COLUMN_TYPE": "bigint(20) unsigned",
+      "COLUMN_KEY": "MUL",
+      "IS_NULLABLE": "NO"
+    },
+    {
+      "TABLE_NAME": "reports",
+      "COLUMN_NAME": "target_type",
+      "COLUMN_TYPE": "enum('trip','comment','proposal','user','other')",
+      "COLUMN_KEY": "",
+      "IS_NULLABLE": "NO"
+    },
+    {
+      "TABLE_NAME": "reports",
+      "COLUMN_NAME": "target_id",
+      "COLUMN_TYPE": "bigint(20) unsigned",
+      "COLUMN_KEY": "",
+      "IS_NULLABLE": "NO"
+    },
+    {
+      "TABLE_NAME": "reports",
+      "COLUMN_NAME": "reason",
+      "COLUMN_TYPE": "varchar(255)",
+      "COLUMN_KEY": "",
+      "IS_NULLABLE": "NO"
+    },
+    {
+      "TABLE_NAME": "reports",
+      "COLUMN_NAME": "description",
+      "COLUMN_TYPE": "text",
+      "COLUMN_KEY": "",
+      "IS_NULLABLE": "YES"
+    },
+    {
+      "TABLE_NAME": "reports",
+      "COLUMN_NAME": "status",
+      "COLUMN_TYPE": "enum('pending','processing','resolved','rejected')",
+      "COLUMN_KEY": "",
+      "IS_NULLABLE": "NO"
+    },
+    {
+      "TABLE_NAME": "reports",
+      "COLUMN_NAME": "handled_by",
+      "COLUMN_TYPE": "bigint(20) unsigned",
+      "COLUMN_KEY": "MUL",
+      "IS_NULLABLE": "YES"
+    },
+    {
+      "TABLE_NAME": "reports",
+      "COLUMN_NAME": "handling_result",
+      "COLUMN_TYPE": "text",
+      "COLUMN_KEY": "",
+      "IS_NULLABLE": "YES"
+    },
+    {
+      "TABLE_NAME": "reports",
+      "COLUMN_NAME": "handled_at",
+      "COLUMN_TYPE": "datetime",
+      "COLUMN_KEY": "",
+      "IS_NULLABLE": "YES"
+    },
+    {
+      "TABLE_NAME": "reports",
+      "COLUMN_NAME": "created_at",
+      "COLUMN_TYPE": "datetime",
+      "COLUMN_KEY": "",
+      "IS_NULLABLE": "NO"
+    },
+    {
+      "TABLE_NAME": "restaurants",
+      "COLUMN_NAME": "restaurant_id",
+      "COLUMN_TYPE": "bigint(20) unsigned",
+      "COLUMN_KEY": "PRI",
+      "IS_NULLABLE": "NO"
+    },
+    {
+      "TABLE_NAME": "restaurants",
+      "COLUMN_NAME": "category_id",
+      "COLUMN_TYPE": "bigint(20) unsigned",
+      "COLUMN_KEY": "MUL",
+      "IS_NULLABLE": "YES"
+    },
+    {
+      "TABLE_NAME": "restaurants",
+      "COLUMN_NAME": "name",
+      "COLUMN_TYPE": "varchar(150)",
+      "COLUMN_KEY": "",
+      "IS_NULLABLE": "NO"
+    },
+    {
+      "TABLE_NAME": "restaurants",
+      "COLUMN_NAME": "country_id",
+      "COLUMN_TYPE": "bigint(20) unsigned",
+      "COLUMN_KEY": "MUL",
+      "IS_NULLABLE": "NO"
+    },
+    {
+      "TABLE_NAME": "restaurants",
+      "COLUMN_NAME": "city_id",
+      "COLUMN_TYPE": "bigint(20) unsigned",
+      "COLUMN_KEY": "MUL",
+      "IS_NULLABLE": "NO"
+    },
+    {
+      "TABLE_NAME": "restaurants",
+      "COLUMN_NAME": "address",
+      "COLUMN_TYPE": "varchar(255)",
+      "COLUMN_KEY": "",
+      "IS_NULLABLE": "YES"
+    },
+    {
+      "TABLE_NAME": "restaurants",
+      "COLUMN_NAME": "latitude",
+      "COLUMN_TYPE": "decimal(10,7)",
+      "COLUMN_KEY": "",
+      "IS_NULLABLE": "YES"
+    },
+    {
+      "TABLE_NAME": "restaurants",
+      "COLUMN_NAME": "longitude",
+      "COLUMN_TYPE": "decimal(10,7)",
+      "COLUMN_KEY": "",
+      "IS_NULLABLE": "YES"
+    },
+    {
+      "TABLE_NAME": "restaurants",
+      "COLUMN_NAME": "cuisine_type",
+      "COLUMN_TYPE": "varchar(100)",
+      "COLUMN_KEY": "",
+      "IS_NULLABLE": "YES"
+    },
+    {
+      "TABLE_NAME": "restaurants",
+      "COLUMN_NAME": "price_level",
+      "COLUMN_TYPE": "enum('low','medium','high','luxury')",
+      "COLUMN_KEY": "",
+      "IS_NULLABLE": "YES"
+    },
+    {
+      "TABLE_NAME": "restaurants",
+      "COLUMN_NAME": "opening_hours",
+      "COLUMN_TYPE": "varchar(255)",
+      "COLUMN_KEY": "",
+      "IS_NULLABLE": "YES"
+    },
+    {
+      "TABLE_NAME": "restaurants",
+      "COLUMN_NAME": "description",
+      "COLUMN_TYPE": "text",
+      "COLUMN_KEY": "",
+      "IS_NULLABLE": "YES"
+    },
+    {
+      "TABLE_NAME": "restaurants",
+      "COLUMN_NAME": "website_url",
+      "COLUMN_TYPE": "varchar(500)",
+      "COLUMN_KEY": "",
+      "IS_NULLABLE": "YES"
+    },
+    {
+      "TABLE_NAME": "restaurants",
+      "COLUMN_NAME": "image_path",
+      "COLUMN_TYPE": "varchar(255)",
+      "COLUMN_KEY": "",
+      "IS_NULLABLE": "YES"
+    },
+    {
+      "TABLE_NAME": "restaurants",
+      "COLUMN_NAME": "status",
+      "COLUMN_TYPE": "enum('active','hidden','pending')",
+      "COLUMN_KEY": "",
+      "IS_NULLABLE": "NO"
+    },
+    {
+      "TABLE_NAME": "restaurants",
+      "COLUMN_NAME": "deleted_at",
+      "COLUMN_TYPE": "datetime",
+      "COLUMN_KEY": "",
+      "IS_NULLABLE": "YES"
+    },
+    {
+      "TABLE_NAME": "restaurants",
+      "COLUMN_NAME": "ai_verified_at",
+      "COLUMN_TYPE": "datetime",
+      "COLUMN_KEY": "",
+      "IS_NULLABLE": "YES"
+    },
+    {
+      "TABLE_NAME": "restaurants",
+      "COLUMN_NAME": "ai_verified_by",
+      "COLUMN_TYPE": "bigint(20) unsigned",
+      "COLUMN_KEY": "MUL",
+      "IS_NULLABLE": "YES"
+    },
+    {
+      "TABLE_NAME": "restaurants",
+      "COLUMN_NAME": "created_by",
+      "COLUMN_TYPE": "bigint(20) unsigned",
+      "COLUMN_KEY": "MUL",
+      "IS_NULLABLE": "YES"
+    },
+    {
+      "TABLE_NAME": "restaurants",
+      "COLUMN_NAME": "created_at",
+      "COLUMN_TYPE": "datetime",
+      "COLUMN_KEY": "",
+      "IS_NULLABLE": "NO"
+    },
+    {
+      "TABLE_NAME": "restaurants",
+      "COLUMN_NAME": "updated_at",
+      "COLUMN_TYPE": "datetime",
+      "COLUMN_KEY": "",
+      "IS_NULLABLE": "NO"
+    },
+    {
+      "TABLE_NAME": "trains",
+      "COLUMN_NAME": "train_id",
+      "COLUMN_TYPE": "bigint(20) unsigned",
+      "COLUMN_KEY": "PRI",
+      "IS_NULLABLE": "NO"
+    },
+    {
+      "TABLE_NAME": "trains",
+      "COLUMN_NAME": "train_type",
+      "COLUMN_TYPE": "enum('thsr','tra')",
+      "COLUMN_KEY": "",
+      "IS_NULLABLE": "NO"
+    },
+    {
+      "TABLE_NAME": "trains",
+      "COLUMN_NAME": "train_number",
+      "COLUMN_TYPE": "varchar(20)",
+      "COLUMN_KEY": "",
+      "IS_NULLABLE": "NO"
+    },
+    {
+      "TABLE_NAME": "trains",
+      "COLUMN_NAME": "car_class",
+      "COLUMN_TYPE": "varchar(50)",
+      "COLUMN_KEY": "",
+      "IS_NULLABLE": "NO"
+    },
+    {
+      "TABLE_NAME": "trains",
+      "COLUMN_NAME": "origin_station",
+      "COLUMN_TYPE": "varchar(50)",
+      "COLUMN_KEY": "MUL",
+      "IS_NULLABLE": "NO"
+    },
+    {
+      "TABLE_NAME": "trains",
+      "COLUMN_NAME": "destination_station",
+      "COLUMN_TYPE": "varchar(50)",
+      "COLUMN_KEY": "",
+      "IS_NULLABLE": "NO"
+    },
+    {
+      "TABLE_NAME": "trains",
+      "COLUMN_NAME": "departure_time",
+      "COLUMN_TYPE": "time",
+      "COLUMN_KEY": "",
+      "IS_NULLABLE": "NO"
+    },
+    {
+      "TABLE_NAME": "trains",
+      "COLUMN_NAME": "arrival_time",
+      "COLUMN_TYPE": "time",
+      "COLUMN_KEY": "",
+      "IS_NULLABLE": "NO"
+    },
+    {
+      "TABLE_NAME": "trains",
+      "COLUMN_NAME": "duration_minutes",
+      "COLUMN_TYPE": "int(11)",
+      "COLUMN_KEY": "",
+      "IS_NULLABLE": "NO"
+    },
+    {
+      "TABLE_NAME": "trains",
+      "COLUMN_NAME": "price",
+      "COLUMN_TYPE": "decimal(10,2)",
+      "COLUMN_KEY": "",
+      "IS_NULLABLE": "NO"
+    },
+    {
+      "TABLE_NAME": "trains",
+      "COLUMN_NAME": "seats_available",
+      "COLUMN_TYPE": "int(11)",
+      "COLUMN_KEY": "",
+      "IS_NULLABLE": "NO"
+    },
+    {
+      "TABLE_NAME": "trains",
+      "COLUMN_NAME": "status",
+      "COLUMN_TYPE": "enum('active','hidden')",
+      "COLUMN_KEY": "",
+      "IS_NULLABLE": "NO"
+    },
+    {
+      "TABLE_NAME": "trains",
+      "COLUMN_NAME": "created_at",
+      "COLUMN_TYPE": "datetime",
+      "COLUMN_KEY": "",
+      "IS_NULLABLE": "NO"
+    },
+    {
+      "TABLE_NAME": "trains",
+      "COLUMN_NAME": "updated_at",
+      "COLUMN_TYPE": "datetime",
+      "COLUMN_KEY": "",
+      "IS_NULLABLE": "NO"
+    },
+    {
+      "TABLE_NAME": "traveler_profiles",
+      "COLUMN_NAME": "profile_id",
+      "COLUMN_TYPE": "bigint(20) unsigned",
+      "COLUMN_KEY": "PRI",
+      "IS_NULLABLE": "NO"
+    },
+    {
+      "TABLE_NAME": "traveler_profiles",
+      "COLUMN_NAME": "user_id",
+      "COLUMN_TYPE": "bigint(20) unsigned",
+      "COLUMN_KEY": "UNI",
+      "IS_NULLABLE": "NO"
+    },
+    {
+      "TABLE_NAME": "traveler_profiles",
+      "COLUMN_NAME": "pace",
+      "COLUMN_TYPE": "enum('relaxed','balanced','packed')",
+      "COLUMN_KEY": "",
+      "IS_NULLABLE": "NO"
+    },
+    {
+      "TABLE_NAME": "traveler_profiles",
+      "COLUMN_NAME": "social_style",
+      "COLUMN_TYPE": "enum('group','small_group','solo')",
+      "COLUMN_KEY": "",
+      "IS_NULLABLE": "NO"
+    },
+    {
+      "TABLE_NAME": "traveler_profiles",
+      "COLUMN_NAME": "budget_style",
+      "COLUMN_TYPE": "enum('frugal','moderate','generous')",
+      "COLUMN_KEY": "",
+      "IS_NULLABLE": "NO"
+    },
+    {
+      "TABLE_NAME": "traveler_profiles",
+      "COLUMN_NAME": "like_activities",
+      "COLUMN_TYPE": "varchar(255)",
+      "COLUMN_KEY": "",
+      "IS_NULLABLE": "YES"
+    },
+    {
+      "TABLE_NAME": "traveler_profiles",
+      "COLUMN_NAME": "dislike_activities",
+      "COLUMN_TYPE": "varchar(255)",
+      "COLUMN_KEY": "",
+      "IS_NULLABLE": "YES"
+    },
+    {
+      "TABLE_NAME": "traveler_profiles",
+      "COLUMN_NAME": "diet",
+      "COLUMN_TYPE": "enum('none','vegetarian','halal','no_beef','no_seafood','other')",
+      "COLUMN_KEY": "",
+      "IS_NULLABLE": "NO"
+    },
+    {
+      "TABLE_NAME": "traveler_profiles",
+      "COLUMN_NAME": "transport_pref",
+      "COLUMN_TYPE": "enum('any','public','drive','taxi','carpool')",
+      "COLUMN_KEY": "",
+      "IS_NULLABLE": "NO"
+    },
+    {
+      "TABLE_NAME": "traveler_profiles",
+      "COLUMN_NAME": "walk_tolerance",
+      "COLUMN_TYPE": "enum('low','medium','high')",
+      "COLUMN_KEY": "",
+      "IS_NULLABLE": "NO"
+    },
+    {
+      "TABLE_NAME": "traveler_profiles",
+      "COLUMN_NAME": "traveler_type",
+      "COLUMN_TYPE": "varchar(50)",
+      "COLUMN_KEY": "",
+      "IS_NULLABLE": "NO"
+    },
+    {
+      "TABLE_NAME": "traveler_profiles",
+      "COLUMN_NAME": "created_at",
+      "COLUMN_TYPE": "datetime",
+      "COLUMN_KEY": "",
+      "IS_NULLABLE": "NO"
+    },
+    {
+      "TABLE_NAME": "traveler_profiles",
+      "COLUMN_NAME": "updated_at",
+      "COLUMN_TYPE": "datetime",
+      "COLUMN_KEY": "",
+      "IS_NULLABLE": "NO"
+    },
+    {
+      "TABLE_NAME": "traveler_profiles",
+      "COLUMN_NAME": "public_intro",
+      "COLUMN_TYPE": "varchar(500)",
+      "COLUMN_KEY": "",
+      "IS_NULLABLE": "YES"
+    },
+    {
+      "TABLE_NAME": "traveler_profiles",
+      "COLUMN_NAME": "is_public",
+      "COLUMN_TYPE": "tinyint(1)",
+      "COLUMN_KEY": "",
+      "IS_NULLABLE": "NO"
+    },
+    {
+      "TABLE_NAME": "trips",
+      "COLUMN_NAME": "trip_id",
+      "COLUMN_TYPE": "bigint(20) unsigned",
+      "COLUMN_KEY": "PRI",
+      "IS_NULLABLE": "NO"
+    },
+    {
+      "TABLE_NAME": "trips",
+      "COLUMN_NAME": "owner_id",
+      "COLUMN_TYPE": "bigint(20) unsigned",
+      "COLUMN_KEY": "MUL",
+      "IS_NULLABLE": "NO"
+    },
+    {
+      "TABLE_NAME": "trips",
+      "COLUMN_NAME": "category_id",
+      "COLUMN_TYPE": "bigint(20) unsigned",
+      "COLUMN_KEY": "MUL",
+      "IS_NULLABLE": "YES"
+    },
+    {
+      "TABLE_NAME": "trips",
+      "COLUMN_NAME": "trip_name",
+      "COLUMN_TYPE": "varchar(150)",
+      "COLUMN_KEY": "",
+      "IS_NULLABLE": "NO"
+    },
+    {
+      "TABLE_NAME": "trips",
+      "COLUMN_NAME": "cover_image_path",
+      "COLUMN_TYPE": "varchar(255)",
+      "COLUMN_KEY": "",
+      "IS_NULLABLE": "YES"
+    },
+    {
+      "TABLE_NAME": "trips",
+      "COLUMN_NAME": "country_id",
+      "COLUMN_TYPE": "bigint(20) unsigned",
+      "COLUMN_KEY": "MUL",
+      "IS_NULLABLE": "NO"
+    },
+    {
+      "TABLE_NAME": "trips",
+      "COLUMN_NAME": "city_id",
+      "COLUMN_TYPE": "bigint(20) unsigned",
+      "COLUMN_KEY": "MUL",
+      "IS_NULLABLE": "NO"
+    },
+    {
+      "TABLE_NAME": "trips",
+      "COLUMN_NAME": "start_date",
+      "COLUMN_TYPE": "date",
+      "COLUMN_KEY": "",
+      "IS_NULLABLE": "NO"
+    },
+    {
+      "TABLE_NAME": "trips",
+      "COLUMN_NAME": "end_date",
+      "COLUMN_TYPE": "date",
+      "COLUMN_KEY": "",
+      "IS_NULLABLE": "NO"
+    },
+    {
+      "TABLE_NAME": "trips",
+      "COLUMN_NAME": "people_count",
+      "COLUMN_TYPE": "int(10) unsigned",
+      "COLUMN_KEY": "",
+      "IS_NULLABLE": "NO"
+    },
+    {
+      "TABLE_NAME": "trips",
+      "COLUMN_NAME": "total_budget",
+      "COLUMN_TYPE": "decimal(14,2)",
+      "COLUMN_KEY": "",
+      "IS_NULLABLE": "NO"
+    },
+    {
+      "TABLE_NAME": "trips",
+      "COLUMN_NAME": "currency",
+      "COLUMN_TYPE": "char(3)",
+      "COLUMN_KEY": "",
+      "IS_NULLABLE": "NO"
+    },
+    {
+      "TABLE_NAME": "trips",
+      "COLUMN_NAME": "introduction",
+      "COLUMN_TYPE": "text",
+      "COLUMN_KEY": "",
+      "IS_NULLABLE": "YES"
+    },
+    {
+      "TABLE_NAME": "trips",
+      "COLUMN_NAME": "visibility",
+      "COLUMN_TYPE": "enum('private','public','link_only')",
+      "COLUMN_KEY": "",
+      "IS_NULLABLE": "NO"
+    },
+    {
+      "TABLE_NAME": "trips",
+      "COLUMN_NAME": "moderation_status",
+      "COLUMN_TYPE": "enum('visible','hidden','removed')",
+      "COLUMN_KEY": "MUL",
+      "IS_NULLABLE": "NO"
+    },
+    {
+      "TABLE_NAME": "trips",
+      "COLUMN_NAME": "allow_copy",
+      "COLUMN_TYPE": "tinyint(1)",
+      "COLUMN_KEY": "",
+      "IS_NULLABLE": "NO"
+    },
+    {
+      "TABLE_NAME": "trips",
+      "COLUMN_NAME": "status",
+      "COLUMN_TYPE": "enum('planning','upcoming','completed','cancelled')",
+      "COLUMN_KEY": "",
+      "IS_NULLABLE": "NO"
+    },
+    {
+      "TABLE_NAME": "trips",
+      "COLUMN_NAME": "share_token",
+      "COLUMN_TYPE": "varchar(100)",
+      "COLUMN_KEY": "UNI",
+      "IS_NULLABLE": "YES"
+    },
+    {
+      "TABLE_NAME": "trips",
+      "COLUMN_NAME": "created_at",
+      "COLUMN_TYPE": "datetime",
+      "COLUMN_KEY": "",
+      "IS_NULLABLE": "NO"
+    },
+    {
+      "TABLE_NAME": "trips",
+      "COLUMN_NAME": "updated_at",
+      "COLUMN_TYPE": "datetime",
+      "COLUMN_KEY": "",
+      "IS_NULLABLE": "NO"
+    },
+    {
+      "TABLE_NAME": "trips",
+      "COLUMN_NAME": "deleted_at",
+      "COLUMN_TYPE": "datetime",
+      "COLUMN_KEY": "",
+      "IS_NULLABLE": "YES"
+    },
+    {
+      "TABLE_NAME": "trips",
+      "COLUMN_NAME": "deleted_by",
+      "COLUMN_TYPE": "bigint(20) unsigned",
+      "COLUMN_KEY": "",
+      "IS_NULLABLE": "YES"
+    },
+    {
+      "TABLE_NAME": "trip_chat_messages",
+      "COLUMN_NAME": "message_id",
+      "COLUMN_TYPE": "bigint(20) unsigned",
+      "COLUMN_KEY": "PRI",
+      "IS_NULLABLE": "NO"
+    },
+    {
+      "TABLE_NAME": "trip_chat_messages",
+      "COLUMN_NAME": "trip_id",
+      "COLUMN_TYPE": "bigint(20) unsigned",
+      "COLUMN_KEY": "MUL",
+      "IS_NULLABLE": "NO"
+    },
+    {
+      "TABLE_NAME": "trip_chat_messages",
+      "COLUMN_NAME": "user_id",
+      "COLUMN_TYPE": "bigint(20) unsigned",
+      "COLUMN_KEY": "MUL",
+      "IS_NULLABLE": "NO"
+    },
+    {
+      "TABLE_NAME": "trip_chat_messages",
+      "COLUMN_NAME": "content",
+      "COLUMN_TYPE": "text",
+      "COLUMN_KEY": "",
+      "IS_NULLABLE": "NO"
+    },
+    {
+      "TABLE_NAME": "trip_chat_messages",
+      "COLUMN_NAME": "created_at",
+      "COLUMN_TYPE": "datetime",
+      "COLUMN_KEY": "",
+      "IS_NULLABLE": "NO"
+    },
+    {
+      "TABLE_NAME": "trip_chat_reads",
+      "COLUMN_NAME": "trip_id",
+      "COLUMN_TYPE": "bigint(20) unsigned",
+      "COLUMN_KEY": "PRI",
+      "IS_NULLABLE": "NO"
+    },
+    {
+      "TABLE_NAME": "trip_chat_reads",
+      "COLUMN_NAME": "user_id",
+      "COLUMN_TYPE": "bigint(20) unsigned",
+      "COLUMN_KEY": "PRI",
+      "IS_NULLABLE": "NO"
+    },
+    {
+      "TABLE_NAME": "trip_chat_reads",
+      "COLUMN_NAME": "last_read_message_id",
+      "COLUMN_TYPE": "bigint(20) unsigned",
+      "COLUMN_KEY": "",
+      "IS_NULLABLE": "NO"
+    },
+    {
+      "TABLE_NAME": "trip_chat_reads",
+      "COLUMN_NAME": "last_seen_at",
+      "COLUMN_TYPE": "datetime",
+      "COLUMN_KEY": "",
+      "IS_NULLABLE": "NO"
+    },
+    {
+      "TABLE_NAME": "trip_invitations",
+      "COLUMN_NAME": "invitation_id",
+      "COLUMN_TYPE": "bigint(20) unsigned",
+      "COLUMN_KEY": "PRI",
+      "IS_NULLABLE": "NO"
+    },
+    {
+      "TABLE_NAME": "trip_invitations",
+      "COLUMN_NAME": "trip_id",
+      "COLUMN_TYPE": "bigint(20) unsigned",
+      "COLUMN_KEY": "MUL",
+      "IS_NULLABLE": "NO"
+    },
+    {
+      "TABLE_NAME": "trip_invitations",
+      "COLUMN_NAME": "inviter_id",
+      "COLUMN_TYPE": "bigint(20) unsigned",
+      "COLUMN_KEY": "MUL",
+      "IS_NULLABLE": "NO"
+    },
+    {
+      "TABLE_NAME": "trip_invitations",
+      "COLUMN_NAME": "invitee_id",
+      "COLUMN_TYPE": "bigint(20) unsigned",
+      "COLUMN_KEY": "MUL",
+      "IS_NULLABLE": "YES"
+    },
+    {
+      "TABLE_NAME": "trip_invitations",
+      "COLUMN_NAME": "invitee_email",
+      "COLUMN_TYPE": "varchar(150)",
+      "COLUMN_KEY": "",
+      "IS_NULLABLE": "YES"
+    },
+    {
+      "TABLE_NAME": "trip_invitations",
+      "COLUMN_NAME": "invite_code",
+      "COLUMN_TYPE": "varchar(50)",
+      "COLUMN_KEY": "UNI",
+      "IS_NULLABLE": "NO"
+    },
+    {
+      "TABLE_NAME": "trip_invitations",
+      "COLUMN_NAME": "invite_token",
+      "COLUMN_TYPE": "varchar(120)",
+      "COLUMN_KEY": "UNI",
+      "IS_NULLABLE": "YES"
+    },
+    {
+      "TABLE_NAME": "trip_invitations",
+      "COLUMN_NAME": "assigned_role",
+      "COLUMN_TYPE": "enum('editor','viewer')",
+      "COLUMN_KEY": "",
+      "IS_NULLABLE": "NO"
+    },
+    {
+      "TABLE_NAME": "trip_invitations",
+      "COLUMN_NAME": "status",
+      "COLUMN_TYPE": "enum('pending','accepted','rejected','expired','cancelled')",
+      "COLUMN_KEY": "",
+      "IS_NULLABLE": "NO"
+    },
+    {
+      "TABLE_NAME": "trip_invitations",
+      "COLUMN_NAME": "expires_at",
+      "COLUMN_TYPE": "datetime",
+      "COLUMN_KEY": "",
+      "IS_NULLABLE": "YES"
+    },
+    {
+      "TABLE_NAME": "trip_invitations",
+      "COLUMN_NAME": "responded_at",
+      "COLUMN_TYPE": "datetime",
+      "COLUMN_KEY": "",
+      "IS_NULLABLE": "YES"
+    },
+    {
+      "TABLE_NAME": "trip_invitations",
+      "COLUMN_NAME": "created_at",
+      "COLUMN_TYPE": "datetime",
+      "COLUMN_KEY": "",
+      "IS_NULLABLE": "NO"
+    },
+    {
+      "TABLE_NAME": "trip_members",
+      "COLUMN_NAME": "trip_member_id",
+      "COLUMN_TYPE": "bigint(20) unsigned",
+      "COLUMN_KEY": "PRI",
+      "IS_NULLABLE": "NO"
+    },
+    {
+      "TABLE_NAME": "trip_members",
+      "COLUMN_NAME": "trip_id",
+      "COLUMN_TYPE": "bigint(20) unsigned",
+      "COLUMN_KEY": "MUL",
+      "IS_NULLABLE": "NO"
+    },
+    {
+      "TABLE_NAME": "trip_members",
+      "COLUMN_NAME": "user_id",
+      "COLUMN_TYPE": "bigint(20) unsigned",
+      "COLUMN_KEY": "MUL",
+      "IS_NULLABLE": "NO"
+    },
+    {
+      "TABLE_NAME": "trip_members",
+      "COLUMN_NAME": "member_role",
+      "COLUMN_TYPE": "enum('owner','editor','viewer')",
+      "COLUMN_KEY": "",
+      "IS_NULLABLE": "NO"
+    },
+    {
+      "TABLE_NAME": "trip_members",
+      "COLUMN_NAME": "join_status",
+      "COLUMN_TYPE": "enum('invited','requested','accepted','rejected','left','removed')",
+      "COLUMN_KEY": "",
+      "IS_NULLABLE": "NO"
+    },
+    {
+      "TABLE_NAME": "trip_members",
+      "COLUMN_NAME": "joined_at",
+      "COLUMN_TYPE": "datetime",
+      "COLUMN_KEY": "",
+      "IS_NULLABLE": "YES"
+    },
+    {
+      "TABLE_NAME": "trip_members",
+      "COLUMN_NAME": "created_at",
+      "COLUMN_TYPE": "datetime",
+      "COLUMN_KEY": "",
+      "IS_NULLABLE": "NO"
+    },
+    {
+      "TABLE_NAME": "trip_moderation_history",
+      "COLUMN_NAME": "moderation_id",
+      "COLUMN_TYPE": "bigint(20) unsigned",
+      "COLUMN_KEY": "PRI",
+      "IS_NULLABLE": "NO"
+    },
+    {
+      "TABLE_NAME": "trip_moderation_history",
+      "COLUMN_NAME": "trip_id",
+      "COLUMN_TYPE": "bigint(20) unsigned",
+      "COLUMN_KEY": "MUL",
+      "IS_NULLABLE": "NO"
+    },
+    {
+      "TABLE_NAME": "trip_moderation_history",
+      "COLUMN_NAME": "admin_id",
+      "COLUMN_TYPE": "bigint(20) unsigned",
+      "COLUMN_KEY": "MUL",
+      "IS_NULLABLE": "NO"
+    },
+    {
+      "TABLE_NAME": "trip_moderation_history",
+      "COLUMN_NAME": "action",
+      "COLUMN_TYPE": "enum('hide','restore','remove')",
+      "COLUMN_KEY": "",
+      "IS_NULLABLE": "NO"
+    },
+    {
+      "TABLE_NAME": "trip_moderation_history",
+      "COLUMN_NAME": "reason",
+      "COLUMN_TYPE": "varchar(1000)",
+      "COLUMN_KEY": "",
+      "IS_NULLABLE": "NO"
+    },
+    {
+      "TABLE_NAME": "trip_moderation_history",
+      "COLUMN_NAME": "created_at",
+      "COLUMN_TYPE": "datetime",
+      "COLUMN_KEY": "",
+      "IS_NULLABLE": "NO"
+    },
+    {
+      "TABLE_NAME": "trip_preferences",
+      "COLUMN_NAME": "preference_id",
+      "COLUMN_TYPE": "bigint(20) unsigned",
+      "COLUMN_KEY": "PRI",
+      "IS_NULLABLE": "NO"
+    },
+    {
+      "TABLE_NAME": "trip_preferences",
+      "COLUMN_NAME": "trip_id",
+      "COLUMN_TYPE": "bigint(20) unsigned",
+      "COLUMN_KEY": "MUL",
+      "IS_NULLABLE": "NO"
+    },
+    {
+      "TABLE_NAME": "trip_preferences",
+      "COLUMN_NAME": "user_id",
+      "COLUMN_TYPE": "bigint(20) unsigned",
+      "COLUMN_KEY": "MUL",
+      "IS_NULLABLE": "NO"
+    },
+    {
+      "TABLE_NAME": "trip_preferences",
+      "COLUMN_NAME": "like_activities",
+      "COLUMN_TYPE": "varchar(500)",
+      "COLUMN_KEY": "",
+      "IS_NULLABLE": "YES"
+    },
+    {
+      "TABLE_NAME": "trip_preferences",
+      "COLUMN_NAME": "dislike_activities",
+      "COLUMN_TYPE": "varchar(500)",
+      "COLUMN_KEY": "",
+      "IS_NULLABLE": "YES"
+    },
+    {
+      "TABLE_NAME": "trip_preferences",
+      "COLUMN_NAME": "must_visit",
+      "COLUMN_TYPE": "text",
+      "COLUMN_KEY": "",
+      "IS_NULLABLE": "YES"
+    },
+    {
+      "TABLE_NAME": "trip_preferences",
+      "COLUMN_NAME": "avoid_places",
+      "COLUMN_TYPE": "text",
+      "COLUMN_KEY": "",
+      "IS_NULLABLE": "YES"
+    },
+    {
+      "TABLE_NAME": "trip_preferences",
+      "COLUMN_NAME": "budget_limit",
+      "COLUMN_TYPE": "decimal(12,2)",
+      "COLUMN_KEY": "",
+      "IS_NULLABLE": "YES"
+    },
+    {
+      "TABLE_NAME": "trip_preferences",
+      "COLUMN_NAME": "diet",
+      "COLUMN_TYPE": "varchar(20)",
+      "COLUMN_KEY": "",
+      "IS_NULLABLE": "NO"
+    },
+    {
+      "TABLE_NAME": "trip_preferences",
+      "COLUMN_NAME": "transport_pref",
+      "COLUMN_TYPE": "varchar(20)",
+      "COLUMN_KEY": "",
+      "IS_NULLABLE": "NO"
+    },
+    {
+      "TABLE_NAME": "trip_preferences",
+      "COLUMN_NAME": "walk_tolerance",
+      "COLUMN_TYPE": "varchar(20)",
+      "COLUMN_KEY": "",
+      "IS_NULLABLE": "NO"
+    },
+    {
+      "TABLE_NAME": "trip_preferences",
+      "COLUMN_NAME": "intensity",
+      "COLUMN_TYPE": "varchar(20)",
+      "COLUMN_KEY": "",
+      "IS_NULLABLE": "YES"
+    },
+    {
+      "TABLE_NAME": "trip_preferences",
+      "COLUMN_NAME": "special_needs",
+      "COLUMN_TYPE": "text",
+      "COLUMN_KEY": "",
+      "IS_NULLABLE": "YES"
+    },
+    {
+      "TABLE_NAME": "trip_preferences",
+      "COLUMN_NAME": "created_at",
+      "COLUMN_TYPE": "datetime",
+      "COLUMN_KEY": "",
+      "IS_NULLABLE": "NO"
+    },
+    {
+      "TABLE_NAME": "trip_preferences",
+      "COLUMN_NAME": "updated_at",
+      "COLUMN_TYPE": "datetime",
+      "COLUMN_KEY": "",
+      "IS_NULLABLE": "NO"
+    },
+    {
+      "TABLE_NAME": "users",
+      "COLUMN_NAME": "user_id",
+      "COLUMN_TYPE": "bigint(20) unsigned",
+      "COLUMN_KEY": "PRI",
+      "IS_NULLABLE": "NO"
+    },
+    {
+      "TABLE_NAME": "users",
+      "COLUMN_NAME": "username",
+      "COLUMN_TYPE": "varchar(50)",
+      "COLUMN_KEY": "UNI",
+      "IS_NULLABLE": "NO"
+    },
+    {
+      "TABLE_NAME": "users",
+      "COLUMN_NAME": "password_hash",
+      "COLUMN_TYPE": "varchar(255)",
+      "COLUMN_KEY": "",
+      "IS_NULLABLE": "YES"
+    },
+    {
+      "TABLE_NAME": "users",
+      "COLUMN_NAME": "google_sub",
+      "COLUMN_TYPE": "varchar(255)",
+      "COLUMN_KEY": "UNI",
+      "IS_NULLABLE": "YES"
+    },
+    {
+      "TABLE_NAME": "users",
+      "COLUMN_NAME": "line_sub",
+      "COLUMN_TYPE": "varchar(255)",
+      "COLUMN_KEY": "UNI",
+      "IS_NULLABLE": "YES"
+    },
+    {
+      "TABLE_NAME": "users",
+      "COLUMN_NAME": "line_friend",
+      "COLUMN_TYPE": "tinyint(1)",
+      "COLUMN_KEY": "",
+      "IS_NULLABLE": "NO"
+    },
+    {
+      "TABLE_NAME": "users",
+      "COLUMN_NAME": "full_name",
+      "COLUMN_TYPE": "varchar(100)",
+      "COLUMN_KEY": "",
+      "IS_NULLABLE": "NO"
+    },
+    {
+      "TABLE_NAME": "users",
+      "COLUMN_NAME": "nickname",
+      "COLUMN_TYPE": "varchar(100)",
+      "COLUMN_KEY": "",
+      "IS_NULLABLE": "YES"
+    },
+    {
+      "TABLE_NAME": "users",
+      "COLUMN_NAME": "email",
+      "COLUMN_TYPE": "varchar(150)",
+      "COLUMN_KEY": "UNI",
+      "IS_NULLABLE": "NO"
+    },
+    {
+      "TABLE_NAME": "users",
+      "COLUMN_NAME": "phone",
+      "COLUMN_TYPE": "varchar(30)",
+      "COLUMN_KEY": "",
+      "IS_NULLABLE": "YES"
+    },
+    {
+      "TABLE_NAME": "users",
+      "COLUMN_NAME": "birthdate",
+      "COLUMN_TYPE": "date",
+      "COLUMN_KEY": "",
+      "IS_NULLABLE": "YES"
+    },
+    {
+      "TABLE_NAME": "users",
+      "COLUMN_NAME": "avatar_path",
+      "COLUMN_TYPE": "varchar(255)",
+      "COLUMN_KEY": "",
+      "IS_NULLABLE": "YES"
+    },
+    {
+      "TABLE_NAME": "users",
+      "COLUMN_NAME": "role",
+      "COLUMN_TYPE": "enum('member','content_admin','system_admin')",
+      "COLUMN_KEY": "",
+      "IS_NULLABLE": "NO"
+    },
+    {
+      "TABLE_NAME": "users",
+      "COLUMN_NAME": "status",
+      "COLUMN_TYPE": "enum('active','under_review','disabled','deleted')",
+      "COLUMN_KEY": "",
+      "IS_NULLABLE": "NO"
+    },
+    {
+      "TABLE_NAME": "users",
+      "COLUMN_NAME": "last_login_at",
+      "COLUMN_TYPE": "datetime",
+      "COLUMN_KEY": "",
+      "IS_NULLABLE": "YES"
+    },
+    {
+      "TABLE_NAME": "users",
+      "COLUMN_NAME": "created_at",
+      "COLUMN_TYPE": "datetime",
+      "COLUMN_KEY": "",
+      "IS_NULLABLE": "NO"
+    },
+    {
+      "TABLE_NAME": "users",
+      "COLUMN_NAME": "updated_at",
+      "COLUMN_TYPE": "datetime",
+      "COLUMN_KEY": "",
+      "IS_NULLABLE": "NO"
+    },
+    {
+      "TABLE_NAME": "user_moderation_history",
+      "COLUMN_NAME": "moderation_id",
+      "COLUMN_TYPE": "bigint(20) unsigned",
+      "COLUMN_KEY": "PRI",
+      "IS_NULLABLE": "NO"
+    },
+    {
+      "TABLE_NAME": "user_moderation_history",
+      "COLUMN_NAME": "user_id",
+      "COLUMN_TYPE": "bigint(20) unsigned",
+      "COLUMN_KEY": "MUL",
+      "IS_NULLABLE": "NO"
+    },
+    {
+      "TABLE_NAME": "user_moderation_history",
+      "COLUMN_NAME": "admin_id",
+      "COLUMN_TYPE": "bigint(20) unsigned",
+      "COLUMN_KEY": "MUL",
+      "IS_NULLABLE": "NO"
+    },
+    {
+      "TABLE_NAME": "user_moderation_history",
+      "COLUMN_NAME": "action",
+      "COLUMN_TYPE": "varchar(30)",
+      "COLUMN_KEY": "",
+      "IS_NULLABLE": "NO"
+    },
+    {
+      "TABLE_NAME": "user_moderation_history",
+      "COLUMN_NAME": "from_status",
+      "COLUMN_TYPE": "enum('active','under_review','disabled','deleted')",
+      "COLUMN_KEY": "",
+      "IS_NULLABLE": "NO"
+    },
+    {
+      "TABLE_NAME": "user_moderation_history",
+      "COLUMN_NAME": "to_status",
+      "COLUMN_TYPE": "enum('active','under_review','disabled','deleted')",
+      "COLUMN_KEY": "",
+      "IS_NULLABLE": "NO"
+    },
+    {
+      "TABLE_NAME": "user_moderation_history",
+      "COLUMN_NAME": "reason",
+      "COLUMN_TYPE": "varchar(1000)",
+      "COLUMN_KEY": "",
+      "IS_NULLABLE": "NO"
+    },
+    {
+      "TABLE_NAME": "user_moderation_history",
+      "COLUMN_NAME": "created_at",
+      "COLUMN_TYPE": "datetime",
+      "COLUMN_KEY": "",
+      "IS_NULLABLE": "NO"
+    },
+    {
+      "TABLE_NAME": "votes",
+      "COLUMN_NAME": "vote_id",
+      "COLUMN_TYPE": "bigint(20) unsigned",
+      "COLUMN_KEY": "PRI",
+      "IS_NULLABLE": "NO"
+    },
+    {
+      "TABLE_NAME": "votes",
+      "COLUMN_NAME": "trip_id",
+      "COLUMN_TYPE": "bigint(20) unsigned",
+      "COLUMN_KEY": "MUL",
+      "IS_NULLABLE": "NO"
+    },
+    {
+      "TABLE_NAME": "votes",
+      "COLUMN_NAME": "proposal_id",
+      "COLUMN_TYPE": "bigint(20) unsigned",
+      "COLUMN_KEY": "MUL",
+      "IS_NULLABLE": "YES"
+    },
+    {
+      "TABLE_NAME": "votes",
+      "COLUMN_NAME": "created_by",
+      "COLUMN_TYPE": "bigint(20) unsigned",
+      "COLUMN_KEY": "MUL",
+      "IS_NULLABLE": "NO"
+    },
+    {
+      "TABLE_NAME": "votes",
+      "COLUMN_NAME": "title",
+      "COLUMN_TYPE": "varchar(150)",
+      "COLUMN_KEY": "",
+      "IS_NULLABLE": "NO"
+    },
+    {
+      "TABLE_NAME": "votes",
+      "COLUMN_NAME": "vote_type",
+      "COLUMN_TYPE": "enum('approval','multiple_choice','single_choice')",
+      "COLUMN_KEY": "",
+      "IS_NULLABLE": "NO"
+    },
+    {
+      "TABLE_NAME": "votes",
+      "COLUMN_NAME": "status",
+      "COLUMN_TYPE": "enum('open','closed','cancelled')",
+      "COLUMN_KEY": "",
+      "IS_NULLABLE": "NO"
+    },
+    {
+      "TABLE_NAME": "votes",
+      "COLUMN_NAME": "allow_change",
+      "COLUMN_TYPE": "tinyint(1)",
+      "COLUMN_KEY": "",
+      "IS_NULLABLE": "NO"
+    },
+    {
+      "TABLE_NAME": "votes",
+      "COLUMN_NAME": "deadline_at",
+      "COLUMN_TYPE": "datetime",
+      "COLUMN_KEY": "",
+      "IS_NULLABLE": "NO"
+    },
+    {
+      "TABLE_NAME": "votes",
+      "COLUMN_NAME": "created_at",
+      "COLUMN_TYPE": "datetime",
+      "COLUMN_KEY": "",
+      "IS_NULLABLE": "NO"
+    },
+    {
+      "TABLE_NAME": "vote_options",
+      "COLUMN_NAME": "option_id",
+      "COLUMN_TYPE": "bigint(20) unsigned",
+      "COLUMN_KEY": "PRI",
+      "IS_NULLABLE": "NO"
+    },
+    {
+      "TABLE_NAME": "vote_options",
+      "COLUMN_NAME": "vote_id",
+      "COLUMN_TYPE": "bigint(20) unsigned",
+      "COLUMN_KEY": "MUL",
+      "IS_NULLABLE": "NO"
+    },
+    {
+      "TABLE_NAME": "vote_options",
+      "COLUMN_NAME": "option_text",
+      "COLUMN_TYPE": "varchar(255)",
+      "COLUMN_KEY": "",
+      "IS_NULLABLE": "NO"
+    },
+    {
+      "TABLE_NAME": "vote_options",
+      "COLUMN_NAME": "sort_order",
+      "COLUMN_TYPE": "int(10) unsigned",
+      "COLUMN_KEY": "",
+      "IS_NULLABLE": "NO"
+    },
+    {
+      "TABLE_NAME": "vote_records",
+      "COLUMN_NAME": "vote_record_id",
+      "COLUMN_TYPE": "bigint(20) unsigned",
+      "COLUMN_KEY": "PRI",
+      "IS_NULLABLE": "NO"
+    },
+    {
+      "TABLE_NAME": "vote_records",
+      "COLUMN_NAME": "vote_id",
+      "COLUMN_TYPE": "bigint(20) unsigned",
+      "COLUMN_KEY": "MUL",
+      "IS_NULLABLE": "NO"
+    },
+    {
+      "TABLE_NAME": "vote_records",
+      "COLUMN_NAME": "option_id",
+      "COLUMN_TYPE": "bigint(20) unsigned",
+      "COLUMN_KEY": "MUL",
+      "IS_NULLABLE": "YES"
+    },
+    {
+      "TABLE_NAME": "vote_records",
+      "COLUMN_NAME": "user_id",
+      "COLUMN_TYPE": "bigint(20) unsigned",
+      "COLUMN_KEY": "MUL",
+      "IS_NULLABLE": "NO"
+    },
+    {
+      "TABLE_NAME": "vote_records",
+      "COLUMN_NAME": "approval_choice",
+      "COLUMN_TYPE": "enum('agree','disagree','neutral')",
+      "COLUMN_KEY": "",
+      "IS_NULLABLE": "YES"
+    },
+    {
+      "TABLE_NAME": "vote_records",
+      "COLUMN_NAME": "reason",
+      "COLUMN_TYPE": "varchar(255)",
+      "COLUMN_KEY": "",
+      "IS_NULLABLE": "YES"
+    },
+    {
+      "TABLE_NAME": "vote_records",
+      "COLUMN_NAME": "voted_at",
+      "COLUMN_TYPE": "datetime",
+      "COLUMN_KEY": "",
+      "IS_NULLABLE": "NO"
+    },
+    {
+      "TABLE_NAME": "vote_records",
+      "COLUMN_NAME": "updated_at",
+      "COLUMN_TYPE": "datetime",
+      "COLUMN_KEY": "",
+      "IS_NULLABLE": "NO"
+    },
+    {
+      "TABLE_NAME": "vw_popular_attractions",
+      "COLUMN_NAME": "attraction_id",
+      "COLUMN_TYPE": "bigint(20) unsigned",
+      "COLUMN_KEY": "",
+      "IS_NULLABLE": "NO"
+    },
+    {
+      "TABLE_NAME": "vw_popular_attractions",
+      "COLUMN_NAME": "name",
+      "COLUMN_TYPE": "varchar(150)",
+      "COLUMN_KEY": "",
+      "IS_NULLABLE": "NO"
+    },
+    {
+      "TABLE_NAME": "vw_popular_attractions",
+      "COLUMN_NAME": "country",
+      "COLUMN_TYPE": "varchar(100)",
+      "COLUMN_KEY": "",
+      "IS_NULLABLE": "NO"
+    },
+    {
+      "TABLE_NAME": "vw_popular_attractions",
+      "COLUMN_NAME": "city",
+      "COLUMN_TYPE": "varchar(100)",
+      "COLUMN_KEY": "",
+      "IS_NULLABLE": "NO"
+    },
+    {
+      "TABLE_NAME": "vw_popular_attractions",
+      "COLUMN_NAME": "favorite_count",
+      "COLUMN_TYPE": "bigint(21)",
+      "COLUMN_KEY": "",
+      "IS_NULLABLE": "NO"
+    },
+    {
+      "TABLE_NAME": "vw_popular_attractions",
+      "COLUMN_NAME": "itinerary_count",
+      "COLUMN_TYPE": "bigint(21)",
+      "COLUMN_KEY": "",
+      "IS_NULLABLE": "NO"
+    },
+    {
+      "TABLE_NAME": "vw_trip_expense_summary",
+      "COLUMN_NAME": "trip_id",
+      "COLUMN_TYPE": "bigint(20) unsigned",
+      "COLUMN_KEY": "",
+      "IS_NULLABLE": "NO"
+    },
+    {
+      "TABLE_NAME": "vw_trip_expense_summary",
+      "COLUMN_NAME": "trip_name",
+      "COLUMN_TYPE": "varchar(150)",
+      "COLUMN_KEY": "",
+      "IS_NULLABLE": "NO"
+    },
+    {
+      "TABLE_NAME": "vw_trip_expense_summary",
+      "COLUMN_NAME": "total_budget",
+      "COLUMN_TYPE": "decimal(14,2)",
+      "COLUMN_KEY": "",
+      "IS_NULLABLE": "NO"
+    },
+    {
+      "TABLE_NAME": "vw_trip_expense_summary",
+      "COLUMN_NAME": "currency",
+      "COLUMN_TYPE": "char(3)",
+      "COLUMN_KEY": "",
+      "IS_NULLABLE": "NO"
+    },
+    {
+      "TABLE_NAME": "vw_trip_expense_summary",
+      "COLUMN_NAME": "actual_expense",
+      "COLUMN_TYPE": "decimal(36,2)",
+      "COLUMN_KEY": "",
+      "IS_NULLABLE": "YES"
+    },
+    {
+      "TABLE_NAME": "vw_trip_expense_summary",
+      "COLUMN_NAME": "remaining_budget",
+      "COLUMN_TYPE": "decimal(37,2)",
+      "COLUMN_KEY": "",
+      "IS_NULLABLE": "YES"
+    }
+  ],
+  "fks": [
+    {
+      "TABLE_NAME": "accommodations",
+      "COLUMN_NAME": "category_id",
+      "REFERENCED_TABLE_NAME": "categories",
+      "REFERENCED_COLUMN_NAME": "category_id"
+    },
+    {
+      "TABLE_NAME": "accommodations",
+      "COLUMN_NAME": "created_by",
+      "REFERENCED_TABLE_NAME": "users",
+      "REFERENCED_COLUMN_NAME": "user_id"
+    },
+    {
+      "TABLE_NAME": "accommodations",
+      "COLUMN_NAME": "ai_verified_by",
+      "REFERENCED_TABLE_NAME": "users",
+      "REFERENCED_COLUMN_NAME": "user_id"
+    },
+    {
+      "TABLE_NAME": "accommodations",
+      "COLUMN_NAME": "city_id",
+      "REFERENCED_TABLE_NAME": "cities",
+      "REFERENCED_COLUMN_NAME": "city_id"
+    },
+    {
+      "TABLE_NAME": "accommodations",
+      "COLUMN_NAME": "country_id",
+      "REFERENCED_TABLE_NAME": "countries",
+      "REFERENCED_COLUMN_NAME": "country_id"
+    },
+    {
+      "TABLE_NAME": "admin_logs",
+      "COLUMN_NAME": "admin_id",
+      "REFERENCED_TABLE_NAME": "users",
+      "REFERENCED_COLUMN_NAME": "user_id"
+    },
+    {
+      "TABLE_NAME": "announcements",
+      "COLUMN_NAME": "created_by",
+      "REFERENCED_TABLE_NAME": "users",
+      "REFERENCED_COLUMN_NAME": "user_id"
+    },
+    {
+      "TABLE_NAME": "app_settings",
+      "COLUMN_NAME": "updated_by",
+      "REFERENCED_TABLE_NAME": "users",
+      "REFERENCED_COLUMN_NAME": "user_id"
+    },
+    {
+      "TABLE_NAME": "attachments",
+      "COLUMN_NAME": "proposal_id",
+      "REFERENCED_TABLE_NAME": "proposals",
+      "REFERENCED_COLUMN_NAME": "proposal_id"
+    },
+    {
+      "TABLE_NAME": "attachments",
+      "COLUMN_NAME": "itinerary_id",
+      "REFERENCED_TABLE_NAME": "itineraries",
+      "REFERENCED_COLUMN_NAME": "itinerary_id"
+    },
+    {
+      "TABLE_NAME": "attachments",
+      "COLUMN_NAME": "trip_id",
+      "REFERENCED_TABLE_NAME": "trips",
+      "REFERENCED_COLUMN_NAME": "trip_id"
+    },
+    {
+      "TABLE_NAME": "attachments",
+      "COLUMN_NAME": "uploaded_by",
+      "REFERENCED_TABLE_NAME": "users",
+      "REFERENCED_COLUMN_NAME": "user_id"
+    },
+    {
+      "TABLE_NAME": "attractions",
+      "COLUMN_NAME": "created_by",
+      "REFERENCED_TABLE_NAME": "users",
+      "REFERENCED_COLUMN_NAME": "user_id"
+    },
+    {
+      "TABLE_NAME": "attractions",
+      "COLUMN_NAME": "ai_verified_by",
+      "REFERENCED_TABLE_NAME": "users",
+      "REFERENCED_COLUMN_NAME": "user_id"
+    },
+    {
+      "TABLE_NAME": "attractions",
+      "COLUMN_NAME": "city_id",
+      "REFERENCED_TABLE_NAME": "cities",
+      "REFERENCED_COLUMN_NAME": "city_id"
+    },
+    {
+      "TABLE_NAME": "attractions",
+      "COLUMN_NAME": "country_id",
+      "REFERENCED_TABLE_NAME": "countries",
+      "REFERENCED_COLUMN_NAME": "country_id"
+    },
+    {
+      "TABLE_NAME": "attractions",
+      "COLUMN_NAME": "category_id",
+      "REFERENCED_TABLE_NAME": "categories",
+      "REFERENCED_COLUMN_NAME": "category_id"
+    },
+    {
+      "TABLE_NAME": "attraction_posts",
+      "COLUMN_NAME": "user_id",
+      "REFERENCED_TABLE_NAME": "users",
+      "REFERENCED_COLUMN_NAME": "user_id"
+    },
+    {
+      "TABLE_NAME": "attraction_posts",
+      "COLUMN_NAME": "reviewed_by",
+      "REFERENCED_TABLE_NAME": "users",
+      "REFERENCED_COLUMN_NAME": "user_id"
+    },
+    {
+      "TABLE_NAME": "attraction_posts",
+      "COLUMN_NAME": "attraction_id",
+      "REFERENCED_TABLE_NAME": "attractions",
+      "REFERENCED_COLUMN_NAME": "attraction_id"
+    },
+    {
+      "TABLE_NAME": "attraction_post_images",
+      "COLUMN_NAME": "post_id",
+      "REFERENCED_TABLE_NAME": "attraction_posts",
+      "REFERENCED_COLUMN_NAME": "post_id"
+    },
+    {
+      "TABLE_NAME": "booking_favorites",
+      "COLUMN_NAME": "user_id",
+      "REFERENCED_TABLE_NAME": "users",
+      "REFERENCED_COLUMN_NAME": "user_id"
+    },
+    {
+      "TABLE_NAME": "booking_live_favorites",
+      "COLUMN_NAME": "user_id",
+      "REFERENCED_TABLE_NAME": "users",
+      "REFERENCED_COLUMN_NAME": "user_id"
+    },
+    {
+      "TABLE_NAME": "categories",
+      "COLUMN_NAME": "created_by",
+      "REFERENCED_TABLE_NAME": "users",
+      "REFERENCED_COLUMN_NAME": "user_id"
+    },
+    {
+      "TABLE_NAME": "cities",
+      "COLUMN_NAME": "country_id",
+      "REFERENCED_TABLE_NAME": "countries",
+      "REFERENCED_COLUMN_NAME": "country_id"
+    },
+    {
+      "TABLE_NAME": "comments",
+      "COLUMN_NAME": "user_id",
+      "REFERENCED_TABLE_NAME": "users",
+      "REFERENCED_COLUMN_NAME": "user_id"
+    },
+    {
+      "TABLE_NAME": "comments",
+      "COLUMN_NAME": "proposal_id",
+      "REFERENCED_TABLE_NAME": "proposals",
+      "REFERENCED_COLUMN_NAME": "proposal_id"
+    },
+    {
+      "TABLE_NAME": "comments",
+      "COLUMN_NAME": "itinerary_id",
+      "REFERENCED_TABLE_NAME": "itineraries",
+      "REFERENCED_COLUMN_NAME": "itinerary_id"
+    },
+    {
+      "TABLE_NAME": "comments",
+      "COLUMN_NAME": "trip_id",
+      "REFERENCED_TABLE_NAME": "trips",
+      "REFERENCED_COLUMN_NAME": "trip_id"
+    },
+    {
+      "TABLE_NAME": "comments",
+      "COLUMN_NAME": "parent_comment_id",
+      "REFERENCED_TABLE_NAME": "comments",
+      "REFERENCED_COLUMN_NAME": "comment_id"
+    },
+    {
+      "TABLE_NAME": "content_admin_denials",
+      "COLUMN_NAME": "user_id",
+      "REFERENCED_TABLE_NAME": "users",
+      "REFERENCED_COLUMN_NAME": "user_id"
+    },
+    {
+      "TABLE_NAME": "edit_logs",
+      "COLUMN_NAME": "user_id",
+      "REFERENCED_TABLE_NAME": "users",
+      "REFERENCED_COLUMN_NAME": "user_id"
+    },
+    {
+      "TABLE_NAME": "edit_logs",
+      "COLUMN_NAME": "trip_id",
+      "REFERENCED_TABLE_NAME": "trips",
+      "REFERENCED_COLUMN_NAME": "trip_id"
+    },
+    {
+      "TABLE_NAME": "expenses",
+      "COLUMN_NAME": "trip_id",
+      "REFERENCED_TABLE_NAME": "trips",
+      "REFERENCED_COLUMN_NAME": "trip_id"
+    },
+    {
+      "TABLE_NAME": "expenses",
+      "COLUMN_NAME": "payer_id",
+      "REFERENCED_TABLE_NAME": "users",
+      "REFERENCED_COLUMN_NAME": "user_id"
+    },
+    {
+      "TABLE_NAME": "expenses",
+      "COLUMN_NAME": "created_by",
+      "REFERENCED_TABLE_NAME": "users",
+      "REFERENCED_COLUMN_NAME": "user_id"
+    },
+    {
+      "TABLE_NAME": "expenses",
+      "COLUMN_NAME": "category_id",
+      "REFERENCED_TABLE_NAME": "categories",
+      "REFERENCED_COLUMN_NAME": "category_id"
+    },
+    {
+      "TABLE_NAME": "expense_items",
+      "COLUMN_NAME": "expense_id",
+      "REFERENCED_TABLE_NAME": "expenses",
+      "REFERENCED_COLUMN_NAME": "expense_id"
+    },
+    {
+      "TABLE_NAME": "expense_splits",
+      "COLUMN_NAME": "user_id",
+      "REFERENCED_TABLE_NAME": "users",
+      "REFERENCED_COLUMN_NAME": "user_id"
+    },
+    {
+      "TABLE_NAME": "expense_splits",
+      "COLUMN_NAME": "expense_id",
+      "REFERENCED_TABLE_NAME": "expenses",
+      "REFERENCED_COLUMN_NAME": "expense_id"
+    },
+    {
+      "TABLE_NAME": "favorites",
+      "COLUMN_NAME": "trip_id",
+      "REFERENCED_TABLE_NAME": "trips",
+      "REFERENCED_COLUMN_NAME": "trip_id"
+    },
+    {
+      "TABLE_NAME": "favorites",
+      "COLUMN_NAME": "user_id",
+      "REFERENCED_TABLE_NAME": "users",
+      "REFERENCED_COLUMN_NAME": "user_id"
+    },
+    {
+      "TABLE_NAME": "favorites",
+      "COLUMN_NAME": "restaurant_id",
+      "REFERENCED_TABLE_NAME": "restaurants",
+      "REFERENCED_COLUMN_NAME": "restaurant_id"
+    },
+    {
+      "TABLE_NAME": "favorites",
+      "COLUMN_NAME": "accommodation_id",
+      "REFERENCED_TABLE_NAME": "accommodations",
+      "REFERENCED_COLUMN_NAME": "accommodation_id"
+    },
+    {
+      "TABLE_NAME": "favorites",
+      "COLUMN_NAME": "attraction_id",
+      "REFERENCED_TABLE_NAME": "attractions",
+      "REFERENCED_COLUMN_NAME": "attraction_id"
+    },
+    {
+      "TABLE_NAME": "flights",
+      "COLUMN_NAME": "destination_country_id",
+      "REFERENCED_TABLE_NAME": "countries",
+      "REFERENCED_COLUMN_NAME": "country_id"
+    },
+    {
+      "TABLE_NAME": "flights",
+      "COLUMN_NAME": "destination_city_id",
+      "REFERENCED_TABLE_NAME": "cities",
+      "REFERENCED_COLUMN_NAME": "city_id"
+    },
+    {
+      "TABLE_NAME": "flights",
+      "COLUMN_NAME": "origin_country_id",
+      "REFERENCED_TABLE_NAME": "countries",
+      "REFERENCED_COLUMN_NAME": "country_id"
+    },
+    {
+      "TABLE_NAME": "flights",
+      "COLUMN_NAME": "origin_city_id",
+      "REFERENCED_TABLE_NAME": "cities",
+      "REFERENCED_COLUMN_NAME": "city_id"
+    },
+    {
+      "TABLE_NAME": "friend_groups",
+      "COLUMN_NAME": "trip_id",
+      "REFERENCED_TABLE_NAME": "trips",
+      "REFERENCED_COLUMN_NAME": "trip_id"
+    },
+    {
+      "TABLE_NAME": "friend_groups",
+      "COLUMN_NAME": "host_user_id",
+      "REFERENCED_TABLE_NAME": "users",
+      "REFERENCED_COLUMN_NAME": "user_id"
+    },
+    {
+      "TABLE_NAME": "friend_group_ai_drafts",
+      "COLUMN_NAME": "user_id",
+      "REFERENCED_TABLE_NAME": "users",
+      "REFERENCED_COLUMN_NAME": "user_id"
+    },
+    {
+      "TABLE_NAME": "friend_group_ai_drafts",
+      "COLUMN_NAME": "country_id",
+      "REFERENCED_TABLE_NAME": "countries",
+      "REFERENCED_COLUMN_NAME": "country_id"
+    },
+    {
+      "TABLE_NAME": "friend_group_ai_drafts",
+      "COLUMN_NAME": "city_id",
+      "REFERENCED_TABLE_NAME": "cities",
+      "REFERENCED_COLUMN_NAME": "city_id"
+    },
+    {
+      "TABLE_NAME": "friend_group_album_photos",
+      "COLUMN_NAME": "uploaded_by",
+      "REFERENCED_TABLE_NAME": "users",
+      "REFERENCED_COLUMN_NAME": "user_id"
+    },
+    {
+      "TABLE_NAME": "friend_group_album_photos",
+      "COLUMN_NAME": "group_id",
+      "REFERENCED_TABLE_NAME": "friend_groups",
+      "REFERENCED_COLUMN_NAME": "group_id"
+    },
+    {
+      "TABLE_NAME": "friend_group_applications",
+      "COLUMN_NAME": "user_id",
+      "REFERENCED_TABLE_NAME": "users",
+      "REFERENCED_COLUMN_NAME": "user_id"
+    },
+    {
+      "TABLE_NAME": "friend_group_applications",
+      "COLUMN_NAME": "reviewed_by",
+      "REFERENCED_TABLE_NAME": "users",
+      "REFERENCED_COLUMN_NAME": "user_id"
+    },
+    {
+      "TABLE_NAME": "friend_group_content_reports",
+      "COLUMN_NAME": "reporter_id",
+      "REFERENCED_TABLE_NAME": "users",
+      "REFERENCED_COLUMN_NAME": "user_id"
+    },
+    {
+      "TABLE_NAME": "friend_group_content_reports",
+      "COLUMN_NAME": "photo_id",
+      "REFERENCED_TABLE_NAME": "friend_group_album_photos",
+      "REFERENCED_COLUMN_NAME": "photo_id"
+    },
+    {
+      "TABLE_NAME": "friend_group_content_reports",
+      "COLUMN_NAME": "handled_by",
+      "REFERENCED_TABLE_NAME": "users",
+      "REFERENCED_COLUMN_NAME": "user_id"
+    },
+    {
+      "TABLE_NAME": "friend_group_content_reports",
+      "COLUMN_NAME": "group_id",
+      "REFERENCED_TABLE_NAME": "friend_groups",
+      "REFERENCED_COLUMN_NAME": "group_id"
+    },
+    {
+      "TABLE_NAME": "friend_group_events",
+      "COLUMN_NAME": "created_by",
+      "REFERENCED_TABLE_NAME": "users",
+      "REFERENCED_COLUMN_NAME": "user_id"
+    },
+    {
+      "TABLE_NAME": "friend_group_event_announcements",
+      "COLUMN_NAME": "posted_by",
+      "REFERENCED_TABLE_NAME": "users",
+      "REFERENCED_COLUMN_NAME": "user_id"
+    },
+    {
+      "TABLE_NAME": "friend_group_event_announcements",
+      "COLUMN_NAME": "event_id",
+      "REFERENCED_TABLE_NAME": "friend_group_events",
+      "REFERENCED_COLUMN_NAME": "event_id"
+    },
+    {
+      "TABLE_NAME": "friend_group_event_chat_messages",
+      "COLUMN_NAME": "user_id",
+      "REFERENCED_TABLE_NAME": "users",
+      "REFERENCED_COLUMN_NAME": "user_id"
+    },
+    {
+      "TABLE_NAME": "friend_group_event_chat_messages",
+      "COLUMN_NAME": "event_id",
+      "REFERENCED_TABLE_NAME": "friend_group_events",
+      "REFERENCED_COLUMN_NAME": "event_id"
+    },
+    {
+      "TABLE_NAME": "friend_group_event_items",
+      "COLUMN_NAME": "event_id",
+      "REFERENCED_TABLE_NAME": "friend_group_events",
+      "REFERENCED_COLUMN_NAME": "event_id"
+    },
+    {
+      "TABLE_NAME": "friend_group_event_participants",
+      "COLUMN_NAME": "user_id",
+      "REFERENCED_TABLE_NAME": "users",
+      "REFERENCED_COLUMN_NAME": "user_id"
+    },
+    {
+      "TABLE_NAME": "friend_group_event_participants",
+      "COLUMN_NAME": "event_id",
+      "REFERENCED_TABLE_NAME": "friend_group_events",
+      "REFERENCED_COLUMN_NAME": "event_id"
+    },
+    {
+      "TABLE_NAME": "friend_group_members",
+      "COLUMN_NAME": "user_id",
+      "REFERENCED_TABLE_NAME": "users",
+      "REFERENCED_COLUMN_NAME": "user_id"
+    },
+    {
+      "TABLE_NAME": "friend_group_members",
+      "COLUMN_NAME": "group_id",
+      "REFERENCED_TABLE_NAME": "friend_groups",
+      "REFERENCED_COLUMN_NAME": "group_id"
+    },
+    {
+      "TABLE_NAME": "friend_group_onboarding",
+      "COLUMN_NAME": "user_id",
+      "REFERENCED_TABLE_NAME": "users",
+      "REFERENCED_COLUMN_NAME": "user_id"
+    },
+    {
+      "TABLE_NAME": "friend_group_reviews",
+      "COLUMN_NAME": "reviewer_id",
+      "REFERENCED_TABLE_NAME": "users",
+      "REFERENCED_COLUMN_NAME": "user_id"
+    },
+    {
+      "TABLE_NAME": "friend_group_reviews",
+      "COLUMN_NAME": "group_id",
+      "REFERENCED_TABLE_NAME": "friend_groups",
+      "REFERENCED_COLUMN_NAME": "group_id"
+    },
+    {
+      "TABLE_NAME": "friend_group_reviews",
+      "COLUMN_NAME": "reviewee_id",
+      "REFERENCED_TABLE_NAME": "users",
+      "REFERENCED_COLUMN_NAME": "user_id"
+    },
+    {
+      "TABLE_NAME": "friend_group_trip_reviews",
+      "COLUMN_NAME": "group_id",
+      "REFERENCED_TABLE_NAME": "friend_groups",
+      "REFERENCED_COLUMN_NAME": "group_id"
+    },
+    {
+      "TABLE_NAME": "friend_group_trip_reviews",
+      "COLUMN_NAME": "user_id",
+      "REFERENCED_TABLE_NAME": "users",
+      "REFERENCED_COLUMN_NAME": "user_id"
+    },
+    {
+      "TABLE_NAME": "itineraries",
+      "COLUMN_NAME": "created_by",
+      "REFERENCED_TABLE_NAME": "users",
+      "REFERENCED_COLUMN_NAME": "user_id"
+    },
+    {
+      "TABLE_NAME": "itineraries",
+      "COLUMN_NAME": "trip_id",
+      "REFERENCED_TABLE_NAME": "trips",
+      "REFERENCED_COLUMN_NAME": "trip_id"
+    },
+    {
+      "TABLE_NAME": "itineraries",
+      "COLUMN_NAME": "accommodation_id",
+      "REFERENCED_TABLE_NAME": "accommodations",
+      "REFERENCED_COLUMN_NAME": "accommodation_id"
+    },
+    {
+      "TABLE_NAME": "itineraries",
+      "COLUMN_NAME": "restaurant_id",
+      "REFERENCED_TABLE_NAME": "restaurants",
+      "REFERENCED_COLUMN_NAME": "restaurant_id"
+    },
+    {
+      "TABLE_NAME": "itineraries",
+      "COLUMN_NAME": "attraction_id",
+      "REFERENCED_TABLE_NAME": "attractions",
+      "REFERENCED_COLUMN_NAME": "attraction_id"
+    },
+    {
+      "TABLE_NAME": "line_notification_logs",
+      "COLUMN_NAME": "user_id",
+      "REFERENCED_TABLE_NAME": "users",
+      "REFERENCED_COLUMN_NAME": "user_id"
+    },
+    {
+      "TABLE_NAME": "line_notification_logs",
+      "COLUMN_NAME": "trip_id",
+      "REFERENCED_TABLE_NAME": "trips",
+      "REFERENCED_COLUMN_NAME": "trip_id"
+    },
+    {
+      "TABLE_NAME": "notifications",
+      "COLUMN_NAME": "trip_id",
+      "REFERENCED_TABLE_NAME": "trips",
+      "REFERENCED_COLUMN_NAME": "trip_id"
+    },
+    {
+      "TABLE_NAME": "notifications",
+      "COLUMN_NAME": "user_id",
+      "REFERENCED_TABLE_NAME": "users",
+      "REFERENCED_COLUMN_NAME": "user_id"
+    },
+    {
+      "TABLE_NAME": "notification_preferences",
+      "COLUMN_NAME": "user_id",
+      "REFERENCED_TABLE_NAME": "users",
+      "REFERENCED_COLUMN_NAME": "user_id"
+    },
+    {
+      "TABLE_NAME": "password_resets",
+      "COLUMN_NAME": "user_id",
+      "REFERENCED_TABLE_NAME": "users",
+      "REFERENCED_COLUMN_NAME": "user_id"
+    },
+    {
+      "TABLE_NAME": "proposals",
+      "COLUMN_NAME": "proposer_id",
+      "REFERENCED_TABLE_NAME": "users",
+      "REFERENCED_COLUMN_NAME": "user_id"
+    },
+    {
+      "TABLE_NAME": "proposals",
+      "COLUMN_NAME": "trip_id",
+      "REFERENCED_TABLE_NAME": "trips",
+      "REFERENCED_COLUMN_NAME": "trip_id"
+    },
+    {
+      "TABLE_NAME": "proposals",
+      "COLUMN_NAME": "target_itinerary_id",
+      "REFERENCED_TABLE_NAME": "itineraries",
+      "REFERENCED_COLUMN_NAME": "itinerary_id"
+    },
+    {
+      "TABLE_NAME": "proposals",
+      "COLUMN_NAME": "reviewed_by",
+      "REFERENCED_TABLE_NAME": "users",
+      "REFERENCED_COLUMN_NAME": "user_id"
+    },
+    {
+      "TABLE_NAME": "reports",
+      "COLUMN_NAME": "handled_by",
+      "REFERENCED_TABLE_NAME": "users",
+      "REFERENCED_COLUMN_NAME": "user_id"
+    },
+    {
+      "TABLE_NAME": "reports",
+      "COLUMN_NAME": "reporter_id",
+      "REFERENCED_TABLE_NAME": "users",
+      "REFERENCED_COLUMN_NAME": "user_id"
+    },
+    {
+      "TABLE_NAME": "restaurants",
+      "COLUMN_NAME": "ai_verified_by",
+      "REFERENCED_TABLE_NAME": "users",
+      "REFERENCED_COLUMN_NAME": "user_id"
+    },
+    {
+      "TABLE_NAME": "restaurants",
+      "COLUMN_NAME": "city_id",
+      "REFERENCED_TABLE_NAME": "cities",
+      "REFERENCED_COLUMN_NAME": "city_id"
+    },
+    {
+      "TABLE_NAME": "restaurants",
+      "COLUMN_NAME": "country_id",
+      "REFERENCED_TABLE_NAME": "countries",
+      "REFERENCED_COLUMN_NAME": "country_id"
+    },
+    {
+      "TABLE_NAME": "restaurants",
+      "COLUMN_NAME": "category_id",
+      "REFERENCED_TABLE_NAME": "categories",
+      "REFERENCED_COLUMN_NAME": "category_id"
+    },
+    {
+      "TABLE_NAME": "restaurants",
+      "COLUMN_NAME": "created_by",
+      "REFERENCED_TABLE_NAME": "users",
+      "REFERENCED_COLUMN_NAME": "user_id"
+    },
+    {
+      "TABLE_NAME": "traveler_profiles",
+      "COLUMN_NAME": "user_id",
+      "REFERENCED_TABLE_NAME": "users",
+      "REFERENCED_COLUMN_NAME": "user_id"
+    },
+    {
+      "TABLE_NAME": "trips",
+      "COLUMN_NAME": "city_id",
+      "REFERENCED_TABLE_NAME": "cities",
+      "REFERENCED_COLUMN_NAME": "city_id"
+    },
+    {
+      "TABLE_NAME": "trips",
+      "COLUMN_NAME": "country_id",
+      "REFERENCED_TABLE_NAME": "countries",
+      "REFERENCED_COLUMN_NAME": "country_id"
+    },
+    {
+      "TABLE_NAME": "trips",
+      "COLUMN_NAME": "category_id",
+      "REFERENCED_TABLE_NAME": "categories",
+      "REFERENCED_COLUMN_NAME": "category_id"
+    },
+    {
+      "TABLE_NAME": "trips",
+      "COLUMN_NAME": "owner_id",
+      "REFERENCED_TABLE_NAME": "users",
+      "REFERENCED_COLUMN_NAME": "user_id"
+    },
+    {
+      "TABLE_NAME": "trip_chat_messages",
+      "COLUMN_NAME": "user_id",
+      "REFERENCED_TABLE_NAME": "users",
+      "REFERENCED_COLUMN_NAME": "user_id"
+    },
+    {
+      "TABLE_NAME": "trip_chat_messages",
+      "COLUMN_NAME": "trip_id",
+      "REFERENCED_TABLE_NAME": "trips",
+      "REFERENCED_COLUMN_NAME": "trip_id"
+    },
+    {
+      "TABLE_NAME": "trip_chat_reads",
+      "COLUMN_NAME": "user_id",
+      "REFERENCED_TABLE_NAME": "users",
+      "REFERENCED_COLUMN_NAME": "user_id"
+    },
+    {
+      "TABLE_NAME": "trip_chat_reads",
+      "COLUMN_NAME": "trip_id",
+      "REFERENCED_TABLE_NAME": "trips",
+      "REFERENCED_COLUMN_NAME": "trip_id"
+    },
+    {
+      "TABLE_NAME": "trip_invitations",
+      "COLUMN_NAME": "trip_id",
+      "REFERENCED_TABLE_NAME": "trips",
+      "REFERENCED_COLUMN_NAME": "trip_id"
+    },
+    {
+      "TABLE_NAME": "trip_invitations",
+      "COLUMN_NAME": "invitee_id",
+      "REFERENCED_TABLE_NAME": "users",
+      "REFERENCED_COLUMN_NAME": "user_id"
+    },
+    {
+      "TABLE_NAME": "trip_invitations",
+      "COLUMN_NAME": "inviter_id",
+      "REFERENCED_TABLE_NAME": "users",
+      "REFERENCED_COLUMN_NAME": "user_id"
+    },
+    {
+      "TABLE_NAME": "trip_members",
+      "COLUMN_NAME": "user_id",
+      "REFERENCED_TABLE_NAME": "users",
+      "REFERENCED_COLUMN_NAME": "user_id"
+    },
+    {
+      "TABLE_NAME": "trip_members",
+      "COLUMN_NAME": "trip_id",
+      "REFERENCED_TABLE_NAME": "trips",
+      "REFERENCED_COLUMN_NAME": "trip_id"
+    },
+    {
+      "TABLE_NAME": "trip_moderation_history",
+      "COLUMN_NAME": "admin_id",
+      "REFERENCED_TABLE_NAME": "users",
+      "REFERENCED_COLUMN_NAME": "user_id"
+    },
+    {
+      "TABLE_NAME": "trip_moderation_history",
+      "COLUMN_NAME": "trip_id",
+      "REFERENCED_TABLE_NAME": "trips",
+      "REFERENCED_COLUMN_NAME": "trip_id"
+    },
+    {
+      "TABLE_NAME": "trip_preferences",
+      "COLUMN_NAME": "user_id",
+      "REFERENCED_TABLE_NAME": "users",
+      "REFERENCED_COLUMN_NAME": "user_id"
+    },
+    {
+      "TABLE_NAME": "trip_preferences",
+      "COLUMN_NAME": "trip_id",
+      "REFERENCED_TABLE_NAME": "trips",
+      "REFERENCED_COLUMN_NAME": "trip_id"
+    },
+    {
+      "TABLE_NAME": "user_moderation_history",
+      "COLUMN_NAME": "user_id",
+      "REFERENCED_TABLE_NAME": "users",
+      "REFERENCED_COLUMN_NAME": "user_id"
+    },
+    {
+      "TABLE_NAME": "user_moderation_history",
+      "COLUMN_NAME": "admin_id",
+      "REFERENCED_TABLE_NAME": "users",
+      "REFERENCED_COLUMN_NAME": "user_id"
+    },
+    {
+      "TABLE_NAME": "votes",
+      "COLUMN_NAME": "proposal_id",
+      "REFERENCED_TABLE_NAME": "proposals",
+      "REFERENCED_COLUMN_NAME": "proposal_id"
+    },
+    {
+      "TABLE_NAME": "votes",
+      "COLUMN_NAME": "trip_id",
+      "REFERENCED_TABLE_NAME": "trips",
+      "REFERENCED_COLUMN_NAME": "trip_id"
+    },
+    {
+      "TABLE_NAME": "votes",
+      "COLUMN_NAME": "created_by",
+      "REFERENCED_TABLE_NAME": "users",
+      "REFERENCED_COLUMN_NAME": "user_id"
+    },
+    {
+      "TABLE_NAME": "vote_options",
+      "COLUMN_NAME": "vote_id",
+      "REFERENCED_TABLE_NAME": "votes",
+      "REFERENCED_COLUMN_NAME": "vote_id"
+    },
+    {
+      "TABLE_NAME": "vote_records",
+      "COLUMN_NAME": "user_id",
+      "REFERENCED_TABLE_NAME": "users",
+      "REFERENCED_COLUMN_NAME": "user_id"
+    },
+    {
+      "TABLE_NAME": "vote_records",
+      "COLUMN_NAME": "option_id",
+      "REFERENCED_TABLE_NAME": "vote_options",
+      "REFERENCED_COLUMN_NAME": "option_id"
+    },
+    {
+      "TABLE_NAME": "vote_records",
+      "COLUMN_NAME": "vote_id",
+      "REFERENCED_TABLE_NAME": "votes",
+      "REFERENCED_COLUMN_NAME": "vote_id"
+    }
+  ]
+}

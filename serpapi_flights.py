@@ -7,6 +7,8 @@
 from decimal import Decimal
 import re
 import time
+from concurrent.futures import ThreadPoolExecutor
+from datetime import datetime
 
 import requests
 
@@ -39,8 +41,34 @@ _booking_cache = {}  # {booking_token: (expires_at, redirect_dict_or_None)}
 BOOKING_CACHE_TTL_SECONDS = 1800
 
 
+# SERPAPI_API_KEY 可以用逗號放多把金鑰(例如 key1,key2)，某一把額度用完就自動換下一把
+_KEYS = [k.strip() for k in SERPAPI_API_KEY.split(",") if k.strip()]
+_exhausted_until = {}  # {key: 恢復嘗試的時間}，額度用完的金鑰 1 小時內先跳過
+EXHAUSTED_RETRY_SECONDS = 3600
+
+
 def is_configured():
-    return bool(SERPAPI_API_KEY)
+    return bool(_KEYS)
+
+
+def _get(params, timeout):
+    """依序用每把還有額度的金鑰呼叫 SerpApi；某把回 429(額度用完)或金鑰無效就換下一把，全部失敗才丟出例外。"""
+    last_error = None
+    now = time.time()
+    keys = [k for k in _KEYS if _exhausted_until.get(k, 0) <= now] or _KEYS  # 全部都標記用完時還是試一輪
+    for key in keys:
+        resp = requests.get(SEARCH_URL, params={**params, "api_key": key}, timeout=timeout)
+        if resp.status_code in (401, 403, 429):
+            _exhausted_until[key] = time.time() + EXHAUSTED_RETRY_SECONDS
+            last_error = requests.HTTPError(f"金鑰 ...{key[-4:]} 額度用完或無效({resp.status_code})", response=resp)
+            continue
+        try:
+            resp.raise_for_status()
+        except requests.HTTPError:
+            # 錯誤訊息預設會帶出完整網址(含 api_key)，會被印到終端機/記錄檔，所以改丟一個不含金鑰的錯誤
+            raise requests.HTTPError(f"SerpApi 回應 {resp.status_code}", response=resp) from None
+        return resp
+    raise last_error or RuntimeError("沒有可用的 SerpApi 金鑰")
 
 
 #  Google Flights 的艙等查詢參數(travel_class)：不給的話預設只會查經濟艙，商務艙/頭等艙的航班
@@ -48,7 +76,20 @@ def is_configured():
 CABIN_CLASS_QUERY_CODES = {"經濟艙": "1", "豪華經濟艙": "2", "商務艙": "3", "頭等艙": "4"}
 
 
-def search_flight_offers(origin_keyword, destination_keyword, departure_date, return_date=None, adults=1, cabin_class=None):
+# Google 一次只回傳十幾班；「顯示更多航班」會再用這幾種條件各查一次，把不重複的航班合併進來
+# (實測台北→巴黎：預設 13 班，加上這些後最多 34 班)。每一種條件用掉 1 次額度。
+MORE_VARIANTS = (
+    {"sort_by": "3"}, {"stops": "2"},
+    {"include_airlines": "STAR_ALLIANCE"}, {"include_airlines": "SKYTEAM"}, {"include_airlines": "ONEWORLD"},
+)
+
+
+def _flight_signature(offer):
+    first_seg = (offer.get("segments") or [{}])[0]
+    return (first_seg.get("dep_dt"), offer.get("flight_number"), offer.get("arrival_time"), int(offer["price"]))
+
+
+def search_flight_offers(origin_keyword, destination_keyword, departure_date, return_date=None, adults=1, cabin_class=None, more=False):
     """回傳一份機票清單(格式跟本地 flights 資料表一致，可以直接丟給既有的 flight_search.html 樣板)，
     把 SerpApi 當天查到的航班全部回傳，不做人為的筆數上限──有篩選需求(價格/直飛等)讓使用者自己
     用搜尋結果頁的篩選面板去篩，不要在這裡就先砍掉一部分資料。
@@ -63,14 +104,13 @@ def search_flight_offers(origin_keyword, destination_keyword, departure_date, re
     if not origin or not destination:
         return None
 
-    cache_key = (origin, destination, departure_date, return_date, adults, cabin_class)
+    cache_key = (origin, destination, departure_date, return_date, adults, cabin_class, bool(more))
     cached = _cache.get(cache_key)
     if cached and cached[0] > time.time():
         return cached[1]
 
     params = {
         "engine": "google_flights",
-        "api_key": SERPAPI_API_KEY,
         "departure_id": origin,
         "arrival_id": destination,
         "outbound_date": departure_date,
@@ -85,14 +125,39 @@ def search_flight_offers(origin_keyword, destination_keyword, departure_date, re
         params["travel_class"] = CABIN_CLASS_QUERY_CODES[cabin_class]
 
     try:
-        resp = requests.get(SEARCH_URL, params=params, timeout=15)
+        resp = _get(params, 15)
         resp.raise_for_status()
         offers = _parse_offers(resp.json())
+        if more:
+            offers = _merge_more(params, offers)
         _cache[cache_key] = (time.time() + CACHE_TTL_SECONDS, offers)
         return offers
     except Exception as error:
         print("SerpApi 機票查詢失敗：", error)
         return None
+
+
+def _merge_more(params, offers):
+    """用其他排序/條件各查一次(同時進行)，不重複的航班接在原本清單後面，依價格由低到高。
+    某一種條件查失敗就略過，不影響已經有的結果。"""
+    def fetch(extra):
+        try:
+            return _parse_offers(_get({**params, **extra}, 30).json())
+        except Exception as error:
+            print("SerpApi 更多航班查詢失敗：", error)
+            return []
+
+    seen = {_flight_signature(o) for o in offers}
+    extra_offers = []
+    with ThreadPoolExecutor(max_workers=len(MORE_VARIANTS)) as pool:
+        for batch in pool.map(fetch, MORE_VARIANTS):
+            for offer in batch:
+                signature = _flight_signature(offer)
+                if signature not in seen:
+                    seen.add(signature)
+                    extra_offers.append(offer)
+    extra_offers.sort(key=lambda o: o["price"])
+    return offers + extra_offers
 
 
 def search_return_offers(origin_keyword, destination_keyword, departure_date, return_date, departure_token, adults=1, cabin_class=None):
@@ -115,7 +180,6 @@ def search_return_offers(origin_keyword, destination_keyword, departure_date, re
 
     params = {
         "engine": "google_flights",
-        "api_key": SERPAPI_API_KEY,
         "departure_id": origin,
         "arrival_id": destination,
         "outbound_date": departure_date,
@@ -130,7 +194,7 @@ def search_return_offers(origin_keyword, destination_keyword, departure_date, re
         params["travel_class"] = CABIN_CLASS_QUERY_CODES[cabin_class]
 
     try:
-        resp = requests.get(SEARCH_URL, params=params, timeout=20)
+        resp = _get(params, 20)
         resp.raise_for_status()
         offers = _parse_offers(resp.json())
         _cache[cache_key] = (time.time() + CACHE_TTL_SECONDS, offers)
@@ -174,7 +238,6 @@ def get_booking_redirect(origin_keyword, destination_keyword, departure_date, bo
 
     params = {
         "engine": "google_flights",
-        "api_key": SERPAPI_API_KEY,
         "departure_id": origin,
         "arrival_id": destination,
         "outbound_date": departure_date,
@@ -189,7 +252,7 @@ def get_booking_redirect(origin_keyword, destination_keyword, departure_date, bo
 
     result = None
     try:
-        resp = requests.get(SEARCH_URL, params=params, timeout=60)
+        resp = _get(params, 60)
         resp.raise_for_status()
         data = resp.json()
         booking_options = data.get("booking_options") or []
@@ -303,6 +366,69 @@ def _parse_layovers(layovers):
     return results
 
 
+def _fmt_minutes(minutes):
+    try:
+        hours, mins = divmod(int(minutes), 60)
+    except (TypeError, ValueError):
+        return ""
+    if hours and mins:
+        return f"{hours} 小時 {mins} 分"
+    return f"{hours} 小時" if hours else f"{mins} 分"
+
+
+def _parse_segments(item):
+    """每一段航班的詳細行程(給「航班詳情」展開面板用)：起降時間與機場、航空公司、班號、機型、艙等、
+    機上設施，以及兩段之間的轉機停留。全部是 Google Flights 回傳的真實資料，沒有的欄位就留空不顯示。"""
+    raw_segments = item.get("flights") or []
+    layovers = item.get("layovers") or []
+    stamp = "%Y-%m-%d %H:%M"
+    try:
+        base_day = datetime.strptime(raw_segments[0]["departure_airport"]["time"], stamp).date()
+    except (KeyError, IndexError, TypeError, ValueError):
+        base_day = None
+
+    def when(airport):
+        try:
+            moment = datetime.strptime(airport["time"], stamp)
+        except (KeyError, TypeError, ValueError):
+            return "", "", 0
+        offset = (moment.date() - base_day).days if base_day else 0
+        return moment.strftime("%H:%M"), f"{moment.month}月{moment.day}日", offset
+
+    segments = []
+    for index, seg in enumerate(raw_segments):
+        dep, arr = seg.get("departure_airport") or {}, seg.get("arrival_airport") or {}
+        dep_time, dep_date, dep_offset = when(dep)
+        arr_time, arr_date, arr_offset = when(arr)
+        layover = None
+        if index < len(raw_segments) - 1 and index < len(layovers):
+            lay = layovers[index] or {}
+            layover = {
+                "duration": _fmt_minutes(lay.get("duration")),
+                "name": lay.get("name") or lay.get("id") or "",
+                "iata": lay.get("id") or "",
+                "overnight": bool(lay.get("overnight")),
+            }
+        segments.append({
+            "airline": seg.get("airline") or "",
+            "logo": seg.get("airline_logo"),
+            "flight_number": seg.get("flight_number") or "",
+            "airplane": seg.get("airplane") or "",
+            "cabin_class": _translate_cabin_class(seg.get("travel_class")),
+            "dep_dt": dep.get("time") or "", "arr_dt": arr.get("time") or "",
+            "dep_time": dep_time, "dep_date": dep_date, "dep_offset": dep_offset,
+            "dep_name": dep.get("name") or dep.get("id") or "", "dep_id": dep.get("id") or "",
+            "arr_time": arr_time, "arr_date": arr_date, "arr_offset": arr_offset,
+            "arr_name": arr.get("name") or arr.get("id") or "", "arr_id": arr.get("id") or "",
+            "duration": _fmt_minutes(seg.get("duration")),
+            "amenities": [a["label"] for a in _parse_amenities(seg.get("extensions"))],
+            "often_delayed": bool(seg.get("often_delayed_by_over_30_min")),
+            "overnight": bool(seg.get("overnight")),
+            "layover": layover,
+        })
+    return segments
+
+
 def _parse_offers(data):
     results = []
     for bucket in ("best_flights", "other_flights"):
@@ -332,6 +458,7 @@ def _parse_offers(data):
                     "layovers": _parse_layovers(item.get("layovers")),
                     # 多段中停時，用時間最長的那段中停時間當代表值，給「中停時長」篩選用
                     "layover_minutes": max((l["duration_minutes"] for l in _parse_layovers(item.get("layovers")) if l["duration_minutes"]), default=None),
+                    "segments": _parse_segments(item),
                     "is_live": True,
                     "booking_token": item.get("booking_token"),
                     # 來回搜尋第一步（選去程）時 Google 不會直接給 booking_token，而是給 departure_token，

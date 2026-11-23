@@ -1,0 +1,25 @@
+{% extends "system_admin_base.html" %}
+{% block title %}揪團提早開放{% endblock %}
+{% block page_title %}揪團提早開放{% endblock %}
+{% block page_description %}官方活動當天已報到的會員，可由系統管理員提前開放揪團資格。{% endblock %}
+{% block content %}
+<section class="admin-section early-access-section">
+  <div class="section-title"><h2>今日已報到會員</h2><span>共 {{ members|length }} 位</span></div>
+  <p class="early-access-note">只有使用申請已核准、且今天在官方活動報到的會員會出現在此。一般會員仍須等活動日期結束後才會自動開放。</p>
+  <div class="early-access-list">
+    {% for member in members %}
+    <div class="early-access-row">
+      <div><strong>{{ member.nickname or member.full_name }}</strong><span class="early-access-detail">{{ member.event_title }}</span></div>
+      <span class="international-host-status {{ 'is-approved' if member.early_access == '1' else 'is-pending' }}">{{ '已提早開放' if member.early_access == '1' else '等待活動結束' }}</span>
+      <form method="post" action="{{ url_for('friend_groups_admin.set_early_access', user_id=member.user_id) }}" class="early-access-form">
+        <input type="hidden" name="enabled" value="{{ '0' if member.early_access == '1' else '1' }}">
+        {% if member.early_access != '1' %}<input name="reason" maxlength="200" required aria-label="核准原因" placeholder="核准原因" />{% endif %}
+        <button type="submit" class="small-button {{ 'danger' if member.early_access == '1' else '' }}" onclick="return confirm('確定{{ '撤銷' if member.early_access == '1' else '提早開放' }}這位會員的揪團資格嗎？')">{{ '撤銷提早開放' if member.early_access == '1' else '立即開放揪團' }}</button>
+      </form>
+    </div>
+    {% else %}
+    <p class="empty-data">今天沒有已通過申請並完成官方活動報到的會員。</p>
+    {% endfor %}
+  </div>
+</section>
+{% endblock %}

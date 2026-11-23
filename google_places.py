@@ -1,3 +1,4 @@
+import re
 import requests  # 匯入 requests，用來呼叫 Google Places API
 
 from config import GOOGLE_MAPS_API_KEY  # 匯入 Google Places API 金鑰
@@ -31,6 +32,11 @@ PRICE_LEVEL_MAP = {  # 定義 Google 價位等級對應到我們資料庫用的�
 class PlacesApiError(Exception):  # 定義自訂例外類別，代表呼叫 Google Places API 時發生的錯誤
     pass
 
+
+
+def _safe(error):
+    """錯誤訊息的網址常帶著 API 金鑰(?key=...)，印到終端機前先遮掉。"""
+    return re.sub(r"(api_key|key)=[^&\s'\")]+", lambda m: m.group(1) + "=***", str(error))
 
 def is_configured():  # 定義函式：檢查目前是否已經設定 API 金鑰
     return bool(GOOGLE_MAPS_API_KEY)  # 金鑰非空字串才算已設定
@@ -222,7 +228,7 @@ def autocomplete_destinations(keyword, limit=8):
         _autocomplete_cache[keyword] = (_time.time() + 600, results)
         return results
     except Exception as error:
-        print("Google 地點自動完成失敗：", error)
+        print("Google 地點自動完成失敗：", _safe(error))
         return None
 
 
@@ -246,6 +252,6 @@ def to_chinese_keyword(text):
         if any("一" <= ch <= "鿿" for ch in translated):
             result = translated
     except Exception as error:
-        print("目的地關鍵字轉中文失敗(維持原字串)：", error)
+        print("目的地關鍵字轉中文失敗(維持原字串)：", _safe(error))
     _zh_cache[text.lower()] = result
     return result

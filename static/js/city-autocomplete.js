@@ -33,6 +33,7 @@
       searchUrl: '/api/city-search?q=',
       renderResults: (results, onPick) => buildAirportList('全球機場', results, onPick),
       emptyText: '沒有符合的城市或機場。',
+      resultsCoverStatic: true,
     },
     station: {
       recentKey: 'trainSearch.recentStations',
@@ -162,59 +163,63 @@
       .map((name) => ({ label: name, value: name, notranslate: isEnglishPage() }));
   }
 
-  // 機場名稱+城市+國家+代碼這種比較長的文字，放進原本給城市名字用的三欄格狀排版會擠爆，
-  // 改用一欄直式清單，每個項目分兩行(機場名稱為主、城市國家代碼為輔)。
-  function makeAirportItem(airport, onPick, { isAllAirports = false } = {}) {
-    const item = document.createElement('button');
-    item.type = 'button';
-    item.className = 'city-suggest-item city-suggest-item--airport';
-    const primary = document.createElement('span');
-    primary.className = 'city-suggest-item-primary';
-    const secondary = document.createElement('span');
-    secondary.className = 'city-suggest-item-secondary';
+  // 機票的機場選單(像 Agoda)：每個城市一個標題列(圖釘＋城市名＋右側「所有機場」)，
+  // 底下縮排列出該城市的機場(飛機圖示＋機場名稱＋右側代碼)。
+  const PLANE_ICON = '<svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path fill="currentColor" d="M21 16v-2l-8-5V3.5a1.5 1.5 0 0 0-3 0V9l-8 5v2l8-2.5V19l-2 1.5V22l3.5-1 3.5 1v-1.5L13 19v-5.5z"/></svg>';
+  const GROUP_PIN_ICON = '<svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path fill="currentColor" d="M12 2a7 7 0 0 0-7 7c0 5.2 7 13 7 13s7-7.8 7-13a7 7 0 0 0-7-7Zm0 9.5A2.5 2.5 0 1 1 12 6.5a2.5 2.5 0 0 1 0 5Z"/></svg>';
 
-    if (isAllAirports) {
-      const cityLabel = airport.city_zh || airport.city;
-      primary.textContent = cityLabel + '・所有機場';
-      secondary.textContent = airport.country;
-      item.appendChild(primary);
-      item.appendChild(secondary);
-      item.addEventListener('mousedown', (event) => {
-        event.preventDefault();
-        onPick(`${cityLabel}（所有機場）`);
-      });
-      return item;
-    }
-
-    primary.textContent = airport.name_zh || airport.name;
-    // 有中文機場名稱時，第二行補上英文原名方便對照；沒有中文名稱時，第二行維持城市/國家/代碼
-    secondary.textContent = airport.name_zh
-      ? `${airport.name}・${airport.iata}`
-      : `${airport.city}, ${airport.country}・${airport.iata}`;
-    item.appendChild(primary);
-    item.appendChild(secondary);
-    item.addEventListener('mousedown', (event) => {
-      event.preventDefault();
-      onPick(`${airport.name_zh || airport.name} (${airport.iata})`);
-    });
-    return item;
+  function cityLabelOf(airport) {
+    if (airport.label_zh) return airport.label_zh;
+    if (airport.city_zh) return airport.city_zh;
+    // 沒有整理過的中文城市名：用機場中文名去掉「國際機場」「機場」當城市名，再不行才用英文
+    const stripped = (airport.name_zh || '').replace(/(國際)?(機場|航空站)$/, '');
+    return stripped || airport.city;
   }
 
-  function makeRegionAllItem(regionName, country, onPick) {
+  // 城市標題列：城市不只一個機場時可以點(選「所有機場」)，只有一個機場時是灰色、不能點
+  function makeGroupHeader(label, onPick, clickable, countryLabel) {
+    const header = document.createElement(clickable ? 'button' : 'div');
+    if (clickable) header.type = 'button';
+    header.className = 'city-suggest-group' + (clickable ? '' : ' is-muted');
+    const icon = document.createElement('span');
+    icon.className = 'city-suggest-icon';
+    icon.innerHTML = GROUP_PIN_ICON;
+    const name = document.createElement('span');
+    name.className = 'city-suggest-group-name';
+    name.textContent = countryLabel ? `${label}, ${countryLabel}` : label;  // 像 Agoda 的「關島, 關島」「倫敦, 英國」
+    const tag = document.createElement('span');
+    tag.className = 'city-suggest-group-tag';
+    tag.textContent = '所有機場';
+    header.append(icon, name, tag);
+    if (clickable) {
+      header.addEventListener('mousedown', (event) => {
+        event.preventDefault();
+        onPick(`${label}（所有機場）`);
+      });
+    }
+    return header;
+  }
+
+  function makeAirportItem(airport, onPick) {
     const item = document.createElement('button');
     item.type = 'button';
-    item.className = 'city-suggest-item city-suggest-item--airport';
-    const primary = document.createElement('span');
-    primary.className = 'city-suggest-item-primary';
-    primary.textContent = regionName + '・所有機場';
-    const secondary = document.createElement('span');
-    secondary.className = 'city-suggest-item-secondary';
-    secondary.textContent = country;
-    item.appendChild(primary);
-    item.appendChild(secondary);
+    item.className = 'city-suggest-airport';
+    const icon = document.createElement('span');
+    icon.className = 'city-suggest-icon';
+    icon.innerHTML = PLANE_ICON;
+    const name = document.createElement('span');
+    name.className = 'city-suggest-airport-name';
+    name.textContent = airport.name_zh || airport.name;
+    name.title = airport.name;  // 滑鼠移上去看英文原名
+    const code = document.createElement('span');
+    code.className = 'city-suggest-airport-code';
+    code.textContent = airport.iata;
+    item.append(icon, name, code);
+    // 只飛國內線的小機場(台南、花蓮⋯)：選單顯示機場名稱，選了之後輸入框變成縣市名，像 Agoda 的「台南市 (TNN)」
+    const mainName = airport.label_zh || airport.name_zh || airport.name;
     item.addEventListener('mousedown', (event) => {
       event.preventDefault();
-      onPick(`${regionName}（所有機場）`);
+      onPick(`${mainName} (${airport.iata})`);
     });
     return item;
   }
@@ -222,20 +227,19 @@
   function buildAirportList(title, airports, onPick) {
     if (!airports.length) return null;
     const section = document.createElement('div');
-    section.className = 'city-suggest-section';
-    const heading = document.createElement('span');
-    heading.className = 'city-suggest-title';
-    heading.textContent = title;
-    section.appendChild(heading);
+    section.className = 'city-suggest-section city-suggest-section--airports';
     const list = document.createElement('div');
     list.className = 'city-suggest-list';
 
+    // 北海道、九州這種涵蓋多個城市的地區：最前面放一列「地區・所有機場」
     if (airports[0].region && airports.every((airport) => airport.region === airports[0].region)) {
-      list.appendChild(makeRegionAllItem(airports[0].region, airports[0].country, onPick));
+      list.appendChild(makeGroupHeader(airports[0].region, onPick, true));
+      airports.forEach((airport) => list.appendChild(makeAirportItem(airport, onPick)));
+      section.appendChild(list);
+      return section;
     }
 
-    // 後端已經把同一個城市的機場排在一起了，這裡偵測連續幾筆是不是同一個城市，
-    // 是的話(表示這個城市不只一個機場)在最前面插一個「城市・所有機場」的選項。
+    // 後端已經把同一個城市的機場排在一起了，連續幾筆同一個城市就是同一組
     let index = 0;
     while (index < airports.length) {
       let groupEnd = index + 1;
@@ -245,9 +249,8 @@
         groupEnd += 1;
       }
       const group = airports.slice(index, groupEnd);
-      if (group.length > 1) {
-        list.appendChild(makeAirportItem(group[0], onPick, { isAllAirports: true }));
-      }
+      // 每個城市都放「城市・所有機場」標題列(正常顏色、可以點)，底下縮排列出該城市的機場
+      list.appendChild(makeGroupHeader(cityLabelOf(group[0]), onPick, true, group[0].country_zh));
       group.forEach((airport) => list.appendChild(makeAirportItem(airport, onPick)));
       index = groupEnd;
     }
@@ -259,6 +262,7 @@
   // 車站、住宿地區的結果跟機場一樣用一欄直式清單：第一行名稱，第二行補充說明(高鐵/台鐵、幾間住宿)
   // 住宿目的地的小圖示：住宿用大樓、國家／城市／景點用圖釘(內嵌 SVG，不用 emoji)
   const PIN_ICON = '<svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path fill="currentColor" d="M12 2a7 7 0 0 0-7 7c0 5.2 7 13 7 13s7-7.8 7-13a7 7 0 0 0-7-7Zm0 9.5A2.5 2.5 0 1 1 12 6.5a2.5 2.5 0 0 1 0 5Z"/></svg>';
+  const STAR_ICON = '<svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path fill="currentColor" d="m12 2.5 2.95 6 6.55.95-4.75 4.62 1.12 6.53L12 17.55 6.13 20.6l1.12-6.53L2.5 9.45l6.55-.95L12 2.5Z"/></svg>';
   const BUILDING_ICON = '<svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-width="2" d="M5 21V4h10v17M15 9h4v12M3 21h18M8 8h2M8 12h2M8 16h2"/></svg>';
 
   function buildDetailList(title, items, onPick) {
@@ -271,7 +275,7 @@
     section.appendChild(heading);
     const list = document.createElement('div');
     list.className = 'city-suggest-list';
-    items.forEach(({ label, sub, value, notranslate, kind }) => {
+    items.forEach(({ label, sub, value, notranslate, kind, city, country }) => {
       const item = document.createElement('button');
       item.type = 'button';
       item.className = 'city-suggest-item city-suggest-item--airport';
@@ -279,7 +283,18 @@
       text.className = 'city-suggest-item-text';
       const primary = document.createElement('span');
       primary.className = 'city-suggest-item-primary' + (notranslate ? ' notranslate' : '');
-      primary.textContent = label;
+      if (kind === 'popular') {
+        // 熱門城市：「倫敦, **英國**」+ 「人氣王」標籤
+        primary.append(document.createTextNode(city + ', '));
+        const bold = document.createElement('b');
+        bold.textContent = country;
+        const badge = document.createElement('span');
+        badge.className = 'city-suggest-badge';
+        badge.textContent = '人氣王';
+        primary.append(bold, badge);
+      } else {
+        primary.textContent = label;
+      }
       const secondary = document.createElement('span');
       secondary.className = 'city-suggest-item-secondary';
       secondary.textContent = sub;
@@ -289,7 +304,7 @@
         item.classList.add('city-suggest-item--icon');
         const icon = document.createElement('span');
         icon.className = 'city-suggest-icon';
-        icon.innerHTML = kind === 'lodging' ? BUILDING_ICON : PIN_ICON;
+        icon.innerHTML = kind === 'lodging' ? BUILDING_ICON : kind === 'popular' ? STAR_ICON : PIN_ICON;
         item.appendChild(icon);
       }
       item.appendChild(text);

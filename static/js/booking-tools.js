@@ -262,24 +262,6 @@
     radios.forEach(r=>r.addEventListener('change',sync));
     sync();
   });
-  // 記住上次搜尋的機票條件(存在這個瀏覽器)：下次回到首頁，出發地、目的地、日期、人數會自動帶入，不用重選。
-  (() => {
-    const flightFrom = get('flightFrom');
-    if (!flightFrom || !pickers.flight) return;
-    let saved = null;
-    try { saved = JSON.parse(localStorage.getItem('flightSearchPrefs') || 'null'); } catch (error) { saved = null; }
-    const now = new Date();
-    const todayIso = now.getFullYear() + '-' + String(now.getMonth() + 1).padStart(2, '0') + '-' + String(now.getDate()).padStart(2, '0');
-    if (!saved || !saved.depart || saved.depart < todayIso || flightFrom.value || get('flightTo').value) return;
-    const mode = saved.mode === 'oneway' ? 'oneway' : 'roundtrip';
-    const radio = document.querySelector('input[name="flightMode"][value="' + mode + '"]');
-    if (radio) { radio.checked = true; radio.dispatchEvent(new Event('change')); }
-    flightFrom.value = saved.from || '';
-    get('flightTo').value = saved.to || '';
-    if (get('flightPax') && saved.pax) get('flightPax').value = saved.pax;
-    const dates = mode === 'oneway' ? [saved.depart] : [saved.depart, saved.ret && saved.ret >= saved.depart ? saved.ret : null].filter(Boolean);
-    pickers.flight.setDate(dates, true);
-  })();
   // 多座城市：動態新增/刪除航班段落，各段獨立填出發地/目的地/日期。
   (() => {
     const legsBox = get('multiCityLegs');
@@ -337,7 +319,7 @@
       const tmp=a.value; a.value=b.value; b.value=tmp;
     });
   });
-  if (get('hotelDest')) get('hotelDest').placeholder='例如：九份、瑞芳、新北市 九份、飯店名稱';
+  if (get('hotelDest')) get('hotelDest').placeholder='輸入目的地或住宿名稱';
   const active=()=>document.querySelector('.search-tab.active')?.dataset.tab;
   const current=active();
   Object.entries(ids[current] || {}).forEach(([key,id])=>{
@@ -410,7 +392,6 @@
     }
     if(kind!=='hotel' && values.from && values.from===values.to){error(get(ids[kind].to),'出發地與目的地不能相同');failed=true;}
     if(failed){form.querySelector('[aria-invalid=true]')?.focus();return;}
-    if(kind==='flight'){try{localStorage.setItem('flightSearchPrefs',JSON.stringify({from:values.from||'',to:values.to||'',depart:values.depart||'',ret:values.return||'',pax:values.pax||'1',mode:mode||'roundtrip'}));}catch(error){}}
     if(mode)params.set('trip_mode',mode);
     if(kind==='train')params.set('rail',form.querySelector('input[name="rail"]:checked')?.value||'thsr');
     if(kind==='flight' && get('flightDirect')?.checked)params.set('stops','direct');
@@ -419,4 +400,27 @@
   const note=get('searchNote');
   const noteText=()=>{if(note)note.textContent=active()==='hotel'?'住宿價格為即時報價參考，空房與實際價格請以訂房網站為準。':active()==='train'?(form.querySelector('input[name="rail"]:checked')?.value==='tra'?'台鐵':'高鐵')+'班表與票價來自交通部 TDX，座位與訂票請以官方售票系統為準。':'班表與票價為資料庫參考資料，尚未串接即時售票或優惠報價。';};
   noteText();document.querySelectorAll('.search-tab').forEach(el=>el.addEventListener('click',noteText));
+})();
+
+// 機票人數上限 9 位(Google Flights 一筆最多 9 位)：超過時自動改回 9，並在欄位下面說明，不用把上限寫在標籤上
+(() => {
+  const MAX = 9;
+  const NOTE = '每筆預訂限最多 ' + MAX + ' 位旅客。若還有更多旅客，請分開再搜尋並預訂下一筆。';
+  const inputs = [document.getElementById('flightPax'), document.getElementById('flightPaxMc'), ...document.querySelectorAll('.booking-search-form--flight input[name="pax"]')]
+    .filter((el, index, list) => el && list.indexOf(el) === index);
+  inputs.forEach((input) => {
+    input.max = String(MAX);
+    const field = input.closest('.field') || input.parentElement;
+    const note = document.createElement('span');
+    note.className = 'pax-limit-note';
+    note.textContent = NOTE;
+    note.hidden = true;
+    field.appendChild(note);
+    input.addEventListener('input', () => {
+      const over = Number(input.value) > MAX;
+      if (over) input.value = String(MAX);
+      note.hidden = !over;
+    });
+    input.addEventListener('blur', () => { note.hidden = true; });
+  });
 })();

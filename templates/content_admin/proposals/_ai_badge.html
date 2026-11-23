@@ -1,0 +1,15 @@
+{# AI 小幫手的結果標籤；需要變數 review(可能是 None)、ai_labels #}
+{% if not review %}
+    <span class="ai-badge needs_human">還沒檢查</span>
+{% elif review.status in ('queued', 'running') %}
+    <span class="ai-badge waiting">⏳ 檢查中</span>
+{% elif review.status == 'failed' %}
+    <span class="ai-badge failed">檢查失敗</span>
+{% elif review.recommendation == 'approve' %}
+    <span class="ai-badge approve">🟢 {{ ai_labels.approve }}</span>
+{% elif review.recommendation == 'return' %}
+    <span class="ai-badge return">🟠 {{ ai_labels['return'] }}</span>
+{% else %}
+    <span class="ai-badge needs_human">⚪ {{ ai_labels.needs_human }}</span>
+{% endif %}
+{% if review and review.auto_approved_at %}<span class="ai-badge approve" title="{{ review.auto_approved_at }}">🤖 已自動收下</span>{% endif %}

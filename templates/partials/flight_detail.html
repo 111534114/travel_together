@@ -1,0 +1,35 @@
+{# 航班詳情：點開看每一段的起降時間、機場、航空公司、班號、機型、艙等、機上設施與轉機停留。需要傳入變數 flight。 #}
+{% if flight.segments %}
+<details class="flight-detail">
+  <summary><span class="fd-open">航班詳情</span><span class="fd-close">收合詳情</span><svg class="fd-chevron" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg></summary>
+  <div class="fd-body">
+    {% for seg in flight.segments %}
+    <div class="fd-seg">
+      <div class="fd-row">
+        <div class="fd-time"><b>{{ seg.dep_time }}</b><small>{{ seg.dep_date }}</small></div>
+        <div class="fd-rail"><i class="fd-dot"></i></div>
+        <div class="fd-text"><b>{{ seg.dep_name }}</b> <span class="fd-code">({{ seg.dep_id }})</span></div>
+      </div>
+      <div class="fd-row fd-mid">
+        <div class="fd-time"><small>{{ seg.duration }}</small></div>
+        <div class="fd-rail"></div>
+        <div class="fd-text fd-info">
+          <div class="fd-airline">{% if seg.logo %}<img src="{{ seg.logo }}" alt="" loading="lazy">{% endif %}<span>{{ seg.airline }}</span></div>
+          <div class="fd-sub">{{ seg.cabin_class }}{% if seg.flight_number %}・{{ seg.flight_number }}{% endif %}{% if seg.airplane %}・{{ seg.airplane }}{% endif %}</div>
+          {% if seg.amenities or seg.often_delayed %}<ul class="fd-amenities">{% for label in seg.amenities %}<li>{{ label }}</li>{% endfor %}{% if seg.often_delayed %}<li class="fd-warn">此航班常延誤 30 分鐘以上</li>{% endif %}</ul>{% endif %}
+        </div>
+      </div>
+      <div class="fd-row">
+        <div class="fd-time"><b>{{ seg.arr_time }}{% if seg.arr_offset %}<sup>+{{ seg.arr_offset }}</sup>{% endif %}</b><small>{{ seg.arr_date }}</small></div>
+        <div class="fd-rail"><i class="fd-dot"></i></div>
+        <div class="fd-text"><b>{{ seg.arr_name }}</b> <span class="fd-code">({{ seg.arr_id }})</span></div>
+      </div>
+    </div>
+    {% if seg.layover %}
+    <div class="fd-layover">轉機停留 {{ seg.layover.duration }}・{{ seg.layover.name }}{% if seg.layover.iata %}（{{ seg.layover.iata }}）{% endif %}{% if seg.layover.overnight %}<em>過夜停留</em>{% endif %}{% if seg.layover.separate %}<em>兩段分開購買，需自行提領行李並重新報到</em>{% endif %}</div>
+    {% endif %}
+    {% endfor %}
+    <p class="fd-note">機場航廈與行李額度以航空公司或訂票網站公告為準。</p>
+  </div>
+</details>
+{% endif %}

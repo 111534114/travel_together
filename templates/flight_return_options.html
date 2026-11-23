@@ -66,6 +66,7 @@
     @media (max-width: 560px) { .flight-route { flex-direction: column; align-items: stretch; } .flight-path { display: none; } }
   </style>
   <link rel="stylesheet" href="{{ url_for('static', filename='css/flight-card-mobile.css') }}">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/flight-detail.css') }}">
 </head>
 <body>
   {% set is_member = session.get('user_id') and session.get('role') == 'member' %}
@@ -81,7 +82,7 @@
     <section id="return-results">
       <div class="section-header">
         <h2>回程航班選項</h2>
-        <p>{{ destination }} → {{ origin }} ・ 回程 {{ return_date }} ・ {{ pax }} 人</p>
+        <p>{{ destination }} → {{ origin }} ・ 回程 {{ return_date }} ・ {{ pax }} 人{% if request.args.get('stops') == 'direct' %}・只顯示直飛{% endif %}</p>
       </div>
       <div class="flight-list">
         {% set return_min_price = return_flights|map(attribute='price')|min if return_flights else none %}
@@ -99,10 +100,11 @@
             <span class="price">{{ money(flight.price * pax) }}<small>{{ pax }} 人・去程＋回程來回總價</small></span>
             {% if flight.booking_token %}<a class="view-button" href="{{ url_for('visitor_flight_booking_redirect', **{'token': flight.booking_token, 'from': destination, 'to': origin, 'depart': return_date, 'return': '', 'pax': pax, 'fallback': skyscanner_url or ''}) }}" target="_blank" rel="noopener" data-flights='{{ (([outbound_item] if outbound_item else []) + [flight_trip_item(flight, return_date, pax, bundled=true)])|tojson }}'>選擇 →</a>{% elif skyscanner_url %}<a class="view-button" href="{{ skyscanner_url }}" target="_blank" rel="noopener">選擇 →</a>{% else %}<button class="view-button" type="button" onclick="alert('找不到這個航班的訂票連結，換一個試試。')">選擇航班</button>{% endif %}
           </div>
+          {% include 'partials/flight_detail.html' %}
         </article>
         {% else %}
         <div class="empty">
-          {% if lookup_failed %}查詢回程選項失敗，可能是查詢逾時或這班去程暫時沒有配套的回程資料。{% else %}找不到配這班去程的回程選項。{% endif %}
+          {% if lookup_failed %}查詢回程選項失敗，可能是查詢逾時或這班去程暫時沒有配套的回程資料。{% elif request.args.get('stops') == 'direct' %}這班去程沒有配套的直飛回程航班。可以回上一頁取消「直飛」，或重新選擇去程。{% else %}找不到配這班去程的回程選項。{% endif %}
           {% if skyscanner_url %}可以改用 <a href="{{ skyscanner_url }}" target="_blank" rel="noopener" style="color: var(--purple); font-weight: 700;">比價網站</a> 查詢。{% endif %}
         </div>
         {% endfor %}

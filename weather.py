@@ -92,6 +92,7 @@ def _group_periods_by_day(periods):  # 定義函式：把每 12 小時一筆的�
 
         max_values = [p["max"] for p in chunk if p["max"] is not None]  # 收集這天所有的最高溫數值
         min_values = [p["min"] for p in chunk if p["min"] is not None]  # 收集這天所有的最低溫數值
+        rain_values = [p["rain"] for p in chunk if p.get("rain") not in (None, "", "-")]  # 收集這天的降雨機率
         daytime = chunk[0]  # 用白天(第一筆，通常是 06:00~18:00)代表這一天的天氣現象與圖示
 
         days.append({
@@ -100,6 +101,7 @@ def _group_periods_by_day(periods):  # 定義函式：把每 12 小時一筆的�
             "emoji": daytime["emoji"],  # 對應的 emoji 圖示
             "max": max(max_values, key=int) if max_values else None,  # 這一天(白天+夜晚)的最高溫
             "min": min(min_values, key=int) if min_values else None,  # 這一天(白天+夜晚)的最低溫
+            "rain": max(rain_values, key=int) if rain_values else None,  # 這一天(白天+夜晚)較高的降雨機率(%)
         })
 
     return days
@@ -359,3 +361,24 @@ def get_typhoon_notice():  # 目前有效的颱風警報，回傳 {'headline': '
 
 def is_taiwan_city(city_name):  # 是否為台灣縣市(以氣象署警特報資料的縣市清單判斷)
     return normalize_city_name(city_name) in _get_all_warnings()
+
+
+# 「目的地天氣」頁面的縣市分區與顯示順序(由北到南，再到東部與離島)
+COUNTY_REGIONS = [
+    ("北部", ["台北市", "新北市", "基隆市", "桃園市", "新竹市", "新竹縣", "宜蘭縣"]),
+    ("中部", ["苗栗縣", "台中市", "彰化縣", "南投縣", "雲林縣"]),
+    ("南部", ["嘉義市", "嘉義縣", "台南市", "高雄市", "屏東縣"]),
+    ("東部", ["花蓮縣", "台東縣"]),
+    ("離島", ["澎湖縣", "金門縣", "連江縣"]),
+]
+COUNTY_ORDER = [name for _, names in COUNTY_REGIONS for name in names]
+
+
+def get_all_county_weather():  # 定義函式：回傳全部縣市的天氣(依 COUNTY_ORDER 排序)，給首頁自選縣市用
+    """回傳 {縣市名: {"today": ..., "days": [...]}}(依 COUNTY_ORDER 排序)；只放頁面需要的欄位，沒設定授權碼或查詢失敗回傳空字典。"""
+    if not is_configured():
+        return {}
+    all_weather = _get_all_weather()
+    order = {name: index for index, name in enumerate(COUNTY_ORDER)}
+    names = sorted(all_weather, key=lambda name: order.get(name, len(order)))
+    return {name: {"today": all_weather[name]["today"], "days": all_weather[name]["days"]} for name in names}

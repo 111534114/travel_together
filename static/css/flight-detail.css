@@ -1,0 +1,43 @@
+/* 機票卡片的「航班詳情」展開面板 */
+.flight-detail { flex: 0 0 100%; width: 100%; margin-top: 4px; border-top: 1px dashed #D3E4E6; }
+.flight-detail > summary { display: flex; align-items: center; justify-content: flex-end; gap: 6px; padding: 10px 2px 2px; color: #4B838B; font-size: 13px; font-weight: 700; cursor: pointer; list-style: none; user-select: none; }
+.flight-detail > summary::-webkit-details-marker { display: none; }
+.flight-detail > summary:hover { color: #37676D; }
+.flight-detail .fd-close { display: none; }
+.flight-detail[open] .fd-open { display: none; }
+.flight-detail[open] .fd-close { display: inline; }
+.flight-detail .fd-chevron { transition: transform 160ms ease; }
+.flight-detail[open] .fd-chevron { transform: rotate(180deg); }
+
+.fd-body { padding: 14px 4px 4px; }
+.fd-seg { display: flex; flex-direction: column; }
+.fd-row { display: grid; grid-template-columns: 84px 22px 1fr; column-gap: 10px; align-items: start; }
+.fd-time { display: flex; flex-direction: column; align-items: flex-end; text-align: right; line-height: 1.25; }
+.fd-time b { font-size: 17px; font-weight: 800; color: #23373A; }
+.fd-time b sup { color: #B26A00; font-size: 11px; margin-left: 2px; }
+.fd-time small { color: #708284; font-size: 12px; }
+.fd-rail { position: relative; align-self: stretch; min-height: 28px; }
+.fd-rail::before { content: ""; position: absolute; left: 50%; top: 0; bottom: 0; width: 2px; margin-left: -1px; background: #A9C3C6; }
+.fd-row:first-child .fd-rail::before { top: 10px; }
+.fd-row:last-child .fd-rail::before { bottom: calc(100% - 10px); }
+.fd-dot { position: absolute; left: 50%; top: 4px; width: 12px; height: 12px; margin-left: -6px; background: #fff; border: 3px solid #708284; border-radius: 50%; }
+.fd-text { padding-bottom: 4px; color: #23373A; font-size: 15px; line-height: 1.35; }
+.fd-text b { font-weight: 800; }
+.fd-code { color: #708284; font-size: 13px; }
+.fd-mid .fd-time { padding-top: 10px; }
+.fd-mid .fd-time small { color: #708284; }
+.fd-info { padding: 10px 0 14px; color: #708284; }
+.fd-airline { display: flex; align-items: center; gap: 8px; color: #23373A; font-weight: 700; font-size: 14px; }
+.fd-airline img { width: 22px; height: 22px; object-fit: contain; border-radius: 4px; }
+.fd-sub { margin-top: 3px; font-size: 13px; }
+.fd-amenities { display: flex; flex-wrap: wrap; gap: 6px 10px; margin: 8px 0 0; padding: 0; list-style: none; font-size: 12px; }
+.fd-amenities li { padding: 2px 9px; color: #4B838B; background: #EDF6F7; border-radius: 999px; }
+.fd-amenities .fd-warn { color: #B23B3B; background: #FBE7E7; }
+.fd-layover { margin: 6px 0 6px 116px; padding: 9px 14px; color: #37676D; background: #EAF3F4; border-radius: 10px; font-size: 13px; }
+.fd-layover em { margin-left: 8px; color: #B26A00; font-style: normal; font-weight: 700; }
+.fd-note { margin: 12px 0 0 116px; color: #708284; font-size: 12px; }
+
+@media (max-width: 560px) {
+  .fd-row { grid-template-columns: 62px 18px 1fr; column-gap: 8px; }
+  .fd-layover, .fd-note { margin-left: 0; }
+}

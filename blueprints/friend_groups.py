@@ -183,7 +183,20 @@ def _can_use_groups(cursor, user_id):
     application = _latest_application(cursor, user_id)
     if not application or application["status"] != "approved":
         return False
-    return _has_attended_event(cursor, user_id)
+    if _has_attended_event(cursor, user_id):
+        return True
+    cursor.execute("SELECT setting_value FROM app_settings WHERE setting_key=%s",
+                   (f"friend_group_early_access_{user_id}",))
+    override = cursor.fetchone()
+    if not override or override["setting_value"] != "1":
+        return False
+    cursor.execute(
+        """SELECT 1 FROM friend_group_event_participants p
+           JOIN friend_group_events e ON e.event_id=p.event_id
+           WHERE p.user_id=%s AND p.status='attended' AND e.event_date=CURDATE() LIMIT 1""",
+        (user_id,)
+    )
+    return cursor.fetchone() is not None
 
 
 def _has_completed_onboarding(cursor, user_id):
@@ -312,6 +325,7 @@ def index():
         joined_groups = []
         tier = None
         onboarding_done = False
+        checked_in_today = False
         filters = {
             "region": request.args.get("region", "").strip()[:80],
             "date": request.args.get("date", "").strip(),
@@ -365,7 +379,15 @@ def index():
             joined_groups = cursor.fetchall()
 
         if application and application["status"] == "approved":
-            unlocked = _has_attended_event(cursor, user_id)
+            unlocked = _can_use_groups(cursor, user_id)
+            if not unlocked:
+                cursor.execute(
+                    """SELECT 1 FROM friend_group_event_participants p
+                       JOIN friend_group_events e ON e.event_id=p.event_id
+                       WHERE p.user_id=%s AND p.status='attended' AND e.event_date=CURDATE() LIMIT 1""",
+                    (user_id,)
+                )
+                checked_in_today = cursor.fetchone() is not None
             profile = _traveler_profile(cursor, user_id)
 
             cursor.execute("""
@@ -413,7 +435,8 @@ def index():
     return render_template(
         "member/friend_groups/index.html",
         friend_group_on=friend_group_on, line_bound=line_bound,
-        application=application, unlocked=unlocked, profile=profile, tier=tier,
+        application=application, unlocked=unlocked, checked_in_today=checked_in_today,
+        profile=profile, tier=tier,
         events=events, my_groups=my_groups, onboarding_done=onboarding_done,
         browse_groups=browse_groups, joined_groups=joined_groups, filters=filters, today=date.today(),
     )
@@ -529,6 +552,12 @@ def apply():
 
         birthdate_raw = request.form.get("birthdate", "").strip()
         note = request.form.get("note", "").strip()
+        if not note:
+            flash("請填寫申請動機。", "error")
+            return redirect(url_for("friend_groups.index") + "#friend-groups")
+        if len(note) > 500:
+            flash("申請動機最多 500 字。", "error")
+            return redirect(url_for("friend_groups.index") + "#friend-groups")
         if not birthdate_raw:
             flash("請填寫生日。", "error")
             return redirect(url_for("friend_groups.index") + "#friend-groups")
@@ -550,7 +579,7 @@ def apply():
         cursor.execute("UPDATE users SET birthdate=%s WHERE user_id=%s", (birthdate, user_id))
         cursor.execute(
             "INSERT INTO friend_group_applications (user_id, note) VALUES (%s,%s)",
-            (user_id, note or None)
+            (user_id, note)
         )
         connection.commit()
         flash("申請已送出，等待管理員審核。", "success")
@@ -1071,8 +1100,18 @@ def group_detail(group_id):
         itinerary = []
         if group["trip_id"]:
             cursor.execute("""
-                SELECT itinerary_date, title, item_type, start_time, end_time, address
-                FROM itineraries WHERE trip_id=%s ORDER BY itinerary_date, sort_order, start_time
+                SELECT i.itinerary_date, i.title, i.item_type, i.start_time, i.end_time,
+                       i.address, i.notes,
+                       a.attraction_id AS linked_attraction_id,
+                       r.restaurant_id AS linked_restaurant_id,
+                       ac.accommodation_id AS linked_accommodation_id,
+                       COALESCE(a.image_path, r.image_path, ac.image_path) AS place_image,
+                       COALESCE(a.description, r.description, ac.description) AS place_description
+                FROM itineraries i
+                LEFT JOIN attractions a ON a.attraction_id=i.attraction_id AND a.status='active' AND a.deleted_at IS NULL
+                LEFT JOIN restaurants r ON r.restaurant_id=i.restaurant_id AND r.status='active' AND r.deleted_at IS NULL
+                LEFT JOIN accommodations ac ON ac.accommodation_id=i.accommodation_id AND ac.status='active' AND ac.deleted_at IS NULL
+                WHERE i.trip_id=%s ORDER BY i.itinerary_date, i.sort_order, i.start_time
             """, (group["trip_id"],))
             itinerary = cursor.fetchall()
         event_finished = (group["end_date"] or group["event_date"]) < date.today()

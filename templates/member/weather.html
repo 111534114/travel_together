@@ -1,0 +1,216 @@
+{% extends 'member/base.html' %}{% block title %}目的地天氣｜走吧揪團{% endblock %}{% block content %}
+<style>
+  .wx-page { --wx-main: #4B838B; --wx-main-soft: #EDF6F7; --wx-ink: #23373A; --wx-muted: #708284; --wx-line: #E1EBEC; --wx-rain: #3C7DBE; color: var(--wx-ink); }
+  .wx-layout { display: grid; grid-template-columns: minmax(280px, 360px) minmax(0, 1fr); gap: 24px; align-items: start; }
+  .wx-layout > *, .wx-card { min-width: 0; }
+
+  /* 左側：台灣地圖選縣市 */
+  .wx-side { position: sticky; top: 16px; padding: 16px 16px 14px; background: #fff; border: 1px solid var(--wx-line); border-radius: 14px; box-shadow: 0 6px 18px rgba(35, 55, 58, .05); }
+  .wx-side-head { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; margin-bottom: 4px; }
+  .wx-side-head h2 { margin: 0; font-size: 17px; }
+  .wx-side-head small { color: var(--wx-muted); font-size: 13px; }
+  .wx-side-hint { margin: 0 0 8px; color: var(--wx-muted); font-size: 13px; }
+  .tw-map { display: block; width: 100%; height: auto; max-height: 62vh; margin: 0 auto; }
+  .tw-county { fill: #D3E9EC; stroke: #fff; stroke-width: .8; cursor: pointer; transition: fill .15s; outline: none; }
+  .tw-county:hover, .tw-county:focus-visible { fill: #9FCBD1; }
+  .tw-county.is-selected { fill: var(--wx-main); }
+  .tw-county.is-selected:hover, .tw-county.is-selected:focus-visible { fill: #3B6D74; }
+  .tw-county:focus-visible { stroke: #23373A; stroke-width: 1.5; }
+  .tw-county.is-disabled { opacity: .45; pointer-events: none; }
+  .tw-map-inset { fill: transparent; stroke: #B9CFD2; stroke-dasharray: 3 3; pointer-events: all; cursor: pointer; }
+  .tw-map-inset:hover { fill: rgba(75, 131, 139, .06); }
+  .tw-map-inset.is-selected { stroke: var(--wx-main); stroke-dasharray: none; fill: rgba(75, 131, 139, .08); }
+  .tw-map-inset-label { fill: var(--wx-muted); font-size: 10px; pointer-events: none; }
+  .wx-tip { position: fixed; z-index: 50; padding: 6px 10px; color: #fff; font-size: 13px; white-space: nowrap; background: rgba(35, 55, 58, .92); border-radius: 8px; pointer-events: none; transform: translate(-50%, calc(-100% - 12px)); }
+  .wx-tip[hidden] { display: none; }
+  .wx-side-actions { display: flex; gap: 8px; margin-top: 10px; }
+  .wx-text-btn { padding: 6px 12px; color: var(--wx-main); font: inherit; font-size: 13px; font-weight: 600; background: #fff; border: 1px solid #C6DCDF; border-radius: 8px; cursor: pointer; }
+  .wx-text-btn:hover { background: var(--wx-main-soft); }
+  .wx-list { margin-top: 12px; padding-top: 10px; border-top: 1px dashed var(--wx-line); }
+  .wx-list summary { color: var(--wx-muted); font-size: 13px; font-weight: 600; cursor: pointer; }
+  .wx-region { display: grid; grid-template-columns: 34px minmax(0, 1fr); gap: 6px; margin-top: 8px; }
+  .wx-region-name { padding-top: 3px; color: var(--wx-muted); font-size: 12px; font-weight: 700; }
+  .wx-chips { display: flex; flex-wrap: wrap; gap: 5px; }
+  .wx-chip { position: relative; }
+  .wx-chip input { position: absolute; inset: 0; opacity: 0; margin: 0; cursor: pointer; }
+  .wx-chip span { display: inline-block; padding: 2px 9px; color: var(--wx-main); font-size: 13px; background: #fff; border: 1px solid #C6DCDF; border-radius: 999px; }
+  .wx-chip input:checked + span { color: #fff; background: var(--wx-main); border-color: var(--wx-main); }
+  .wx-chip input:focus-visible + span { outline: 2px solid #57A2AC; outline-offset: 2px; }
+
+  /* 右側：已選縣市的天氣卡片 */
+  .wx-grid { display: grid; gap: 18px; }
+  .wx-card { overflow: hidden; background: #fff; border: 1px solid var(--wx-line); border-radius: 14px; box-shadow: 0 8px 22px rgba(35, 55, 58, .06); }
+  .wx-card[hidden] { display: none; }
+  .wx-today { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 18px; padding: 20px 24px; background: linear-gradient(135deg, #F4FBFC 0%, #E3F2F4 100%); }
+  .wx-today-emoji { font-size: 52px; line-height: 1; }
+  .wx-today h3 { margin: 0; font-size: 22px; }
+  .wx-today-desc { margin: 4px 0 0; color: #4B5D60; font-size: 15px; }
+  .wx-today-temp { text-align: right; }
+  .wx-today-temp b { display: block; color: var(--wx-main); font-size: 30px; font-weight: 800; line-height: 1.1; }
+  .wx-today-temp span { color: var(--wx-rain); font-size: 13px; font-weight: 600; }
+  .wx-remove { margin-left: 8px; padding: 2px 8px; color: var(--wx-muted); font: inherit; font-size: 12px; background: transparent; border: 1px solid var(--wx-line); border-radius: 999px; cursor: pointer; vertical-align: middle; }
+  .wx-remove:hover { color: var(--wx-ink); background: #fff; }
+  .wx-week { display: grid; grid-template-columns: repeat(7, minmax(76px, 1fr)); overflow-x: auto; border-top: 1px solid var(--wx-line); }
+  .wx-day { display: flex; flex-direction: column; align-items: center; gap: 3px; padding: 12px 6px 14px; text-align: center; border-left: 1px solid var(--wx-line); }
+  .wx-day:first-child { border-left: 0; background: #FAFDFD; }
+  .wx-day-name { font-size: 14px; font-weight: 700; }
+  .wx-day-date { color: var(--wx-muted); font-size: 12px; }
+  .wx-day-emoji { margin: 4px 0; font-size: 26px; line-height: 1; }
+  .wx-day-temp { font-size: 14px; font-weight: 700; }
+  .wx-day-temp small { color: var(--wx-muted); font-weight: 500; }
+  .wx-day-rain { color: var(--wx-rain); font-size: 12px; }
+  .wx-empty { padding: 48px 20px; color: var(--wx-muted); text-align: center; background: #fff; border: 1px dashed #C6DCDF; border-radius: 14px; }
+  .wx-empty[hidden] { display: none; }
+  .wx-empty div { font-size: 40px; }
+  .wx-source { margin: 18px 0 0; color: var(--wx-muted); font-size: 12px; }
+  @media (max-width: 900px) {
+    .wx-layout { grid-template-columns: minmax(0, 1fr); }
+    .wx-side { position: static; }
+    .tw-map { max-width: 320px; max-height: none; }
+  }
+  @media (max-width: 640px) {
+    .wx-today { grid-template-columns: auto minmax(0, 1fr); padding: 16px; }
+    .wx-today-temp { grid-column: 1 / -1; text-align: left; }
+    .wx-today-emoji { font-size: 42px; }
+  }
+</style>
+<div class="wx-page" data-weather-page>
+  <div class="page-heading"><p class="eyebrow">DESTINATION WEATHER</p><h1>目的地天氣</h1><p>在地圖上點選想看的縣市，查看未來 7 天的天氣預報。選擇會記在這台裝置上，下次打開還在。</p></div>
+
+  {% if city_weather %}
+  <div class="wx-layout">
+    <aside class="wx-side" aria-labelledby="wxPickerTitle">
+      <div class="wx-side-head"><h2 id="wxPickerTitle">📍 點地圖選縣市</h2><small data-weather-count></small></div>
+      <p class="wx-side-hint">點一下加入，再點一下取消；金門、馬祖、澎湖點框框即可。</p>
+      {% include 'partials/taiwan_map.html' %}
+      <div class="wx-side-actions">
+        <button type="button" class="wx-text-btn" data-weather-reset>恢復預設</button>
+        <button type="button" class="wx-text-btn" data-weather-clear>全部取消</button>
+      </div>
+      <details class="wx-list">
+        <summary>或從清單選擇</summary>
+        {% for region, names in weather_regions %}
+        <div class="wx-region" role="group" aria-label="{{ region }}">
+          <span class="wx-region-name">{{ region }}</span>
+          <div class="wx-chips">
+            {% for name in names %}
+            <label class="wx-chip"><input type="checkbox" value="{{ name }}" data-weather-option {% if name in weather_defaults %}checked{% endif %}><span>{{ name }}</span></label>
+            {% endfor %}
+          </div>
+        </div>
+        {% endfor %}
+      </details>
+    </aside>
+
+    <div class="wx-grid">
+      {% for name, w in city_weather.items() %}
+      <article class="wx-card" data-weather-card="{{ name }}" {% if name not in weather_defaults %}hidden{% endif %}>
+        <div class="wx-today">
+          <div class="wx-today-emoji" aria-hidden="true">{{ w.today.emoji }}</div>
+          <div>
+            <h3>{{ name }}<button type="button" class="wx-remove" data-weather-remove="{{ name }}" aria-label="移除 {{ name }}">✕ 移除</button></h3>
+            <p class="wx-today-desc">今天 · {{ w.today.weather }}</p>
+          </div>
+          <div class="wx-today-temp">
+            <b>{{ w.today.min }}° ～ {{ w.today.max }}°</b>
+            {% if w.today.rain is not none %}<span>💧 降雨機率 {{ w.today.rain }}%</span>{% endif %}
+          </div>
+        </div>
+        <div class="wx-week" aria-label="{{ name }} 未來 7 天預報">
+          {% for day in w.days %}
+          <div class="wx-day">
+            <span class="wx-day-name">{{ '今天' if loop.first else day.weekday }}</span>
+            <span class="wx-day-date">{{ day.date[5:].replace('-', '/') }}</span>
+            <span class="wx-day-emoji" title="{{ day.weather }}" aria-label="{{ day.weather }}">{{ day.emoji }}</span>
+            <span class="wx-day-temp">{{ day.max }}° <small>/ {{ day.min }}°</small></span>
+            {% if day.rain is not none %}<span class="wx-day-rain">💧 {{ day.rain }}%</span>{% endif %}
+          </div>
+          {% endfor %}
+        </div>
+      </article>
+      {% endfor %}
+      <div class="wx-empty" data-weather-empty {% if weather_defaults %}hidden{% endif %}><div>🗺️</div><p>還沒有選擇縣市，點左邊地圖挑幾個想看的地方吧！</p></div>
+    </div>
+  </div>
+  <p class="wx-source">資料來源：中央氣象署開放資料平台（僅提供台灣縣市），每 6 小時更新一次。地圖：內政部國土測繪中心縣市界線。</p>
+  {% else %}
+  <div class="empty-member"><div>🌤️</div><h2>目前暫無天氣資訊</h2><p>天氣服務尚未設定或暫時無法連線，請稍後再試。</p></div>
+  {% endif %}
+</div>
+<script>
+  (function () {  // 自選縣市：地圖、清單、卡片三邊同步；選擇記在這台瀏覽器，沒選過就用預設(公開行程的目的地)
+    var page = document.querySelector('[data-weather-page]');
+    var options = page ? Array.prototype.slice.call(page.querySelectorAll('[data-weather-option]')) : [];
+    if (!options.length) return;
+    var STORAGE_KEY = 'homeWeatherCities';
+    var defaults = {{ weather_defaults | tojson }};
+    var summary = {{ weather_summary | tojson }};
+    var shapes = Array.prototype.slice.call(page.querySelectorAll('.tw-map [data-county]'));
+    var tip = document.createElement('div'); tip.className = 'wx-tip'; tip.hidden = true; document.body.appendChild(tip);
+
+    function save(list) { try { localStorage.setItem(STORAGE_KEY, JSON.stringify(list)); } catch (e) {} }
+    function load() {
+      try { var v = JSON.parse(localStorage.getItem(STORAGE_KEY)); return Array.isArray(v) ? v : null; } catch (e) { return null; }
+    }
+    function optionFor(name) { return options.filter(function (o) { return o.value === name; })[0]; }
+    function render() {
+      var chosen = options.filter(function (o) { return o.checked; }).map(function (o) { return o.value; });
+      page.querySelectorAll('[data-weather-card]').forEach(function (card) {
+        card.hidden = chosen.indexOf(card.dataset.weatherCard) === -1;
+      });
+      page.querySelector('[data-weather-empty]').hidden = chosen.length > 0;
+      page.querySelector('[data-weather-count]').textContent = '已選 ' + chosen.length + ' 個';
+      shapes.forEach(function (shape) {
+        var on = chosen.indexOf(shape.dataset.county) !== -1;
+        shape.classList.toggle('is-selected', on);
+        if (shape.getAttribute('role') === 'checkbox') shape.setAttribute('aria-checked', on ? 'true' : 'false');
+      });
+      return chosen;
+    }
+    function apply(list) { options.forEach(function (o) { o.checked = list.indexOf(o.value) !== -1; }); render(); }
+    function toggle(name) {
+      var option = optionFor(name);
+      if (!option) return;
+      option.checked = !option.checked;
+      save(render());
+      if (option.checked && window.matchMedia('(max-width: 900px)').matches) {  // 手機上卡片在地圖下面，選了之後捲過去
+        var card = page.querySelector('[data-weather-card="' + name + '"]');
+        if (card) card.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+      }
+    }
+
+    // 地圖：每個縣市 path 與離島外框都對應一個 checkbox，點地圖就是切換那個 checkbox
+    shapes.forEach(function (shape) {
+      var name = shape.dataset.county;
+      if (!optionFor(name)) { shape.classList.add('is-disabled'); return; }  // 氣象署沒資料的縣市不能點
+      var label = name + (summary[name] ? '　' + summary[name] : '');
+      if (shape.tagName.toLowerCase() === 'path') {
+        shape.setAttribute('tabindex', '0');
+        shape.setAttribute('role', 'checkbox');
+        shape.setAttribute('aria-label', label);
+        var title = shape.querySelector('title'); if (title) title.remove();  // 改用自訂提示框，避免和瀏覽器原生提示重複
+      }
+      shape.addEventListener('click', function () { toggle(name); });
+      shape.addEventListener('keydown', function (e) {
+        if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggle(name); }
+      });
+      shape.addEventListener('mousemove', function (e) {
+        tip.textContent = label; tip.hidden = false;
+        tip.style.left = e.clientX + 'px'; tip.style.top = e.clientY + 'px';
+      });
+      shape.addEventListener('mouseleave', function () { tip.hidden = true; });
+    });
+
+    options.forEach(function (o) { o.addEventListener('change', function () { save(render()); }); });
+    page.querySelectorAll('[data-weather-remove]').forEach(function (btn) {
+      btn.addEventListener('click', function () { toggle(btn.dataset.weatherRemove); });
+    });
+    page.querySelector('[data-weather-reset]').addEventListener('click', function () {
+      try { localStorage.removeItem(STORAGE_KEY); } catch (e) {}
+      apply(defaults);
+    });
+    page.querySelector('[data-weather-clear]').addEventListener('click', function () { apply([]); save([]); });
+    apply(load() || defaults);
+  })();
+</script>
+{% endblock %}

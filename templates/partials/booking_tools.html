@@ -108,7 +108,7 @@
     <div class="facet-group-vertical">
       <span class="facet-title">{{ destination }}的熱門篩選條件</span>
       <div class="facet-list">
-        {% for opt in popular_facets %}<label class="facet-row"><span class="facet-row-main"><input type="checkbox" name="popular" value="{{ opt.value }}" {{ 'checked' if opt.value in request.args.getlist('popular') }} onchange="this.form.requestSubmit()">{{ opt.label }}（{{ opt.count }}）</span></label>{% endfor %}
+        {% for opt in popular_facets %}<label class="facet-row"{% if opt.value == 'kids' %} title="Google 對整間飯店的親子友善標示，不代表一定有親子房"{% endif %}><span class="facet-row-main"><input type="checkbox" name="popular" value="{{ opt.value }}" {{ 'checked' if opt.value in request.args.getlist('popular') }} onchange="this.form.requestSubmit()">{{ opt.label }}（{{ opt.count }}）</span></label>{% endfor %}
         {% for opt in rating_facets %}<label class="facet-row"><span class="facet-row-main"><input type="checkbox" name="rating_min" value="{{ opt.value }}" {{ 'checked' if opt.value in request.args.getlist('rating_min') }} onchange="this.form.requestSubmit()">{{ opt.label }}（{{ opt.count }}）</span></label>{% endfor %}
         {% for opt in type_facets %}<label class="facet-row"><span class="facet-row-main"><input type="checkbox" name="property_type" value="{{ opt.value }}" {{ 'checked' if opt.value in request.args.getlist('property_type') }} onchange="this.form.requestSubmit()">{{ opt.label }}（{{ opt.count }}）</span></label>{% endfor %}
       </div>

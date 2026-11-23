@@ -63,6 +63,40 @@ class CompletedFriendGroupTests(unittest.TestCase):
         html = self._detail(reviewed=True)
         self.assertNotIn('id="groupReviewDialog"', html)
 
+    def test_group_itinerary_shows_linked_place_and_plain_stop(self):
+        group = {
+            "group_id": 8, "host_user_id": 7, "title": "宜蘭一日遊",
+            "nickname": "團長", "full_name": "團長", "status": "open",
+            "event_date": date.today() + timedelta(days=5), "end_date": None,
+            "start_time": None, "location": "宜蘭", "capacity": 6,
+            "description": None, "trip_id": 12, "show_member_list": False,
+            "meeting_info": None, "registration_lead_days": 2,
+        }
+        place = {
+            "itinerary_date": group["event_date"], "start_time": None, "end_time": None,
+            "title": "景點甲", "address": "宜蘭市", "notes": None,
+            "linked_attraction_id": 42, "linked_restaurant_id": None,
+            "linked_accommodation_id": None, "place_image": "images/spot.jpg",
+            "place_description": "適合散步的海岸。",
+        }
+        meeting = {**place, "title": "車站集合", "linked_attraction_id": None,
+                   "place_image": None, "place_description": None}
+        cursor = MagicMock()
+        cursor.fetchone.side_effect = [group, None]
+        cursor.fetchall.side_effect = [[], [meeting, place]]
+        connection = MagicMock()
+        connection.cursor.return_value = cursor
+        with app.test_request_context("/member/friend-groups/groups/8"):
+            session.update(user_id=7, role="member")
+            with patch("blueprints.friend_groups._connection_or_home", return_value=connection), \
+                 patch("blueprints.friend_groups._registration_deadline", return_value=date.today() + timedelta(days=3)), \
+                 patch("blueprints.friend_groups._host_tier", return_value={"level": 1, "label": "新手團長", "avg_rating": None}):
+                html = group_detail(8)
+        self.assertIn('images/spot.jpg', html)
+        self.assertIn('member/attractions/42', html)
+        self.assertIn('適合散步的海岸', html)
+        self.assertIn('車站集合', html)
+
     def test_popup_review_returns_to_detail_after_saving(self):
         cursor = MagicMock()
         cursor.fetchone.side_effect = [

@@ -47,7 +47,35 @@
     </div>
     {% endif %}
 
-    <div class="panel"><h2>行程安排</h2>{% if itinerary %}<div class="timeline">{% for item in itinerary %}<div class="timeline-item"><b>{{ item.itinerary_date }}{% if item.start_time %} {{ item.start_time|hm }}{% endif %}</b><span>{{ item.title }}{% if item.address %} · {{ item.address }}{% endif %}</span></div>{% endfor %}</div>{% else %}<p class="muted">主揪尚未安排每日行程。</p>{% endif %}</div>
+    <div class="panel group-itinerary">
+        <h2>行程安排</h2>
+        {% if itinerary %}
+        {% for day, items in itinerary|groupby('itinerary_date') %}
+        <section class="group-itinerary-day" aria-label="{{ day }} 行程">
+            <h3>{{ day }}</h3>
+            <div class="group-itinerary-list">
+                {% for item in items %}
+                <article class="group-itinerary-item">
+                    <div class="group-itinerary-time">{{ item.start_time|hm if item.start_time else '時間未定' }}{% if item.end_time %}<span>至 {{ item.end_time|hm }}</span>{% endif %}</div>
+                    <div class="group-itinerary-content">
+                        <h4>
+                            {% if item.linked_attraction_id %}<a href="{{ url_for('member.attraction_detail', attraction_id=item.linked_attraction_id) }}">{{ item.title }}</a>
+                            {% elif item.linked_restaurant_id %}<a href="{{ url_for('member.restaurant_detail', restaurant_id=item.linked_restaurant_id) }}">{{ item.title }}</a>
+                            {% elif item.linked_accommodation_id %}<a href="{{ url_for('member.accommodation_detail', accommodation_id=item.linked_accommodation_id) }}">{{ item.title }}</a>
+                            {% else %}{{ item.title }}{% endif %}
+                        </h4>
+                        {% if item.place_description %}<p class="group-itinerary-description">{{ item.place_description|striptags|truncate(160) }}</p>
+                        {% elif item.notes %}<p class="group-itinerary-description">{{ item.notes|striptags|truncate(160) }}</p>{% endif %}
+                        {% if item.address %}<p class="group-itinerary-address">{{ item.address }}</p>{% endif %}
+                    </div>
+                    {% if item.place_image %}<img class="group-itinerary-image" src="{{ url_for('static', filename=item.place_image) }}" alt="{{ item.title }}" loading="lazy">{% endif %}
+                </article>
+                {% endfor %}
+            </div>
+        </section>
+        {% endfor %}
+        {% else %}<p class="muted">主揪尚未安排每日行程。</p>{% endif %}
+    </div>
 
     <div class="panel">
         <h2>目前成員 <span class="count-badge">{{ total_members }}</span></h2>

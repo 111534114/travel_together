@@ -9,7 +9,7 @@ from auth import login_required
 from db import get_db_connection
 from notification_preferences import send_notification
 from chat_moderation import REMOVED_CHAT_CONTENT, SETTING_KEY, parse_terms, remove_trip_message
-from blueprints.friend_groups import _event_registration_deadline, _event_registration_open, _event_start_datetime, _has_attended_event, _international_candidate_reviews
+from blueprints.friend_groups import _event_registration_deadline, _event_registration_open, _event_start_datetime, _has_attended_event, _international_candidate_reviews, _latest_application
 from content_admin_permissions import require_content_admin_module
 
 friend_groups_admin_bp = Blueprint("friend_groups_admin", __name__, url_prefix="/content-admin/friend-groups")
@@ -147,6 +147,79 @@ def list_applications():
         page=page, total_pages=total_pages, total=total, feature_enabled=feature_enabled,
         blocked_terms=blocked_terms,
     )
+
+
+@friend_groups_admin_bp.route("/early-access")
+@login_required("system_admin")
+def early_access():
+    connection = get_db_connection()
+    if connection is None:
+        flash("資料庫連線失敗", "error")
+        return redirect(url_for("system_admin_home"))
+    cursor = connection.cursor(dictionary=True)
+    try:
+        cursor.execute("""
+            SELECT DISTINCT u.user_id, u.nickname, u.full_name, e.title AS event_title,
+                   s.setting_value AS early_access
+            FROM friend_group_event_participants p
+            JOIN friend_group_events e ON e.event_id=p.event_id
+            JOIN users u ON u.user_id=p.user_id
+            LEFT JOIN app_settings s ON s.setting_key=CONCAT('friend_group_early_access_',u.user_id)
+            WHERE p.status='attended' AND e.event_date=CURDATE()
+              AND (SELECT a.status FROM friend_group_applications a
+                   WHERE a.user_id=u.user_id ORDER BY a.created_at DESC LIMIT 1)='approved'
+            ORDER BY u.user_id
+        """)
+        members = cursor.fetchall()
+    finally:
+        cursor.close(); connection.close()
+    return render_template("content_admin/friend_groups/early_access.html", members=members,
+                           active_page="early_access")
+
+
+@friend_groups_admin_bp.route("/early-access/<int:user_id>", methods=["POST"])
+@login_required("system_admin")
+def set_early_access(user_id):
+    value = request.form.get("enabled")
+    reason = request.form.get("reason", "").strip()
+    if value not in ("0", "1") or (value == "1" and not reason) or len(reason) > 200:
+        flash("請填寫有效的核准原因（最多 200 字）。", "error")
+        return redirect(url_for("friend_groups_admin.early_access"))
+    connection = get_db_connection()
+    if connection is None:
+        flash("資料庫連線失敗", "error")
+        return redirect(url_for("friend_groups_admin.early_access"))
+    cursor = connection.cursor(dictionary=True)
+    try:
+        application = _latest_application(cursor, user_id)
+        cursor.execute("""SELECT 1 FROM friend_group_event_participants p
+                          JOIN friend_group_events e ON e.event_id=p.event_id
+                          WHERE p.user_id=%s AND p.status='attended' AND e.event_date=CURDATE() LIMIT 1""",
+                       (user_id,))
+        checked_in = cursor.fetchone() is not None
+        if not application or application["status"] != "approved" or not checked_in:
+            flash("此會員尚未通過申請，或今天尚未在官方活動報到。", "error")
+            return redirect(url_for("friend_groups_admin.early_access"))
+        cursor.execute("""INSERT INTO app_settings (setting_key,setting_value,updated_by)
+                          VALUES (%s,%s,%s) ON DUPLICATE KEY UPDATE
+                          setting_value=VALUES(setting_value),updated_by=VALUES(updated_by)""",
+                       (f"friend_group_early_access_{user_id}", value, session["user_id"]))
+        action = "核准" if value == "1" else "撤銷"
+        log_action(cursor, "set_friend_group_early_access", "user", user_id,
+                   f"{action}官方活動當日開團資格" + (f"；原因：{reason}" if reason else ""))
+        if value == "1":
+            send_notification(cursor, user_id, "friend_group", "system", "已開放揪團資格",
+                              "管理員已確認你今天的官方活動報到，現在可以發起揪團。",
+                              url_for("friend_groups.index") + "#friend-groups")
+        connection.commit()
+        flash(f"已{action}此會員的當日開團資格。", "success")
+    except Exception as error:
+        connection.rollback()
+        current_app.logger.exception("更新當日開團資格失敗：%s", error)
+        flash("更新失敗，請稍後再試。", "error")
+    finally:
+        cursor.close(); connection.close()
+    return redirect(url_for("friend_groups_admin.early_access"))
 
 
 @friend_groups_admin_bp.route("/international-hosts")
@@ -685,8 +758,8 @@ def check_in_participant(event_id, user_id):
             (event_id, user_id)
         )
         if not already_unlocked:
-            send_notification(cursor, user_id, "friend_group", "system", "🎉 解鎖交友揪團功能",
-                              "你已出席官方活動，現在可以瀏覽並申請加入其他會員的揪團；若要發起自己的揪團，請先完成新手開團引導。",
+            send_notification(cursor, user_id, "friend_group", "system", "官方活動報到完成",
+                              "已記錄你的官方活動報到。活動日期結束後，系統會自動開放加入與發起揪團；若需當天使用，可由系統管理員確認後提早開放。發起揪團前也請完成新手開團引導。",
                               url_for("friend_groups.index") + "#friend-groups")
         log_action(cursor, "check_in_friend_group_participant", "friend_group_event", event_id, f"標記報到：使用者 {user_id}")
         connection.commit()

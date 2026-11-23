@@ -63,6 +63,29 @@
 
     <div class="page-tab-panel" id="tab-friend-groups">
     <div class="panel"><h2>用 AI 產生行程草稿</h2><p class="muted">描述目的地與偏好，取得交通、住宿、每日安排的建議；核對後可存成私人行程。</p>{% if line_bound %}<a class="member-btn outline" href="{{ url_for('friend_groups.ai_plan') }}">開始 AI 規劃</a>{% else %}<p class="form-hint">使用 AI 規劃前請先綁定 LINE 帳號。</p><a class="member-btn primary" href="{{ url_for('line_bind', next=url_for('friend_groups.ai_plan')) }}">先綁定 LINE</a>{% endif %}</div>
+    {% set qualification_step = 3 if unlocked else 2 if application and application.status == 'approved' else 1 if application and application.status == 'pending' else 0 %}
+    <section class="group-eligibility" aria-label="揪團資格狀態">
+        <div class="group-eligibility-summary">
+            <span class="group-eligibility-label">揪團資格進度</span>
+            <h2>{% if not friend_group_on %}功能尚未開放
+                {% elif not line_bound %}待綁定 LINE
+                {% elif not application %}尚未申請
+                {% elif application.status == 'pending' %}申請審核中
+                {% elif application.status == 'rejected' %}申請未通過
+                {% elif unlocked %}已可加入與發起揪團
+                {% elif checked_in_today %}已報到，等待開放
+                {% else %}申請已核准，等待官方活動報到{% endif %}</h2>
+            {% if application and application.status == 'approved' and checked_in_today and not unlocked %}<p>活動日期結束後自動開放，管理員也可於當天提早開放。</p>
+            {% elif application and application.status == 'approved' and unlocked %}<p>現在可以加入揪團；首次開團前請完成新手引導。</p>
+            {% elif application and application.status == 'approved' %}<p>參加一場官方活動並完成報到，就更接近開團資格。</p>
+            {% elif application and application.status == 'pending' %}<p>審核通過後，即可報名官方活動。</p>{% endif %}
+        </div>
+        <ol class="group-eligibility-steps" aria-label="資格取得步驟">
+            <li class="{{ 'is-complete' if qualification_step >= 2 else 'is-current' if qualification_step == 1 }}"><span class="group-eligibility-marker">1</span><span>申請核准</span></li>
+            <li class="{{ 'is-complete' if qualification_step >= 3 else 'is-current' if qualification_step == 2 }}"><span class="group-eligibility-marker">2</span><span>官方活動</span></li>
+            <li class="{{ 'is-complete' if qualification_step >= 3 }}"><span class="group-eligibility-marker">3</span><span>開放揪團</span></li>
+        </ol>
+    </section>
     {% if not friend_group_on %}
     <div class="panel">
         <h2>交友揪團尚未開放</h2>
@@ -80,7 +103,7 @@
         <p class="form-hint">這個功能需要先申請，審核通過並出席過一場官方活動後，才能加入或發起會員揪團。</p>
         <form method="post" action="{{ url_for('friend_groups.apply') }}" class="form-grid-member">
             <label>生日 *<input required type="date" name="birthdate"></label>
-            <label class="span-2">申請動機（選填）<textarea name="note" rows="2" maxlength="500" placeholder="想認識什麼樣的旅伴呢？"></textarea></label>
+            <label class="span-2">申請動機 *<textarea name="note" rows="2" maxlength="500" required placeholder="想認識什麼樣的旅伴呢？"></textarea></label>
             <button class="member-btn primary" type="submit">送出申請</button>
         </form>
     </div>
@@ -97,7 +120,7 @@
         <p class="form-hint">退回原因：{{ application.review_note or '未提供原因' }}</p>
         <form method="post" action="{{ url_for('friend_groups.apply') }}" class="form-grid-member">
             <label>生日 *<input required type="date" name="birthdate"></label>
-            <label class="span-2">申請動機（選填）<textarea name="note" rows="2" maxlength="500"></textarea></label>
+            <label class="span-2">申請動機 *<textarea name="note" rows="2" maxlength="500" required></textarea></label>
             <button class="member-btn primary" type="submit">重新申請</button>
         </form>
     </div>
@@ -111,7 +134,7 @@
 
     <div class="panel">
         <div class="panel-title"><div><p class="eyebrow">EVENTS</p><h2>官方活動</h2></div></div>
-        {% if not unlocked %}<p class="form-hint">⚠️ 你還沒出席過官方活動，先報名一場參加，出席後才能加入或發起會員揪團。</p>{% endif %}
+        {% if not unlocked and not checked_in_today %}<p class="form-hint">先報名並出席一場官方活動；活動日期結束後，才能加入或發起會員揪團。</p>{% endif %}
         {% if events %}
         <div class="official-events-list">
             {% for event in events %}

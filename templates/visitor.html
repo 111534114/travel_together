@@ -180,6 +180,56 @@
     .trip-art .joined-badge { position: absolute; z-index: 2; top: 12px; left: 12px; padding: 5px 9px; color: #fff; background: linear-gradient(135deg, #FFA6CC, #FF6FA8); border-radius: 999px; font-size: 12px; font-weight: 700; box-shadow: 0 4px 10px rgba(255, 111, 168, .35); animation: joined-badge-float 2.4s ease-in-out infinite; }
     @keyframes joined-badge-float { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-4px); } }
     @media (prefers-reduced-motion: reduce) { .trip-art .joined-badge { animation: none; } }
+    /* 熱門公開行程：卡片彈跳進場、滑過時跳一下、飛機圖示飛來飛去、熱門標籤搖擺 */
+    #featured-trips .trip-card.is-armed { opacity: 0; }
+    #featured-trips .trip-card.is-in { animation: card-pop .75s cubic-bezier(.3, 1.5, .5, 1) both; animation-delay: calc(var(--i, 0) * 110ms); }
+    #featured-trips .trip-card:not(.is-armed):hover { animation: card-hop .55s ease-out; }
+    #featured-trips .trip-art > span:not([class]) { display: inline-block; animation: plane-fly 2.8s ease-in-out infinite; animation-delay: calc(var(--i, 0) * -.45s); }
+    #featured-trips .trip-art .visibility { animation: hot-wiggle 2.4s ease-in-out infinite; transform-origin: 50% 100%; }
+    @keyframes card-pop {
+      0% { opacity: 0; transform: translateY(46px) scale(.88); }
+      55% { opacity: 1; transform: translateY(-12px) scale(1.03); }
+      75% { transform: translateY(5px) scale(.99); }
+      100% { opacity: 1; transform: translateY(0) scale(1); }
+    }
+    @keyframes card-hop {
+      0% { transform: translateY(0); }
+      35% { transform: translateY(-14px) rotate(-1deg); }
+      60% { transform: translateY(0) scale(1.02, .97); }
+      80% { transform: translateY(-6px); }
+      100% { transform: translateY(-3px); }
+    }
+    @keyframes plane-fly {
+      0%, 100% { transform: translate(0, 0) rotate(0deg); }
+      25% { transform: translate(6px, -8px) rotate(-8deg); }
+      50% { transform: translate(0, -14px) rotate(0deg); }
+      75% { transform: translate(-6px, -6px) rotate(8deg); }
+    }
+    @keyframes hot-wiggle {
+      0%, 70%, 100% { transform: rotate(0deg) scale(1); }
+      78% { transform: rotate(-10deg) scale(1.1); }
+      86% { transform: rotate(9deg) scale(1.1); }
+      94% { transform: rotate(-4deg) scale(1.03); }
+    }
+    /* 「選我選我！」對話泡泡：輪流挑一張卡片跳兩下並冒出泡泡；滑過卡片也會出現 */
+    #featured-trips .trip-art .pick-me { position: absolute; z-index: 3; left: 50%; bottom: 14px; padding: 6px 14px; color: #E2557F; background: #fff; border: 2px solid #FFB3CC; border-radius: 999px; font-size: 15px; font-weight: 800; white-space: nowrap; box-shadow: 0 6px 16px rgba(226, 85, 127, .25); opacity: 0; transform: translate(-50%, 10px) scale(.6); transition: opacity .2s, transform .25s cubic-bezier(.3, 1.6, .5, 1); pointer-events: none; }
+    #featured-trips .trip-art .pick-me::after { content: ""; position: absolute; left: 50%; bottom: -8px; width: 12px; height: 12px; background: #fff; border-right: 2px solid #FFB3CC; border-bottom: 2px solid #FFB3CC; transform: translateX(-50%) rotate(45deg); }
+    #featured-trips .trip-card.is-cheering .pick-me, #featured-trips .trip-card:not(.is-armed):hover .pick-me { opacity: 1; transform: translate(-50%, 0) scale(1); }
+    #featured-trips .trip-card.is-cheering .pick-me { animation: pick-me-shout .5s ease-in-out .15s 3; }
+    #featured-trips .trip-card.is-cheering:not(:hover) { animation: card-cheer 1.1s ease-out; }
+    @keyframes card-cheer {
+      0%, 100% { transform: translateY(0); }
+      18% { transform: translateY(-16px) rotate(-1.5deg); }
+      34% { transform: translateY(0) scale(1.02, .97); }
+      52% { transform: translateY(-12px) rotate(1.5deg); }
+      70% { transform: translateY(0) scale(1.01, .98); }
+      85% { transform: translateY(-4px); }
+    }
+    @keyframes pick-me-shout { 0%, 100% { rotate: 0deg; } 30% { rotate: -6deg; } 70% { rotate: 6deg; } }
+    @media (prefers-reduced-motion: reduce) {
+      #featured-trips .trip-card.is-armed { opacity: 1; }
+      #featured-trips .trip-card.is-in, #featured-trips .trip-card:hover, #featured-trips .trip-card.is-cheering, #featured-trips .trip-card .pick-me, #featured-trips .trip-art > span:not([class]), #featured-trips .trip-art .visibility { animation: none; }
+    }
     .trip-content { display: flex; flex: 1; flex-direction: column; padding: 18px; }
     .trip-content h3 { margin: 0 0 8px; font-size: 20px; line-height: 1.4; }
     .location { min-height: 22px; margin: 0 0 14px; color: var(--muted); font-size: 14px; }
@@ -245,18 +295,6 @@
     .empty { grid-column: 1 / -1; display: flex; flex-direction: column; align-items: center; gap: 10px; padding: 30px 36px; color: var(--muted); text-align: center; background: #fff; border: 1px dashed #C6DCDF; border-radius: 8px; }
     .empty-mascot { height: 64px; width: auto; display: block; animation: float-y 3.2s ease-in-out infinite; filter: drop-shadow(0 6px 6px rgba(11,59,74,.15)); }
     .section-sparkle { display: inline-block; vertical-align: -2px; margin-right: 6px; animation: twinkle-spin 2.6s ease-in-out infinite; }
-    .weather-section { margin: 44px 0; }
-    .weather-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 18px; }
-    .weather-card { display: flex; flex-direction: column; align-items: center; padding: 24px 20px; text-align: center; background: #fff; border: 1px solid var(--line); border-radius: 8px; box-shadow: 0 8px 22px rgba(45, 37, 68, .06); }
-    .weather-card h3 { margin: 0; font-size: 18px; }
-    .weather-card .weather-emoji { margin-top: 14px; font-size: 40px; line-height: 1; }
-    .weather-card .weather-desc { margin: 6px 0 0; color: #4B5D60; font-size: 14px; }
-    .weather-card .weather-temp { margin: 10px 0 16px; color: var(--purple); font-size: 22px; font-weight: 700; }
-    .modal-meta.weather-source { margin: -14px 0 18px; }
-    .weather-forecast-table { width: 100%; border-collapse: collapse; }
-    .weather-forecast-table td { padding: 9px 6px; border-bottom: 1px solid var(--line); font-size: 14px; }
-    .weather-forecast-table td:first-child { color: var(--muted); white-space: nowrap; }
-    .weather-forecast-table td:last-child { text-align: right; font-weight: 600; }
     .companions { margin-top: 64px; }
     .companion-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 18px; }
     .companion-card { padding: 20px; background: #fff; border: 1px solid var(--line); border-radius: 8px; }
@@ -387,10 +425,10 @@
       </div>
       {% endif %}
     </section>
-    {% if is_member %}
     <section class="ai-home" id="ai-home" aria-labelledby="ai-home-title">
       <h2 id="ai-home-title">✨ 讓 AI 幫你排行程</h2>
       <p class="ai-home-hint">說說你想去哪裡、玩幾天、喜歡什麼、預算多少，AI 會直接幫你建立行程並排好每一天，之後再到行程頁微調。沒寫日期就預設兩週後出發、玩 3 天。</p>
+      {% if is_member %}
       <form method="post" action="{{ url_for('member.ai_create_trip') }}" class="ai-home-form" id="aiHomeForm">
         <label class="visually-hidden" for="aiHomeInput">旅行需求</label>
         <textarea id="aiHomeInput" name="q" rows="3" maxlength="1000" required placeholder="例如：12 月想跟朋友去東京 5 天，喜歡逛街和美食，住宿希望在車站附近，預算每人 3 萬">{{ request.args.get('q', '') }}</textarea>
@@ -399,6 +437,18 @@
           <button type="submit" class="ai-submit-btn" id="aiHomeSubmit">開始規劃 →</button>
         </div>
       </form>
+      {% else %}
+      {# 訪客：AI 排行程是會員功能，送出時導向登入頁 #}
+      <form method="get" action="{{ url_for('login') }}" class="ai-home-form" id="aiHomeForm">
+        <label class="visually-hidden" for="aiHomeInput">旅行需求</label>
+        <textarea id="aiHomeInput" rows="3" maxlength="1000" placeholder="例如：12 月想跟朋友去東京 5 天，喜歡逛街和美食，住宿希望在車站附近，預算每人 3 萬"></textarea>
+        <div class="ai-home-actions">
+          <a class="ai-voice-btn" href="{{ url_for('register') }}" style="text-decoration: none">免費註冊</a>
+          <button type="submit" class="ai-submit-btn" id="aiHomeSubmit">🔒 登入後開始規劃 →</button>
+        </div>
+      </form>
+      <p class="ai-home-status">🔒 AI 排行程為會員專屬功能，請先登入或免費註冊後使用。</p>
+      {% endif %}
       <div class="ai-home-examples" aria-label="範例">
         <span>試試看：</span>
         <button type="button" data-ai-example="想去台北 3 天，喜歡古蹟、夜市，搭大眾運輸，住宿不要太貴">台北 3 天古蹟夜市</button>
@@ -431,13 +481,14 @@
         </div>
         <a class="section-link" href="{{ url_for('member.public_trips') }}">查看全部公開行程 →</a>
       </div>
-      <div class="trip-grid">
+      <div class="trip-grid" data-bounce-grid>
         {% for trip in featured_trips %}
-          <article class="trip-card">
+          <article class="trip-card" style="--i: {{ loop.index0 }}">
             <div class="trip-art {% if trip.cover_image_path %}with-image{% endif %}" {% if trip.cover_image_path %}style="background-image: url('{{ url_for('static', filename=trip.cover_image_path) }}')"{% endif %}>
               {% if not trip.cover_image_path %}<span>✈</span>{% endif %}
               {% if loop.index <= 3 and trip.favorite_count %}<span class="visibility">🔥 熱門</span>{% endif %}
               {% if trip.joined_count and trip.joined_count > 1 %}<span class="joined-badge">🙋 {{ trip.joined_count }} 人加入</span>{% endif %}
+              <span class="pick-me" aria-hidden="true">選我選我！</span>
             </div>
             <div class="trip-content">
               <h3>{{ trip.trip_name }}</h3>
@@ -454,10 +505,15 @@
               </div>
               <div class="featured-actions">
                 <button class="view-button" type="button" onclick="openTripModal('{{ trip.trip_id }}')">查看行程</button>
+                {% if is_member %}
                 {% if trip.can_duplicate %}
                 <form method="post" action="{{ url_for('member.duplicate_trip', trip_id=trip.trip_id) }}"><button class="view-button primary" type="submit">一鍵套用並微調</button></form>
                 {% endif %}
                 <form method="post" action="{{ url_for('member.toggle_trip_favorite', trip_id=trip.trip_id) }}"><input type="hidden" name="next" value="{{ url_for('member.dashboard') }}#featured-trips"><button class="view-button" type="submit">{{ '取消收藏' if trip.is_favorited else '☆ 收藏' }}</button></form>
+                {% else %}
+                {% if trip.can_duplicate %}<a class="view-button primary" href="{{ url_for('login') }}">登入後一鍵套用</a>{% endif %}
+                <a class="view-button" href="{{ url_for('login') }}">☆ 收藏</a>
+                {% endif %}
               </div>
             </div>
           </article>
@@ -490,7 +546,11 @@
             <span class="view-button primary">開始微調 →</span>
           </a>
         {% else %}
+          {% if is_member %}
           <div class="empty">還沒有規劃中的行程。先在上方「一鍵套用並微調」或建立新行程，就會出現在這裡。</div>
+          {% else %}
+          <div class="empty">登入後，你建立或加入的行程會出現在這裡。<a href="{{ url_for('login') }}">會員登入</a> ／ <a href="{{ url_for('register') }}">免費註冊</a></div>
+          {% endif %}
         {% endfor %}
       </div>
     </section>
@@ -499,7 +559,6 @@
       <h2>行程排好了？接著找住宿與交通</h2>
       <p>依你的目的地與日期搜尋飯店、機票與火車票。</p>
     </div>
-    {% endif %}
     <section class="search-panel">
       <div class="search-tabs" role="tablist">
         <button class="search-tab active" type="button" data-tab="hotel">住宿</button>
@@ -609,141 +668,6 @@
       {% endif %}
     </section>
     {% endif %}
-    {% if is_member %}
-    <section class="member-workspace">
-      <div class="section-header"><div><p class="eyebrow" style="color: var(--purple-light)">QUICK LINKS</p><h2>會員功能</h2><p>點選進入各項功能的獨立頁面。</p></div></div>
-      <div class="quick-link-grid">
-        <a class="quick-link-card" href="{{ url_for('member.my_trips') }}"><span class="quick-link-icon">🧳</span><h3>我的旅程</h3><p>管理你建立或參與的旅程，以及收藏的公開行程。</p></a>
-        <a class="quick-link-card" href="{{ url_for('member.public_trips') }}"><span class="quick-link-icon">🗺️</span><h3>公開行程</h3><p>看看會員分享的旅程，收藏喜歡的行程。</p></a>
-        <a class="quick-link-card" href="{{ url_for('friend_groups.index') }}"><span class="quick-link-icon">🤝</span><h3>尋找旅伴揪團</h3><p>依行程找旅伴，或發起交友揪團。</p></a>
-        <a class="quick-link-card" href="{{ url_for('member.announcements_page') }}"><span class="quick-link-icon">📢</span><h3>公告事項</h3><p>掌握 Travel Together 的最新消息與服務通知。</p></a>
-        <a class="quick-link-card" href="{{ url_for('member.album_page') }}"><span class="quick-link-icon">📷</span><h3>旅遊相簿</h3><p>旅伴分享的景點實拍照片與心得。</p></a>
-      </div>
-    </section>
-    {% endif %}
-    {% if not is_member %}
-    <section id="announcements" class="announcements">
-      <div class="section-header">
-        <div>
-          <p class="eyebrow" style="color: var(--purple-light)">ANNOUNCEMENTS</p>
-          <h2><svg class="section-sparkle" width="16" height="16" viewBox="0 0 24 24" fill="var(--purple-light)"><path d="M12 2 L14 10 L22 12 L14 14 L12 22 L10 14 L2 12 L10 10 Z"/></svg>公告事項</h2>
-          <p>掌握 Travel Together 的最新消息與服務通知。</p>
-        </div>
-      </div>
-      <div class="announcement-list">
-        {% for announcement in announcements %}
-          <article class="announcement-card">
-            <div class="announcement-icon" aria-hidden="true">{% if announcement.is_pinned %}📌{% else %}📢{% endif %}</div>
-            <div>
-              <h3>{{ announcement.title }}{% if announcement.is_pinned %}<span class="pinned-badge">置頂</span>{% endif %}</h3>
-              <p>{{ announcement.content }}</p>
-            </div>
-            <time class="announcement-meta" datetime="{{ announcement.publish_at or announcement.created_at }}">{{ (announcement.publish_at or announcement.created_at).strftime('%Y-%m-%d') if (announcement.publish_at or announcement.created_at) else '' }}</time>
-          </article>
-        {% else %}
-          <div class="empty"><img class="empty-mascot" src="{{ url_for('static', filename='images/mascot_frog.png') }}" alt="">目前尚無公告事項。</div>
-        {% endfor %}
-      </div>
-    </section>
-    {% endif %}
-    {% if not is_member %}
-    <section id="weather" class="weather-section">
-      <div class="section-header">
-        <div>
-          <p class="eyebrow" style="color: var(--purple-light)">DESTINATION WEATHER</p>
-          <h2><svg class="section-sparkle" width="16" height="16" viewBox="0 0 24 24" fill="var(--purple-light)"><path d="M12 2 L14 10 L22 12 L14 14 L12 22 L10 14 L2 12 L10 10 Z"/></svg>目的地天氣</h2>
-          <p>依目前公開行程的目的地，提供中央氣象署天氣預報（僅支援台灣縣市）。</p>
-        </div>
-      </div>
-      <div class="weather-grid">
-        {% for city_name, w in city_weather.items() %}
-          <article class="weather-card">
-            <h3>{{ city_name }}</h3>
-            <div class="weather-emoji" aria-hidden="true">{{ w.today.emoji }}</div>
-            <p class="weather-desc">{{ w.today.weather }}</p>
-            <p class="weather-temp">{{ w.today.min }}° ～ {{ w.today.max }}°</p>
-            <button class="view-button" type="button" onclick="openWeatherModal('{{ city_name }}')">查看 7 天預報</button>
-          </article>
-        {% else %}
-          <div class="empty"><img class="empty-mascot" src="{{ url_for('static', filename='images/mascot_bear.png') }}" alt="">目前公開行程的目的地暫無天氣資訊（僅支援台灣縣市，或天氣服務尚未設定）。</div>
-        {% endfor %}
-      </div>
-    </section>
-    <form class="search-bar" onsubmit="searchTrips(event)">
-      <label for="tripSearch"><input id="tripSearch" type="search" placeholder="搜尋行程名稱、地點或分類"></label>
-      <button type="submit">搜尋行程</button>
-    </form>
-    <section id="trips">
-      <div class="section-header">
-        <div>
-          <p class="eyebrow" style="color: var(--purple-light)">PUBLIC TRIPS</p>
-          <h2><svg class="section-sparkle" width="16" height="16" viewBox="0 0 24 24" fill="var(--purple-light)"><path d="M12 2 L14 10 L22 12 L14 14 L12 22 L10 14 L2 12 L10 10 Z"/></svg>公開行程</h2>
-          <p>僅顯示會員目前公開的真實行程資料。</p>
-        </div>
-        <span class="search-result" id="searchResult" aria-live="polite"></span>
-      </div>
-      <div class="trip-grid" id="tripGrid">
-        {% for trip in public_trips %}
-          <article class="trip-card" data-search="{{ trip.trip_name }} {{ trip.country or '' }} {{ trip.city or '' }} {{ trip.category_name or '' }}">
-            <div class="trip-art {% if trip.cover_image_path %}with-image{% endif %}" {% if trip.cover_image_path %}style="background-image: url('{{ url_for('static', filename=trip.cover_image_path) }}')"{% endif %}>
-              {% if not trip.cover_image_path %}<span>✈</span>{% endif %}
-              <span class="visibility">公開</span>
-            </div>
-            <div class="trip-content">
-              <h3>{{ trip.trip_name }}</h3>
-              <p class="location">{{ trip.country or '未設定國家' }}{% if trip.city %} · {{ trip.city }}{% endif %}</p>
-              <div class="trip-details">
-                <span>{{ trip.days_count }} 天</span>
-                {% if trip.start_date %}<span>{{ trip.start_date }}{% if trip.end_date %} ～ {{ trip.end_date }}{% endif %}</span>{% endif %}
-                {% if trip.people_count %}<span>{{ trip.people_count }} 人</span>{% endif %}
-                {% if trip.total_budget is not none %}<span>{{ trip.currency }} {{ "{:,.0f}".format(trip.total_budget) }}</span>{% endif %}
-              </div>
-              <div class="trip-footer">
-                <span>{{ trip.owner_nickname or trip.owner_name or '未提供' }}</span>
-                <div style="display:flex; gap:6px;">
-                  <button class="view-button" type="button" onclick="openTripModal('{{ trip.trip_id }}')">查看行程</button>
-                </div>
-              </div>
-            </div>
-          </article>
-        {% else %}
-          <div class="empty"><img class="empty-mascot" src="{{ url_for('static', filename='images/mascot_chick.png') }}" alt="">目前沒有可供瀏覽的公開行程。</div>
-        {% endfor %}
-      </div>
-    </section>
-    {% endif %}
-    {% if not is_member %}
-    <section id="companions" class="companions">
-      <div class="section-header">
-        <div>
-          <p class="eyebrow" style="color: var(--purple-light)">TRAVEL COMPANIONS</p>
-          <h2><svg class="section-sparkle" width="16" height="16" viewBox="0 0 24 24" fill="var(--purple-light)"><path d="M12 2 L14 10 L22 12 L14 14 L12 22 L10 14 L2 12 L10 10 Z"/></svg>最新旅伴揪團</h2>
-          <p>根據目前公開行程的資訊整理。</p>
-        </div>
-        <a class="section-link" href="{{ url_for('member.create_trip') if is_member else url_for('register') }}">發起揪團 →</a>
-      </div>
-      <div class="companion-grid">
-        {% for comp in companions %}
-          <article class="companion-card">
-            <h3>{{ comp.trip_name }}</h3>
-            <p>{{ comp.country or '未設定國家' }}{% if comp.city %} · {{ comp.city }}{% endif %} · {{ comp.owner_nickname or comp.owner_name or '未提供' }}</p>
-            {% if comp.introduction %}<p class="intro">{{ comp.introduction }}</p>{% endif %}
-            <p>預計 {{ comp.people_count }} 人{% if comp.joined_count is not none %} · 已加入 {{ comp.joined_count }} 人{% endif %}</p>
-            {% if trips_timeline_json.get(comp.trip_id|string) %}<button class="view-button" type="button" onclick="openTripModal('{{ comp.trip_id }}')">查看行程</button>{% endif %}
-          </article>
-        {% else %}
-          <div class="empty"><img class="empty-mascot" src="{{ url_for('static', filename='images/mascot_frog.png') }}" alt="">目前沒有公開的旅伴揪團資訊。</div>
-        {% endfor %}
-      </div>
-    </section>
-    <section id="album" class="album-section">
-      <div class="section-header"><div><p class="eyebrow" style="color: var(--purple-light)">TRAVEL ALBUM</p><h2>旅遊相簿</h2><p>旅伴分享的景點實拍照片與心得。</p></div></div>
-      <div class="album-grid">
-        {% for post in recent_album_posts %}<a class="album-card" href="{{ (url_for('member.attraction_detail', attraction_id=post.attraction_id) + '#album') if is_member else url_for('login') }}"><img src="{{ url_for('static', filename=post.image_path) }}" alt="{{ post.attraction_name }}" loading="lazy"><div class="album-card-body"><b>{{ post.attraction_name }}</b>{% if post.caption %}<p>{{ post.caption }}</p>{% endif %}<span>{{ post.nickname or post.full_name }}</span></div></a>
-        {% else %}<div class="empty">還沒有人分享景點照片。</div>{% endfor %}
-      </div>
-    </section>
-    {% endif %}
     {% if not is_member %}
     <section class="member-unlock" aria-labelledby="member-unlock-title">
       <div class="member-unlock-mascots">
@@ -798,12 +722,6 @@
     </div>
   </div>
   {% endif %}
-  <div class="modal" id="weatherModal" onclick="if (event.target === this) closeWeatherModal()">
-    <div class="modal-card">
-      <button class="modal-close" type="button" onclick="closeWeatherModal()" aria-label="關閉">×</button>
-      <div id="weatherModalBody"></div>
-    </div>
-  </div>
   <script>
     const trips = {{ trips_timeline_json | tojson }};
     function escapeHtml(value) {
@@ -860,32 +778,10 @@
     function closeTripModal() {
       document.getElementById('tripModal').classList.remove('open');
     }
-    const cityWeather = {{ city_weather | tojson }};
-    function formatWeatherDate(dateStr) {
-      const parts = (dateStr || '').split('-');
-      return parts.length === 3 ? parts[1] + '/' + parts[2] : (dateStr || '');
-    }
-    function openWeatherModal(cityName) {
-      const weather = cityWeather[cityName];
-      if (!weather) return;
-      const rows = weather.days.map((day) =>
-        '<tr><td>' + escapeHtml(formatWeatherDate(day.date)) + '</td>' +
-        '<td>' + day.emoji + ' ' + escapeHtml(day.weather) + '</td>' +
-        '<td>' + escapeHtml(String(day.min)) + '° ～ ' + escapeHtml(String(day.max)) + '°</td></tr>'
-      ).join('');
-      document.getElementById('weatherModalBody').innerHTML =
-        '<h2>' + escapeHtml(cityName) + ' 未來 7 天天氣預報</h2>' +
-        '<p class="modal-meta weather-source">資料來源：中央氣象署開放資料平台</p>' +
-        '<table class="weather-forecast-table">' + rows + '</table>';
-      document.getElementById('weatherModal').classList.add('open');
-    }
-    function closeWeatherModal() {
-      document.getElementById('weatherModal').classList.remove('open');
-    }
   </script>
   <script src="{{ url_for('static', filename='js/city-autocomplete.js') }}" defer></script>
 {% if is_member %}{% include 'member/_notification_drawer.html' %}<script src="{{ url_for('static', filename='js/member_notifications.js') }}" defer></script>
-<script src="{{ url_for('static', filename='js/voice-input.js') }}" defer></script>
+<script src="{{ url_for('static', filename='js/voice-input.js') }}" defer></script>{% endif %}
 <script>
   (function () {  // 快速建立行程：把輸入的城市名稱對應到 city_id
     var input = document.getElementById('quickCityInput');
@@ -903,7 +799,7 @@
   })();
   (function () {  // 送出後 AI 需要一點時間，鎖住按鈕並告訴使用者正在做什麼
     var form = document.getElementById('aiHomeForm');
-    if (!form) return;
+    if (!form || form.method.toLowerCase() !== 'post') return;  // 訪客版表單只是導向登入頁
     form.addEventListener('submit', function () {
       var button = document.getElementById('aiHomeSubmit');
       button.disabled = true;
@@ -919,9 +815,65 @@
       input.focus();
     });
   });
-</script>{% endif %}
+</script>
 <script src="{{ url_for('static', filename='js/member-nav.js') }}" defer></script>
   <script>
+    (function () {  // 熱門公開行程：卡片捲到畫面裡時才一張接一張彈跳出現
+      var grid = document.querySelector('[data-bounce-grid]');
+      if (!grid || !('IntersectionObserver' in window)) return;
+      if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+      var cards = Array.prototype.slice.call(grid.querySelectorAll('.trip-card'));
+      cards.forEach(function (card) {
+        card.classList.add('is-armed');
+        card.addEventListener('animationend', function (e) {
+          if (e.animationName === 'card-pop') card.classList.remove('is-armed', 'is-in');  // 進場完就移除，之後才能用滑過跳一下的動畫
+        });
+      });
+      var observer = new IntersectionObserver(function (entries) {
+        entries.forEach(function (entry) {
+          if (!entry.isIntersecting) return;
+          entry.target.classList.add('is-in');
+          observer.unobserve(entry.target);
+        });
+      }, { threshold: 0.15 });
+      cards.forEach(function (card) { observer.observe(card); });
+    })();
+    (function () {  // 「選我選我！」：每隔幾秒隨機挑一張畫面上看得到的卡片跳兩下、冒出泡泡，讓區塊更有活力
+      var grid = document.querySelector('[data-bounce-grid]');
+      if (!grid || window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+      var LINES = ['選我選我！', '帶我去玩～', '點我看看！', '我超好玩的！', '一起出發吧！', '看我看我～'];
+      var cards = Array.prototype.slice.call(grid.querySelectorAll('.trip-card'));
+      if (!cards.length) return;
+      var visible = new Set(), last = null, hovering = false;
+      cards.forEach(function (card) {
+        card.addEventListener('mouseenter', function () {
+          hovering = true;
+          var bubble = card.querySelector('.pick-me');
+          if (bubble && !card.classList.contains('is-cheering')) bubble.textContent = LINES[Math.floor(Math.random() * LINES.length)];
+        });
+        card.addEventListener('mouseleave', function () { hovering = false; });
+      });
+      if ('IntersectionObserver' in window) {  // 只挑畫面上看得到的卡片
+        var seen = new IntersectionObserver(function (entries) {
+          entries.forEach(function (e) { if (e.isIntersecting) visible.add(e.target); else visible.delete(e.target); });
+        }, { threshold: 0.6 });
+        cards.forEach(function (card) { seen.observe(card); });
+      } else {
+        cards.forEach(function (card) { visible.add(card); });
+      }
+      function cheer() {
+        if (document.hidden || hovering) return;  // 使用者正在看某張卡片時不打擾
+        var pool = Array.prototype.filter.call(cards, function (c) { return visible.has(c) && c !== last && !c.classList.contains('is-armed'); });
+        if (!pool.length) return;
+        var card = pool[Math.floor(Math.random() * pool.length)];
+        last = card;
+        var bubble = card.querySelector('.pick-me');
+        if (bubble) bubble.textContent = LINES[Math.floor(Math.random() * LINES.length)];
+        card.classList.add('is-cheering');
+        setTimeout(function () { card.classList.remove('is-cheering'); }, 1900);
+      }
+      setInterval(cheer, 2800);
+    })();
     (function () {  // 首頁圖片跑馬燈：自動輪播、左右切換、圓點切換、滑動切換
       var root = document.querySelector('[data-home-carousel]');
       if (!root) return;

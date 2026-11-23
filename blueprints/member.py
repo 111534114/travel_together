@@ -3,6 +3,7 @@ from datetime import date, datetime, timedelta, time as dt_time
 from decimal import ROUND_DOWN, Decimal, InvalidOperation
 from io import BytesIO
 import json
+import weather
 import os
 import re
 import secrets
@@ -25,6 +26,8 @@ from content_moderation import is_image_explicit
 from chat_moderation import REMOVED_CHAT_CONTENT, blocked_term, remove_trip_message
 import smart_trip
 import trip_request
+import proposal_review
+from place_matching import SITE_PLACE_COLUMNS, find_site_place, search_site_places
 import currency_rates
 import theme_parks
 import weather
@@ -522,9 +525,58 @@ def dashboard():
         cursor.close(); connection.close()
     return render_template(
         "visitor.html", is_member=True, line_status=line_status,
-        trips_timeline_json=trips_timeline_json, city_weather={}, issue_reasons=ISSUE_REASONS,
+        trips_timeline_json=trips_timeline_json, issue_reasons=ISSUE_REASONS,
         home_banners=home_banners, featured_trips=featured_trips, planning_trips=planning_trips,
         quick_cities=quick_cities,
+    )
+
+
+WEEKDAY_LABELS = "一二三四五六日"
+
+
+def _weather_default_cities(all_weather):
+    """還沒自選縣市時預設顯示的縣市：公開行程的目的地(只有台灣縣市查得到)，都沒有就顯示台北市。"""
+    connection = get_db_connection()
+    if connection is None:
+        return ["台北市"] if "台北市" in all_weather else list(all_weather)[:1]
+    cursor = connection.cursor(dictionary=True)
+    try:
+        cursor.execute("""
+            SELECT DISTINCT ci.name AS city
+            FROM trips t JOIN cities ci ON ci.city_id = t.city_id
+            WHERE t.visibility = 'public' AND t.moderation_status = 'visible' AND t.deleted_at IS NULL
+        """)
+        names = [weather.normalize_city_name(row["city"]) for row in cursor.fetchall() if row.get("city")]
+    except Exception as error:
+        print("目的地天氣預設縣市查詢失敗：", error)
+        names = []
+    finally:
+        cursor.close(); connection.close()
+    defaults = [name for name in dict.fromkeys(names) if name in all_weather]
+    if not defaults and all_weather:
+        defaults = ["台北市"] if "台北市" in all_weather else list(all_weather)[:1]
+    return defaults
+
+
+@member_bp.route("/weather")  # 訪客不用登入也能看(跟旅遊相簿一致)：自選縣市的中央氣象署 7 天預報
+def weather_page():
+    all_weather = weather.get_all_county_weather()
+    for data in all_weather.values():  # 幫每一天加上「週幾」，頁面顯示用
+        for day in data["days"]:
+            try:
+                day["weekday"] = "週" + WEEKDAY_LABELS[datetime.strptime(day["date"], "%Y-%m-%d").weekday()]
+            except (TypeError, ValueError):
+                day["weekday"] = ""
+    regions = [(region, [name for name in names if name in all_weather]) for region, names in weather.COUNTY_REGIONS]
+    return render_template(
+        "member/weather.html",
+        city_weather=all_weather,
+        weather_regions=[(region, names) for region, names in regions if names],
+        weather_defaults=_weather_default_cities(all_weather),
+        weather_summary={  # 地圖滑過縣市時的提示文字，例如「☀️ 晴時多雲 22°～28°」
+            name: f"{data['today']['emoji']} {data['today']['weather']} {data['today']['min']}°～{data['today']['max']}°"
+            for name, data in all_weather.items()
+        },
     )
 
 
@@ -738,8 +790,7 @@ def public_trips():
     return render_template("member/public_trips.html", trips=visible_trips, filters=filters)
 
 
-@member_bp.route("/announcements")
-@login_required("member")
+@member_bp.route("/announcements")  # 訪客不用登入也能看(跟旅遊相簿一致)，只顯示已發布的公告
 def announcements_page():
     connection = _connection_or_home()
     if connection is None:
@@ -2143,6 +2194,41 @@ def _load_place_options(cursor, city_id):
     return options
 
 
+# 新增行程項目的「名稱搜尋」：景點／餐廳／住宿只能從網站資料裡選(避免亂打名稱)，找不到再送交管理員審核
+PLACE_SEARCH_TABLES = {
+    "attraction": ("attractions", "attraction_id", "ticket_price"),
+    "restaurant": ("restaurants", "restaurant_id", "0"),
+    "accommodation": ("accommodations", "accommodation_id", "price_per_night"),
+}
+
+
+@member_bp.route("/trips/<int:trip_id>/place-search")
+@login_required("member")
+def search_trip_places(trip_id):
+    """輸入名稱時跳出的選項：同城市的排前面，再來是同國家的；沒輸入時列出同城市的熱門選項。"""
+    item_type = request.args.get("type", "")
+    keyword = request.args.get("q", "").strip()[:50]
+    if item_type not in PLACE_SEARCH_TABLES:
+        return jsonify(places=[])
+    connection = get_db_connection()
+    if connection is None:
+        return jsonify(places=[]), 503
+    cursor = connection.cursor(dictionary=True)
+    try:
+        trip = _member_access(cursor, trip_id, session["user_id"])
+        if not trip:
+            return jsonify(places=[]), 403
+        rows = search_site_places(cursor, item_type, keyword, trip["city_id"], trip["country_id"])
+        places = [{
+            "id": row["id"], "name": row["name"], "address": row["address"] or "", "city": row["city"] or "",
+            "cost": float(row["cost"] or 0), "same_city": bool(row["same_city"]),
+            "image": url_for("static", filename=row["image_path"]) if row["image_path"] else "",
+        } for row in rows]
+        return jsonify(places=places, city=trip["city"])
+    finally:
+        cursor.close(); connection.close()
+
+
 @member_bp.route("/trips/<int:trip_id>")
 @login_required("member")
 def trip_detail(trip_id):
@@ -2630,6 +2716,7 @@ def add_itinerary(trip_id):
     connection = _connection_or_home()
     if connection is None: return redirect(url_for("member.dashboard"))
     cursor = connection.cursor(dictionary=True)
+    catalog_proposal_id = None  # 勾選「送交管理員審核收錄」時，commit 後請 AI 小幫手在背景先檢查
     try:
         trip = _member_access(cursor, trip_id, session["user_id"])
         if not trip or not _can_edit(trip):
@@ -2637,31 +2724,49 @@ def add_itinerary(trip_id):
         title = request.form.get("title", "").strip(); item_type=request.form.get("item_type", "other")
         day = request.form.get("itinerary_date", "")
         start, end, is_all_day, transport_minutes, time_errors = _parse_itinerary_time(request.form)
+        wants_catalog = request.form.get("submit_for_catalog") == "on" and item_type in ("attraction", "restaurant", "accommodation")
         if not title or not day: flash("請填寫項目名稱與日期。", "error")
         elif time_errors:
             for error in time_errors: flash(error, "error")
+        elif wants_catalog and not request.form.get("address", "").strip():
+            flash("勾選「送交管理員審核收錄」時，請填寫地點，管理員才能確認這個地方。", "error")
+        elif (item_type in PLACE_SEARCH_TABLES and not wants_catalog
+              and request.form.get("custom_place") != "1"  # 使用者刻意選了「只加進我的行程」(不送審)
+              and not find_site_place(cursor, item_type, title, trip["country_id"])):
+            label = {"attraction": "景點", "restaurant": "餐廳", "accommodation": "住宿"}[item_type]
+            flash(f"網站裡找不到「{title}」這個{label}。請從清單選一個；找不到的話，可以選「只加進我的行程」或「送交管理員審核收錄」。", "error")
         else:
+            # 從清單選的網站資料：連結到那筆景點／餐廳／住宿，行程地圖、智慧排程、行程助理才拿得到座標
+            site_place = None
+            if item_type in PLACE_SEARCH_TABLES and not wants_catalog and request.form.get("custom_place") != "1":
+                site_place = find_site_place(cursor, item_type, title, trip["country_id"])
+            link_column = SITE_PLACE_COLUMNS[item_type][3] if site_place else "attraction_id"
+            link_id = site_place["id"] if site_place else None
             cursor.execute("SELECT COALESCE(MAX(sort_order),0)+1 AS next_order FROM itineraries WHERE trip_id=%s AND itinerary_date=%s", (trip_id,day)); order=cursor.fetchone()["next_order"]
             address = request.form.get("address","").strip() or None
-            cursor.execute("""INSERT INTO itineraries (trip_id,created_by,itinerary_date,item_type,title,start_time,end_time,is_all_day,address,transport_method,transport_minutes,estimated_cost,notes,sort_order)
-                              VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)""", (trip_id,session["user_id"],day,item_type,title,start,end,is_all_day,address,request.form.get("transport_method","").strip() or None,transport_minutes,request.form.get("estimated_cost") or 0,request.form.get("notes","").strip() or None,order))
+            cursor.execute(f"""INSERT INTO itineraries (trip_id,created_by,itinerary_date,item_type,title,start_time,end_time,is_all_day,address,transport_method,transport_minutes,estimated_cost,notes,{link_column},sort_order)
+                              VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)""", (trip_id,session["user_id"],day,item_type,title,start,end,is_all_day,address,request.form.get("transport_method","").strip() or None,transport_minutes,request.form.get("estimated_cost") or 0,request.form.get("notes","").strip() or None,link_id,order))
 
             # 使用者勾選「這個地點不在清單中，送交管理員審核收錄」：這筆送審資料跟上面的旅伴提案投票
             # 是分開的兩件事，用 is_catalog_submission 標記，不會出現在這趟行程的提案投票清單給旅伴看，
             # 只會進到管理員的審核佇列，核准後才會正式收錄進對應的資料表供所有人使用
             catalog_note = ""
-            if request.form.get("submit_for_catalog") == "on" and item_type in ("attraction", "restaurant", "accommodation"):
+            if wants_catalog:
                 cursor.execute("""INSERT INTO proposals (trip_id,proposer_id,proposal_type,title,location,description,estimated_cost,content_review_status,is_catalog_submission)
                                   VALUES (%s,%s,%s,%s,%s,%s,%s,'pending',1)""",
                                (trip_id, session["user_id"], item_type, title, address,
                                 request.form.get("notes","").strip() or None, request.form.get("estimated_cost") or 0))
+                catalog_proposal_id = cursor.lastrowid
                 catalog_note = "，已送交管理員審核，通過後會正式收錄進資料庫"
 
             connection.commit(); flash(f"已加入每日行程{catalog_note}。", "success")
     except Exception:
         connection.rollback(); flash("儲存行程項目失敗。", "error")
+        catalog_proposal_id = None
     finally:
         cursor.close(); connection.close()
+    if catalog_proposal_id:
+        proposal_review.schedule_new_proposal(catalog_proposal_id)
     return redirect(url_for("member.trip_detail", trip_id=trip_id) + "#itinerary")
 
 
@@ -3091,6 +3196,7 @@ def add_proposal(trip_id):
     connection = _connection_or_home()
     if connection is None: return redirect(url_for("member.dashboard"))
     cursor = connection.cursor(dictionary=True)
+    review_proposal_id = None  # 需要審核的提案送出後，請 AI 小幫手在背景先幫管理員檢查
     try:
         trip = _member_access(cursor, trip_id, session["user_id"])
         title = request.form.get("title", "").strip()
@@ -3112,15 +3218,20 @@ def add_proposal(trip_id):
             review_status = "pending" if needs_review else "not_required"
             cursor.execute("""INSERT INTO proposals (trip_id,proposer_id,proposal_type,title,location,description,estimated_cost,proposed_date,website_url,image_path,content_review_status)
                               VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)""", (trip_id, session["user_id"], proposal_type, title, request.form.get("location", "").strip() or None, request.form.get("description", "").strip() or None, request.form.get("estimated_cost") or 0, request.form.get("proposed_date") or None, website_url, image_path, review_status))
+            new_proposal_id = cursor.lastrowid
             connection.commit()
             if needs_review:
+                review_proposal_id = new_proposal_id
                 flash("提案已送出，旅伴可以先討論；新增景點、餐廳或住宿須經內容管理員審核後才會正式收錄。", "success")
             else:
                 flash("提案已送出，旅伴現在可以一起討論。", "success")
     except Exception:
         connection.rollback(); flash("送出提案失敗。", "error")
+        review_proposal_id = None
     finally:
         cursor.close(); connection.close()
+    if review_proposal_id:
+        proposal_review.schedule_new_proposal(review_proposal_id)
     return redirect(url_for("member.trip_detail", trip_id=trip_id) + "#proposals")
 
 

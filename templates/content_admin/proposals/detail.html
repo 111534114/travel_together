@@ -6,6 +6,7 @@
 {% block page_subtitle %}核准、退回或修正這筆會員提案{% endblock %}
 
 {% block content %}
+{% include "content_admin/proposals/_ai_styles.html" %}
 
 <div class="admin-section">
 
@@ -62,6 +63,95 @@
         {% endif %}
     </div>
 
+    {% if needs_review %}
+    {# AI 小幫手的小紙條 #}
+    {% set result = review.result if review and review.status == 'done' else {} %}
+    {% set suggestions = result.get('suggestions', {}) %}
+    <section class="ai-card" aria-labelledby="aiCardTitle" data-ai-status="{{ review.status if review else '' }}">
+        <div class="ai-card-head">
+            <h3 id="aiCardTitle">🤖 小幫手的小紙條</h3>
+            <div>{% include "content_admin/proposals/_ai_badge.html" %}</div>
+        </div>
+
+        {% if not review %}
+            <p>小幫手還沒檢查這筆提案。按下面的「請小幫手檢查」就會開始。</p>
+        {% elif review.status in ('queued', 'running') %}
+            <p>小幫手正在檢查中，大約 10～30 秒。這個頁面會自動重新整理。</p>
+        {% elif review.status == 'failed' %}
+            <p>這次檢查失敗了：{{ review.error_message or '原因不明' }}。可以按「再檢查一次」。</p>
+        {% else %}
+            {% if result.reasons %}
+            <div class="ai-section-title">小幫手怎麼想</div>
+            <ul>{% for reason in result.reasons %}<li>{{ reason }}</li>{% endfor %}</ul>
+            {% endif %}
+
+            <div class="ai-section-title">電腦規則檢查</div>
+            <ul class="ai-checks">
+                {% for check in result.get('checks', []) %}<li>{{ '✅' if check.ok else '❌' }} {{ check.text }}</li>{% endfor %}
+            </ul>
+
+            {% set match = result.get('google_match') %}
+            {% if match %}
+            <div class="ai-section-title">Google 地圖查到的地點</div>
+            <div class="ai-place">
+                <b>{{ match.name }}</b>{% if match.category_name %}（{{ match.category_name }}）{% endif %}<br>
+                {{ match.address or '' }}<br>
+                {% if match.opening_hours %}營業時間：{{ match.opening_hours }}<br>{% endif %}
+                {% if match.latitude and match.longitude %}<a href="https://www.google.com/maps/search/?api=1&query={{ match.latitude }},{{ match.longitude }}" target="_blank" rel="noopener">在 Google 地圖打開 ↗</a>{% endif %}
+            </div>
+            {% endif %}
+
+            {% if result.get('duplicates') %}
+            {% set edit_endpoints = {'attraction': ('attractions.edit_attraction', 'attraction_id'), 'restaurant': ('restaurants.edit_restaurant', 'restaurant_id'), 'accommodation': ('accommodations.edit_accommodation', 'accommodation_id')} %}
+            <div class="ai-section-title">名稱很像的資料（請確認是不是同一個地方）</div>
+            <ul>
+                {% for dup in result.duplicates %}
+                <li>
+                    {% if dup.source == 'catalog' %}
+                        {% set ep = edit_endpoints[proposal.proposal_type] %}
+                        網站資料：<a href="{{ url_for(ep[0], **{ep[1]: dup.id}) }}" target="_blank" rel="noopener">{{ dup.name }}</a>
+                    {% else %}
+                        待審提案：<a href="{{ url_for('proposals.view_proposal', proposal_id=dup.id) }}" target="_blank" rel="noopener">{{ dup.name }}</a>
+                    {% endif %}
+                    （像 {{ (dup.score * 100)|round|int }}%）{% if dup.address %}— {{ dup.address }}{% endif %}
+                </li>
+                {% endfor %}
+            </ul>
+            {% endif %}
+
+            {% if suggestions %}
+            <div class="ai-section-title">小幫手建議補上的資料</div>
+            <ul>
+                {% if suggestions.location %}<li>地點：{{ suggestions.location }}</li>{% endif %}
+                {% if suggestions.website_url %}<li>網址：{{ suggestions.website_url }}</li>{% endif %}
+                {% if suggestions.description %}<li>介紹：{{ suggestions.description }}</li>{% endif %}
+                {% if suggestions.opening_hours %}<li>營業時間：{{ suggestions.opening_hours }}（收下時自動帶入）</li>{% endif %}
+                {% if suggestions.latitude %}<li>地圖座標（收下時自動帶入）</li>{% endif %}
+            </ul>
+            {% endif %}
+        {% endif %}
+
+        <div class="ai-actions">
+            {% if suggestions %}
+            <button type="button" class="small-button" id="aiFillForm"
+                    data-location="{{ suggestions.location or '' }}" data-website="{{ suggestions.website_url or '' }}"
+                    data-description="{{ suggestions.description or '' }}">📝 把建議填進下面的表格</button>
+            {% endif %}
+            {% if result.get('return_note') %}
+            <button type="button" class="small-button" id="aiFillReturn" data-note="{{ result.return_note }}">↩ 用小幫手寫的退回原因</button>
+            {% endif %}
+            {% if not review or review.status not in ('queued', 'running') %}
+            <form method="POST" action="{{ url_for('proposals.rerun_ai_review', proposal_id=proposal.proposal_id) }}">
+                <button type="submit" class="small-button">🔄 {{ '再檢查一次' if review else '請小幫手檢查' }}</button>
+            </form>
+            {% endif %}
+        </div>
+        {% if review and review.status == 'done' %}
+        <p class="ai-note">檢查時間：{{ review.updated_at }}{% if review.model %}・{{ 'AI 暫時不能用，只做了規則檢查' if review.model == 'rules-only' else '使用 ' ~ review.model }}{% endif %}。小幫手只負責給建議，收下或退回還是由你決定。</p>
+        {% endif %}
+    </section>
+    {% endif %}
+
     <form method="POST" action="{{ url_for('proposals.update_proposal', proposal_id=proposal.proposal_id) }}" class="content-form">
 
         <div class="form-grid">
@@ -113,7 +203,7 @@
 
         <form method="POST" action="{{ url_for('proposals.return_proposal', proposal_id=proposal.proposal_id) }}"
               onsubmit="return confirm('確定要退回這筆提案嗎？');" style="display:flex; gap:10px; align-items:center;">
-            <input type="text" name="review_note" placeholder="退回原因（必填）" required style="padding:10px; border:1px solid #ccc; border-radius:8px; width:260px;">
+            <input type="text" name="review_note" id="returnNote" maxlength="500" placeholder="退回原因（必填，會通知提案的會員）" required style="padding:10px; border:1px solid #ccc; border-radius:8px; width:300px;">
             <button type="submit" class="disable-button">↩ 退回提案</button>
         </form>
 
@@ -124,5 +214,33 @@
     </p>
 
 </div>
+
+<script>
+    (function () {
+        // 「把建議填進下面的表格」：只填進表格，管理員檢查後自己按「修正並儲存」
+        var fill = document.getElementById('aiFillForm');
+        if (fill) fill.addEventListener('click', function () {
+            var pairs = [['location', fill.dataset.location], ['website_url', fill.dataset.website], ['description', fill.dataset.description]];
+            var changed = 0;
+            pairs.forEach(function (pair) {
+                var input = document.getElementById(pair[0]);
+                if (input && pair[1]) { input.value = pair[1]; input.style.background = '#fffbe6'; changed += 1; }
+            });
+            fill.textContent = changed ? '✓ 已填好，檢查後按「修正並儲存」' : '沒有可以填的資料';
+            var title = document.getElementById('title');
+            if (title) title.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        });
+        var note = document.getElementById('aiFillReturn');
+        if (note) note.addEventListener('click', function () {
+            var input = document.getElementById('returnNote');
+            input.value = note.dataset.note; input.focus();
+        });
+        // 小幫手檢查中：每 8 秒自動重新整理，看到結果就停
+        var card = document.querySelector('[data-ai-status]');
+        if (card && (card.dataset.aiStatus === 'queued' || card.dataset.aiStatus === 'running')) {
+            setTimeout(function () { location.reload(); }, 8000);
+        }
+    })();
+</script>
 
 {% endblock %}

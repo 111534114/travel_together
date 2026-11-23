@@ -3,6 +3,8 @@ from flask import Blueprint, flash, redirect, render_template, request, session,
 from activity_log import log_action  # 匯入操作紀錄共用函式
 from auth import login_required  # 匯入登入/角色檢查裝飾器
 from db import get_db_connection  # 匯入取得資料庫連線的函式
+import proposal_review  # 提案 AI 小幫手(預審、自動收下)
+from proposal_actions import approve_proposal_record, return_proposal_record  # 收下／退回共用邏輯(含通知會員)
 
 proposals_bp = Blueprint("proposals", __name__, url_prefix="/content-admin/proposals")  # 建立提案審核藍圖，網址前綴 /content-admin/proposals
 
@@ -42,6 +44,9 @@ def _linked_item_edit_url(proposal):  # 定義內部函式：如果這筆提案�
 @login_required("content_admin")  # 限制只有內容管理員登入後才能存取
 def list_proposals():  # 定義提案列表頁函式
     status = request.args.get("status", "pending").strip()  # 取得網址上的狀態篩選參數，預設待審核
+    ai_filter = request.args.get("ai", "").strip()  # AI 小幫手建議篩選：approve / return / needs_human / unreviewed
+    if ai_filter not in ("approve", "return", "needs_human", "unreviewed"):
+        ai_filter = ""
     page = request.args.get("page", "1")  # 取得頁碼參數(字串)
     page = int(page) if page.isdigit() and int(page) > 0 else 1  # 驗證頁碼為正整數，否則預設第 1 頁
 
@@ -55,23 +60,36 @@ def list_proposals():  # 定義提案列表頁函式
         return render_template(  # 回傳空清單頁面
             "content_admin/proposals/list.html",
             proposals=[], status=status, status_labels=STATUS_LABELS,
-            page=1, total_pages=1, total=0
+            page=1, total_pages=1, total=0, reviews={}, ai_filter=ai_filter, auto_approve=False, ai_enabled=False,
+            ai_missing_message=proposal_review.TABLE_MISSING_MESSAGE,
+            ai_labels=proposal_review.RECOMMENDATION_LABELS,
         )
 
     cursor = connection.cursor(dictionary=True)  # 建立字典格式游標
 
     try:  # 開始查詢資料
+        ai_enabled = proposal_review.table_available(cursor)  # AI 預審資料表能不能用(不存在時試著建立)
+        if not ai_enabled:
+            ai_filter = ""
+        ai_join = "LEFT JOIN proposal_ai_reviews ar ON ar.proposal_id = p.proposal_id" if ai_enabled else ""
         params = []  # 建立 SQL 參數清單
-        where_clause = ""  # 預設沒有篩選條件(顯示全部)
+        conditions = []  # 篩選條件
 
         if status != "all":  # 如果不是要看全部
-            where_clause = "WHERE p.content_review_status = %s"  # 加上依審核狀態篩選的條件
+            conditions.append("p.content_review_status = %s")  # 加上依審核狀態篩選的條件
             params.append(status)  # 加入對應參數
+        if ai_filter == "unreviewed":
+            conditions.append("p.proposal_type IN ('attraction','restaurant','accommodation') AND (ar.status IS NULL OR ar.status <> 'done')")
+        elif ai_filter:
+            conditions.append("ar.status = 'done' AND ar.recommendation = %s")
+            params.append(ai_filter)
+        where_clause = ("WHERE " + " AND ".join(conditions)) if conditions else ""
 
         cursor.execute(  # 查詢符合條件的提案總筆數(用來算分頁)
             f"""
             SELECT COUNT(*) AS total
             FROM proposals p
+            {ai_join}
             {where_clause}
             """,
             params
@@ -90,6 +108,7 @@ def list_proposals():  # 定義提案列表頁函式
             FROM proposals p
             JOIN trips t ON t.trip_id = p.trip_id
             JOIN users u ON u.user_id = p.proposer_id
+            {ai_join}
             {where_clause}
             ORDER BY p.created_at DESC
             LIMIT %s OFFSET %s
@@ -97,6 +116,8 @@ def list_proposals():  # 定義提案列表頁函式
             params + [PAGE_SIZE, offset]  # 加上分頁用的 LIMIT、OFFSET 參數
         )
         proposals = cursor.fetchall()  # 取出當頁提案清單
+        reviews = proposal_review.get_reviews(cursor, [p["proposal_id"] for p in proposals])  # 每筆的 AI 小紙條
+        auto_approve, _ = proposal_review.auto_approve_setting(cursor) if ai_enabled else (False, None)  # 自動收下開關
 
     finally:  # 不論成功或失敗都要執行
         cursor.close()  # 關閉游標
@@ -111,6 +132,12 @@ def list_proposals():  # 定義提案列表頁函式
         page=page,  # 目前頁碼
         total_pages=total_pages,  # 總頁數
         total=total,  # 符合條件的總筆數
+        reviews=reviews,  # {proposal_id: AI 預審結果}
+        ai_filter=ai_filter,  # 目前的 AI 建議篩選
+        ai_labels=proposal_review.RECOMMENDATION_LABELS,
+        auto_approve=auto_approve,
+        ai_enabled=ai_enabled,  # False 代表 AI 預審資料表還沒建立
+        ai_missing_message=proposal_review.TABLE_MISSING_MESSAGE,
     )
 
 
@@ -139,6 +166,7 @@ def view_proposal(proposal_id):  # 定義提案詳情頁函式
             (proposal_id,)
         )
         proposal = cursor.fetchone()  # 取出這筆提案資料(查無資料則為 None)
+        review = proposal_review.get_reviews(cursor, [proposal_id]).get(proposal_id) if proposal else None  # AI 小紙條
 
     finally:  # 不論成功或失敗都要執行
         cursor.close()  # 關閉游標
@@ -155,7 +183,17 @@ def view_proposal(proposal_id):  # 定義提案詳情頁函式
         type_labels=PROPOSAL_TYPE_LABELS,  # 提案類型對應的中文名稱
         needs_review=proposal["proposal_type"] in CATALOG_TABLES,  # 這個類型核准後是否會自動建立正式資料
         linked_item_edit_url=_linked_item_edit_url(proposal),  # 如果已經建立正式資料，給編輯連結
+        review=review,  # AI 小幫手的預審結果(還沒檢查過是 None)
+        ai_labels=proposal_review.RECOMMENDATION_LABELS,
     )
+
+
+def _ai_suggestions(cursor, proposal_id):
+    """AI 預審從 Google 查到、規則也確認過的欄位(座標、營業時間)，收下時一起帶進正式資料。"""
+    review = proposal_review.get_reviews(cursor, [proposal_id]).get(proposal_id)
+    if not review or review.get("status") != "done":
+        return None
+    return review["result"].get("suggestions")
 
 
 @proposals_bp.route("/<int:proposal_id>/approve", methods=["POST"])  # 設定核准提案的路由，網址帶入提案 ID
@@ -167,89 +205,17 @@ def approve_proposal(proposal_id):  # 定義核准提案函式
         flash("資料庫連線失敗", "error")  # 顯示錯誤提示
         return redirect(url_for("proposals.view_proposal", proposal_id=proposal_id))  # 導回提案詳情頁
 
-    cursor = connection.cursor(dictionary=True)  # 建立字典格式游標(要讀取提案內容才能決定要不要建立正式資料)
+    cursor = connection.cursor(dictionary=True)  # 建立字典格式游標
 
-    try:  # 嘗試更新資料
-        cursor.execute(  # 查詢提案內容，連同所屬行程的國家/城市(新資料的國家/城市就跟著這趟行程走)
-            """
-            SELECT p.proposal_id, p.proposal_type, p.title, p.location, p.description,
-                   p.estimated_cost, p.website_url, p.linked_item_id,
-                   t.country_id, t.city_id
-            FROM proposals p
-            JOIN trips t ON t.trip_id = p.trip_id
-            WHERE p.proposal_id = %s
-            """,
-            (proposal_id,)
+    try:  # 嘗試更新資料(建立正式資料、更新狀態、寫紀錄、通知會員，都在 proposal_actions 裡)
+        ok, message = approve_proposal_record(
+            cursor, proposal_id, session["user_id"], log_action, suggestions=_ai_suggestions(cursor, proposal_id)
         )
-        proposal = cursor.fetchone()  # 取出提案資料
-
-        if proposal is None:  # 如果提案不存在(理論上不會發生，防呆用)
-            flash("找不到這筆提案", "error")  # 顯示錯誤提示
-            return redirect(url_for("proposals.list_proposals"))  # 導回提案列表頁
-
-        created_note = ""  # 建立正式資料後，要附加在成功訊息裡的補充說明
-
-        # 景點/餐廳/住宿類型的提案，核准時要順便在對應的正式資料表建一筆新資料(狀態設為待確認，
-        # 因為提案沒有分類等欄位，需要管理員再進去補齊才能正式啟用)；linked_item_id 有值代表之前已經建立過，
-        # 不要重複建立(例如退回後又重新核准的情況)
-        catalog = CATALOG_TABLES.get(proposal["proposal_type"])
-        if catalog and not proposal["linked_item_id"]:
-            table, id_column, edit_endpoint = catalog
-            name = proposal["title"]
-            address = proposal["location"]
-            description = proposal["description"]
-            website_url = proposal["website_url"]
-            country_id = proposal["country_id"]
-            city_id = proposal["city_id"]
-
-            if proposal["proposal_type"] == "attraction":
-                cursor.execute(
-                    """
-                    INSERT INTO attractions (name, country_id, city_id, address, ticket_price, description, website_url, status, created_by)
-                    VALUES (%s,%s,%s,%s,%s,%s,%s,'pending',%s)
-                    """,
-                    (name, country_id, city_id, address, proposal["estimated_cost"] or 0, description, website_url, session["user_id"])
-                )
-            elif proposal["proposal_type"] == "restaurant":
-                cursor.execute(
-                    """
-                    INSERT INTO restaurants (name, country_id, city_id, address, description, website_url, status, created_by)
-                    VALUES (%s,%s,%s,%s,%s,%s,'pending',%s)
-                    """,
-                    (name, country_id, city_id, address, description, website_url, session["user_id"])
-                )
-            else:  # accommodation
-                cursor.execute(
-                    """
-                    INSERT INTO accommodations (name, country_id, city_id, address, price_per_night, description, website_url, status, created_by)
-                    VALUES (%s,%s,%s,%s,%s,%s,%s,'pending',%s)
-                    """,
-                    (name, country_id, city_id, address, proposal["estimated_cost"] or 0, description, website_url, session["user_id"])
-                )
-
-            new_item_id = cursor.lastrowid  # 取得剛剛建立的新資料 ID
-            log_action(  # 把這次建立正式資料的動作也寫入操作紀錄
-                cursor, "create_from_proposal", proposal["proposal_type"], new_item_id,
-                f"由提案核准建立：{name}（提案 #{proposal_id}），狀態為待確認，請補齊分類等資訊"
-            )
-            cursor.execute(  # 把新建立的資料 ID 記回提案，避免之後重複核准時又建立第二筆
-                "UPDATE proposals SET linked_item_id = %s WHERE proposal_id = %s",
-                (new_item_id, proposal_id)
-            )
-            created_note = "，已自動建立一筆對應資料(狀態為待確認)，請記得補上分類、地址等資訊後再啟用"
-
-        cursor.execute(  # 執行核准提案的 SQL：更新審核狀態、審核者、審核時間，並清空之前的退回原因
-            """
-            UPDATE proposals
-            SET content_review_status = 'approved',
-                reviewed_by = %s, reviewed_at = NOW(), review_note = NULL
-            WHERE proposal_id = %s
-            """,
-            (session["user_id"], proposal_id)
-        )
-        log_action(cursor, "approve_proposal", "proposal", proposal_id, "核准提案")  # 寫入操作紀錄
-        connection.commit()  # 提交交易(提案狀態、新建立的正式資料、操作紀錄一起寫入)
-        flash(f"提案已核准{created_note}", "success")  # 顯示成功訊息
+        if not ok:
+            flash(message, "error")
+            return redirect(url_for("proposals.list_proposals"))
+        connection.commit()  # 提交交易(提案狀態、新建立的正式資料、操作紀錄、通知一起寫入)
+        flash(message, "success")  # 顯示成功訊息
     except Exception as error:  # 如果更新過程發生例外
         connection.rollback()  # 回復交易
         print("核准提案失敗：", error)  # 在伺服器端印出錯誤內容
@@ -276,21 +242,15 @@ def return_proposal(proposal_id):  # 定義退回提案函式
         flash("資料庫連線失敗", "error")  # 顯示錯誤提示
         return redirect(url_for("proposals.view_proposal", proposal_id=proposal_id))  # 導回提案詳情頁
 
-    cursor = connection.cursor()  # 建立一般游標
+    cursor = connection.cursor(dictionary=True)  # 建立字典格式游標
 
-    try:  # 嘗試更新資料
-        cursor.execute(  # 執行退回提案的 SQL：更新審核狀態、審核者、審核時間、退回原因
-            """
-            UPDATE proposals
-            SET content_review_status = 'returned',
-                reviewed_by = %s, reviewed_at = NOW(), review_note = %s
-            WHERE proposal_id = %s
-            """,
-            (session["user_id"], review_note, proposal_id)
-        )
-        log_action(cursor, "return_proposal", "proposal", proposal_id, f"退回提案，原因：{review_note}")  # 寫入操作紀錄
-        connection.commit()  # 提交交易(提案狀態與操作紀錄一起寫入)
-        flash("提案已退回", "success")  # 顯示成功訊息
+    try:  # 嘗試更新資料(更新狀態、寫紀錄、通知會員)
+        ok, message = return_proposal_record(cursor, proposal_id, session["user_id"], review_note[:500], log_action)
+        if not ok:
+            flash(message, "error")
+            return redirect(url_for("proposals.list_proposals"))
+        connection.commit()  # 提交交易
+        flash(message, "success")  # 顯示成功訊息
     except Exception as error:  # 如果更新過程發生例外
         connection.rollback()  # 回復交易
         print("退回提案失敗：", error)  # 在伺服器端印出錯誤內容
@@ -300,6 +260,134 @@ def return_proposal(proposal_id):  # 定義退回提案函式
         connection.close()  # 關閉資料庫連線
 
     return redirect(url_for("proposals.view_proposal", proposal_id=proposal_id))  # 導回提案詳情頁
+
+
+@proposals_bp.route("/<int:proposal_id>/ai-review", methods=["POST"])  # 管理員按「再檢查一次」
+@login_required("content_admin")
+def rerun_ai_review(proposal_id):
+    connection = get_db_connection()
+    if connection is None:
+        flash("資料庫連線失敗", "error")
+        return redirect(url_for("proposals.view_proposal", proposal_id=proposal_id))
+    cursor = connection.cursor(dictionary=True)
+    queued = False
+    try:
+        queued, message = proposal_review.request_review(cursor, proposal_id, session["user_id"], manual=True)
+        if queued:
+            log_action(cursor, "ai_review_proposal", "proposal", proposal_id, "請 AI 小幫手重新檢查提案")
+        connection.commit()
+        flash(message, "success" if queued else "error")
+    except Exception as error:
+        connection.rollback()
+        print("排入 AI 預審失敗：", error)
+        flash("小幫手暫時沒辦法檢查，請稍後再試", "error")
+    finally:
+        cursor.close()
+        connection.close()
+    if queued:
+        proposal_review.start_review(proposal_id)
+    return redirect(url_for("proposals.view_proposal", proposal_id=proposal_id))
+
+
+@proposals_bp.route("/ai-review/pending", methods=["POST"])  # 一次請小幫手檢查所有還沒檢查過的待審提案
+@login_required("content_admin")
+def review_all_pending():
+    connection = get_db_connection()
+    if connection is None:
+        flash("資料庫連線失敗", "error")
+        return redirect(url_for("proposals.list_proposals"))
+    cursor = connection.cursor(dictionary=True)
+    queued_ids = []
+    try:
+        for proposal_id in proposal_review.pending_without_review(cursor, limit=30):
+            queued, _ = proposal_review.request_review(cursor, proposal_id, session["user_id"])
+            if queued:
+                queued_ids.append(proposal_id)
+        if queued_ids:
+            log_action(cursor, "ai_review_proposal", "proposal", None, f"請 AI 小幫手檢查 {len(queued_ids)} 筆待審提案")
+        connection.commit()
+        if queued_ids:
+            flash(f"已請小幫手檢查 {len(queued_ids)} 筆提案，一筆大約 10～30 秒，等一下重新整理就能看到結果", "success")
+        else:
+            flash("沒有需要檢查的提案：待審核的提案都已經檢查過了", "success")
+    except Exception as error:
+        connection.rollback()
+        print("排入 AI 預審失敗：", error)
+        queued_ids = []
+        flash("小幫手暫時沒辦法檢查，請稍後再試", "error")
+    finally:
+        cursor.close()
+        connection.close()
+    for proposal_id in queued_ids:
+        proposal_review.start_review(proposal_id)
+    return redirect(url_for("proposals.list_proposals", status="pending"))
+
+
+@proposals_bp.route("/batch-approve", methods=["POST"])  # 勾選多筆，一次收下
+@login_required("content_admin")
+def batch_approve():
+    ids = []
+    for value in request.form.getlist("proposal_ids"):
+        if value.isdigit() and int(value) not in ids:
+            ids.append(int(value))
+    back = redirect(url_for("proposals.list_proposals", status="pending", ai=request.form.get("ai", "")))
+    if not ids:
+        flash("請先勾選要收下的提案", "error")
+        return back
+    if len(ids) > 100:
+        flash("一次最多收下 100 筆", "error")
+        return back
+    connection = get_db_connection()
+    if connection is None:
+        flash("資料庫連線失敗", "error")
+        return back
+    cursor = connection.cursor(dictionary=True)
+    try:
+        approved, skipped = 0, 0
+        for proposal_id in ids:
+            ok, _ = approve_proposal_record(
+                cursor, proposal_id, session["user_id"], log_action,
+                suggestions=_ai_suggestions(cursor, proposal_id), require_pending=True,
+            )
+            if ok:
+                approved += 1
+            else:
+                skipped += 1
+        connection.commit()
+        flash(f"已收下 {approved} 筆提案，並通知提案的會員" + (f"；{skipped} 筆已經不是待審核，略過" if skipped else ""), "success")
+    except Exception as error:
+        connection.rollback()
+        print("批次核准提案失敗：", error)
+        flash("一次收下失敗，所有提案都沒有變動，請再試一次", "error")
+    finally:
+        cursor.close()
+        connection.close()
+    return back
+
+
+@proposals_bp.route("/auto-approve", methods=["POST"])  # 自動收下開關
+@login_required("content_admin")
+def toggle_auto_approve():
+    enabled = request.form.get("enabled") == "1"
+    connection = get_db_connection()
+    if connection is None:
+        flash("資料庫連線失敗", "error")
+        return redirect(url_for("proposals.list_proposals"))
+    cursor = connection.cursor(dictionary=True)
+    try:
+        proposal_review.set_auto_approve(cursor, enabled, session["user_id"])
+        log_action(cursor, "toggle_proposal_auto_approve", "setting", None,
+                   "開啟提案自動收下" if enabled else "關閉提案自動收下")
+        connection.commit()
+        flash("已開啟自動收下：小幫手檢查全部通過的提案會自動收下" if enabled else "已關閉自動收下", "success")
+    except Exception as error:
+        connection.rollback()
+        print("切換自動收下失敗：", error)
+        flash("切換失敗，請再試一次", "error")
+    finally:
+        cursor.close()
+        connection.close()
+    return redirect(url_for("proposals.list_proposals"))
 
 
 @proposals_bp.route("/<int:proposal_id>/update", methods=["POST"])  # 設定修正提案內容的路由，網址帶入提案 ID

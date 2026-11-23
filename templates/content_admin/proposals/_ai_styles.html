@@ -1,0 +1,34 @@
+{# 提案 AI 小幫手共用樣式(列表頁、詳情頁) #}
+<style>
+    .ai-badge { display: inline-flex; align-items: center; gap: 4px; padding: 3px 10px; border-radius: 999px; font-size: 13px; font-weight: 700; white-space: nowrap; }
+    .ai-badge.approve { color: #1d6b3a; background: #e3f5e9; }
+    .ai-badge.return { color: #9a4a00; background: #fff0dc; }
+    .ai-badge.needs_human { color: #4b5563; background: #eef0f3; }
+    .ai-badge.waiting { color: #2f6b8a; background: #e6f3f8; }
+    .ai-badge.failed { color: #a11d2b; background: #fde8ea; }
+    .ai-summary { display: block; margin-top: 4px; color: #6b7280; font-size: 12px; line-height: 1.4; max-width: 240px; }
+    .ai-toolbar { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; margin: 0 0 16px; padding: 14px 18px; background: #f6fbfb; border: 1px solid #d7e8ea; border-radius: 12px; }
+    .ai-toolbar h3 { margin: 0; font-size: 16px; }
+    .ai-toolbar p { margin: 2px 0 0; color: #6b7280; font-size: 13px; }
+    .ai-toolbar-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
+    .ai-switch { display: inline-flex; align-items: center; gap: 8px; padding: 7px 12px; font: inherit; font-size: 14px; font-weight: 600; background: #fff; border: 1px solid #c9dcdf; border-radius: 999px; cursor: pointer; }
+    .ai-switch .dot { width: 34px; height: 20px; border-radius: 999px; background: #cbd5e1; position: relative; transition: background .2s; }
+    .ai-switch .dot::after { content: ""; position: absolute; top: 2px; left: 2px; width: 16px; height: 16px; border-radius: 50%; background: #fff; transition: left .2s; box-shadow: 0 1px 2px rgba(0,0,0,.2); }
+    .ai-switch.on .dot { background: #2f8f5b; }
+    .ai-switch.on .dot::after { left: 16px; }
+    .ai-filter { display: flex; flex-wrap: wrap; gap: 8px; margin: 0 0 14px; }
+    .ai-filter a { padding: 5px 12px; color: #426064; font-size: 13px; text-decoration: none; background: #fff; border: 1px solid #d2e4e6; border-radius: 999px; }
+    .ai-filter a.active { color: #fff; background: #4b838b; border-color: #4b838b; }
+    .batch-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin: 0 0 12px; }
+    .batch-bar .count { color: #6b7280; font-size: 13px; }
+    .ai-card { margin: 0 0 22px; padding: 18px 20px; background: #fbfdfd; border: 1px solid #d7e8ea; border-radius: 14px; }
+    .ai-card-head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 10px; }
+    .ai-card-head h3 { margin: 0; font-size: 17px; }
+    .ai-card ul { margin: 6px 0 0; padding-left: 20px; }
+    .ai-card li { margin: 3px 0; line-height: 1.5; }
+    .ai-checks { list-style: none; padding-left: 0 !important; }
+    .ai-section-title { margin: 14px 0 4px; font-size: 14px; font-weight: 700; color: #426064; }
+    .ai-place { padding: 10px 12px; background: #fff; border: 1px solid #e1ebec; border-radius: 10px; font-size: 14px; line-height: 1.6; }
+    .ai-actions { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 14px; }
+    .ai-note { margin-top: 10px; color: #6b7280; font-size: 12px; }
+</style>

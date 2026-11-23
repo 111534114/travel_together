@@ -6,6 +6,76 @@
     display: none;
 }
 
+/* 側欄底部的登出／登入文字置中(所有頁面共用) */
+.member-shell .side-link.side-logout,
+.member-shell .side-link.side-login {
+    text-align: center;
+    justify-content: center;
+}
+
+/* 電腦版左側欄的 logo：放大，右邊站著三小隻(手機版頂部列的大小在下方 850px 規則裡，三小隻在手機版隱藏) */
+.brand-mascots {
+    display: none;
+}
+
+@media (min-width: 851px) {
+    .member-shell .member-sidenav .brand {
+        justify-content: center;
+        gap: 2px;
+        width: auto;
+        height: 92px;
+        margin: 0 0 14px;
+        text-decoration: none;
+    }
+
+    .member-shell .member-sidenav .brand > img {
+        flex-shrink: 0;
+        width: auto;
+        height: 100%;
+    }
+
+    .member-shell .member-sidenav .brand .brand-mascots {
+        display: flex;
+        align-items: flex-end;
+        align-self: flex-end;
+        padding-bottom: 6px;
+        pointer-events: none;
+    }
+
+    .member-shell .member-sidenav .brand .brand-mascots img {
+        display: block;
+        width: auto;
+        height: 36px;
+        object-fit: contain;
+        filter: drop-shadow(0 4px 4px rgba(11, 59, 74, .22));
+        animation: brand-mascot-bob 3.2s ease-in-out infinite;
+    }
+
+    .member-shell .member-sidenav .brand .brand-mascots img:nth-child(1) { margin-right: -7px; }
+    .member-shell .member-sidenav .brand .brand-mascots img:nth-child(2) { position: relative; z-index: 1; height: 46px; margin-right: -7px; animation-duration: 3.6s; animation-delay: .3s; }
+    .member-shell .member-sidenav .brand .brand-mascots img:nth-child(3) { animation-duration: 3s; animation-delay: .6s; }
+
+    /* 滑過 logo：三小隻一起跳一下 */
+    .member-shell .member-sidenav .brand:hover .brand-mascots img { animation: brand-mascot-hop .6s ease-out; }
+    .member-shell .member-sidenav .brand:hover .brand-mascots img:nth-child(2) { animation-delay: .08s; }
+    .member-shell .member-sidenav .brand:hover .brand-mascots img:nth-child(3) { animation-delay: .16s; }
+}
+
+@keyframes brand-mascot-bob {
+    0%, 100% { transform: translateY(0); }
+    50% { transform: translateY(-6px); }
+}
+
+@keyframes brand-mascot-hop {
+    0%, 100% { transform: translateY(0); }
+    40% { transform: translateY(-14px) rotate(-6deg); }
+    70% { transform: translateY(0) scale(1.06, .94); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .member-shell .member-sidenav .brand .brand-mascots img { animation: none !important; }
+}
+
 @media (max-width: 850px) {
     /* 電腦版側欄和內容之間的 36px 間距，手機版上下排列時會變成多餘的空白 */
     .member-shell {

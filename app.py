@@ -36,12 +36,13 @@ from blueprints.attraction_posts_admin import attraction_posts_admin_bp
 from blueprints.friend_groups import friend_groups_bp  # 匯入交友揪團(會員端)的藍圖
 from blueprints.friend_groups_admin import friend_groups_admin_bp  # 匯入交友揪團(後台審核)的藍圖
 from content_admin_permissions import CONTENT_ADMIN_ACTIONS, content_admin_can
-from blueprints.member import COMMENT_REPORT_PREFIX, ISSUE_PREFIX, member_bp  # 匯入會員功能的藍圖
+from blueprints.member import COMMENT_REPORT_PREFIX, ISSUE_PREFIX, member_bp, _fetch_featured_public_trips  # 匯入會員功能的藍圖
 from blueprints.line_webhook import line_webhook_bp  # 匯入 LINE 官方帳號 webhook 的藍圖
+from blueprints.trip_assistant import trip_assistant_bp  # 匯入行程助理(行程頁 AI 聊天)的藍圖
 from blueprints.home_banners import fetch_active_banners, home_banners_bp  # 匯入首頁輪播圖(跑馬燈)後台與首頁查詢
 from activity_log import ACTION_LABELS, log_action
 from mailer import send_password_reset_email  # 匯入忘記密碼重設信的寄送函式
-from utils import google_maps_url, google_maps_embed_url, format_hm, friend_group_feature_enabled  # 匯入組 Google 地圖連結/嵌入縮圖地圖、格式化 TIME 欄位、查交友揪團總開關的共用函式，註冊成樣板全域函式讓所有頁面都能直接呼叫
+from utils import google_maps_url, google_maps_embed_url, format_hm, friend_group_feature_enabled, get_cities  # 匯入組 Google 地圖連結/嵌入縮圖地圖、格式化 TIME 欄位、查交友揪團總開關的共用函式，註冊成樣板全域函式讓所有頁面都能直接呼叫
 import weather  # 匯入中央氣象署天氣預報模組(訪客頁面「目的地天氣」功能用)
 import amadeus_client  # 匯入 Amadeus 機票比價 API 模組(機票搜尋的真實即時報價，備用資料來源)
 import serpapi_flights  # 匯入 SerpApi 的 Google Flights 模組(機票搜尋的真實即時報價，優先資料來源)
@@ -203,6 +204,7 @@ app.register_blueprint(home_banners_bp)  # 註冊首頁輪播圖管理路由
 app.register_blueprint(friend_groups_bp)  # 註冊交友揪團(會員端)路由
 app.register_blueprint(friend_groups_admin_bp)  # 註冊交友揪團(後台審核)路由
 app.register_blueprint(member_bp)  # 註冊會員功能路由
+app.register_blueprint(trip_assistant_bp)  # 註冊行程助理(AI 聊天)路由
 app.register_blueprint(line_webhook_bp)  # 註冊 LINE 官方帳號 webhook 路由
 
 
@@ -265,148 +267,15 @@ def index():  # 定義首頁進入點函式
 
 @app.route("/visitor")
 def visitor():
+    """訪客首頁：版面與會員首頁相同，AI 排行程、套用、收藏等功能需登入才能使用。"""
+    home_banners, featured_trips, trips_timeline_json, quick_cities = [], [], {}, []
     connection = get_db_connection()
-
-    stats = {
-        'total_trips': 0,
-        'total_members': 0,
-        'total_expenses': '0'
-    }
-    public_trips = []
-    companions = []
-    announcements = []
-    trips_timeline_json = {}
-    city_weather = {}
-    recent_album_posts = []
-    home_banners = []
-
     if connection:
         cursor = connection.cursor(dictionary=True)
-        home_banners = fetch_active_banners(cursor)  # 0. 首頁圖片跑馬燈(後台可修改)，獨立查詢，失敗不影響其他區塊
         try:
-            # 1. 查詢真實統計數據
-            cursor.execute("SELECT COUNT(*) AS total FROM trips WHERE deleted_at IS NULL")
-            stats['total_trips'] = cursor.fetchone()['total'] or 0
-
-            cursor.execute("SELECT COUNT(*) AS total FROM users WHERE role = 'member' AND status != 'deleted'")
-            stats['total_members'] = cursor.fetchone()['total'] or 0
-
-            cursor.execute("SELECT COALESCE(SUM(amount), 0) AS total FROM expenses")
-            total_exp = cursor.fetchone()['total'] or 0
-            stats['total_expenses'] = f"{total_exp:,.0f}"
-
-            # 2. 查詢訪客可見的已發布公告
-            cursor.execute("""
-                SELECT announcement_id, title, content, is_pinned, publish_at, created_at
-                FROM announcements
-                WHERE status = 'published'
-                  AND (publish_at IS NULL OR publish_at <= NOW())
-                ORDER BY is_pinned DESC, publish_at DESC, created_at DESC
-                LIMIT 6
-            """)
-            announcements = cursor.fetchall()
-
-            # 3. 查詢會員建立的公開行程列表
-            cursor.execute("""
-                SELECT t.trip_id, t.trip_name, co.name AS country, ci.name AS city,
-                       t.start_date, t.end_date, t.people_count,
-                       t.total_budget, t.currency, t.introduction,
-                       t.cover_image_path, t.visibility,
-                       c.category_name,
-                       u.full_name AS owner_name,
-                       u.nickname AS owner_nickname,
-                       DATEDIFF(t.end_date, t.start_date) + 1 AS days_count
-                FROM trips t
-                JOIN users u ON u.user_id = t.owner_id
-                JOIN countries co ON co.country_id = t.country_id
-                JOIN cities ci ON ci.city_id = t.city_id
-                LEFT JOIN categories c ON c.category_id = t.category_id
-                WHERE t.visibility = 'public' AND t.moderation_status = 'visible' AND t.deleted_at IS NULL
-                ORDER BY t.trip_id DESC
-            """)
-            public_trips = cursor.fetchall()
-
-            # 3-1. 依公開行程的目的地城市，查詢中央氣象署天氣預報(僅支援台灣縣市，查不到的城市會被忽略)
-            trip_cities = [t['city'] for t in public_trips if t.get('city')]
-            city_weather = weather.get_weather_by_cities(trip_cities)
-
-            # 4. 查詢最新揪團旅伴資訊
-            cursor.execute("""
-                SELECT t.trip_id, t.trip_name, co.name AS country, ci.name AS city,
-                       t.people_count, t.total_budget, t.currency, t.introduction,
-                       u.full_name AS owner_name, u.nickname AS owner_nickname,
-                       COUNT(tm.user_id) AS joined_count
-                FROM trips t
-                JOIN users u ON u.user_id = t.owner_id
-                JOIN countries co ON co.country_id = t.country_id
-                JOIN cities ci ON ci.city_id = t.city_id
-                LEFT JOIN trip_members tm ON tm.trip_id = t.trip_id AND tm.join_status = 'accepted'
-                WHERE (t.visibility = 'public' OR t.people_count > 1)
-                  AND t.moderation_status = 'visible' AND t.deleted_at IS NULL
-                GROUP BY t.trip_id, t.trip_name, co.name, ci.name, t.people_count, t.total_budget, t.currency, t.introduction, u.full_name, u.nickname
-                ORDER BY t.trip_id DESC
-                LIMIT 6
-            """)
-            companions = cursor.fetchall()
-
-            cursor.execute("""
-                SELECT p.post_id, pi.image_path, p.caption,
-                       a.attraction_id, a.name AS attraction_name,
-                       u.nickname, u.full_name
-                FROM attraction_posts p
-                JOIN (
-                    SELECT post_id, MIN(sort_order) AS min_order
-                    FROM attraction_post_images GROUP BY post_id
-                ) first_img ON first_img.post_id = p.post_id
-                JOIN attraction_post_images pi
-                  ON pi.post_id = p.post_id AND pi.sort_order = first_img.min_order
-                JOIN attractions a ON a.attraction_id = p.attraction_id
-                JOIN users u ON u.user_id = p.user_id
-                WHERE p.review_status = 'approved'
-                ORDER BY p.created_at DESC LIMIT 8
-            """)
-            recent_album_posts = cursor.fetchall()
-
-            # 5. 查詢所有公開行程的每日詳細景點明細 (提供 Modal 彈窗即時動態預覽)
-            if public_trips:
-                trip_ids = [t['trip_id'] for t in public_trips]
-                format_strings = ','.join(['%s'] * len(trip_ids))
-                cursor.execute(f"""
-                    SELECT i.itinerary_id, i.trip_id, i.itinerary_date,
-                           i.title, i.start_time, i.end_time, i.address,
-                           i.estimated_cost
-                    FROM itineraries i
-                    WHERE i.trip_id IN ({format_strings})
-                    ORDER BY i.itinerary_date ASC, i.start_time ASC
-                """, tuple(trip_ids))
-                all_itineraries = cursor.fetchall()
-
-                for trip in public_trips:
-                    tid = trip['trip_id']
-                    t_items = [item for item in all_itineraries if item['trip_id'] == tid]
-
-                    timeline = []
-                    for idx, item in enumerate(t_items, 1):
-                        date_str = str(item['itinerary_date']) if item['itinerary_date'] else f"第 {idx} 天"
-                        time_str = f" ({format_hm(item['start_time'])} - {format_hm(item['end_time'])})" if item['start_time'] else ""
-                        addr_str = f" ｜ 地址: {item['address']}" if item['address'] else ""
-                        cost_str = f" (預估金額: NT$ {item['estimated_cost']:,.0f})" if item['estimated_cost'] else ""
-                        timeline.append({
-                            'day': f"📍 {date_str}{time_str}",
-                            'desc': f"{item['title']}{addr_str}{cost_str}"
-                        })
-
-                    trips_timeline_json[str(tid)] = {
-                        'title': trip['trip_name'],
-                        'author': trip['owner_nickname'] or trip['owner_name'],
-                        'days': f"{trip['days_count']} 天",
-                        'budget': (
-                            f"{trip['currency']} {trip['total_budget']:,.0f}"
-                            if trip['total_budget'] is not None else "未提供預算"
-                        ),
-                        'timeline': timeline
-                    }
-
+            home_banners = fetch_active_banners(cursor)  # 首頁圖片跑馬燈(後台可修改)
+            featured_trips, trips_timeline_json = _fetch_featured_public_trips(cursor, None)  # 熱門公開行程(訪客沒有收藏/回報紀錄)
+            quick_cities = get_cities(cursor)
         except Exception as error:
             print("訪客頁面資料庫查詢失敗：", error)
         finally:
@@ -415,14 +284,12 @@ def visitor():
 
     return render_template(
         "visitor.html",
-        stats=stats,
-        announcements=announcements,
-        public_trips=public_trips,
-        companions=companions,
+        is_member=False,
         trips_timeline_json=trips_timeline_json,
-        city_weather=city_weather,
-        recent_album_posts=recent_album_posts,
         home_banners=home_banners,
+        featured_trips=featured_trips,
+        planning_trips=[],
+        quick_cities=quick_cities,
     )
 
 

@@ -1,0 +1,37 @@
+{# 行程助理聊天框(每日行程旁邊)。對話只有自己看得到；改行程要按「套用」，只有建立者／共同編輯者能套用。 #}
+<section class="trip-assistant" data-trip-assistant
+         data-url="{{ url_for('trip_assistant.history', trip_id=trip.trip_id) }}"
+         data-ask-url="{{ url_for('trip_assistant.ask', trip_id=trip.trip_id) }}"
+         data-apply-url="{{ url_for('trip_assistant.apply', trip_id=trip.trip_id) }}"
+         data-dismiss-url="{{ url_for('trip_assistant.dismiss', trip_id=trip.trip_id) }}"
+         data-undo-url="{{ url_for('trip_assistant.undo', trip_id=trip.trip_id) }}"
+         data-clear-url="{{ url_for('trip_assistant.clear', trip_id=trip.trip_id) }}"
+         aria-label="行程助理">
+    <header class="ta-head">
+        <div>
+            <b>🤖 行程助理</b>
+            <small>對話只有你看得到・改行程前會先給你看</small>
+        </div>
+        <button type="button" class="ta-clear" data-ta-clear title="清除我的對話紀錄">清除</button>
+    </header>
+
+    <div class="ta-messages" data-ta-messages aria-live="polite">
+        <div class="ta-welcome" data-ta-welcome>
+            <p>嗨！我可以幫你調整這趟行程，也可以回答問題。試試看：</p>
+            <div class="ta-examples">
+                <button type="button" data-ta-example="第二天排輕鬆一點，不要走太多路">第二天排輕鬆一點</button>
+                <button type="button" data-ta-example="如果下雨，有哪些室內的景點可以換？">下雨換室內景點</button>
+                <button type="button" data-ta-example="在第一個景點附近加一間午餐的餐廳">附近加一間午餐</button>
+                <button type="button" data-ta-example="這趟的預算夠嗎？">預算夠嗎？</button>
+            </div>
+        </div>
+    </div>
+
+    <form class="ta-composer" data-ta-form>
+        <label class="visually-hidden" for="taInput">問行程助理</label>
+        <textarea id="taInput" rows="2" maxlength="500" placeholder="例如：第二天下午會下雨，換成室內的景點" data-ta-input></textarea>
+        <button type="submit" class="ta-send" data-ta-send aria-label="送出">➤</button>
+    </form>
+    <p class="ta-foot" data-ta-foot></p>
+</section>
+<script src="{{ url_for('static', filename='js/trip-assistant.js') }}" defer></script>

@@ -6,12 +6,34 @@
 {% block page_subtitle %}核准、退回或修正會員新增的景點與旅遊資料{% endblock %}
 
 {% block content %}
+{% include "content_admin/proposals/_ai_styles.html" %}
 
 <div class="type-tabs">
     <a class="{{ 'active' if status == 'pending' else '' }}" href="{{ url_for('proposals.list_proposals', status='pending') }}">待審核</a>
     <a class="{{ 'active' if status == 'approved' else '' }}" href="{{ url_for('proposals.list_proposals', status='approved') }}">已核准</a>
     <a class="{{ 'active' if status == 'returned' else '' }}" href="{{ url_for('proposals.list_proposals', status='returned') }}">已退回</a>
     <a class="{{ 'active' if status == 'all' else '' }}" href="{{ url_for('proposals.list_proposals', status='all') }}">全部</a>
+</div>
+
+{# AI 小幫手工具列：自動收下開關、一次檢查所有還沒檢查的提案 #}
+<div class="ai-toolbar">
+    <div>
+        <h3>🤖 AI 小幫手</h3>
+        <p>會員送出景點、餐廳、住宿提案後，小幫手會自動先檢查：有沒有重複、Google 地圖找不找得到、有沒有不當字詞。最後還是由你決定。</p>
+        {% if not ai_enabled %}<p style="color:#a11d2b; font-weight:600;">⚠️ {{ ai_missing_message }}。建立之前，提案審核照常可以用，只是沒有小幫手。</p>{% endif %}
+    </div>
+    <div class="ai-toolbar-actions">
+        <form method="POST" action="{{ url_for('proposals.toggle_auto_approve') }}"
+              onsubmit="return confirm('{{ '確定要關閉自動收下嗎？' if auto_approve else '打開後，小幫手檢查「全部通過」的提案會自動收下（建立的資料仍是待確認狀態）。確定要打開嗎？' }}');">
+            <input type="hidden" name="enabled" value="{{ '0' if auto_approve else '1' }}">
+            <button type="submit" class="ai-switch {{ 'on' if auto_approve else '' }}" aria-pressed="{{ 'true' if auto_approve else 'false' }}">
+                <span class="dot" aria-hidden="true"></span>自動收下：{{ '開' if auto_approve else '關' }}
+            </button>
+        </form>
+        <form method="POST" action="{{ url_for('proposals.review_all_pending') }}">
+            <button type="submit" class="small-button">請小幫手檢查還沒檢查的提案</button>
+        </form>
+    </div>
 </div>
 
 <div class="admin-section">
@@ -21,15 +43,37 @@
         <span>共 {{ total }} 筆</span>
     </div>
 
+    {% if status == 'pending' and ai_enabled %}
+    <div class="ai-filter" aria-label="依小幫手建議篩選">
+        <a class="{{ 'active' if not ai_filter else '' }}" href="{{ url_for('proposals.list_proposals', status='pending') }}">全部待審</a>
+        <a class="{{ 'active' if ai_filter == 'approve' else '' }}" href="{{ url_for('proposals.list_proposals', status='pending', ai='approve') }}">🟢 {{ ai_labels.approve }}</a>
+        <a class="{{ 'active' if ai_filter == 'return' else '' }}" href="{{ url_for('proposals.list_proposals', status='pending', ai='return') }}">🟠 {{ ai_labels['return'] }}</a>
+        <a class="{{ 'active' if ai_filter == 'needs_human' else '' }}" href="{{ url_for('proposals.list_proposals', status='pending', ai='needs_human') }}">⚪ {{ ai_labels.needs_human }}</a>
+        <a class="{{ 'active' if ai_filter == 'unreviewed' else '' }}" href="{{ url_for('proposals.list_proposals', status='pending', ai='unreviewed') }}">還沒檢查</a>
+    </div>
+    {% endif %}
+
+    <form method="POST" action="{{ url_for('proposals.batch_approve') }}" id="batchForm"
+          onsubmit="return confirmBatch();">
+    <input type="hidden" name="ai" value="{{ ai_filter }}">
+    {% if status == 'pending' and proposals %}
+    <div class="batch-bar">
+        <button type="button" class="small-button" id="selectApprove">勾選全部「{{ ai_labels.approve }}」</button>
+        <button type="submit" class="enable-button">✅ 勾選的全部收下</button>
+        <span class="count" id="batchCount">已勾選 0 筆</span>
+    </div>
+    {% endif %}
+
     <div class="table-container">
         <table class="admin-table">
             <thead>
             <tr>
+                {% if status == 'pending' %}<th><input type="checkbox" id="checkAll" aria-label="全選這一頁"></th>{% endif %}
                 <th>標題</th>
                 <th>類型</th>
+                <th>小幫手建議</th>
                 <th>所屬行程</th>
                 <th>提案人</th>
-                <th>預估花費</th>
                 <th>審核狀態</th>
                 <th>提出時間</th>
                 <th>操作</th>
@@ -37,12 +81,25 @@
             </thead>
             <tbody>
             {% for proposal in proposals %}
+            {% set review = reviews.get(proposal.proposal_id) %}
             <tr>
+                {% if status == 'pending' %}
+                <td><input type="checkbox" name="proposal_ids" value="{{ proposal.proposal_id }}" class="row-check"
+                           data-ai="{{ review.recommendation if review and review.status == 'done' else '' }}"
+                           aria-label="勾選 {{ proposal.title }}"></td>
+                {% endif %}
                 <td>{{ proposal.title }}</td>
                 <td>{{ type_labels.get(proposal.proposal_type, proposal.proposal_type) }}</td>
+                <td>
+                    {% if proposal.proposal_type in ('attraction', 'restaurant', 'accommodation') %}
+                        {% include "content_admin/proposals/_ai_badge.html" %}
+                        {% if review and review.status == 'done' and review.summary %}<span class="ai-summary">{{ review.summary }}</span>{% endif %}
+                    {% else %}
+                        <span class="ai-summary">不需要檢查</span>
+                    {% endif %}
+                </td>
                 <td>{{ proposal.trip_name }}</td>
                 <td>{{ proposal.proposer_name }}</td>
-                <td>{{ proposal.estimated_cost }}</td>
                 <td>
                     {% if proposal.content_review_status == 'approved' %}
                         <span class="status-active">{{ status_labels[proposal.content_review_status] }}</span>
@@ -60,11 +117,12 @@
                 </td>
             </tr>
             {% else %}
-            <tr><td colspan="8" class="empty-data">目前沒有提案資料</td></tr>
+            <tr><td colspan="{{ 9 if status == 'pending' else 8 }}" class="empty-data">目前沒有提案資料</td></tr>
             {% endfor %}
             </tbody>
         </table>
     </div>
+    </form>
 
     {% if total_pages > 1 %}
     <div class="pagination">
@@ -72,12 +130,36 @@
             {% if p == page %}
                 <span class="current">{{ p }}</span>
             {% else %}
-                <a href="{{ url_for('proposals.list_proposals', status=status, page=p) }}">{{ p }}</a>
+                <a href="{{ url_for('proposals.list_proposals', status=status, page=p, ai=ai_filter) }}">{{ p }}</a>
             {% endif %}
         {% endfor %}
     </div>
     {% endif %}
 
 </div>
+
+<script>
+    (function () {  // 勾選多筆一次收下：全選、只勾小幫手說「可以收下」的、顯示已勾選筆數
+        var checks = Array.prototype.slice.call(document.querySelectorAll('.row-check'));
+        var counter = document.getElementById('batchCount');
+        function update() {
+            if (counter) counter.textContent = '已勾選 ' + checks.filter(function (c) { return c.checked; }).length + ' 筆';
+        }
+        checks.forEach(function (c) { c.addEventListener('change', update); });
+        var all = document.getElementById('checkAll');
+        if (all) all.addEventListener('change', function () { checks.forEach(function (c) { c.checked = all.checked; }); update(); });
+        var pick = document.getElementById('selectApprove');
+        if (pick) pick.addEventListener('click', function () {
+            checks.forEach(function (c) { c.checked = c.dataset.ai === 'approve'; });
+            update();
+        });
+        window.confirmBatch = function () {
+            var n = checks.filter(function (c) { return c.checked; }).length;
+            if (!n) { alert('請先勾選要收下的提案'); return false; }
+            return confirm('確定要一次收下這 ' + n + ' 筆提案嗎？收下後會通知提案的會員。');
+        };
+        update();
+    })();
+</script>
 
 {% endblock %}

@@ -74,6 +74,8 @@ _ENDPOINT_ACTIONS = {
     },
     "proposals": {
         "approve_proposal": "edit", "return_proposal": "edit", "update_proposal": "edit",
+        "rerun_ai_review": "edit", "review_all_pending": "edit", "batch_approve": "edit",
+        "toggle_auto_approve": "edit",
     },
     "attraction_posts_admin": {"approve_post": "edit", "reject_post": "edit"},
     "friend_groups_admin": {

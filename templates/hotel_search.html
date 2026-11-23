@@ -124,12 +124,6 @@
       <div class="section-header">
         <div>
           <h2>住宿搜尋結果</h2>
-          <p>
-            {% if destination %}目的地：{{ destination }}{% else %}顯示全部目的地{% endif %}
-            {% if checkin and checkout %} ・ {{ checkin }} ～ {{ checkout }}{% if nights %}（{{ nights }} 晚）{% endif %}{% endif %}
-            ・ {{ party_label }}
-            ・ 共 {{ hotels|length }} 間{% if hotels|length != hotel_total %}（本頁共 {{ hotel_total }} 間）{% endif %}
-          </p>
         </div>
       </div>
       {% if hotel_source == 'db' %}<p class="live-note">{% if live_failed %}即時住宿報價暫時無法取得，以下是站內收錄的住宿，{% else %}以下是站內收錄的住宿，{% endif %}價格請向業者確認。</p>{% endif %}

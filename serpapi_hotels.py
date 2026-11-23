@@ -3,6 +3,9 @@
 每次搜尋(含「下一頁」)都會用掉 1 次 SerpApi 額度，所以同樣的搜尋條件會快取一段時間。
 沒有設定金鑰或查詢失敗時回傳 None，呼叫端自己退回資料庫的住宿資料。
 """
+import json
+import os
+import re
 import html
 import time
 from concurrent.futures import ThreadPoolExecutor
@@ -16,6 +19,20 @@ SEARCH_URL = "https://serpapi.com/search"
 CACHE_TTL_SECONDS = 60 * 60
 _cache = {}  # {查詢條件: (過期時間, 結果)}
 _name_cache = {}  # {原文飯店名稱: 中文譯名}，同一間飯店不重複翻譯
+_NAME_FILE = os.path.join(os.path.dirname(__file__), "database", "hotel_names_zh.json")
+try:  # 之前翻好的譯名(重啟後還在)
+    with open(_NAME_FILE, encoding="utf-8") as _f:
+        _name_cache.update(json.load(_f))
+except (OSError, ValueError):
+    pass
+
+
+def _save_names():
+    try:
+        with open(_NAME_FILE, "w", encoding="utf-8") as f:
+            json.dump(_name_cache, f, ensure_ascii=False, indent=0, sort_keys=True)
+    except OSError:
+        pass  # 存不下來就算了，下次再翻
 _translate_retry_at = 0  # 翻譯服務失敗(例如沒開通)後，10 分鐘內不再重試，避免每次搜尋都白打一次
 TRANSLATE_URL = "https://translation.googleapis.com/language/translate/v2"
 
@@ -35,6 +52,11 @@ AMENITY_LABELS = {
     "full-service laundry": "洗衣服務", "water park": "水上樂園",
 }
 
+
+
+def _safe(error):
+    """錯誤訊息的網址常帶著 API 金鑰(?key=...)，印到終端機前先遮掉。"""
+    return re.sub(r"(api_key|key)=[^&\s'\")]+", lambda m: m.group(1) + "=***", str(error))
 
 def is_configured():
     return bool(SERPAPI_HOTELS_API_KEY)
@@ -111,6 +133,38 @@ def _parse_detail(item, images, amenities, rating, per_night, total):
     }
 
 
+def _translate_gemini(names):
+    """用 Gemini 一次翻一批飯店名稱(每批 25 個)：品牌用台灣通用譯名，地名譯成中文，沒有通用譯名的專有名詞音譯。
+    Gemini 沒設定或失敗就略過，由下一個備案接手。"""
+    try:
+        from ai_client import AIUnavailable, ai_ready, ask_json
+    except ImportError:
+        return
+    if not ai_ready():
+        return
+    for start in range(0, len(names), 25):
+        batch = names[start:start + 25]
+        prompt = (
+            "把下面的飯店名稱翻成繁體中文(台灣用語)。規則：知名連鎖品牌用台灣通用譯名(Hilton 希爾頓、Marriott 萬豪、Hyatt 凱悅、"
+            "Holiday Inn 假日酒店、Ibis 宜必思、Novotel 諾富特、Sheraton 喜來登、Radisson 麗笙)；地名翻成中文；"
+            "沒有通用譯名的專有名詞(人名、獨立飯店名)用音譯並保留「飯店」「酒店」「旅館」「民宿」等類別字；"
+            "原名已經有中文的保持不變；不要加解釋。只回傳一個 JSON 物件，鍵是原名(必須跟輸入完全一樣)，值是中文譯名。\n"
+            + json.dumps(batch, ensure_ascii=False)
+        )
+        try:
+            result = ask_json(prompt, timeout=45)
+        except AIUnavailable as error:
+            print("飯店名稱 Gemini 翻譯失敗：", error)
+            return
+        except Exception as error:
+            print("飯店名稱 Gemini 翻譯失敗：", _safe(error))
+            return
+        for original in batch:
+            zh = result.get(original)
+            if isinstance(zh, str) and _has_cjk(zh) and len(zh) <= 80:
+                _name_cache[original] = zh.strip()
+
+
 def _translate_free(names):
     """備案：Google 翻譯網頁版使用的免金鑰接口(非官方，沒有保證，Google 隨時可能限流或停用)。
     只在官方的 Cloud Translation 沒開通或失敗時才用；一個名稱打一次，用 8 條執行緒同時翻，結果記在 _name_cache。"""
@@ -122,7 +176,7 @@ def _translate_free(names):
             text = "".join(segment[0] for segment in resp.json()[0] if segment and segment[0])
             return name, text if _has_cjk(text) else None
         except Exception as error:
-            print("飯店名稱備用翻譯失敗(維持原名)：", name, error)
+            print("飯店名稱備用翻譯失敗(維持原名)：", name, _safe(error))
             return name, None
 
     with ThreadPoolExecutor(max_workers=8) as pool:
@@ -146,11 +200,17 @@ def translate_names(hotels):
             for original, zh in zip(pending, translated):
                 _name_cache[original] = html.unescape(zh)
         except Exception as error:
-            print("飯店名稱官方翻譯失敗(改用備用接口)：", error)
+            print("飯店名稱官方翻譯失敗(改用備用接口)：", _safe(error))
             _translate_retry_at = time.time() + 600
+    pending = [name for name in pending if name not in _name_cache]
+    had_pending = bool(pending)
+    if pending:
+        _translate_gemini(pending)
     pending = [name for name in pending if name not in _name_cache]
     if pending:
         _translate_free(pending)
+    if had_pending:
+        _save_names()
     for hotel in hotels:
         zh = _name_cache.get(hotel["name"])
         if zh and zh != hotel["name"]:
@@ -220,6 +280,19 @@ def _guest_params(adults, child_ages):
 
 
 def search_hotels(destination, check_in, check_out, adults=2, page_token=None, child_ages=None):
+    """搜尋住宿。「城市 國家」(例如「馬斯喀特 阿曼」)Google 有時會因為國名有歧義(阿曼被當成約旦的安曼)而完全搜不到，
+    這種情況自動改用只有城市名再搜一次。"""
+    result = _search_hotels_once(destination, check_in, check_out, adults, page_token, child_ages)
+    if (not result or not result.get("hotels")) and not page_token and " " in (destination or "").strip():
+        city_only = destination.strip().split(" ")[0]
+        if city_only:
+            retry = _search_hotels_once(city_only, check_in, check_out, adults, page_token, child_ages)
+            if retry and retry.get("hotels"):
+                return retry
+    return result
+
+
+def _search_hotels_once(destination, check_in, check_out, adults=2, page_token=None, child_ages=None):
     """回傳 {"hotels": [...], "next_page_token": str|None}；沒金鑰、沒日期、查詢失敗都回傳 None。
     價格一律是台幣：price 是每晚、total_price 是整段住宿總價。"""
     if not is_configured() or not destination or not check_in or not check_out:
@@ -255,11 +328,38 @@ def search_hotels(destination, check_in, check_out, adults=2, page_token=None, c
                 "next_page_token": (data.get("serpapi_pagination") or {}).get("next_page_token"),
             }
     except Exception as error:
-        print("SerpApi 住宿查詢失敗：", error)
+        print("SerpApi 住宿查詢失敗：", _safe(error))
 
     if result is not None:
         _cache[cache_key] = (time.time() + CACHE_TTL_SECONDS, result)
     return result
+
+
+def _property_data(property_token, destination, check_in, check_out, adults, child_ages):
+    """單一飯店的完整資料(各網站報價、各面向評價統計⋯)，用掉 1 次額度、快取一小時。
+    「比價」和「評價整理」共用這一次查詢，不會各花一次額度。失敗回傳 None。"""
+    child_ages = tuple(child_ages or ())
+    cache_key = ("property", property_token, check_in, check_out, adults, child_ages)
+    cached = _cache.get(cache_key)
+    if cached and cached[0] > time.time():
+        return cached[1]
+    params = {
+        "engine": "google_hotels", "api_key": SERPAPI_HOTELS_API_KEY, "q": f"{destination} 飯店",
+        "check_in_date": check_in, "check_out_date": check_out,
+        "currency": "TWD", "hl": "zh-tw", "gl": "tw", "property_token": property_token, **_guest_params(adults, child_ages),
+    }
+    try:
+        resp = requests.get(SEARCH_URL, params=params, timeout=60)
+        resp.raise_for_status()
+        data = resp.json()
+    except Exception as error:
+        print("SerpApi 住宿詳細資料查詢失敗：", _safe(error))
+        return None
+    if data.get("error"):
+        print("SerpApi 住宿詳細資料查詢回傳錯誤：", data["error"])
+        return None
+    _cache[cache_key] = (time.time() + CACHE_TTL_SECONDS, data)
+    return data
 
 
 def get_offers(property_token, destination, check_in, check_out, adults=2, child_ages=None):
@@ -267,57 +367,62 @@ def get_offers(property_token, destination, check_in, check_out, adults=2, child
     回傳依每晚價格由低到高排序的清單；沒金鑰或查詢失敗回傳 None。"""
     if not is_configured() or not property_token:
         return None
-    child_ages = tuple(child_ages or ())
-    cache_key = ("offers", property_token, check_in, check_out, adults, child_ages)
-    cached = _cache.get(cache_key)
-    if cached and cached[0] > time.time():
-        return cached[1]
-
-    params = {
-        "engine": "google_hotels", "api_key": SERPAPI_HOTELS_API_KEY, "q": f"{destination} 飯店",
-        "check_in_date": check_in, "check_out_date": check_out,
-        "currency": "TWD", "hl": "zh-tw", "gl": "tw", "property_token": property_token, **_guest_params(adults, child_ages),
-    }
-    result = None
-    try:
-        resp = requests.get(SEARCH_URL, params=params, timeout=60)
-        resp.raise_for_status()
-        data = resp.json()
-        if data.get("error"):
-            print("SerpApi 住宿報價查詢回傳錯誤：", data["error"])
-        else:
-            offers = []
-            for item in data.get("prices") or []:
-                price = _price(item.get("rate_per_night"))
-                if price is None or not item.get("link"):
-                    continue
-                total = _price(item.get("total_rate"))
-                until = " ".join(part for part in (item.get("free_cancellation_until_date"), item.get("free_cancellation_until_time")) if part)
-                offers.append({
-                    "source": item.get("source") or "",
-                    "official": bool(item.get("official")),
-                    "price": float(price),
-                    "total_price": float(total) if total else None,
-                    "free_cancellation": bool(item.get("free_cancellation")),
-                    "free_until": until,
-                    "link": item["link"],
-                })
-            offers.sort(key=lambda o: o["price"])
-            result = offers
-    except Exception as error:
-        print("SerpApi 住宿報價查詢失敗：", error)
-
-    if result is not None:
-        _cache[cache_key] = (time.time() + CACHE_TTL_SECONDS, result)
-    return result
+    data = _property_data(property_token, destination, check_in, check_out, adults, child_ages)
+    if data is None:
+        return None
+    # 列表上的「最低價」取自 Google 的精選報價(featured_prices)，完整比價清單(prices)有時沒有那一家，
+    # 所以兩份合併，同一個網站只留最低的一筆，這樣清單最低價才會跟列表上看到的價格一致
+    best_by_source = {}
+    for item in (data.get("featured_prices") or []) + (data.get("prices") or []):
+        price = _price(item.get("rate_per_night"))
+        if price is None or not item.get("link"):
+            continue
+        total = _price(item.get("total_rate"))
+        until = " ".join(part for part in (item.get("free_cancellation_until_date"), item.get("free_cancellation_until_time")) if part)
+        offer = {
+            "source": item.get("source") or "",
+            "official": bool(item.get("official")),
+            "price": float(price),
+            "total_price": float(total) if total else None,
+            "free_cancellation": bool(item.get("free_cancellation")),
+            "free_until": until,
+            "link": item["link"],
+        }
+        key = offer["source"].lower() or offer["link"]
+        if key not in best_by_source or offer["price"] < best_by_source[key]["price"]:
+            best_by_source[key] = offer
+    return sorted(best_by_source.values(), key=lambda o: o["price"])
 
 
-def get_reviews(property_token, page_token=None):
+def get_review_overview(property_token, destination, check_in, check_out, adults=2, child_ages=None):
+    """住客評價總覽：星等分布，以及 Google 整理好的各面向統計(浴室、清潔、服務⋯各有幾則好評、幾則待改善)。
+    每個面向帶 token，可以用來只查該面向的留言。沒金鑰或查詢失敗回傳 None。"""
+    if not is_configured() or not property_token:
+        return None
+    data = _property_data(property_token, destination, check_in, check_out, adults, child_ages)
+    if data is None:
+        return None
+    ratings = [{"stars": r["stars"], "count": r.get("count") or 0} for r in data.get("ratings") or [] if r.get("stars")]
+    topics = []
+    for item in data.get("reviews_breakdown") or []:
+        total = item.get("total_mentioned") or 0
+        if not item.get("name") or not total:
+            continue
+        topics.append({
+            "name": item["name"], "total": total,
+            "positive": item.get("positive") or 0, "negative": item.get("negative") or 0, "neutral": item.get("neutral") or 0,
+            "token": item.get("category_token") or "",
+        })
+    topics.sort(key=lambda t: -t["total"])
+    return {"ratings": sorted(ratings, key=lambda r: -r["stars"]), "topics": topics}
+
+
+def get_reviews(property_token, page_token=None, category_token=None):
     """某間飯店的 Google 住客評論(中文、含星等、日期、全文與飯店回覆)，每次呼叫(含下一頁)用掉 1 次額度，快取一小時。
     回傳 {"reviews": [...], "next_page_token": str|None}；沒金鑰或查詢失敗回傳 None。"""
     if not is_configured() or not property_token:
         return None
-    cache_key = ("reviews", property_token, page_token or "")
+    cache_key = ("reviews", property_token, page_token or "", category_token or "")
     cached = _cache.get(cache_key)
     if cached and cached[0] > time.time():
         return cached[1]
@@ -325,6 +430,8 @@ def get_reviews(property_token, page_token=None):
     params = {"engine": "google_hotels_reviews", "api_key": SERPAPI_HOTELS_API_KEY, "property_token": property_token, "hl": "zh-tw", "gl": "tw"}
     if page_token:
         params["next_page_token"] = page_token
+    if category_token:
+        params["category_token"] = category_token  # 只查某個面向(清潔、服務⋯)的留言
     result = None
     try:
         resp = requests.get(SEARCH_URL, params=params, timeout=60)
@@ -348,7 +455,7 @@ def get_reviews(property_token, page_token=None):
                 })
             result = {"reviews": reviews, "next_page_token": (data.get("serpapi_pagination") or {}).get("next_page_token")}
     except Exception as error:
-        print("SerpApi 住宿評論查詢失敗：", error)
+        print("SerpApi 住宿評論查詢失敗：", _safe(error))
 
     if result is not None:
         _cache[cache_key] = (time.time() + CACHE_TTL_SECONDS, result)

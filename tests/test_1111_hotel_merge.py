@@ -19,13 +19,11 @@ class November11HotelMergeTests(unittest.TestCase):
         })
 
     def test_country_search_keeps_full_city_airport_catalog(self):
-        # 城市搜尋保留完整機場清單；國家搜尋才依航線資料篩選主要機場。
+        # 機場清單收所有有定期航班的機場(含國內小機場，如 GKA)；名稱是「飛行場」的(如札幌飛行場 OKD)不收。
         self.assertIsNotNone(airports.get_airport("KEF"))
         self.assertIsNotNone(airports.get_airport("GKA"))
-        self.assertEqual(
-            {airport["iata"] for airport in flight_links.country_airports("冰島")},
-            {"KEF", "RKV"},
-        )
+        self.assertIsNone(airports.get_airport("OKD"))
+        self.assertTrue({"KEF", "RKV"} <= {airport["iata"] for airport in airports.get_country_airports("Iceland")})
 
 
 if __name__ == "__main__":

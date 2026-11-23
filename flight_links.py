@@ -64,6 +64,7 @@ AIRPORT_NAME_ZH = {
     # 機場本身有專屬名稱(不是只有「城市+國際機場」這種泛稱)的，把城市名拿掉，避免跟搜尋目的地重複顯示
     # (例如搜尋「札幌」，航班卡片上的機場名稱不用再顯示一次「札幌」)。
     "TPE": "桃園國際機場", "TSA": "松山機場",
+    "KHH": "高雄小港機場", "RMQ": "台中機場",
     "NRT": "成田機場", "HND": "羽田機場",
     "KIX": "關西機場", "ITM": "伊丹機場",
     "NGO": "中部國際機場", "FUK": "福岡機場", "CTS": "新千歲機場", "OKA": "那霸機場",
@@ -99,6 +100,11 @@ CITY_NAME_ZH_DISPLAY = {en: zh for zh, en in CITY_NAME_EN.items()}
 CITY_NAME_ZH_DISPLAY.update({
     "Taipei": "台北", "Tokyo": "東京", "Osaka": "大阪", "Seoul": "首爾",
     "New York": "紐約", "London": "倫敦", "Paris": "巴黎", "Bangkok": "曼谷",
+    "Kaohsiung": "高雄", "Taichung": "台中", "Tainan": "台南", "Hualien": "花蓮", "Fengnin": "台東",
+    "Kinmen": "金門", "Makung": "澎湖", "Sapporo": "札幌", "Fukuoka": "福岡", "Nagoya": "名古屋",
+    "Okinawa": "沖繩", "Melbourne": "墨爾本", "Sydney": "雪梨", "Busan": "釜山", "Hong Kong": "香港",
+    "Singapore": "新加坡", "Los Angeles": "洛杉磯", "San Francisco": "舊金山", "Vancouver": "溫哥華",
+    "Agana": "關島",
 })
 
 
@@ -173,6 +179,114 @@ except (OSError, ValueError):
 # 中文國家名稱 -> 機場資料庫裡的英文國名：所有國家(上面那份)加上常見的別稱
 COUNTRY_NAME_EN = {zh: en for en, zh in COUNTRY_ZH.items()}
 COUNTRY_NAME_EN.update({'臺灣': 'Taiwan', '南韓': 'South Korea', '印度尼西亞': 'Indonesia', '阿聯': 'United Arab Emirates', '阿聯酋': 'United Arab Emirates', '阿拉伯聯合大公國': 'United Arab Emirates', '寮國': 'Laos', '老撾': 'Laos', '捷克共和國': 'Czech Republic', '美利堅合眾國': 'United States'})
+# 各國的正式名稱與其他常見寫法(使用者可能照官方名稱或不同譯名輸入)
+COUNTRY_NAME_EN.update({
+    '中華人民共和國': 'China', '中國大陸': 'China', '大陸': 'China', '印度尼西亞共和國': 'Indonesia', '印尼': 'Indonesia',
+    '朝鮮': 'North Korea', '朝鮮民主主義人民共和國': 'North Korea', '北韓': 'North Korea', '大韓民國': 'South Korea', '韓國': 'South Korea',
+    '吉爾吉斯斯坦': 'Kyrgyzstan', '塔吉克斯坦': 'Tajikistan', '土庫曼斯坦': 'Turkmenistan', '烏茲別克斯坦': 'Uzbekistan', '哈薩克斯坦': 'Kazakhstan',
+    '亞賽拜然': 'Azerbaijan', '阿塞拜疆': 'Azerbaijan', '文萊': 'Brunei', '馬爾代夫': 'Maldives', '卡塔爾': 'Qatar', '沙特阿拉伯': 'Saudi Arabia',
+    '格魯吉亞': 'Georgia', '孟加拉國': 'Bangladesh', '塞普勒斯': 'Cyprus', '塞浦路斯': 'Cyprus', '賽普勒斯': 'Cyprus',
+    '巴勒斯坦': 'Palestine', '巴勒斯坦自治區': 'Palestine', '緬甸': 'Myanmar', '東帝汶': 'East Timor', 'Timor-Leste': 'East Timor',
+})
+# 旅客常用、但機場中文名稱裡沒有這個字的城市/景點別名 -> 代表的機場代碼
+# (例如「普吉島」的機場叫「布吉國際機場」，只比對機場名稱會找不到)
+TOURIST_ALIAS = {
+    '京都': 'KIX', '奈良': 'KIX', '石垣島': 'ISG', '宮古島': 'MMY', '金澤': 'KMQ', '小松': 'KMQ', '濟州島': 'CJU',
+    '普吉島': 'HKT', '蘇梅島': 'USM', '蘇美島': 'USM', '芭達雅': 'UTP', '沙巴': 'BKI', '蘭卡威': 'LGK',
+    '巴里島': 'DPS', '峇里島': 'DPS', '日惹': 'JOG', '長灘島': 'MPH', '薄荷島': 'TAG', '巴拉望': 'PPS',
+    '西貢': 'SGN', '富國島': 'PQC', '吳哥窟': 'REP', '永珍': 'VTE', '龍坡邦': 'LPQ', '加德滿都': 'KTM',
+    '馬列': 'MLE', '芽莊': 'CXR', '可倫坡': 'CMB', '佛羅倫斯': 'FLR', '巴塞隆納': 'BCN', '約翰尼斯堡': 'JNB', '奈洛比': 'NBO',
+}
+# 主要機場的慣用簡稱(資料裡是冗長的紀念人物全名，例如「哈茨菲爾德－傑克遜亞特蘭大國際機場」)，
+# 由 database/airport_short_names.json 載入；下面手動指定的優先
+try:
+    with open(os.path.join(os.path.dirname(__file__), "database", "airport_short_names.json"), encoding="utf-8") as _f:
+        AIRPORT_NAME_ZH.update(json.load(_f))
+except (OSError, ValueError):
+    pass
+AIRPORT_NAME_ZH.update({"KIV": "基希涅夫國際機場", "VTZ": "維沙卡帕特南機場", "GUM": "安東尼奧B.汪帕特國際機場"})
+airports.NAME_ZH_OVERRIDES = AIRPORT_NAME_ZH  # 讓機場中文搜尋也比對這些名稱
+# 非洲各國：大陸用語、台灣用語、簡體字寫法都能搜(英文國名要跟機場資料裡的寫法一致)
+COUNTRY_NAME_EN.update({
+    '毛里塔尼亞': 'Mauritania', '毛利塔尼亞': 'Mauritania', '茅利塔尼亞': 'Mauritania',
+    '埃塞俄比亞': 'Ethiopia', '衣索比亞': 'Ethiopia', '厄立特里亞': 'Eritrea', '厄立垂亞': 'Eritrea', '厄利垂亞': 'Eritrea',
+    '肯尼亞': 'Kenya', '肯亞': 'Kenya', '盧旺達': 'Rwanda', '盧安達': 'Rwanda', '布隆迪': 'Burundi', '蒲隆地': 'Burundi',
+    '塞舌爾': 'Seychelles', '塞席爾': 'Seychelles', '乍得': 'Chad', '查德': 'Chad', '中非': 'Central African Republic', '中非共和國': 'Central African Republic',
+    '剛果共和國': 'Congo (Brazzaville)', '剛果（布）': 'Congo (Brazzaville)', '剛果(布)': 'Congo (Brazzaville)', '剛果布': 'Congo (Brazzaville)', '剛果（布拉薩）': 'Congo (Brazzaville)',
+    '剛果民主共和國': 'Congo (Kinshasa)', '剛果（金）': 'Congo (Kinshasa)', '剛果(金)': 'Congo (Kinshasa)', '剛果金': 'Congo (Kinshasa)', '剛果（金夏沙）': 'Congo (Kinshasa)',
+    '聖多美和普林西比': 'Sao Tome and Principe', '聖多美普林西比': 'Sao Tome and Principe', '聖多美': 'Sao Tome and Principe',
+    '岡比亞': 'Gambia', '甘比亞': 'Gambia', '馬里': 'Mali', '馬利': 'Mali', '布基納法索': 'Burkina Faso', '布吉納法索': 'Burkina Faso',
+    '幾內亞比紹': 'Guinea-Bissau', '幾內亞比索': 'Guinea-Bissau', '佛得角': 'Cape Verde', '維德角': 'Cape Verde',
+    '塞拉利昂': 'Sierra Leone', '獅子山': 'Sierra Leone', '利比里亞': 'Liberia', '賴比瑞亞': 'Liberia',
+    '科特迪瓦': "Cote d'Ivoire", '象牙海岸': "Cote d'Ivoire", '加納': 'Ghana', '迦納': 'Ghana', '貝寧': 'Benin', '貝南': 'Benin',
+    '尼日爾': 'Niger', '尼日': 'Niger', '尼日利亞': 'Nigeria', '奈及利亞': 'Nigeria', '贊比亞': 'Zambia', '尚比亞': 'Zambia',
+    '馬拉維': 'Malawi', '馬拉威': 'Malawi', '莫桑比克': 'Mozambique', '莫三比克': 'Mozambique', '博茨瓦納': 'Botswana', '波札那': 'Botswana',
+    '南非共和國': 'South Africa', '南非': 'South Africa', '斯威士蘭': 'Swaziland', '史瓦濟蘭': 'Swaziland', '史瓦帝尼': 'Swaziland', '埃斯瓦蒂尼': 'Swaziland',
+    '馬達加斯加': 'Madagascar', '马达加斯加': 'Madagascar', '科摩羅': 'Comoros', '葛摩': 'Comoros', '毛里求斯': 'Mauritius', '模里西斯': 'Mauritius',
+    '吉布提': 'Djibouti', '吉布地': 'Djibouti', '利比亞': 'Libya', '索馬利亞': 'Somalia', '南蘇丹': 'South Sudan',
+})
+# 北美洲與加勒比海各國：大陸用語、台灣用語、簡體字寫法都能搜
+COUNTRY_NAME_EN.update({
+    '安提瓜和巴布達': 'Antigua and Barbuda', '安地卡及巴布達': 'Antigua and Barbuda', '安提瓜': 'Antigua and Barbuda', '安提瓜和巴布达': 'Antigua and Barbuda',
+    '巴哈馬': 'Bahamas', '巴巴多斯': 'Barbados', '巴貝多': 'Barbados', '伯利茲': 'Belize', '貝里斯': 'Belize',
+    '加拿大': 'Canada', '哥斯達黎加': 'Costa Rica', '哥斯大黎加': 'Costa Rica', '古巴': 'Cuba',
+    '多米尼克': 'Dominica', '多米尼克國': 'Dominica', '多米尼加共和國': 'Dominican Republic', '多明尼加共和國': 'Dominican Republic',
+    '多明尼加': 'Dominican Republic', '多米尼加': 'Dominican Republic', '薩爾瓦多': 'El Salvador',
+    '格林達': 'Grenada', '格林納達': 'Grenada', '格瑞那達': 'Grenada', '危地馬拉': 'Guatemala', '瓜地馬拉': 'Guatemala',
+    '海地': 'Haiti', '洪都拉斯': 'Honduras', '宏都拉斯': 'Honduras', '牙買加': 'Jamaica', '墨西哥': 'Mexico',
+    '尼加拉瓜': 'Nicaragua', '巴拿馬': 'Panama',
+    '聖基茨和尼維斯': 'Saint Kitts and Nevis', '聖克里斯多福及尼維斯': 'Saint Kitts and Nevis', '聖基茨': 'Saint Kitts and Nevis', '聖克里斯多福': 'Saint Kitts and Nevis',
+    '聖盧西亞': 'Saint Lucia', '聖露西亞': 'Saint Lucia',
+    '聖文森特和格林納丁斯': 'Saint Vincent and the Grenadines', '聖文森及格瑞那丁': 'Saint Vincent and the Grenadines', '聖文森': 'Saint Vincent and the Grenadines', '聖文森特': 'Saint Vincent and the Grenadines',
+    '特立尼達和多巴哥': 'Trinidad and Tobago', '千里達及托巴哥': 'Trinidad and Tobago', '千里達': 'Trinidad and Tobago', '特立尼達': 'Trinidad and Tobago',
+    '美國': 'United States', '美利堅合眾國': 'United States', '美利堅合衆國': 'United States',
+})
+# 歐洲、南美洲、大洋洲與屬地：大陸用語、台灣用語、簡體字寫法都能搜(英文國名要跟機場資料裡的寫法一致)
+COUNTRY_NAME_EN.update({
+    '波黑': 'Bosnia and Herzegovina', '波斯尼亞和黑塞哥維那': 'Bosnia and Herzegovina', '波士尼亞': 'Bosnia and Herzegovina', '波士尼亞與赫塞哥維納': 'Bosnia and Herzegovina',
+    '克羅地亞': 'Croatia', '克羅埃西亞': 'Croatia', '意大利': 'Italy', '意大利共和國': 'Italy', '義大利': 'Italy',
+    '摩多瓦': 'Moldova', '摩爾多瓦': 'Moldova', '黑山': 'Montenegro', '蒙特內哥羅': 'Montenegro', '馬其頓': 'Macedonia', '北馬其頓': 'Macedonia',
+    '斯洛文尼亞': 'Slovenia', '斯洛維尼亞': 'Slovenia', '聯合王國': 'United Kingdom', '大不列顛': 'United Kingdom', '英國': 'United Kingdom',
+    '厄瓜多爾': 'Ecuador', '厄瓜多': 'Ecuador', '圭亞那': 'Guyana', '蓋亞那': 'Guyana', '祕魯': 'Peru', '秘魯': 'Peru', '蘇里南': 'Suriname', '蘇利南': 'Suriname',
+    '澳大利亞': 'Australia', '澳洲': 'Australia', '基里巴斯': 'Kiribati', '吉里巴斯': 'Kiribati', '密克羅尼西亞聯邦': 'Micronesia', '密克羅尼西亞': 'Micronesia',
+    '瑙魯': 'Nauru', '諾魯': 'Nauru', '新西蘭': 'New Zealand', '紐西蘭': 'New Zealand', '帕勞': 'Palau', '帛琉': 'Palau',
+    '巴布亞新幾內亞': 'Papua New Guinea', '巴布亞新畿內亞': 'Papua New Guinea', '巴布亞紐幾內亞': 'Papua New Guinea',
+    '所羅門群島': 'Solomon Islands', '湯加': 'Tonga', '東加': 'Tonga', '圖瓦盧': 'Tuvalu', '吐瓦魯': 'Tuvalu', '瓦努阿圖': 'Vanuatu', '萬那杜': 'Vanuatu',
+    '百慕大': 'Bermuda', '百慕達': 'Bermuda', '澳門': 'Macau', '澳门': 'Macau', '中國台灣': 'Taiwan', '台灣': 'Taiwan',
+    '法羅': 'Faroe Islands', '法羅群島': 'Faroe Islands', '根西島': 'Guernsey', '根息': 'Guernsey', '澤西島': 'Jersey', '澤西': 'Jersey', '馬恩島': 'Isle of Man', '曼島': 'Isle of Man',
+    '法屬波利尼西亞': 'French Polynesia', '法屬玻里尼西亞': 'French Polynesia', '留尼汪': 'Reunion', '留尼旺': 'Reunion', '馬約特': 'Mayotte', '馬約特島': 'Mayotte',
+    '馬提尼克': 'Martinique', '馬丁尼克': 'Martinique', '瓜德羅普': 'Guadeloupe', '瓜地洛普': 'Guadeloupe', '阿魯巴': 'Aruba', '阿鲁巴': 'Aruba', '荷屬阿魯巴': 'Aruba',
+    '美屬維爾京群島': 'Virgin Islands', '美屬維京群島': 'Virgin Islands', '英屬維爾京群島': 'British Virgin Islands', '英屬維京群島': 'British Virgin Islands',
+    '特克斯和凱科斯群島': 'Turks and Caicos Islands', '土克斯及開科斯群島': 'Turks and Caicos Islands', '安圭拉': 'Anguilla', '安奎拉': 'Anguilla',
+    '蒙特塞拉特': 'Montserrat', '蒙哲臘': 'Montserrat', '津巴布韋': 'Zimbabwe', '辛巴威': 'Zimbabwe', '津巴布韦': 'Zimbabwe',
+    '美屬薩摩亞': 'American Samoa', '聖誕島': 'Christmas Island', '福克蘭群島': 'Falkland Islands', '馬爾維納斯群島': 'Falkland Islands', '法屬圭亞那': 'French Guiana',
+    '荷屬安地列斯': 'Netherlands Antilles', '紐埃': 'Niue', '紐埃島': 'Niue', '諾福克島': 'Norfolk Island', '北馬里亞納群島': 'Northern Mariana Islands', '北馬利安納群島': 'Northern Mariana Islands',
+    '西撒哈拉': 'Western Sahara', '大溪地': 'French Polynesia',
+})
+# 沒有自己機場的小國：指到最近的主要機場(摩納哥靠尼斯、梵蒂岡靠羅馬⋯)
+TOURIST_ALIAS.update({
+    '摩納哥': 'NCE', '聖馬利諾': 'RMI', '聖馬力諾': 'RMI', '列支敦士登': 'ZRH', '列支敦斯登': 'ZRH', '安道爾': 'BCN',
+    '梵蒂岡': 'FCO', '科索沃': 'PRN',
+    # 沒有機場的屬地：指到最近、有航班的機場(托克勞靠薩摩亞，要搭船；皮特凱恩靠法屬玻里尼西亞的甘比爾群島)
+    '托克勞': 'APW', '托克勞群島': 'APW', '皮特凱恩群島': 'GMR', '皮特凱恩': 'GMR',
+})
+COUNTRY_NAME_EN.update({'馬裡': 'Mali', '塞舌尔': 'Seychelles', '瓦利斯和富圖納群島': 'Wallis and Futuna', '瓦利斯和富圖那群島': 'Wallis and Futuna', '瓦利斯及富圖納': 'Wallis and Futuna', '瓦利斯和富圖納': 'Wallis and Futuna', '瓦利斯群島和富圖那群島': 'Wallis and Futuna', '法屬蓋亞那': 'French Guiana', '法屬圭亞納': 'French Guiana', '德意志': 'Germany', '法蘭西': 'France', '大英': 'United Kingdom'})
+
+# 國家的官方全名後綴(阿根廷共和國、玻利維亞多民族國、委內瑞拉玻利瓦爾共和國⋯)：搜不到整串時，去掉後綴用簡稱再找
+_OFFICIAL_SUFFIXES = ('合眾國', '玻利瓦爾共和國', '玻利瓦共和國', '東岸共和國', '合作共和國', '社會主義共和國', '人民共和國', '聯邦共和國',
+                      '民主共和國', '多民族國', '共和國', '聯合王國', '王國', '公國', '聯邦', '自治區', '國')
+
+
+def canonical_country_keyword(keyword):
+    """官方全名轉成簡稱：「阿根廷共和國」->「阿根廷」。整串已經認得(例如「剛果民主共和國」)就原樣回傳；
+    去掉後綴後還是認不得，也原樣回傳，不影響一般城市/機場名稱的搜尋。"""
+    keyword = (keyword or "").strip()
+    if not keyword or keyword in COUNTRY_NAME_EN:
+        return keyword
+    for suffix in _OFFICIAL_SUFFIXES:
+        if keyword.endswith(suffix) and len(keyword) > len(suffix) and keyword[:-len(suffix)] in COUNTRY_NAME_EN:
+            return keyword[:-len(suffix)]
+    return keyword
 COUNTRY_AIRPORT_LIMIT = 6  # 國際機場超過這個數量的大國(日本、美國⋯)太籠統，不提供「整個國家」的查法，請使用者選城市
 
 
@@ -216,6 +330,37 @@ def _broaden_to_city_siblings(code):
     return codes or code
 
 
+def transfer_hub(keyword):
+    """使用者選了沒有國際航班(或根本沒有定期航班)的小機場時，改用最近的國際機場(轉運站)查詢，
+    回傳 (新的搜尋關鍵字, 給使用者看的說明)；不是這種小機場就原樣回傳 (keyword, None)。
+    - 台灣離島等有固定轉運站的：國內段是另外購買的機票。
+    - 其他航線資料裡完全沒有定期航班的機場：找離它最近、航線夠多的機場，中間的地面交通請旅客自行安排。"""
+    codes = [c for c in (to_iata(keyword) or "").split(",") if c]
+    if not codes:
+        return keyword, None
+    small = codes[0]
+
+    def label(code):
+        info = airports.get_airport(code) or {}
+        return AIRPORT_NAME_ZH.get(code) or info.get("name_zh") or info.get("name") or code
+
+    if len(codes) == 1 and small in airports.TRANSFER_HUBS:
+        hub = airports.TRANSFER_HUBS[small]
+        note = (f"{label(small)}沒有國際航班，已改用 {label(hub)} 查詢。{label(small)}與{label(hub)}之間的國內段"
+                "需要另外購買機票，請預留足夠的轉機時間。")
+        return f"{label(hub)} ({hub})", note
+
+    # 這個城市所有的機場都沒有定期航班(單一機場會被展開成同城市所有機場，所以要全部都沒有才算)
+    if all(airports.get_airport(c) and not airports.has_service(c) for c in codes):
+        found = airports.nearest_service_airport(small)
+        if found:
+            hub, km = found[0]["iata"], found[1]
+            note = (f"{label(small)}目前沒有定期航班，已改用最近的 {label(hub)}（約 {km:.0f} 公里）查詢。"
+                    f"{label(small)}與{label(hub)}之間請自行安排交通，並預留足夠的時間。")
+            return f"{label(hub)} ({hub})", note
+    return keyword, None
+
+
 def to_iata(city_keyword):
     """把中文城市關鍵字、使用者直接輸入的三碼機場代碼、「City (IATA)」這種自動完成選單選出來的
     單一機場格式，或是「城市（所有機場）」這種選了「所有機場」的格式，轉成 IATA 代碼；
@@ -245,6 +390,8 @@ def to_iata(city_keyword):
     # 原樣大寫回傳中文字(根本不是合法代碼)，導致這些城市的查詢全部失敗，要繞過下面 CITY_IATA 對照表。
     if re.fullmatch(r"[A-Za-z]{3}", city_keyword):
         return _broaden_to_city_siblings(city_keyword.upper())
+    if city_keyword in TOURIST_ALIAS:
+        return _broaden_to_city_siblings(TOURIST_ALIAS[city_keyword])
     if city_keyword in CITY_IATA:
         return _broaden_to_city_siblings(CITY_IATA[city_keyword])
     for name, code in CITY_IATA.items():

@@ -48,6 +48,10 @@ import serpapi_flights  # 匯入 SerpApi 的 Google Flights 模組(機票搜尋�
 import google_places  # 匯入 Google 地點 API 模組(住宿目的地自動完成)
 import serpapi_hotels  # 匯入 SerpApi 的 Google Hotels 模組(住宿搜尋的真實即時報價與圖片，優先資料來源)
 import tdx_trains  # 匯入交通部 TDX 模組(高鐵／台鐵指定日期的真實班表與票價，優先資料來源)
+import popular_cities  # 匯入「輸入國家名稱時列出熱門城市」的工具
+import hotel_review_ai  # 匯入住客評價的 AI 整理工具
+from ai_client import AIUnavailable
+import flight_combine  # 匯入小機場(國內線)接國際航班的組合行程工具
 import flight_links  # 匯入城市->機場代碼對照表、Skyscanner 比價連結組網址工具
 import airports  # 匯入全球機場資料庫(約 6000 筆真實機場資料)，給出發地/目的地自動完成用
 import line_messaging  # 匯入 LINE 官方帳號共用工具(加好友連結、QR Code)
@@ -434,8 +438,14 @@ def api_hotel_place_search():
     raw_keyword = google_places.to_chinese_keyword(raw_keyword)  # 打英文也可以，建議一律用中文顯示
     # 優先用 Google 地點自動完成：全世界的國家、城市、景點、飯店(繁體中文)；沒金鑰或失敗才退回下面站內(台灣)的資料
     world = google_places.autocomplete_destinations(raw_keyword)
-    if world:
-        return jsonify(world)
+    popular = popular_cities.suggestions(raw_keyword)  # 輸入國家名稱時，最前面先列出該國的熱門城市(像 Agoda 的「倫敦, 英國　人氣王」)
+    if world or popular:
+        found_country = popular_cities.country_of(raw_keyword)
+        world = world or []
+        if popular and found_country and not any(item.get("label") == found_country[1] for item in world):
+            # 國家本身放在熱門城市後面(搜「澳大利亞」要看得到「澳大利亞」，不只是「澳大利亞首都領地」)
+            world = [{"label": found_country[1], "sub": "國家", "value": found_country[1], "kind": "place"}] + world
+        return jsonify(popular + world)
     keyword = raw_keyword.replace("台", "臺")
     connection = get_db_connection()
     if not connection:
@@ -521,15 +531,64 @@ def money(amount):
 app.jinja_env.globals["money"] = money
 
 
+def _review_query_args():
+    """評論總覽、AI 整理共用：飯店 token、目的地、日期、人數。回傳 (參數 dict, 錯誤回應)。"""
+    token = request.args.get("token", "").strip()
+    destination = request.args.get("destination", "").strip()[:100]
+    checkin = request.args.get("checkin", "").strip()
+    checkout = request.args.get("checkout", "").strip()
+    party = _parse_guest_party(request.args)
+    try:
+        datetime.strptime(checkin, "%Y-%m-%d"); datetime.strptime(checkout, "%Y-%m-%d")
+    except ValueError:
+        return None, (jsonify(error="日期格式不正確"), 400)
+    if not re.fullmatch(r"[A-Za-z0-9_\-]{10,300}", token):
+        return None, (jsonify(error="飯店資料不正確"), 400)
+    return {"token": token, "destination": destination, "checkin": checkin, "checkout": checkout,
+            "adults": party["adults_per_room"], "child_ages": party["ages_per_room"]}, None
+
+
 @app.route("/api/hotel-reviews")  # 住宿詳情視窗「查看住客評論」用的 AJAX 端點，使用者按了才查(每次用 1 次 SerpApi 額度)
 def api_hotel_reviews():
     token = request.args.get("token", "").strip()
     page_token = request.args.get("page_token", "").strip() or None
-    if not re.fullmatch(r"[A-Za-z0-9_\-]{10,300}", token) or (page_token and not re.fullmatch(r"[A-Za-z0-9_\-=%.]{1,2000}", page_token)):
+    category = request.args.get("category", "").strip() or None  # 只看某個面向(清潔、服務⋯)的留言
+    if (not re.fullmatch(r"[A-Za-z0-9_\-]{10,300}", token)
+            or (page_token and not re.fullmatch(r"[A-Za-z0-9_\-=%.]{1,2000}", page_token))
+            or (category and not re.fullmatch(r"[A-Za-z0-9_\-=%.]{1,600}", category))):
         return jsonify(error="飯店資料不正確"), 400
-    result = serpapi_hotels.get_reviews(token, page_token)
+    result = serpapi_hotels.get_reviews(token, page_token, category)
     if result is None:
         return jsonify(error="暫時查不到住客評論，請稍後再試。"), 502
+    return jsonify(result)
+
+
+@app.route("/api/hotel-review-overview")  # 評論視窗上方的星等分布與各面向統計(跟「比價」共用同一次查詢)
+def api_hotel_review_overview():
+    args, error = _review_query_args()
+    if error:
+        return error
+    overview = serpapi_hotels.get_review_overview(args["token"], args["destination"], args["checkin"], args["checkout"], args["adults"], args["child_ages"])
+    if overview is None:
+        return jsonify(error="暫時查不到評價統計，請稍後再試。"), 502
+    return jsonify(overview)
+
+
+@app.route("/api/hotel-review-ai")  # 「AI 整理住客評價」：按了才呼叫 AI，結果快取一小時
+def api_hotel_review_ai():
+    args, error = _review_query_args()
+    if error:
+        return error
+    overview = serpapi_hotels.get_review_overview(args["token"], args["destination"], args["checkin"], args["checkout"], args["adults"], args["child_ages"])
+    first_page = serpapi_hotels.get_reviews(args["token"])
+    if overview is None and first_page is None:
+        return jsonify(error="暫時查不到住客評價，請稍後再試。"), 502
+    try:
+        result = hotel_review_ai.summarize(
+            args["token"], request.args.get("name", "").strip()[:120], request.args.get("rating", "").strip()[:6],
+            request.args.get("reviews", "").strip()[:12], overview, (first_page or {}).get("reviews"))
+    except AIUnavailable as exc:
+        return jsonify(error=str(exc)), 503
     return jsonify(result)
 
 
@@ -727,7 +786,7 @@ def _render_live_hotels(hotels, destination, checkin, checkout, guests, nights, 
 
     # 熱門篩選條件：只列這批結果裡真的有符合的項目(沒有任何一間符合就不顯示，不放點了沒結果的選項)
     popular_labels = {"parking": "設有停車位", "breakfast": "包含早餐", "pets": "可攜帶寵物"}
-    kids_label = {"kids": "親子友善（Google 標示）"}  # Google 對整間飯店的標示，不代表有親子房
+    kids_label = {"kids": "親子友善"}  # Google 對整間飯店的標示，不代表有親子房
     # 有帶兒童時排在最前面，沒帶兒童一樣列出來，只是不優先
     popular_labels = {**kids_label, **popular_labels} if party["children"] else {**popular_labels, **kids_label}
     popular_facets = [{"value": key, "label": label, "count": sum(1 for h in hotels if key in h["flags"])}
@@ -824,12 +883,12 @@ def _search_flights(from_keyword, to_keyword, pax):
     return results
 
 
-def _live_flight_search(origin_keyword, destination_keyword, depart_date, return_date=None, pax=1, cabin_class=None):
+def _live_flight_search(origin_keyword, destination_keyword, depart_date, return_date=None, pax=1, cabin_class=None, more=False):
     """依序嘗試 SerpApi(Google Flights) -> Amadeus，兩個都沒設定金鑰/查不到/失敗就回傳 (None, False)，
     呼叫端自己改用本地資料庫的固定班表資料。回傳 (flights, is_live)。
     cabin_class：Google Flights 預設只查經濟艙，要查商務/頭等艙要指定這個，所以使用者在「艙等」篩選
     選了特定艙等時，呼叫端要帶這個參數重新查一次，不是拿經濟艙資料硬篩。"""
-    flights = serpapi_flights.search_flight_offers(origin_keyword, destination_keyword, depart_date, return_date, pax, cabin_class=cabin_class)
+    flights = serpapi_flights.search_flight_offers(origin_keyword, destination_keyword, depart_date, return_date, pax, cabin_class=cabin_class, more=more)
     if flights:
         return flights, True
     flights = amadeus_client.search_flight_offers(origin_keyword, destination_keyword, depart_date, pax)
@@ -890,7 +949,7 @@ def api_station_search():
 
 @app.route("/api/city-search")  # 出發地/目的地自動完成打字時用的 AJAX 端點，查全球機場資料庫(不只是手動整理的常見城市)
 def api_city_search():
-    keyword = request.args.get("q", "").strip()
+    keyword = flight_links.canonical_country_keyword(request.args.get("q", "").strip())  # 國家官方全名轉簡稱
     if len(keyword) < 1:
         return jsonify([])
     # 北海道、九州等地區涵蓋多個城市，合併查詢各城市機場。
@@ -902,7 +961,7 @@ def api_city_search():
     if not region_cities and not country_found:
         country_en = flight_links.COUNTRY_NAME_EN.get(keyword) or airports.match_country_name(keyword)
         if country_en:
-            big_country = airports.get_country_airports(country_en, limit=10)
+            big_country = airports.get_country_airports(country_en, limit=15)
     if country_found:
         results = country_found
     elif big_country:
@@ -917,8 +976,13 @@ def api_city_search():
                     results.append(airport)
     else:
         # 全球機場資料庫是英文資料，中文關鍵字先轉成英文城市名。
-        search_keyword = flight_links.to_english_city_name(keyword)
-        results = airports.search_airports(search_keyword, limit=10)
+        alias_airport = airports.get_airport(flight_links.TOURIST_ALIAS.get(keyword))
+        if alias_airport:
+            # 旅客常用別名(普吉島、摩納哥⋯)：直接指到那個機場所在城市的機場，不用文字比對(代碼的三個字母會誤中別的機場)
+            results = airports.get_city_airports(alias_airport["city"], alias_airport["country"], include_domestic=True) or [alias_airport]
+        else:
+            search_keyword = flight_links.to_english_city_name(keyword)
+            results = airports.search_airports(search_keyword, limit=10)
     # search_airports() 回傳的是模組內共用資料的參照，這裡組新的 dict 回傳，不要直接改到原始資料上。
     # 中文機場名稱優先用手動整理過、確認無誤的 AIRPORT_NAME_ZH；查不到的話，
     # 用資料庫裡從維基數據(Wikidata)合併進來的 name_zh(真正的中文機場名稱，不是機器翻譯)；
@@ -928,10 +992,19 @@ def api_city_search():
             row,
             name_zh=flight_links.AIRPORT_NAME_ZH.get(row["iata"]) or row.get("name_zh") or None,
             city_zh=flight_links.to_chinese_city_name(row["city"]),
+            label_zh=airports.CITY_LABEL_ZH.get(row["iata"]),
+            country_zh=flight_links.COUNTRY_ZH.get(row["country"]),
             region=keyword if (region_cities or country_found) else None,
         )
         for row in results
     ]
+    # 同一次結果裡中文名稱重複(例如墨爾本有兩個「墨爾本機場」)：重複的補上英文名稱，才分得出是哪一個
+    seen_names = {}
+    for item in sorted(payload, key=lambda it: -int(it.get("routes") or 0)):
+        if item["name_zh"]:
+            seen_names[item["name_zh"]] = seen_names.get(item["name_zh"], 0) + 1
+            if seen_names[item["name_zh"]] > 1:  # 第二個起才補英文(航線最多的保持簡潔)
+                item["name_zh"] = f"{item['name_zh']}（{item['name']}）"
     return jsonify(payload)
 
 
@@ -947,6 +1020,54 @@ def visitor_flight_search():
 
     is_roundtrip = return_date and request.args.get('trip_mode', 'roundtrip') == 'roundtrip'
 
+    # 選到只飛國內線的小機場(花蓮、澎湖⋯)：出發地是小機場時，先找「小機場→轉運站」的國內航班，
+    # 有找到就把它接上轉運站出發的國際航班，組成完整行程；找不到就退回改用最近的國際機場查，並在頁面上說明
+    transfer_notes = []
+    domestic_plan = None
+    small_origin_code = (flight_links.to_iata(origin) or "").split(",")
+    if len(small_origin_code) == 1 and small_origin_code[0] in airports.DOMESTIC_FEEDERS and depart_date:
+        small = small_origin_code[0]
+        for feeder in airports.DOMESTIC_FEEDERS[small]:
+            domestic = [row for row in (serpapi_flights.search_flight_offers(small, feeder, depart_date, None, pax) or [])
+                        if row.get("destination_city") == feeder]
+            if domestic:
+                feeder_label = flight_links.AIRPORT_NAME_ZH.get(feeder) or airports.get_airport(feeder)["name_zh"]
+                small_label = flight_links.AIRPORT_NAME_ZH.get(small) or airports.get_airport(small)["name_zh"]
+                domestic_plan = {"small": small, "feeder": feeder, "domestic": domestic, "feeder_label": feeder_label, "small_label": small_label}
+                origin = f"{feeder_label} ({feeder})"
+                break
+    # 目的地是小機場：國際航班先抵達轉運站，再接「轉運站→小機場」的國內航班(抵達當天或隔天)
+    tail_plan = None
+    small_dest_code = (flight_links.to_iata(destination) or "").split(",")
+    if len(small_dest_code) == 1 and small_dest_code[0] in airports.DOMESTIC_FEEDERS and depart_date:
+        small = small_dest_code[0]
+        try:
+            base_day = datetime.strptime(depart_date, "%Y-%m-%d").date()
+        except ValueError:
+            base_day = None
+        for feeder in (airports.DOMESTIC_FEEDERS[small] if base_day else []):
+            domestic = []
+            for offset in (0, 1):
+                day = (base_day + timedelta(days=offset)).isoformat()
+                domestic += [row for row in (serpapi_flights.search_flight_offers(feeder, small, day, None, pax) or [])
+                             if row.get("destination_city") == small]
+            if domestic:
+                feeder_label = flight_links.AIRPORT_NAME_ZH.get(feeder) or airports.get_airport(feeder)["name_zh"]
+                small_label = flight_links.AIRPORT_NAME_ZH.get(small) or airports.get_airport(small)["name_zh"]
+                tail_plan = {"small": small, "feeder": feeder, "domestic": domestic, "feeder_label": feeder_label, "small_label": small_label}
+                destination = f"{feeder_label} ({feeder})"
+                break
+    for _name in ("origin", "destination"):
+        if (_name == "origin" and domestic_plan) or (_name == "destination" and tail_plan):
+            continue
+        _new, _note = flight_links.transfer_hub(locals()[_name])
+        if _note:
+            transfer_notes.append(_note)
+            if _name == "origin":
+                origin = _new
+            else:
+                destination = _new
+
     # 優先打真實機票報價 API（SerpApi 的 Google Flights，查不到再試 Amadeus），價格會依日期浮動；
     # 兩個都沒設定金鑰、查不到這條航線、或 API 呼叫失敗，就自動改用本地資料庫裡固定班表的機票資料，
     # 兩種情況畫面都看得出差異(有沒有「即時報價」標籤)。
@@ -954,7 +1075,35 @@ def visitor_flight_search():
     # 商務艙/頭等艙的航班不會自動出現在經濟艙的查詢結果裡。
     selected_cabin = request.args.get("cabin", "all")
     cabin_query = selected_cabin if selected_cabin != "all" else None
-    outbound_flights, using_live_data = _live_flight_search(origin, destination, depart_date, return_date if is_roundtrip else None, pax, cabin_class=cabin_query)
+    show_more = request.args.get("more") == "1"  # 「顯示更多航班」：多查幾種條件把更多航班合併進來(多用幾次額度)
+    outbound_flights, using_live_data = _live_flight_search(origin, destination, depart_date, return_date if is_roundtrip else None, pax, cabin_class=cabin_query, more=show_more)
+    if using_live_data and domestic_plan:
+        combined = flight_combine.combine_with_domestic(
+            domestic_plan["domestic"], outbound_flights, domestic_plan["feeder"], domestic_plan["feeder_label"])
+        if combined:
+            outbound_flights = combined
+            transfer_notes.append(
+                f"{domestic_plan['small_label']}沒有國際航班，以下行程是「{domestic_plan['small_label']} → {domestic_plan['feeder_label']}（國內線）」"
+                f"接「{domestic_plan['feeder_label']} → 目的地（國際線）」的組合。兩段是分開購買的機票，行李需在轉機點自行提領並重新報到，轉機至少預留 2.5 小時。")
+        else:
+            outbound_flights = []
+            transfer_notes.append(
+                f"找不到能順利接上的行程：{domestic_plan['small_label']}到{domestic_plan['feeder_label']}的國內航班，"
+                f"跟{domestic_plan['feeder_label']}出發的國際航班之間，這一天沒有至少相隔 2.5 小時的組合，可以換個日期試試。")
+    if using_live_data and tail_plan and outbound_flights:
+        combined = flight_combine.combine_with_domestic_tail(
+            outbound_flights, tail_plan["domestic"], tail_plan["feeder"], tail_plan["feeder_label"])
+        if combined:
+            outbound_flights = combined
+            transfer_notes.append(
+                f"{tail_plan['small_label']}沒有國際航班，以下行程是「國際線 → {tail_plan['feeder_label']}」接"
+                f"「{tail_plan['feeder_label']} → {tail_plan['small_label']}（國內線）」的組合。兩段是分開購買的機票，"
+                "行李需在轉機點自行提領並重新報到，轉機至少預留 2.5 小時。")
+        else:
+            outbound_flights = []
+            transfer_notes.append(
+                f"找不到能順利接上的行程：國際航班抵達{tail_plan['feeder_label']}之後，"
+                f"沒有至少相隔 2.5 小時、飛往{tail_plan['small_label']}的國內航班，可以換個日期試試。")
     if using_live_data:
         for row in outbound_flights:
             # 「機場」篩選要用真正的機場代碼當篩選值，所以先把代碼存起來，再把顯示用的欄位換成好懂的名稱
@@ -1056,6 +1205,8 @@ def visitor_flight_search():
 
     return render_template(
         "flight_search.html",
+        transfer_notes=transfer_notes,
+        show_more=show_more,
         origin=origin,
         destination=destination,
         depart_date=depart_date,

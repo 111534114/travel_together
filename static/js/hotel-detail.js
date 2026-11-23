@@ -82,7 +82,14 @@
     reviewsOverlay = null;
   }
 
-  function openReviews(d) {
+  function reviewParams(d, query) {
+    return new URLSearchParams({
+      token: d.property_token, destination: query.destination, checkin: query.checkin,
+      checkout: query.checkout, guests: query.adults, child_ages: query.childAges || '',
+    });
+  }
+
+  function openReviews(d, query) {
     closeReviews();
     reviewsOverlay = el('div', 'hd-rv-backdrop');
     reviewsOverlay.addEventListener('mousedown', (event) => { if (event.target === reviewsOverlay) closeReviews(); });
@@ -98,40 +105,190 @@
     closeBtn.setAttribute('aria-label', '關閉留言');
     closeBtn.addEventListener('click', closeReviews);
     head.append(titleBox, closeBtn);
+
+    // 工具列：搜尋框 + AI 整理 + 各面向篩選(不跟著留言捲動)
+    const tools = el('div', 'hd-rv-tools');
+    const searchRow = el('div', 'hd-rv-searchrow');
+    const search = el('input', 'hd-rv-search');
+    search.type = 'search';
+    search.placeholder = '搜尋留言，例如：隔音、床、早餐';
+    search.setAttribute('aria-label', '搜尋留言');
+    const aiButton = el('button', 'hd-btn hd-rv-ai', 'AI 整理住客評價');
+    aiButton.type = 'button';
+    if (!query) aiButton.hidden = true;
+    searchRow.append(search, aiButton);
+    const topicsBox = el('div', 'hd-rv-topics');
+    topicsBox.hidden = true;
+    tools.append(searchRow, topicsBox);
+
     const body = el('div', 'hd-rv-body');
-    body.appendChild(el('p', 'hd-offer-note', '留言來自 Google 地圖的住客評論。'));
-    panel.append(head, body);
+    const aiBox = el('div', 'hd-rv-aibox');
+    aiBox.hidden = true;
+    const note = el('p', 'hd-offer-note', '留言來自 Google 地圖的住客評論。');
+    const searchInfo = el('p', 'hd-rv-searchinfo');
+    searchInfo.hidden = true;
+    const listBox = el('div', 'hd-reviews');
+    body.append(aiBox, note, searchInfo, listBox);
+    panel.append(head, tools, body);
     reviewsOverlay.appendChild(panel);
     document.body.appendChild(reviewsOverlay);
     closeBtn.focus();
-    loadReviewPage(d.property_token, body, null);
+
+    const state = { category: '', entries: [], keyword: '' };
+
+    // ----- 搜尋：只比對已經載入的留言(Google 沒有提供留言搜尋)，找到的字會標出來 -----
+    function highlight(node, text, keyword) {
+      node.textContent = '';
+      if (!keyword) { node.textContent = text; return; }
+      const lower = text.toLowerCase();
+      let index = 0;
+      for (;;) {
+        const hit = lower.indexOf(keyword, index);
+        if (hit < 0) { node.appendChild(document.createTextNode(text.slice(index))); break; }
+        node.appendChild(document.createTextNode(text.slice(index, hit)));
+        node.appendChild(el('mark', '', text.slice(hit, hit + keyword.length)));
+        index = hit + keyword.length;
+      }
+    }
+
+    function applyFilter() {
+      const keyword = state.keyword;
+      let shown = 0;
+      state.entries.forEach((entry) => {
+        const match = !keyword || entry.review.text.toLowerCase().includes(keyword);
+        entry.node.hidden = !match;
+        if (match) shown += 1;
+        highlight(entry.textNode, entry.review.text, keyword);
+        // 搜尋時整段展開，才看得到被標出來的字；清掉搜尋再收回去
+        if (keyword) entry.textNode.classList.remove('clamped');
+        else if (entry.long) entry.textNode.classList.add('clamped');
+      });
+      searchInfo.hidden = !keyword;
+      if (keyword) {
+        searchInfo.textContent = shown
+          ? `在已載入的 ${state.entries.length} 則留言中找到 ${shown} 則。想找更多，請按下方「載入更多留言」。`
+          : `已載入的 ${state.entries.length} 則留言裡沒有「${search.value.trim()}」。可以按下方「載入更多留言」擴大範圍，或點上方的面向分類。`;
+      }
+    }
+    search.addEventListener('input', () => { state.keyword = search.value.trim().toLowerCase(); applyFilter(); });
+
+    // ----- 留言載入(可以只看某個面向) -----
+    async function loadPage(pageToken) {
+      const status = el('p', 'hd-offer-note', '載入住客留言中⋯⋯');
+      listBox.appendChild(status);
+      try {
+        const params = new URLSearchParams({ token: d.property_token });
+        if (pageToken) params.set('page_token', pageToken);
+        if (state.category) params.set('category', state.category);
+        const response = await fetch('/api/hotel-reviews?' + params.toString(), { headers: { Accept: 'application/json' } });
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok) throw new Error(data.error || '查詢失敗，請稍後再試。');
+        status.remove();
+        data.reviews.forEach((review) => {
+          const built = buildReview(review);
+          listBox.appendChild(built.node);
+          state.entries.push({ review, node: built.node, textNode: built.textNode, long: built.long });
+        });
+        if (!data.reviews.length && !pageToken) listBox.appendChild(el('p', 'hd-offer-note', '目前沒有可顯示的留言。'));
+        if (data.next_page_token) {
+          const more = el('button', 'hd-btn hd-reviews-btn', '載入更多留言');
+          more.type = 'button';
+          more.addEventListener('click', () => { more.remove(); loadPage(data.next_page_token); });
+          listBox.appendChild(more);
+        }
+        applyFilter();
+      } catch (error) {
+        status.textContent = error.message;
+        const retry = el('button', 'hd-btn hd-reviews-btn', '重試');
+        retry.type = 'button';
+        retry.addEventListener('click', () => { status.remove(); retry.remove(); loadPage(pageToken); });
+        listBox.appendChild(retry);
+      }
+    }
+
+    function reloadFor(category) {
+      state.category = category;
+      state.entries = [];
+      listBox.replaceChildren();
+      body.scrollTop = 0;
+      loadPage(null);
+    }
+
+    // ----- 各面向(Google 整理好的：浴室、清潔、服務⋯)，點了只看這個面向的留言 -----
+    function renderTopics(topics) {
+      const usable = topics.filter((t) => t.token);
+      if (!usable.length) return;
+      topicsBox.hidden = false;
+      const chips = [];
+      const makeChip = (label, sub, category, title) => {
+        const chip = el('button', 'hd-rv-topic' + (category === state.category ? ' is-active' : ''));
+        chip.type = 'button';
+        chip.title = title;
+        chip.appendChild(el('b', '', label));
+        if (sub) chip.appendChild(el('small', '', sub));
+        chip.addEventListener('click', () => {
+          if (state.category === category) return;
+          chips.forEach((c) => c.classList.remove('is-active'));
+          chip.classList.add('is-active');
+          reloadFor(category);
+        });
+        chips.push(chip);
+        topicsBox.appendChild(chip);
+      };
+      makeChip('全部', '', '', '顯示全部留言');
+      usable.forEach((t) => makeChip(t.name, `好評 ${t.positive}・待改善 ${t.negative}`, t.token, `${t.name}：提及 ${t.total} 次，只看這個面向的留言`));
+    }
+    if (query && d.property_token) {
+      fetch('/api/hotel-review-overview?' + reviewParams(d, query).toString(), { headers: { Accept: 'application/json' } })
+        .then((response) => (response.ok ? response.json() : null))
+        .then((data) => { if (data && data.topics) renderTopics(data.topics); })
+        .catch(() => {});
+    }
+
+    // ----- AI 整理：按了才呼叫，根據 Google 的各面向統計與最新留言整理優缺點 -----
+    let aiLoaded = false;
+    aiButton.addEventListener('click', async () => {
+      if (aiLoaded) { aiBox.hidden = !aiBox.hidden; aiButton.textContent = aiBox.hidden ? 'AI 整理住客評價' : '收合 AI 整理'; return; }
+      aiButton.disabled = true;
+      aiButton.textContent = 'AI 整理中⋯⋯（約 10 秒）';
+      aiBox.hidden = false;
+      aiBox.replaceChildren(el('p', 'hd-offer-note', '正在根據住客評價整理，請稍候⋯⋯'));
+      try {
+        const params = reviewParams(d, query);
+        params.set('name', d.name); params.set('rating', d.rating); params.set('reviews', d.reviews);
+        const response = await fetch('/api/hotel-review-ai?' + params.toString(), { headers: { Accept: 'application/json' } });
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok) throw new Error(data.error || 'AI 整理失敗，請稍後再試。');
+        aiBox.replaceChildren(buildAiSummary(data));
+        aiLoaded = true;
+        aiButton.textContent = '收合 AI 整理';
+        body.scrollTop = 0;
+      } catch (error) {
+        aiBox.replaceChildren(el('p', 'hd-offer-note', error.message));
+        aiButton.textContent = 'AI 整理住客評價';
+      } finally {
+        aiButton.disabled = false;
+      }
+    });
+
+    loadPage(null);
   }
 
-  async function loadReviewPage(token, body, pageToken) {
-    const status = el('p', 'hd-offer-note', '載入住客留言中⋯⋯');
-    body.appendChild(status);
-    try {
-      const params = new URLSearchParams({ token });
-      if (pageToken) params.set('page_token', pageToken);
-      const response = await fetch('/api/hotel-reviews?' + params.toString(), { headers: { Accept: 'application/json' } });
-      const data = await response.json().catch(() => ({}));
-      if (!response.ok) throw new Error(data.error || '查詢失敗，請稍後再試。');
-      status.remove();
-      data.reviews.forEach((review) => body.appendChild(buildReview(review)));
-      if (!data.reviews.length && !pageToken) body.appendChild(el('p', 'hd-offer-note', '目前沒有可顯示的留言。'));
-      if (data.next_page_token) {
-        const more = el('button', 'hd-btn hd-reviews-btn', '載入更多留言');
-        more.type = 'button';
-        more.addEventListener('click', () => { more.remove(); loadReviewPage(token, body, data.next_page_token); });
-        body.appendChild(more);
-      }
-    } catch (error) {
-      status.textContent = error.message;
-      const retry = el('button', 'hd-btn hd-reviews-btn', '重試');
-      retry.type = 'button';
-      retry.addEventListener('click', () => { status.remove(); retry.remove(); loadReviewPage(token, body, pageToken); });
-      body.appendChild(retry);
-    }
+  function buildAiSummary(data) {
+    const card = el('div', 'hd-ai');
+    card.appendChild(el('b', 'hd-ai-title', 'AI 住客評價整理'));
+    if (data.summary) card.appendChild(el('p', 'hd-ai-summary', data.summary));
+    [['住客覺得很棒', data.strengths, 'good'], ['需要加強', data.improvements, 'bad']].forEach(([title, items, kind]) => {
+      if (!items || !items.length) return;
+      const group = el('div', 'hd-ai-group ' + kind);
+      group.appendChild(el('h4', '', title));
+      const list = el('ul');
+      items.forEach((text) => list.appendChild(el('li', '', text)));
+      group.appendChild(list);
+      card.appendChild(group);
+    });
+    card.appendChild(el('p', 'hd-ai-note', '由 AI 根據 Google 的評價統計與最新留言整理，僅供參考，實際情況以住客留言為準。'));
+    return card;
   }
 
   function buildReview(review) {
@@ -143,7 +300,8 @@
     item.appendChild(head);
     const text = el('p', 'hd-review-text clamped', review.text);
     item.appendChild(text);
-    if (review.text.length > 140) {
+    const long = review.text.length > 140;
+    if (long) {
       const toggle = el('button', 'hd-review-toggle', '展開');
       toggle.type = 'button';
       toggle.addEventListener('click', () => { const open = text.classList.toggle('clamped'); toggle.textContent = open ? '展開' : '收合'; });
@@ -152,10 +310,10 @@
       text.classList.remove('clamped');
     }
     if (review.reply) item.appendChild(el('p', 'hd-review-reply', `飯店回覆：${review.reply}`));
-    return item;
+    return { node: item, textNode: text, long };
   }
 
-  function buildRatings(d) {
+  function buildRatings(d, query) {
     const box = section('住客評價');
     if (d.rating) {
       const head = el('div', 'hd-rating');
@@ -168,7 +326,7 @@
       if (d.property_token) {
         const open = el('button', 'hd-btn hd-reviews-btn', '查看住客留言');
         open.type = 'button';
-        const show = () => openReviews(d);
+        const show = () => openReviews(d, query);
         open.addEventListener('click', show);
         score.addEventListener('click', show);
         box.appendChild(open);
@@ -373,7 +531,7 @@
     if (d.original_name) left.appendChild(el('div', 'hd-meta', `原名：${d.original_name}（中文為機器翻譯）`));
     left.appendChild(el('div', 'hd-meta', [d.property_type, d.star ? `${d.star} 星級` : ''].filter(Boolean).join('・')));
     if (d.description) left.appendChild(el('p', 'hd-desc', d.description));
-    left.appendChild(buildRatings(d));
+    left.appendChild(buildRatings(d, query));
     if (d.amenities.length) {
       const box = section('設施與服務');
       const chips = el('div', 'hd-chips');

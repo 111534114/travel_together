@@ -10,34 +10,99 @@
             <div class="group-manage-meta">
                 <span>📅 {{ group.event_date }}</span>
                 {% if group.location %}<span>📍 {{ group.location }}</span>{% endif %}
-                <span class="status-tag">{{ '已取消' if group.status == 'cancelled' else '已結束' if can_mark_no_show else {'open':'開放中','closed':'已關閉'}[group.status] }}</span>
+                <span class="status-tag">{{ '未成團' if group.formation_status == 'not_formed' else '已取消' if group.status == 'cancelled' else '已成團' if group.formation_status == 'formed' else '已結束' if can_mark_no_show else {'open':'開放中','closed':'已關閉'}[group.status] }}</span>
             </div>
         </div>
 
-        <div class="group-manage-actions">
+        {% if group.status == 'cancelled' %}
+        <div class="group-manage-cancelled">
             {% if group.trip_id %}
-            <a class="member-btn primary group-manage-action-main" href="{{ url_for('member.trip_detail', trip_id=group.trip_id, from_group=group.group_id) }}"><strong>📋 管理行程</strong><small>每日行程、聊天室、記帳分帳與公告</small></a>
-            <a class="member-btn outline" href="{{ url_for('friend_groups.group_permissions', group_id=group.group_id) }}">團員查看／共同編輯權限</a>
+            <div class="group-manage-trip-reference">
+                <div><strong>📋 原行程仍保留</strong><p>每日行程、聊天室與記帳資料都還在。</p></div>
+                <a class="member-btn outline small" href="{{ url_for('member.trip_detail', trip_id=group.trip_id, from_group=group.group_id) }}">查看行程 →</a>
+            </div>
             {% endif %}
-            {% if group.status != 'cancelled' %}<a class="member-btn outline" href="{{ url_for('friend_groups.edit_group', group_id=group.group_id) }}">編輯揪團與名單隱私</a>{% endif %}
-        </div>
-
-        {% if group.status != 'cancelled' %}
-        <div class="group-manage-danger">
-            <p>不再舉辦這個揪團？取消後會通知已加入的團員。</p>
-            <form method="post" action="{{ url_for('friend_groups.cancel_group', group_id=group.group_id) }}" onsubmit="return confirm('確定要取消這個揪團嗎？')">
-                <button class="member-btn danger small" type="submit">取消揪團</button>
-            </form>
+            <div class="group-manage-recovery">
+                <div class="group-manage-recovery-copy">
+                    <h2>想重新開放這個揪團？</h2>
+                    {% if can_restore %}
+                    <p>恢復後會通知原本已加入的團員，並重新開放他們的行程權限。未審核的申請不會自動恢復；報名已截止時仍維持關閉招募。</p>
+                    {% else %}
+                    <p>活動已開始，或連動行程已無法使用，因此無法恢復此揪團。</p>
+                    {% endif %}
+                </div>
+                {% if can_restore %}
+                <form method="post" action="{{ url_for('friend_groups.restore_group', group_id=group.group_id) }}" onsubmit="return confirm('恢復揪團後，原本已加入的團員會重新取得行程與聊天室權限，並收到通知。確定嗎？')">
+                    <button class="member-btn primary" type="submit">恢復揪團</button>
+                </form>
+                {% endif %}
+            </div>
+            <div class="group-manage-danger group-manage-danger-card">
+                <div><strong>永久刪除揪團</strong><p>申請、相簿、評價與檢舉資料會永久移除；原行程會保留。</p></div>
+                <form method="post" action="{{ url_for('friend_groups.delete_group', group_id=group.group_id) }}" onsubmit="return confirm('確定永久刪除這個揪團及其申請、相簿、評價與檢舉資料嗎？這項操作無法復原。')">
+                    <button class="member-btn danger small" type="submit">刪除揪團</button>
+                </form>
+            </div>
         </div>
         {% else %}
-        <div class="group-manage-danger">
-            <p>刪除後，揪團的申請、相簿、評價與檢舉資料會永久移除；連結的行程會保留。</p>
-            <form method="post" action="{{ url_for('friend_groups.delete_group', group_id=group.group_id) }}" onsubmit="return confirm('確定永久刪除這個揪團及其申請、相簿、評價與檢舉資料嗎？這項操作無法復原。')">
-                <button class="member-btn danger small" type="submit">刪除揪團</button>
-            </form>
+        <div class="group-manage-active">
+            {% if group.trip_id %}
+            <div class="group-manage-primary-card">
+                <div><h2>📋 管理連動行程</h2><p>查看每日行程、聊天室、記帳分帳與公告。</p></div>
+                <a class="member-btn primary" href="{{ url_for('member.trip_detail', trip_id=group.trip_id, from_group=group.group_id) }}">開啟行程 →</a>
+            </div>
+            {% endif %}
+            <div class="group-manage-tools">
+                {% if group.trip_id %}
+                <div class="group-manage-tool-card">
+                    <div><h2>團員權限</h2><p>設定團員能查看行程，或一起編輯行程。</p></div>
+                    <a class="member-btn outline" href="{{ url_for('friend_groups.group_permissions', group_id=group.group_id) }}">設定權限 →</a>
+                </div>
+                {% endif %}
+                <div class="group-manage-tool-card">
+                    <div><h2>揪團資訊</h2><p>修改揪團內容，以及參加者名單的顯示方式。</p></div>
+                    <a class="member-btn outline" href="{{ url_for('friend_groups.edit_group', group_id=group.group_id) }}">編輯揪團 →</a>
+                </div>
+            </div>
+            <div class="group-manage-danger group-manage-danger-card">
+                <div><strong>取消揪團</strong><p>會通知已加入與待審核的會員，並停止團員使用連動行程與聊天室；行程資料仍由你保留。</p></div>
+                <form method="post" action="{{ url_for('friend_groups.cancel_group', group_id=group.group_id) }}" onsubmit="return confirm('確定要取消揪團並停止團員使用連動行程嗎？')">
+                    <button class="member-btn danger small" type="submit">取消揪團</button>
+                </form>
+            </div>
         </div>
         {% endif %}
     </section>
+
+    {% if registration_deadline is defined %}
+    <section class="panel" aria-label="確認成團結果">
+        <h2>確認成團結果</h2>
+        <p class="form-hint">報名截止：{{ registration_deadline }} · 已加入 {{ approved_count }} 人 · 待審核 {{ pending_count }} 人</p>
+        {% if group.formation_status == 'formed' %}
+        <p>主揪已確認成團，已加入的團員已收到通知。這個揪團不再接受新申請。</p>
+        {% elif group.formation_status == 'not_formed' %}
+        <p>主揪已確認未成團，申請者已收到通知，團員的行程與聊天室權限已停止。</p>
+        {% elif group.status == 'cancelled' %}
+        <p>這個揪團已取消，無須再確認成團結果。</p>
+        {% elif today <= registration_deadline %}
+        <p>報名截止日結束後，這裡會開放主揪確認是否成團。</p>
+        {% else %}
+        <p>報名已截止。請先審核待處理的申請，再決定是否成團；確認後會通知申請者。</p>
+        <div class="group-manage-actions">
+            <form method="post" action="{{ url_for('friend_groups.confirm_group_formation', group_id=group.group_id) }}" onsubmit="return confirm('確認成團後將通知團員，並關閉新申請。確定嗎？')">
+                <input type="hidden" name="decision" value="formed">
+                <button class="member-btn primary" type="submit" {% if not approved_count or pending_count %}disabled{% endif %}>確認成團</button>
+            </form>
+            <form method="post" action="{{ url_for('friend_groups.confirm_group_formation', group_id=group.group_id) }}" onsubmit="return confirm('確認未成團後將通知所有申請者，並停止團員使用連動行程。確定嗎？')">
+                <input type="hidden" name="decision" value="not_formed">
+                <button class="member-btn outline" type="submit">無法成團</button>
+            </form>
+        </div>
+        {% if pending_count %}<p class="form-hint">還有 {{ pending_count }} 筆待審核申請；全部處理後才能確認成團。</p>{% endif %}
+        {% if not approved_count %}<p class="form-hint">至少要有一位已加入的團員才能確認成團。</p>{% endif %}
+        {% endif %}
+    </section>
+    {% endif %}
 
     <div class="panel">
         <h2>成員申請</h2>

@@ -159,6 +159,18 @@ def _registration_deadline(cursor, group):
     return group["event_date"] - timedelta(days=group["registration_lead_days"])
 
 
+def _formation_setting_key(group_id):
+    return f"fg_formation_{group_id}"
+
+
+def _can_restore_group(group, now=None):
+    """A cancelled group can be restored until its scheduled start in Taiwan time."""
+    now = now or datetime.now(TAIPEI_TIMEZONE)
+    if now.tzinfo is not None:
+        now = now.astimezone(TAIPEI_TIMEZONE).replace(tzinfo=None)
+    return group["status"] == "cancelled" and now < _event_start_datetime(group)
+
+
 def _latest_application(cursor, user_id):
     cursor.execute(
         "SELECT * FROM friend_group_applications WHERE user_id=%s ORDER BY created_at DESC LIMIT 1",
@@ -297,6 +309,8 @@ def _active_group_access(cursor, group_id, user_id):
         return None
     if group["host_user_id"] == user_id:
         return group
+    if group.get("status") == "cancelled":
+        return None
     cursor.execute("""
         SELECT 1 FROM friend_group_members m
         LEFT JOIN trip_members tm ON tm.trip_id=%s AND tm.user_id=m.user_id
@@ -323,6 +337,7 @@ def index():
         my_groups = []
         browse_groups = []
         joined_groups = []
+        my_member_groups = []
         tier = None
         onboarding_done = False
         checked_in_today = False
@@ -363,6 +378,21 @@ def index():
                 ORDER BY g.event_date ASC
             """, (user_id, user_id))
             browse_groups = [g for g in cursor.fetchall() if matches_filters(g, "event_date", "end_date", "capacity", "member_count")]
+            cursor.execute("""
+                SELECT g.group_id, g.title, g.event_date, g.end_date, g.location, g.status,
+                       formation.setting_value AS formation_status,
+                       m.status AS my_status, u.nickname, u.full_name
+                FROM friend_group_members m
+                JOIN friend_groups g ON g.group_id=m.group_id
+                JOIN users u ON u.user_id=g.host_user_id
+                LEFT JOIN app_settings formation ON formation.setting_key=CONCAT('fg_formation_',g.group_id)
+                WHERE m.user_id=%s AND g.host_user_id != %s
+                  AND (m.status IN ('pending','approved')
+                       OR (g.status='cancelled' AND m.status='rejected'))
+                  AND (g.status='cancelled' OR COALESCE(g.end_date,g.event_date) >= CURDATE())
+                ORDER BY g.event_date DESC
+            """, (user_id, user_id))
+            my_member_groups = cursor.fetchall()
             cursor.execute("""
                 SELECT g.group_id, g.title, g.event_date, g.end_date, g.location,
                        u.nickname, u.full_name, co.name AS country, ci.name AS city
@@ -419,10 +449,11 @@ def index():
 
             if unlocked:
                 cursor.execute("""
-                    SELECT g.*,
+                    SELECT g.*, formation.setting_value AS formation_status,
                            (SELECT COUNT(*) FROM friend_group_members m WHERE m.group_id=g.group_id AND m.status='approved') AS member_count,
                            (SELECT COUNT(*) FROM friend_group_members m WHERE m.group_id=g.group_id AND m.status='pending') AS pending_count
                     FROM friend_groups g
+                    LEFT JOIN app_settings formation ON formation.setting_key=CONCAT('fg_formation_',g.group_id)
                     WHERE g.host_user_id=%s
                     ORDER BY g.created_at DESC
                 """, (user_id,))
@@ -438,7 +469,8 @@ def index():
         application=application, unlocked=unlocked, checked_in_today=checked_in_today,
         profile=profile, tier=tier,
         events=events, my_groups=my_groups, onboarding_done=onboarding_done,
-        browse_groups=browse_groups, joined_groups=joined_groups, filters=filters, today=date.today(),
+        browse_groups=browse_groups, joined_groups=joined_groups,
+        my_member_groups=my_member_groups, filters=filters, today=date.today(),
     )
 
 
@@ -1041,7 +1073,7 @@ def new_group():
             cursor.execute("""INSERT INTO app_settings (setting_key,setting_value,updated_by) VALUES (%s,%s,%s)""",
                            (f"friend_group_deadline_{cursor.lastrowid}", lead_raw, user_id))
             connection.commit()
-            flash("揪團已發起，其他會員可在「參加別人的行程」看到；行程頁可排每日行程及使用聊天室。", "success")
+            flash("揪團已發起，其他會員可在「依行程找旅伴」看到；行程頁可排每日行程及使用聊天室。", "success")
             return redirect(url_for("friend_groups.index") + "#friend-groups")
     finally:
         cursor.close(); connection.close()
@@ -1061,8 +1093,9 @@ def group_detail(group_id):
     try:
         user_id = session["user_id"]
         cursor.execute("""
-            SELECT g.*, u.nickname, u.full_name
+            SELECT g.*, u.nickname, u.full_name, formation.setting_value AS formation_status
             FROM friend_groups g JOIN users u ON u.user_id=g.host_user_id
+            LEFT JOIN app_settings formation ON formation.setting_key=CONCAT('fg_formation_',g.group_id)
             WHERE g.group_id=%s
         """, (group_id,))
         group = cursor.fetchone()
@@ -1076,7 +1109,11 @@ def group_detail(group_id):
             (group_id, user_id)
         )
         my_membership = cursor.fetchone()
-        if group["status"] != "open" and not is_host and not (my_membership and my_membership["status"] == "approved"):
+        can_view_closed = my_membership and (
+            my_membership["status"] in ("pending", "approved")
+            or (group["status"] == "cancelled" and my_membership["status"] == "rejected")
+        )
+        if group["status"] != "open" and not is_host and not can_view_closed:
             flash("這個揪團目前沒有開放瀏覽。", "error")
             return redirect(url_for("friend_groups.index") + "#companions")
         registration_deadline = _registration_deadline(cursor, group)
@@ -1115,7 +1152,7 @@ def group_detail(group_id):
             """, (group["trip_id"],))
             itinerary = cursor.fetchall()
         event_finished = (group["end_date"] or group["event_date"]) < date.today()
-        can_review = event_finished and (is_host or is_approved_member)
+        can_review = event_finished and group["status"] != "cancelled" and (is_host or is_approved_member)
         needs_review = False
         if event_finished and is_approved_member and not is_host and group["status"] != "cancelled":
             cursor.execute("""SELECT 1 FROM friend_group_reviews
@@ -1161,6 +1198,9 @@ def group_reviews(group_id):
 
         if not is_host and not is_approved_member:
             flash("只有團長跟已通過審核的團員才能互評。", "error")
+            return redirect(url_for("friend_groups.group_detail", group_id=group_id))
+        if group.get("status") == "cancelled":
+            flash("已取消的揪團無法互評。", "error")
             return redirect(url_for("friend_groups.group_detail", group_id=group_id))
         if (group["end_date"] or group["event_date"]) >= date.today():
             flash("活動結束後才能互評。", "error")
@@ -1295,7 +1335,10 @@ def manage_group(group_id):
     if connection is None: return redirect(url_for("friend_groups.index") + "#friend-groups")
     cursor = connection.cursor(dictionary=True)
     try:
-        cursor.execute("SELECT * FROM friend_groups WHERE group_id=%s", (group_id,))
+        cursor.execute("""SELECT g.*, formation.setting_value AS formation_status
+                          FROM friend_groups g
+                          LEFT JOIN app_settings formation ON formation.setting_key=CONCAT('fg_formation_',g.group_id)
+                          WHERE g.group_id=%s""", (group_id,))
         group = cursor.fetchone()
         if not group or group["host_user_id"] != session["user_id"]:
             flash("找不到這個揪團，或你不是團主。", "error")
@@ -1310,13 +1353,30 @@ def manage_group(group_id):
             ORDER BY FIELD(m.status,'pending','approved','rejected','left'), m.applied_at
         """, (group_id,))
         members = cursor.fetchall()
+        registration_deadline = _registration_deadline(cursor, group)
+        can_restore = _can_restore_group(group) and bool(group["trip_id"])
+        if can_restore:
+            cursor.execute("""SELECT 1 FROM trips
+                              WHERE trip_id=%s AND owner_id=%s AND deleted_at IS NULL
+                                AND status NOT IN ('cancelled','completed')
+                                AND NOT EXISTS (
+                                    SELECT 1 FROM friend_groups other
+                                    WHERE other.trip_id=trips.trip_id AND other.group_id != %s
+                                      AND other.status != 'cancelled'
+                                )""",
+                           (group["trip_id"], session["user_id"], group_id))
+            can_restore = cursor.fetchone() is not None
     finally:
         cursor.close(); connection.close()
 
     can_mark_attended, can_mark_no_show = _group_attendance_availability(group)
     return render_template("member/friend_groups/group_manage.html", group=group, members=members,
                            today=datetime.now(TAIPEI_TIMEZONE).date(), can_mark_attended=can_mark_attended,
-                           can_mark_no_show=can_mark_no_show)
+                           can_mark_no_show=can_mark_no_show,
+                           can_restore=can_restore,
+                           registration_deadline=registration_deadline,
+                           approved_count=sum(m["status"] == "approved" for m in members),
+                           pending_count=sum(m["status"] == "pending" for m in members))
 
 
 @friend_groups_bp.route("/groups/<int:group_id>/members/<int:member_user_id>/attendance", methods=["POST"])
@@ -1466,13 +1526,16 @@ def approve_group_member(group_id, member_user_id):
     if connection is None: return redirect(url_for("friend_groups.index") + "#friend-groups")
     cursor = connection.cursor(dictionary=True)
     try:
-        cursor.execute("SELECT host_user_id, title, capacity, trip_id, status FROM friend_groups WHERE group_id=%s FOR UPDATE", (group_id,))
+        cursor.execute("""SELECT host_user_id, title, capacity, trip_id, status,
+                                 (SELECT setting_value FROM app_settings
+                                  WHERE setting_key=CONCAT('fg_formation_',friend_groups.group_id)) AS formation_status
+                          FROM friend_groups WHERE group_id=%s FOR UPDATE""", (group_id,))
         group = cursor.fetchone()
         if not group or group["host_user_id"] != session["user_id"]:
             flash("你不是這個揪團的團主。", "error")
             return redirect(url_for("friend_groups.index") + "#friend-groups")
-        if group["status"] != "open":
-            flash("這個揪團目前沒有開放招募。", "error")
+        if group["status"] == "cancelled" or group.get("formation_status") == "formed":
+            flash("這個揪團已確認成團或取消，無法再審核申請。", "error")
             return redirect(url_for("friend_groups.manage_group", group_id=group_id))
         cursor.execute("SELECT status FROM friend_group_members WHERE group_id=%s AND user_id=%s", (group_id, member_user_id))
         applicant = cursor.fetchone()
@@ -1544,6 +1607,89 @@ def reject_group_member(group_id, member_user_id):
     return redirect(url_for("friend_groups.manage_group", group_id=group_id))
 
 
+def _cancel_group_members(cursor, group_id, group, *, not_formed=False):
+    """Cancel a group and revoke linked trip access in the caller's transaction."""
+    cursor.execute("SELECT user_id, status FROM friend_group_members WHERE group_id=%s AND status IN ('approved','pending')", (group_id,))
+    members = cursor.fetchall()
+    cursor.execute("UPDATE friend_groups SET status='cancelled' WHERE group_id=%s", (group_id,))
+    cursor.execute("UPDATE friend_group_members SET status='rejected', responded_at=NOW() WHERE group_id=%s AND status='pending'", (group_id,))
+    if group["trip_id"]:
+        cursor.execute("""
+            UPDATE trip_members SET join_status='removed'
+            WHERE trip_id=%s AND join_status='accepted' AND member_role != 'owner'
+              AND user_id IN (
+                  SELECT user_id FROM friend_group_members
+                  WHERE group_id=%s AND status='approved'
+              )
+        """, (group["trip_id"], group_id))
+    for member in members:
+        detail = ("原行程與聊天室權限已停止。" if member["status"] == "approved"
+                  else "你的加入申請已結束。")
+        if not_formed:
+            message = f"「{group['title']}」報名截止後由主揪確認無法成團。{detail}"
+        else:
+            message = f"「{group['title']}」已由團主取消。{detail}"
+        send_notification(cursor, member["user_id"], "friend_group", "system",
+                          "揪團未成團" if not_formed else "揪團已取消", message,
+                          url_for("friend_groups.group_detail", group_id=group_id))
+
+
+@friend_groups_bp.route("/groups/<int:group_id>/formation", methods=["POST"])
+@login_required("member")
+def confirm_group_formation(group_id):
+    decision = request.form.get("decision")
+    if decision not in ("formed", "not_formed"):
+        flash("請選擇成團結果。", "error")
+        return redirect(url_for("friend_groups.manage_group", group_id=group_id))
+    connection = _connection_or_home()
+    if connection is None: return redirect(url_for("friend_groups.index") + "#friend-groups")
+    cursor = connection.cursor(dictionary=True)
+    try:
+        cursor.execute("SELECT host_user_id, title, trip_id, status, event_date FROM friend_groups WHERE group_id=%s FOR UPDATE", (group_id,))
+        group = cursor.fetchone()
+        if not group or group["host_user_id"] != session["user_id"]:
+            flash("只有這個揪團的主揪可以確認成團結果。", "error")
+            return redirect(url_for("friend_groups.index") + "#friend-groups")
+        if group["status"] == "cancelled":
+            flash("已取消的揪團無法確認成團。", "error")
+            return redirect(url_for("friend_groups.manage_group", group_id=group_id))
+        if datetime.now(TAIPEI_TIMEZONE).date() <= _registration_deadline(cursor, group):
+            flash("報名截止後才能確認成團結果。", "error")
+            return redirect(url_for("friend_groups.manage_group", group_id=group_id))
+        cursor.execute("SELECT setting_value FROM app_settings WHERE setting_key=%s", (_formation_setting_key(group_id),))
+        if cursor.fetchone():
+            flash("這個揪團已經確認過成團結果。", "error")
+            return redirect(url_for("friend_groups.manage_group", group_id=group_id))
+        cursor.execute("SELECT status, COUNT(*) AS total FROM friend_group_members WHERE group_id=%s AND status IN ('pending','approved') GROUP BY status", (group_id,))
+        counts = {row["status"]: row["total"] for row in cursor.fetchall()}
+        if decision == "formed":
+            if counts.get("pending", 0):
+                flash("請先審核所有待審核的申請，再確認成團。", "error")
+                return redirect(url_for("friend_groups.manage_group", group_id=group_id))
+            if not counts.get("approved", 0):
+                flash("尚無已加入的團員，不能確認成團。", "error")
+                return redirect(url_for("friend_groups.manage_group", group_id=group_id))
+            cursor.execute("UPDATE friend_groups SET status='closed' WHERE group_id=%s", (group_id,))
+            cursor.execute("SELECT user_id FROM friend_group_members WHERE group_id=%s AND status='approved'", (group_id,))
+            for member in cursor.fetchall():
+                send_notification(cursor, member["user_id"], "friend_group", "system", "揪團已成團",
+                                  f"「{group['title']}」已由主揪確認成團，請查看行程與集合資訊。",
+                                  url_for("friend_groups.group_detail", group_id=group_id))
+        else:
+            _cancel_group_members(cursor, group_id, group, not_formed=True)
+        cursor.execute("INSERT INTO app_settings (setting_key, setting_value, updated_by) VALUES (%s,%s,%s)",
+                       (_formation_setting_key(group_id), decision, session["user_id"]))
+        connection.commit()
+        flash("已確認成團，並通知已加入的團員。" if decision == "formed" else "已標記未成團，並通知申請者。", "success")
+    except Exception as error:
+        connection.rollback()
+        current_app.logger.exception("確認揪團成團結果失敗 group_id=%s: %s", group_id, error)
+        flash("確認成團結果失敗，請稍後再試。", "error")
+    finally:
+        cursor.close(); connection.close()
+    return redirect(url_for("friend_groups.manage_group", group_id=group_id))
+
+
 @friend_groups_bp.route("/groups/<int:group_id>/cancel", methods=["POST"])
 @login_required("member")
 def cancel_group(group_id):
@@ -1551,16 +1697,16 @@ def cancel_group(group_id):
     if connection is None: return redirect(url_for("friend_groups.index") + "#friend-groups")
     cursor = connection.cursor(dictionary=True)
     try:
-        cursor.execute("SELECT host_user_id, title FROM friend_groups WHERE group_id=%s", (group_id,))
+        cursor.execute("SELECT host_user_id, title, trip_id, status FROM friend_groups WHERE group_id=%s FOR UPDATE", (group_id,))
         group = cursor.fetchone()
         if not group or group["host_user_id"] != session["user_id"]:
             flash("你不是這個揪團的團主。", "error")
             return redirect(url_for("friend_groups.index") + "#friend-groups")
-        cursor.execute("UPDATE friend_groups SET status='cancelled' WHERE group_id=%s", (group_id,))
-        cursor.execute("SELECT user_id FROM friend_group_members WHERE group_id=%s AND status='approved'", (group_id,))
-        for member in cursor.fetchall():
-            send_notification(cursor, member["user_id"], "friend_group", "system", "揪團已取消",
-                              f"「{group['title']}」已由團主取消。", url_for("friend_groups.group_detail", group_id=group_id))
+        if group["status"] == "cancelled":
+            flash("這個揪團已取消。", "error")
+            return redirect(url_for("friend_groups.manage_group", group_id=group_id))
+        _cancel_group_members(cursor, group_id, group)
+        cursor.execute("DELETE FROM app_settings WHERE setting_key=%s", (_formation_setting_key(group_id),))
         connection.commit()
         flash("揪團已取消。", "success")
     except Exception:
@@ -1568,6 +1714,67 @@ def cancel_group(group_id):
     finally:
         cursor.close(); connection.close()
     return redirect(url_for("friend_groups.index") + "#friend-groups")
+
+
+@friend_groups_bp.route("/groups/<int:group_id>/restore", methods=["POST"])
+@login_required("member")
+def restore_group(group_id):
+    connection = _connection_or_home()
+    if connection is None: return redirect(url_for("friend_groups.index") + "#friend-groups")
+    cursor = connection.cursor(dictionary=True)
+    try:
+        cursor.execute("SELECT * FROM friend_groups WHERE group_id=%s FOR UPDATE", (group_id,))
+        group = cursor.fetchone()
+        if not group or group["host_user_id"] != session["user_id"]:
+            flash("只有這個揪團的主揪可以恢復揪團。", "error")
+            return redirect(url_for("friend_groups.index") + "#friend-groups")
+        if not _can_restore_group(group):
+            flash("只有活動開始前的已取消揪團可以恢復。", "error")
+            return redirect(url_for("friend_groups.manage_group", group_id=group_id))
+        if not group["trip_id"]:
+            flash("連動行程已不存在，無法恢復揪團。", "error")
+            return redirect(url_for("friend_groups.manage_group", group_id=group_id))
+        cursor.execute("""SELECT owner_id, status,
+                                 (SELECT COUNT(*) FROM friend_groups other
+                                  WHERE other.trip_id=trips.trip_id AND other.group_id != %s
+                                    AND other.status != 'cancelled') AS other_active_groups
+                          FROM trips WHERE trip_id=%s AND deleted_at IS NULL FOR UPDATE""",
+                       (group_id, group["trip_id"]))
+        trip = cursor.fetchone()
+        if (not trip or trip["owner_id"] != session["user_id"]
+                or trip["status"] in ("cancelled", "completed") or trip["other_active_groups"]):
+            flash("連動行程已不存在或不可使用，無法恢復揪團。", "error")
+            return redirect(url_for("friend_groups.manage_group", group_id=group_id))
+
+        registration_deadline = _registration_deadline(cursor, group)
+        reopen = (datetime.now(TAIPEI_TIMEZONE).date() <= registration_deadline
+                  and not group.get("moderation_locked"))
+        cursor.execute("UPDATE friend_groups SET status=%s WHERE group_id=%s",
+                       ("open" if reopen else "closed", group_id))
+        cursor.execute("""
+            UPDATE trip_members SET join_status='accepted'
+            WHERE trip_id=%s AND join_status='removed' AND member_role != 'owner'
+              AND user_id IN (
+                  SELECT user_id FROM friend_group_members
+                  WHERE group_id=%s AND status='approved'
+              )
+        """, (group["trip_id"], group_id))
+        cursor.execute("DELETE FROM app_settings WHERE setting_key=%s", (_formation_setting_key(group_id),))
+        cursor.execute("SELECT user_id FROM friend_group_members WHERE group_id=%s AND status='approved'", (group_id,))
+        for member in cursor.fetchall():
+            send_notification(cursor, member["user_id"], "friend_group", "system", "揪團已恢復",
+                              f"「{group['title']}」已由主揪恢復，行程與聊天室權限已重新開放。",
+                              url_for("friend_groups.group_detail", group_id=group_id))
+        connection.commit()
+        flash("揪團已恢復，已通知原本加入的團員。" +
+              ("目前可重新接受申請。" if reopen else "報名已截止，維持關閉招募。"), "success")
+    except Exception as error:
+        connection.rollback()
+        current_app.logger.exception("恢復揪團失敗 group_id=%s: %s", group_id, error)
+        flash("恢復揪團失敗，請稍後再試。", "error")
+    finally:
+        cursor.close(); connection.close()
+    return redirect(url_for("friend_groups.manage_group", group_id=group_id))
 
 
 @friend_groups_bp.route("/groups/<int:group_id>/delete", methods=["POST"])
@@ -1585,6 +1792,7 @@ def delete_group(group_id):
         cursor.execute("SELECT stored_name FROM friend_group_album_photos WHERE group_id=%s", (group_id,))
         photo_names = [row["stored_name"] for row in cursor.fetchall()]
         cursor.execute("DELETE FROM app_settings WHERE setting_key=%s", (f"friend_group_deadline_{group_id}",))
+        cursor.execute("DELETE FROM app_settings WHERE setting_key=%s", (_formation_setting_key(group_id),))
         prefix = f"fg_att_{group_id}_"
         cursor.execute("DELETE FROM app_settings WHERE LEFT(setting_key,LENGTH(%s))=%s", (prefix, prefix))
         cursor.execute("DELETE FROM friend_groups WHERE group_id=%s", (group_id,))
@@ -1636,6 +1844,11 @@ def edit_group(group_id):
         status = request.form.get("status", "open")
         if group["moderation_locked"] and status == "open":
             raise ValueError("此揪團已由管理員暫停招募，不能自行重新開放。")
+        if group["status"] == "closed" and status == "open":
+            cursor.execute("SELECT setting_value FROM app_settings WHERE setting_key=%s", (_formation_setting_key(group_id),))
+            formation = cursor.fetchone()
+            if formation and formation["setting_value"] == "formed":
+                raise ValueError("已確認成團，不能重新開放報名。")
         if not title or status not in ("open", "closed"):
             raise ValueError("請填寫名稱並選擇有效的招募狀態。")
         try:
@@ -1712,8 +1925,9 @@ def leave_group(group_id):
     connection = _connection_or_home()
     if connection is None: return redirect(url_for("friend_groups.index"))
     cursor = connection.cursor(dictionary=True)
+    group = None
     try:
-        cursor.execute("SELECT group_id, trip_id, host_user_id, title FROM friend_groups WHERE group_id=%s FOR UPDATE", (group_id,))
+        cursor.execute("SELECT group_id, trip_id, host_user_id, title, status FROM friend_groups WHERE group_id=%s FOR UPDATE", (group_id,))
         group = cursor.fetchone()
         if not group or group["host_user_id"] == session["user_id"]:
             flash("找不到可退出的揪團。", "error")
@@ -1737,6 +1951,8 @@ def leave_group(group_id):
         connection.rollback(); print("退出揪團失敗：", error); flash("操作失敗，請再試一次。", "error")
     finally:
         cursor.close(); connection.close()
+    if group and group["status"] != "open":
+        return redirect(url_for("friend_groups.index") + "#companions")
     return redirect(url_for("friend_groups.group_detail", group_id=group_id))
 
 
@@ -1830,6 +2046,9 @@ def trip_reviews(group_id):
         if not group:
             flash("只有目前的團員可以查看或撰寫行程心得。", "error")
             return redirect(url_for("friend_groups.index"))
+        if group.get("status") == "cancelled":
+            flash("已取消的揪團無法新增行程心得。", "error")
+            return redirect(url_for("friend_groups.group_detail", group_id=group_id))
         if (group["end_date"] or group["event_date"]) >= date.today():
             flash("旅行結束後才能撰寫行程心得。", "error")
             return redirect(url_for("friend_groups.group_detail", group_id=group_id))

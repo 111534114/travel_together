@@ -16,7 +16,7 @@ class LineBoundFriendGroupTests(unittest.TestCase):
     def test_unbound_member_sees_bind_prompt_without_public_trips_on_group_page(self):
         cursor = MagicMock()
         cursor.fetchone.side_effect = [{"setting_value": "1"}, {"line_sub": None}]
-        cursor.fetchall.side_effect = [[], []]
+        cursor.fetchall.side_effect = [[], [], []]
         connection = MagicMock()
         connection.cursor.return_value = cursor
 

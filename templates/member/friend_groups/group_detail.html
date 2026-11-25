@@ -4,7 +4,7 @@
         <a href="{{ url_for('friend_groups.index') }}#friend-groups">← 返回交友揪團</a>
     </div>
     <div class="panel">
-        <p class="attraction-detail-breadcrumb">團主 <a href="{{ url_for('friend_groups.public_profile', user_id=group.host_user_id) }}">{{ group.nickname or group.full_name }}</a>（Lv.{{ host_tier.level }} {{ host_tier.label }}{% if host_tier.avg_rating is not none %} · ⭐{{ "%.1f"|format(host_tier.avg_rating) }}{% endif %}） · {{ '已取消' if group.status == 'cancelled' else '已結束' if (group.end_date or group.event_date) < today else {'open':'開放中','closed':'已關閉'}[group.status] }}</p>
+        <p class="attraction-detail-breadcrumb">團主 <a href="{{ url_for('friend_groups.public_profile', user_id=group.host_user_id) }}">{{ group.nickname or group.full_name }}</a>（Lv.{{ host_tier.level }} {{ host_tier.label }}{% if host_tier.avg_rating is not none %} · ⭐{{ "%.1f"|format(host_tier.avg_rating) }}{% endif %}） · {{ '未成團' if group.formation_status == 'not_formed' else '已取消' if group.status == 'cancelled' else '已成團' if group.formation_status == 'formed' else '已結束' if (group.end_date or group.event_date) < today else {'open':'開放中','closed':'已關閉'}[group.status] }}</p>
         <h1>{{ group.title }}</h1>
         <div class="attraction-detail-stats">
             <div><span>日期</span><strong>{{ group.event_date }}{% if group.end_date and group.end_date != group.event_date %} ～ {{ group.end_date }}{% endif %}{% if group.start_time %} {{ group.start_time }}{% endif %}</strong></div>
@@ -12,14 +12,15 @@
             <div><span>團員（不含主揪）</span><strong>{{ total_members }}{% if group.capacity %} / {{ group.capacity }}{% endif %}</strong></div>
             <div><span>報名截止</span><strong>{{ registration_deadline }}（開始前 {{ group.registration_lead_days or 2 }} 天）</strong></div>
         </div>
+        {% if group.formation_status == 'not_formed' %}<p class="form-hint">主揪已確認未成團，加入申請已結束，原行程與聊天室權限已停止。</p>{% elif group.status == 'cancelled' %}<p class="form-hint">此揪團已取消，加入申請已結束，原行程與聊天室權限已停止。</p>{% elif group.formation_status == 'formed' %}<p class="form-hint">主揪已確認成團；已加入的團員可以查看行程及集合資訊。</p>{% elif today > registration_deadline %}<p class="form-hint">報名已截止，等待主揪確認成團結果。</p>{% endif %}
         {% if group.description %}<div class="attraction-detail-intro"><h2>說明</h2><p>{{ group.description }}</p></div>{% endif %}
 
         <div class="attraction-detail-actions">
             {% if is_host %}
             <a class="member-btn primary" href="{{ url_for('friend_groups.manage_group', group_id=group.group_id) }}">管理揪團</a>
             {% elif my_membership %}
-            <span class="status-tag">{{ {'pending':'審核中','approved':'已加入','rejected':'已被婉拒','left':'已退出'}[my_membership.status] }}</span>
-            {% if my_membership.status == 'approved' and group.trip_id %}
+            <span class="status-tag">{{ '未成團' if group.formation_status == 'not_formed' else '揪團已取消' if group.status == 'cancelled' else {'pending':'審核中','approved':'已加入','rejected':'已被婉拒','left':'已退出'}[my_membership.status] }}</span>
+            {% if group.status != 'cancelled' and my_membership.status == 'approved' and group.trip_id %}
             <a class="member-btn primary" href="{{ url_for('member.trip_detail', trip_id=group.trip_id) }}">📋 前往行程（每日行程、聊天室、記帳）</a>
             {% endif %}
             {% endif %}
@@ -27,7 +28,7 @@
             <a class="member-btn outline" href="{{ url_for('friend_groups.group_reviews', group_id=group.group_id) }}">⭐ 雙向評價</a>
             <a class="member-btn outline" href="{{ url_for('friend_groups.trip_reviews', group_id=group.group_id) }}">📝 行程心得</a>
             {% endif %}
-            {% if is_host or (my_membership and my_membership.status == 'approved') %}<a class="member-btn outline" href="{{ url_for('friend_groups.group_album', group_id=group.group_id) }}">📷 團內相簿</a>{% endif %}
+            {% if is_host or (group.status != 'cancelled' and my_membership and my_membership.status == 'approved') %}<a class="member-btn outline" href="{{ url_for('friend_groups.group_album', group_id=group.group_id) }}">📷 團內相簿</a>{% endif %}
         </div>
         {% if (is_host or (my_membership and my_membership.status == 'approved')) and group.meeting_info %}
         <div class="attraction-detail-intro"><h2>團內集合資訊</h2><p>{{ group.meeting_info }}</p></div>
@@ -40,7 +41,7 @@
       <button class="member-btn primary" type="submit" {% if group.capacity and total_members >= group.capacity %}disabled{% endif %}>{{ '已額滿' if group.capacity and total_members >= group.capacity else '申請參加揪團' }}</button>
     </form>{% elif registration_deadline < today %}<p class="form-hint">這個揪團已截止報名。</p>{% else %}<p class="form-hint">先綁定 LINE、通過交友揪團申請並出席一場官方活動，才能申請加入。<a href="{{ url_for('friend_groups.index') }}#friend-groups">查看申請資格與官方活動</a></p>{% endif %}</div>
     {% endif %}
-    {% if my_membership and my_membership.status in ('pending','approved') %}
+    {% if group.status != 'cancelled' and my_membership and my_membership.status in ('pending','approved') %}
     <div class="panel">
       {% if my_membership.status == 'approved' %}<form method="post" action="{{ url_for('friend_groups.set_member_visibility', group_id=group.group_id) }}"><label><input type="checkbox" name="show_profile" value="1" {% if my_membership.show_profile %}checked{% endif %}> 同意在本團顯示我的暱稱、頭像與公開簡介</label><button class="member-btn outline small" type="submit">儲存名單設定</button></form>{% endif %}
       <form method="post" action="{{ url_for('friend_groups.leave_group', group_id=group.group_id) }}" onsubmit="return confirm('確定要{{ '撤回申請' if my_membership.status == 'pending' else '退出揪團' }}嗎？')"><button class="member-btn danger small" type="submit">{{ '撤回申請' if my_membership.status == 'pending' else '退出揪團' }}</button></form>

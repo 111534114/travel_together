@@ -11,7 +11,7 @@ from blueprints.friend_groups import group_detail, group_reviews, index
 class CompletedFriendGroupTests(unittest.TestCase):
     def test_joined_completed_group_stays_in_companion_list(self):
         cursor = MagicMock()
-        cursor.fetchall.side_effect = [[], [{
+        cursor.fetchall.side_effect = [[], [], [{
             "group_id": 8, "title": "宜蘭一日遊", "event_date": date.today() - timedelta(days=2),
             "end_date": None, "city": "宜蘭縣", "location": "宜蘭", "nickname": "團長",
             "full_name": "團長",

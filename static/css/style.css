@@ -4504,12 +4504,36 @@ html { scroll-behavior: smooth; }
 .group-manage-meta .status-tag { padding: 7px 11px; font-weight: 700; }
 .group-manage-actions { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; padding-top: 24px; }
 .group-manage-actions .member-btn { min-width: 0; width: 100%; min-height: 52px; padding: 12px 16px; text-align: center; white-space: normal; }
-.group-manage-actions .group-manage-action-main { grid-column: 1 / -1; flex-direction: column; align-items: flex-start; gap: 4px; min-height: 72px; text-align: left; }
-.group-manage-action-main small { color: rgba(255, 255, 255, .88); font-size: 13px; font-weight: 500; }
 .group-manage-actions .member-btn:only-child { grid-column: 1 / -1; }
 .group-manage-danger { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-top: 28px; padding-top: 22px; border-top: 1px solid #E1EBEC; }
 .group-manage-danger p { margin: 0; color: #687A7E; font-size: 13px; line-height: 1.5; }
 .group-manage-danger form { flex: 0 0 auto; margin: 0; }
+.group-manage-active { display: grid; gap: 16px; padding-top: 22px; }
+.group-manage-primary-card { display: flex; align-items: center; justify-content: space-between; gap: 22px; padding: 23px 25px; background: #EAF7F8; border: 1px solid #C4E5E9; border-radius: 12px; }
+.group-manage-primary-card h2, .group-manage-tool-card h2 { margin: 0 0 7px; color: #145467; font-size: 20px; line-height: 1.35; }
+.group-manage-primary-card p, .group-manage-tool-card p { margin: 0; color: #4E7078; font-size: 14px; line-height: 1.6; }
+.group-manage-primary-card .member-btn { min-width: 160px; }
+.group-manage-tools { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
+.group-manage-tool-card { display: flex; flex-direction: column; align-items: flex-start; justify-content: space-between; gap: 20px; min-width: 0; padding: 20px 22px; background: #F7FAFA; border: 1px solid #DCEAED; border-radius: 12px; }
+.group-manage-tool-card h2 { color: #294F58; font-size: 17px; }
+.group-manage-tool-card .member-btn { min-width: 145px; }
+.group-manage-cancelled { display: grid; gap: 16px; padding-top: 22px; }
+.group-manage-trip-reference, .group-manage-recovery { display: flex; align-items: center; justify-content: space-between; gap: 22px; border-radius: 12px; }
+.group-manage-trip-reference { padding: 17px 20px; background: #F4F9FA; border: 1px solid #DCEAED; }
+.group-manage-trip-reference strong { color: #294F58; font-size: 15px; }
+.group-manage-trip-reference p { margin: 4px 0 0; color: #6A8186; font-size: 13px; }
+.group-manage-trip-reference .member-btn { flex: 0 0 auto; min-width: 138px; }
+.group-manage-recovery { padding: 23px 25px; background: #EAF7F8; border: 1px solid #C4E5E9; }
+.group-manage-recovery-copy { min-width: 0; }
+.group-manage-recovery h2 { margin: 0 0 7px; color: #145467; font-size: 20px; line-height: 1.35; }
+.group-manage-recovery p { max-width: 680px; margin: 0; color: #4E7078; font-size: 14px; line-height: 1.65; }
+.group-manage-recovery form { flex: 0 0 auto; margin: 0; }
+.group-manage-recovery .member-btn { min-width: 160px; min-height: 46px; }
+.group-manage-danger-card { margin-top: 0; padding: 16px 20px; background: #FFF9F8; border: 1px solid #F1DDDA; border-radius: 12px; }
+.group-manage-danger-card strong { color: #9A4444; font-size: 14px; }
+.group-manage-danger-card p { margin-top: 4px; }
+.group-manage-danger-card .member-btn.danger { color: #B44545; background: #fff; border: 1px solid #E6B8B8; }
+.group-manage-danger-card .member-btn.danger:hover { background: #FFF0F0; }
 .group-permissions-page .page-heading { text-align: left; }
 .group-permissions-page .page-heading p { margin: 0; color: #687A7E; }
 .group-permissions-page .panel h2 { margin: 0 0 18px; color: #25474D; }
@@ -4530,9 +4554,14 @@ html { scroll-behavior: smooth; }
 @media (max-width: 640px) {
     .group-manage-overview { padding: 22px; }
     .group-manage-actions { grid-template-columns: 1fr; }
-    .group-manage-actions .group-manage-action-main { grid-column: auto; }
     .group-manage-danger { align-items: stretch; flex-direction: column; }
     .group-manage-danger .member-btn { width: 100%; }
+    .group-manage-primary-card { align-items: stretch; flex-direction: column; }
+    .group-manage-primary-card .member-btn { width: 100%; }
+    .group-manage-tools { grid-template-columns: 1fr; }
+    .group-manage-tool-card .member-btn { width: 100%; }
+    .group-manage-trip-reference, .group-manage-recovery { align-items: stretch; flex-direction: column; }
+    .group-manage-trip-reference .member-btn, .group-manage-recovery .member-btn { width: 100%; }
     .group-permission-guide { grid-template-columns: 1fr; }
     .group-permission-row { align-items: stretch; flex-direction: column; }
     .group-permission-form { flex-wrap: wrap; }

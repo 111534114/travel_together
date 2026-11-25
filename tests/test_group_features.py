@@ -392,7 +392,7 @@ class GroupFeatureTests(unittest.TestCase):
     def test_leaving_group_revokes_trip_membership(self):
         cursor = MagicMock()
         cursor.fetchone.side_effect = [
-            {"group_id": 3, "trip_id": 8, "host_user_id": 1, "title": "測試團"},
+            {"group_id": 3, "trip_id": 8, "host_user_id": 1, "title": "測試團", "status": "open"},
             {"status": "approved"},
         ]
         connection = MagicMock()

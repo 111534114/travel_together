@@ -28,6 +28,23 @@
                 </div>
             </div>
         </form>
+        {% if my_member_groups %}
+        <section class="panel" aria-label="我的揪團申請與參加紀錄">
+            <h2>我的申請與參加</h2>
+            <div class="trip-grid">
+                {% for group in my_member_groups %}
+                <a class="trip-card companion-panel-clickable group-search-result" href="{{ url_for('friend_groups.group_detail', group_id=group.group_id) }}">
+                    <div class="trip-content">
+                        <h3>{{ group.title }}</h3>
+                        <p class="location">{{ group.event_date }}{% if group.location %} · {{ group.location }}{% endif %} · 主揪 {{ group.nickname or group.full_name }}</p>
+                        <div class="trip-details"><span class="status-tag">{{ '未成團' if group.formation_status == 'not_formed' else '揪團已取消' if group.status == 'cancelled' else '已成團' if group.formation_status == 'formed' else '審核中' if group.my_status == 'pending' else '已加入' }}</span>{% if group.status == 'closed' and group.formation_status != 'formed' %}<span>已關閉招募</span>{% endif %}</div>
+                        <span class="group-search-detail">{{ '查看成團結果' if group.formation_status else '查看詳情或撤回申請' if group.my_status == 'pending' else '查看揪團詳情' }} →</span>
+                    </div>
+                </a>
+                {% endfor %}
+            </div>
+        </section>
+        {% endif %}
         {% if browse_groups %}
         <div class="panel"><h2>會員揪團</h2><div class="trip-grid">
             {% for group in browse_groups %}
@@ -192,7 +209,7 @@
                 <div class="trip-content">
                     <h3>{{ group.title }}</h3>
                     <p class="location">{{ group.event_date }}{% if group.location %} · {{ group.location }}{% endif %}</p>
-                    <div class="trip-details"><span>{{ group.member_count }}{% if group.capacity %} / {{ group.capacity }}{% endif %} 人</span>{% if group.pending_count %}<span>{{ group.pending_count }} 筆待審核</span>{% endif %}<span class="status-tag">{{ '已取消' if group.status == 'cancelled' else '已結束' if (group.end_date or group.event_date) < today else {'open':'開放中','closed':'已關閉'}[group.status] }}</span></div>
+                    <div class="trip-details"><span>{{ group.member_count }}{% if group.capacity %} / {{ group.capacity }}{% endif %} 人</span>{% if group.pending_count %}<span>{{ group.pending_count }} 筆待審核</span>{% endif %}<span class="status-tag">{{ '未成團' if group.formation_status == 'not_formed' else '已取消' if group.status == 'cancelled' else '已成團' if group.formation_status == 'formed' else '已結束' if (group.end_date or group.event_date) < today else {'open':'開放中','closed':'已關閉'}[group.status] }}</span></div>
                 </div>
             </article>
             {% endfor %}

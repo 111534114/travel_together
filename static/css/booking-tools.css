@@ -173,3 +173,15 @@
 /* 人數超過上限的說明(機票) */
 .pax-limit-note { margin-top:2px; color:#8A5A00; font-size:12px; line-height:1.5; }
 .pax-limit-note[hidden] { display:none; }
+
+/* 住宿：入住退房合成一個日期框 */
+.booking-search-form .field-daterange { flex: 1.4 1 250px; min-width: 220px; }
+.booking-search-form .field-daterange input[type="text"] { cursor: pointer; }
+/* 房間與人數那一格不能被壓太窄(文字會跑出框外、蓋到搜尋按鈕)：保留足夠寬度，真的塞不下就讓搜尋按鈕換行 */
+.booking-search-form .field:has(.guest-picker) { flex: 1 1 210px; min-width: 210px; }
+.booking-search-form .field:has(+ .booking-search-submit):has(.guest-picker) { flex: 1 1 210px; min-width: 210px; }
+.guest-picker-toggle { overflow: hidden; text-overflow: ellipsis; }
+/* 日曆選中的日期用站內的青色 */
+.flatpickr-day.selected, .flatpickr-day.startRange, .flatpickr-day.endRange, .flatpickr-day.selected:hover, .flatpickr-day.startRange:hover, .flatpickr-day.endRange:hover { background: #078da4; border-color: #078da4; }
+.flatpickr-day.inRange { background: #E5F4F7; border-color: #E5F4F7; box-shadow: -5px 0 0 #E5F4F7, 5px 0 0 #E5F4F7; }
+.flatpickr-calendar { border-radius: 14px; box-shadow: 0 16px 40px rgba(35, 55, 58, .18); }

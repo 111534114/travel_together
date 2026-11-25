@@ -1,0 +1,43 @@
+/* 多座城市結果頁的搜尋表單(沿用 booking-tools.css 的 .booking-search-card / .booking-search-form) */
+.booking-search-form--multicity .mc-top { display: flex; flex: 0 0 100%; flex-wrap: wrap; align-items: end; gap: 14px; }
+.booking-search-form--multicity .mc-top .field { flex: 0 1 150px; min-width: 110px; }
+.mc-legs { display: flex; flex: 0 0 100%; flex-direction: column; gap: 10px; }
+.mc-leg { display: flex; flex-wrap: wrap; align-items: end; gap: 14px; padding: 12px 14px; background: #F1F8F9; border: 1px solid #E1EBEC; border-radius: 10px; }
+.mc-leg .field { position: relative; display: flex; flex: 1 1 150px; min-width: 130px; flex-direction: column; gap: 6px; }
+.mc-leg .field label { color: #536970; font-size: 14px; font-weight: 600; }
+.mc-leg .field input { min-height: 46px; padding: 11px 14px; color: #23373A; background: #fff; border: 1px solid #C6DCDF; border-radius: 8px; font: inherit; font-size: 15px; }
+.mc-leg .field input:focus { border-color: #078da4; box-shadow: 0 0 0 3px rgba(7, 141, 164, .15); outline: none; }
+.mc-leg .field-sep { display: flex; align-items: center; justify-content: center; padding-bottom: 13px; color: #536970; font-size: 18px; }
+.mc-badge { display: inline-flex; flex: 0 0 auto; align-items: center; justify-content: center; align-self: center; width: 26px; height: 26px; color: #fff; background: #4B838B; border-radius: 50%; font-size: 13px; font-weight: 800; }
+.mc-remove { flex: 0 0 auto; align-self: center; width: 32px; height: 32px; color: #708284; background: #fff; border: 1px solid #C6DCDF; border-radius: 50%; cursor: pointer; font-size: 14px; }
+.mc-remove:hover { color: #B23B3B; border-color: #E5A5A5; }
+.mc-remove[hidden] { display: none; }
+.mc-actions { display: flex; flex: 0 0 100%; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; }
+.mc-add { padding: 10px 18px; color: #4B838B; background: transparent; border: 1.5px dashed #9fc7cf; border-radius: 8px; cursor: pointer; font: inherit; font-weight: 700; }
+.mc-add:hover { background: #EDF6F7; }
+.mc-add:disabled { opacity: .5; cursor: not-allowed; }
+@media (max-width: 640px) { .mc-leg .field-sep { display: none; } }
+
+/* ===== 緊湊版面(像 Trip.com)：上面縮小，搜尋完才看得到下面的機票 ===== */
+.booking-search-form--multicity { gap: 8px; }
+.booking-search-form--multicity .mc-top { gap: 10px 16px; align-items: center; }
+.mc-inline { display: flex; align-items: center; gap: 8px; }
+.mc-inline label { color: #536970; font-size: 14px; font-weight: 700; white-space: nowrap; }
+.mc-inline select, .mc-inline input { min-height: 38px; padding: 6px 12px; color: #23373A; background: #fff; border: 1px solid #C6DCDF; border-radius: 8px; font: inherit; font-size: 15px; }
+.mc-inline input[type="number"] { width: 72px; }
+.mc-inline select:focus, .mc-inline input:focus { border-color: #078da4; box-shadow: 0 0 0 3px rgba(7, 141, 164, .15); outline: none; }
+.booking-search-form--multicity .mc-top .booking-search-submit { min-height: 38px; padding: 8px 26px; margin-left: auto; }
+.mc-top .mc-add { padding: 7px 16px; }
+.mc-legs { gap: 6px; }
+.mc-leg { align-items: center; gap: 8px 10px; padding: 7px 12px; }
+.mc-leg .field { flex: 1 1 140px; min-width: 120px; gap: 0; }
+.mc-leg .field input { min-height: 38px; padding: 6px 12px; font-size: 15px; }
+.mc-leg .field-sep { align-items: center; padding-bottom: 0; }
+.mc-badge { width: 24px; height: 24px; font-size: 12px; }
+.mc-remove { width: 28px; height: 28px; }
+.sr-only { position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
+.booking-search-card:has(.booking-search-form--multicity) { padding: 14px 18px; }
+
+.mc-swap { flex: 0 0 auto; align-self: flex-end; width: 36px; height: 36px; margin-bottom: 5px; color: #078da4; background: #fff; border: 1px solid #C6DCDF; border-radius: 50%; cursor: pointer; font-size: 15px; line-height: 1; transition: transform 160ms ease; }
+.mc-swap:hover { background: #E6F4F6; transform: rotate(180deg); }
+@media (max-width: 640px) { .mc-swap { align-self: center; margin-bottom: 0; } }

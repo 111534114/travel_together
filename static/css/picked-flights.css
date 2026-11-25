@@ -1,0 +1,23 @@
+.pick-button { margin-left: 8px; padding: 9px 14px; color: #078da4; background: #fff; border: 1.5px solid #078da4; border-radius: 8px; cursor: pointer; font: inherit; font-weight: 700; white-space: nowrap; }
+.pick-button[aria-pressed="true"] { color: #fff; background: #078da4; }
+.flight-card.is-picked { border-color: #078da4; box-shadow: 0 0 0 2px rgba(7, 141, 164, .25); }
+.picked-summary { position: sticky; bottom: 12px; z-index: 40; margin-top: 18px; padding: 14px 18px; background: #fff; border: 1.5px solid #078da4; border-radius: 14px; box-shadow: 0 8px 28px rgba(35, 55, 58, .2); }
+.picked-summary[hidden] { display: none; }
+.picked-head { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; }
+.picked-head h3 { margin: 0; font-size: 17px; color: #23373A; }
+.picked-count { color: #708284; font-size: 13px; }
+.picked-list { margin: 8px 0; padding: 0; list-style: none; }
+.picked-list li { display: flex; align-items: center; gap: 12px; padding: 8px 0; border-bottom: 1px solid #E6EEF0; }
+.picked-info { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.picked-info span { color: #536970; font-size: 13px; }
+.picked-price { font-weight: 800; color: #23373A; white-space: nowrap; }
+.picked-book { padding: 7px 12px; color: #fff; background: #078da4; border-radius: 8px; font-weight: 700; text-decoration: none; white-space: nowrap; }
+.picked-foot { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+.picked-total b { margin-left: 6px; font-size: 22px; color: #078da4; }
+.picked-total small { display: block; color: #708284; font-size: 12px; }
+.picked-clear { padding: 7px 14px; color: #708284; background: #fff; border: 1px solid #C6DCDF; border-radius: 8px; cursor: pointer; font: inherit; }
+
+.flight-leg.leg-picked .flight-card:not(.is-picked), .flight-leg.leg-picked .empty { display: none; }
+.flight-leg { scroll-margin-top: 12px; }
+.flight-leg.leg-picked h3::after { content: '已選好'; margin-left: 10px; padding: 2px 10px; color: #078da4; background: #E6F4F6; border-radius: 999px; font-size: 12px; font-weight: 700; vertical-align: middle; }
+.flight-card.is-picked .pick-button { color: #536970; background: #fff; border-color: #C6DCDF; }

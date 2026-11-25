@@ -374,6 +374,8 @@
     @media (max-width: 560px) { .home-carousel-caption { font-size: 18px; padding: 30px 20px 30px; } .home-carousel-arrow { opacity: 1; width: 28px; height: 28px; margin-top: -14px; font-size: 18px; } }
     @media (prefers-reduced-motion: reduce) { .home-carousel-track { transition: none; } }
   </style>
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/flight-passengers.css') }}">
+  <script src="{{ url_for('static', filename='js/flight-passengers.js') }}" defer></script>
 </head>
 <body>
   <div class="member-shell">
@@ -600,8 +602,10 @@
               <input type="hidden" id="flightDepart">
               <input type="hidden" id="flightReturn">
             </div>
-            <div class="field"><label for="flightPax">人數</label><input id="flightPax" type="number" min="1" value="1"></div>
-            <button class="search-submit" type="submit">搜尋</button>
+            <div class="search-actions">
+              {% set fp_pax_id = 'flightPax' %}{% include 'partials/flight_passengers.html' %}
+              <button class="search-submit" type="submit">搜尋</button>
+            </div>
           </div>
           <div class="multi-city-fields" id="flightMultiFields" hidden>
             <div class="multi-city-legs" id="multiCityLegs">
@@ -610,7 +614,7 @@
                 <div class="field"><label>出發地</label><input class="mc-from" type="text" placeholder="台北" autocomplete="off" data-city-autocomplete></div>
                 <button type="button" class="field-swap" data-mc-swap aria-label="交換出發地與目的地">⇄</button>
                 <div class="field"><label>目的地</label><input class="mc-to" type="text" placeholder="東京" autocomplete="off" data-city-autocomplete></div>
-                <div class="field"><label>日期</label><input class="mc-date" type="date"></div>
+                <div class="field"><label>日期</label><div class="date-range-box"><input class="mc-date" type="text" placeholder="請選擇日期"></div></div>
                 <button type="button" class="mc-remove" hidden aria-label="移除這段航班">✕</button>
               </div>
               <div class="multi-city-leg" data-leg>
@@ -618,14 +622,16 @@
                 <div class="field"><label>出發地</label><input class="mc-from" type="text" placeholder="東京" autocomplete="off" data-city-autocomplete></div>
                 <button type="button" class="field-swap" data-mc-swap aria-label="交換出發地與目的地">⇄</button>
                 <div class="field"><label>目的地</label><input class="mc-to" type="text" placeholder="大阪" autocomplete="off" data-city-autocomplete></div>
-                <div class="field"><label>日期</label><input class="mc-date" type="date"></div>
+                <div class="field"><label>日期</label><div class="date-range-box"><input class="mc-date" type="text" placeholder="請選擇日期"></div></div>
                 <button type="button" class="mc-remove" hidden aria-label="移除這段航班">✕</button>
               </div>
             </div>
             <button type="button" class="mc-add-leg" id="mcAddLeg">＋ 添加航班</button>
             <div class="search-fields-row">
-              <div class="field"><label for="flightPaxMc">人數</label><input id="flightPaxMc" type="number" min="1" value="1"></div>
-              <button class="search-submit" type="button" id="mcSubmit">搜尋</button>
+              <div class="search-actions">
+                {% set fp_pax_id = 'flightPaxMc' %}{% include 'partials/flight_passengers.html' %}
+                <button class="search-submit" type="button" id="mcSubmit">搜尋</button>
+              </div>
             </div>
           </div>
         </div>

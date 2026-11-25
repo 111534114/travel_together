@@ -99,3 +99,125 @@
 .hd-ai-group ul { margin: 0; padding-left: 20px; color: #3D5256; font-size: 14px; line-height: 1.7; }
 .hd-ai-note { margin: 10px 0 0; color: #708284; font-size: 12px; }
 @media (max-width: 520px) { .hd-rv-searchrow { flex-direction: column; align-items: stretch; } }
+
+/* ===== 住客留言視窗：放大、留白加多(原本 560px 太擠) ===== */
+.hd-rv-panel { width: min(900px, 96vw); max-height: min(92vh, 960px); border-radius: 18px; }
+.hd-rv-head { padding: 24px 30px 18px; }
+.hd-rv-title { font-size: 24px; }
+.hd-rv-sub { margin-top: 6px; font-size: 14.5px; }
+.hd-rv-close { width: 38px; height: 38px; font-size: 24px; line-height: 38px; }
+.hd-rv-tools { padding: 16px 30px; }
+.hd-rv-search { padding: 12px 18px; font-size: 15px; }
+.hd-rv-ai { padding: 12px 22px; font-size: 15px; }
+.hd-rv-body { padding: 6px 30px 32px; }
+/* 面向標籤放在內容區最上面，全部攤開，不用再捲小方塊 */
+.hd-rv-topics { max-height: none; overflow: visible; gap: 10px; margin: 18px 0 8px; }
+.hd-rv-topic { padding: 9px 18px; font-size: 14.5px; gap: 8px; }
+.hd-rv-topic small { font-size: 12px; }
+/* AI 整理：優點與待加強左右並排 */
+.hd-ai { margin: 16px 0 24px; padding: 24px 28px; border-radius: 16px; }
+.hd-ai-title { font-size: 17px; }
+.hd-ai-summary { margin: 10px 0 4px; font-size: 15.5px; line-height: 1.8; }
+.hd-ai-cols { display: grid; grid-template-columns: 1fr 1fr; gap: 28px; margin-top: 14px; }
+.hd-ai-group h4 { margin: 0 0 8px; font-size: 15.5px; }
+.hd-ai-group ul { padding-left: 22px; font-size: 15px; line-height: 1.85; }
+.hd-ai-group li + li { margin-top: 4px; }
+.hd-ai-note { margin-top: 16px; font-size: 12.5px; }
+/* 留言本身 */
+.hd-rv-body .hd-offer-note { font-size: 13.5px; }
+.hd-rv-searchinfo { margin: 8px 0 4px; font-size: 14px; }
+.hd-review { padding: 20px 0; }
+.hd-review-head { gap: 10px; margin-bottom: 8px; font-size: 14.5px; }
+.hd-review-text { font-size: 15.5px; line-height: 1.85; }
+.hd-review-text.clamped { -webkit-line-clamp: 5; }
+.hd-review-toggle { margin-top: 6px; font-size: 14px; }
+.hd-review-reply { margin-top: 12px; padding: 12px 16px; font-size: 14px; line-height: 1.75; border-radius: 0 8px 8px 0; }
+@media (max-width: 720px) {
+  .hd-rv-head, .hd-rv-tools { padding-left: 18px; padding-right: 18px; }
+  .hd-rv-body { padding: 4px 18px 24px; }
+  .hd-ai { padding: 18px; }
+  .hd-ai-cols { grid-template-columns: 1fr; gap: 18px; }
+}
+
+/* 留言視窗再放寬、加高 */
+.hd-rv-panel { width: min(1180px, 97vw); max-height: min(94vh, 1000px); }
+.hd-rv-head, .hd-rv-tools { padding-left: 40px; padding-right: 40px; }
+.hd-rv-body { padding-left: 40px; padding-right: 40px; }
+.hd-ai { padding: 28px 34px; }
+.hd-ai-cols { gap: 40px; }
+@media (max-width: 720px) {
+  .hd-rv-panel { width: 100vw; max-height: 96vh; border-radius: 14px; }
+  .hd-rv-head, .hd-rv-tools, .hd-rv-body { padding-left: 18px; padding-right: 18px; }
+}
+
+/* 圓角要把裡面的內容(捲軸、底色)一起裁成圓弧，右下不要有直角 */
+.hd-rv-panel { overflow: hidden; }
+.hd-rv-body { border-radius: 0 0 18px 18px; }
+
+/* 「查看住客留言」：醒目的主要按鈕 */
+.hd-reviews-cta { position: relative; display: flex; flex-wrap: wrap; align-items: center; gap: 4px 10px; width: 100%; margin: 12px 0 10px; padding: 14px 20px; color: #fff; background: #4B838B; border: 0; border-radius: 12px; box-shadow: 0 8px 20px rgba(75, 131, 139, .35); font: inherit; font-size: 16px; font-weight: 800; text-align: left; cursor: pointer; transition: transform .15s ease, box-shadow .15s ease, background .15s ease; }
+.hd-reviews-cta:hover { background: #37676D; transform: translateY(-1px); box-shadow: 0 12px 26px rgba(75, 131, 139, .45); }
+.hd-reviews-cta:focus-visible { outline: 3px solid #A9DDE3; outline-offset: 2px; }
+.hd-reviews-cta svg { flex: 0 0 auto; }
+.hd-reviews-cta .hd-cta-text { flex: 1 1 auto; }
+.hd-reviews-cta .hd-cta-sub { flex: 0 0 100%; padding-left: 30px; color: #D8EEF1; font-size: 12.5px; font-weight: 500; }
+.hd-reviews-cta::after { content: "›"; position: absolute; right: 20px; top: 50%; margin-top: -16px; font-size: 26px; font-weight: 400; line-height: 1; }
+
+/* ===== 「查看住客留言」改成緊湊、亮邊發光(不是放大) ===== */
+.hd-reviews-cta { display: inline-flex; flex-wrap: nowrap; align-items: center; gap: 9px; width: auto; margin: 10px 0 8px; padding: 9px 16px; color: #1B6B76; background: #fff; border: 2px solid #19C3D6; border-radius: 999px; box-shadow: 0 0 0 4px rgba(25, 195, 214, .18), 0 4px 14px rgba(25, 195, 214, .35); font-size: 15px; font-weight: 800; text-align: left; animation: hd-cta-glow 2.4s ease-in-out infinite; }
+.hd-reviews-cta:hover { color: #fff; background: #19A8BA; border-color: #19A8BA; transform: translateY(-1px); box-shadow: 0 0 0 5px rgba(25, 195, 214, .25), 0 8px 20px rgba(25, 195, 214, .5); animation: none; }
+.hd-reviews-cta svg { color: #19A8BA; }
+.hd-reviews-cta:hover svg { color: #fff; }
+.hd-reviews-cta .hd-cta-text { flex: 0 1 auto; }
+.hd-reviews-cta::after { content: none; }
+.hd-cta-badge { padding: 2px 9px; color: #fff; background: #FF8A1F; border-radius: 999px; font-size: 11.5px; font-style: normal; font-weight: 800; letter-spacing: .5px; }
+@keyframes hd-cta-glow {
+  0%, 100% { box-shadow: 0 0 0 3px rgba(25, 195, 214, .14), 0 3px 10px rgba(25, 195, 214, .25); }
+  50% { box-shadow: 0 0 0 6px rgba(25, 195, 214, .28), 0 5px 18px rgba(25, 195, 214, .5); }
+}
+@media (prefers-reduced-motion: reduce) { .hd-reviews-cta { animation: none; } }
+
+/* ===== 飯店詳情視窗整理：留白、分組、評價區並排 ===== */
+.hd-body { grid-template-columns: minmax(0, 1fr) 280px; gap: 32px; padding: 26px 32px 34px; }
+.hd-section { margin-top: 28px; }
+.hd-section h3 { margin: 0 0 14px; font-size: 17px; }
+/* 評分卡片：評分、留言數、「查看留言」同一排 */
+.hd-rating { flex-wrap: wrap; gap: 12px 14px; margin-bottom: 20px; padding: 14px 18px; background: #F5FAFA; border: 1px solid #E1EBEC; border-radius: 12px; }
+.hd-rating-text { color: #4B5D60; font-size: 14px; }
+.hd-rating .hd-reviews-cta { margin: 0 0 0 auto; }
+/* 星等分布與面向左右兩欄 */
+.hd-rate-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px 40px; }
+.hd-rate-col h4 { margin: 0 0 10px; color: #23373A; font-size: 14.5px; }
+.hd-bar-row { margin: 10px 0; }
+/* 右側：價格區下面的按鈕分組 */
+.hd-side { padding: 22px; }
+.hd-side .hd-offers { margin-top: 6px; }
+.hd-side-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 18px; padding-top: 18px; border-top: 1px solid #E1EBEC; }
+.hd-side-actions .hd-btn { margin-top: 0; padding: 10px 6px; font-size: 14px; }
+.hd-side-actions .hd-btn:only-child { grid-column: 1 / -1; }
+@media (max-width: 860px) {
+  .hd-body { grid-template-columns: 1fr; padding: 20px 20px 26px; }
+  .hd-side { position: static; }
+}
+@media (max-width: 640px) {
+  .hd-rate-grid { grid-template-columns: 1fr; }
+  .hd-rating .hd-reviews-cta { margin-left: 0; }
+}
+
+/* ===== 飯店詳情整頁版(新分頁) ===== */
+.hd-page-wrap { max-width: 1180px; margin: 0 auto; padding: 8px 0 48px; }
+.hd-back { display: inline-flex; align-items: center; gap: 6px; margin: 0 0 14px; color: #4B838B; font-weight: 700; text-decoration: none; }
+.hd-back:hover { text-decoration: underline; }
+.hd-page-dialog { width: 100%; margin: 0 auto; box-shadow: 0 10px 34px rgba(35, 55, 58, .14); }
+.hd-page-dialog .hd-main { height: 480px; }
+.hd-page-dialog .hd-body { grid-template-columns: minmax(0, 1fr) 320px; }
+.hd-page-empty { max-width: 560px; margin: 60px auto; padding: 36px; text-align: center; background: #fff; border: 1px solid #E1EBEC; border-radius: 14px; }
+.hd-page-empty b { font-size: 20px; }
+.hd-page-empty p { margin: 10px 0 20px; color: #708284; line-height: 1.7; }
+.hd-page-empty .hd-btn { display: inline-block; padding: 10px 26px; }
+@media (max-width: 860px) { .hd-page-dialog .hd-main { height: 300px; } .hd-page-dialog .hd-body { grid-template-columns: 1fr; } }
+
+/* 報價還沒回來前，列表上的參考價用淡色顯示 */
+.hd-price.is-ref { opacity: .55; }
+.hd-price-note { margin: 6px 0 12px; padding: 8px 10px; color: #8A5A00; background: #FFF6E3; border-radius: 8px; font-size: 12.5px; line-height: 1.6; }
+.hd-price-note[hidden] { display: none; }

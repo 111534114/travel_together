@@ -4,20 +4,22 @@
   <form method="get" class="booking-search-form booking-search-form--{{ booking_kind }}">
     {% if booking_kind == 'hotel' %}
     <div class="field"><label for="searchDestination">目的地</label><input id="searchDestination" name="destination" type="text" value="{{ destination or '' }}" placeholder="輸入目的地或住宿名稱" autocomplete="off" data-hotel-autocomplete></div>
-    <div class="field"><label for="searchCheckin">入住</label><input id="searchCheckin" name="checkin" type="date" value="{{ checkin or '' }}"></div>
-    <div class="field"><label for="searchCheckout">退房 <span id="searchNights" class="nights-badge" hidden></span></label><input id="searchCheckout" name="checkout" type="date" value="{{ checkout or '' }}"></div>
+    {# 入住與退房合成一個框(像 Agoda)：點開日曆選一段日期；真正送出的是下面兩個隱藏欄位 #}
+    <div class="field field-daterange"><label for="searchDateRange">入住 － 退房 <span id="searchNights" class="nights-badge" hidden></span></label>
+      <input id="searchDateRange" type="text" placeholder="請選擇入住與退房日期" autocomplete="off" value="{% if checkin and checkout %}{{ checkin.replace('-', '/') }} － {{ checkout.replace('-', '/') }}{% endif %}">
+      <input id="searchCheckin" name="checkin" type="hidden" value="{{ checkin or '' }}"><input id="searchCheckout" name="checkout" type="hidden" value="{{ checkout or '' }}"></div>
     <div class="field"><label>房間與人數</label>{{ guest_picker() }}</div>
     {% elif booking_kind == 'flight' %}
     <div class="field field-compact"><label for="searchTripMode">行程</label><select id="searchTripMode" name="trip_mode">
       <option value="oneway"{% if not return_date %} selected{% endif %}>單程</option>
       <option value="roundtrip"{% if return_date %} selected{% endif %}>來回</option>
+      <option value="multicity">多座城市</option>
     </select></div>
     <div class="field"><label for="searchFrom">出發地</label><input id="searchFrom" name="from" type="text" value="{{ origin or '' }}" placeholder="台北" autocomplete="off" data-city-autocomplete></div>
-    <div class="field-sep">→</div>
+    <button type="button" class="mc-swap" data-swap-a="searchFrom" data-swap-b="searchTo" aria-label="交換出發地與目的地">⇄</button>
     <div class="field"><label for="searchTo">目的地</label><input id="searchTo" name="to" type="text" value="{{ destination or '' }}" placeholder="東京" autocomplete="off" data-city-autocomplete></div>
     <div class="field"><label for="searchDepart">去程日期</label><input id="searchDepart" name="depart" type="date" value="{{ depart_date or '' }}"></div>
     <div class="field" id="searchReturnField"{% if not return_date %} hidden{% endif %}><label for="searchReturn">回程日期</label><input id="searchReturn" name="return" type="date" value="{{ return_date or '' }}"{% if not return_date %} disabled{% endif %}></div>
-    <div class="field"><label for="searchPax">人數</label><input id="searchPax" name="pax" type="number" min="1" max="9" value="{{ pax or 1 }}"></div>
     {% elif booking_kind == 'train' %}
     {% set train_max = train_max_dates() %}
     <div class="field field-compact"><label for="searchRail">車種</label><select id="searchRail" name="rail">
@@ -37,7 +39,9 @@
     <div class="field" id="searchReturnField"{% if not train_roundtrip %} hidden{% endif %}><label for="searchTrainReturn">回程日期</label><input id="searchTrainReturn" name="return" type="date" max="{{ train_max.get(rail, train_max['']) }}" value="{{ request.args.get('return', '') if train_roundtrip else '' }}"{% if not train_roundtrip %} disabled{% endif %}></div>
     <div class="field field-compact"><label for="searchPax">人數</label><input id="searchPax" name="pax" type="number" min="1" max="99" value="{{ pax or 1 }}"></div>
     {% endif %}
-    <button class="booking-search-submit" type="submit"{% if booking_kind == 'flight' %}{% endif %}>搜尋</button>
+    {% if booking_kind == 'flight' %}<div class="booking-search-actions">{% set fp_pax_id = 'searchPax' %}{% set fp_adults = adults|default(pax or 1) %}{% set fp_children = children|default(0) %}{% set fp_infants = infants|default(0) %}{% set fp_cabin = request.args.get('cabin', '') if request.args.get('cabin','') != 'all' else '' %}{% include 'partials/flight_passengers.html' %}{% endif %}
+    <button class="booking-search-submit" type="submit">搜尋</button>{% if booking_kind == 'flight' %}</div>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/multi-city-form.css') }}"><script src="{{ url_for('static', filename='js/multi-city-form.js') }}" defer></script><link rel="stylesheet" href="{{ url_for('static', filename='css/flight-passengers.css') }}"><script src="{{ url_for('static', filename='js/flight-passengers.js') }}" defer></script>{% endif %}
   </form>
 </div>
 <script>
@@ -72,7 +76,20 @@
         endInput.disabled = !roundtrip;
         endInput.required = roundtrip;
       };
-      tripMode.addEventListener('change', syncTrip);
+      tripMode.addEventListener('change', function () {
+        // 切到「多座城市」：把已經填好的出發地、目的地、去程日期帶到多座城市頁當第一段，第二段出發地接第一段的目的地
+        if (tripMode.value === 'multicity' && document.getElementById('searchFrom')) {
+          var f = document.getElementById('searchFrom').value.trim(), t = document.getElementById('searchTo').value.trim();
+          var q = new URLSearchParams({ legs: '2', pax: (document.getElementById('searchPax') || {}).value || '1' });
+          var fpRoot = document.querySelector('[data-fp]'); if (fpRoot && fpRoot._fp) Object.entries(fpRoot._fp.params()).forEach(function (kv) { q.set(kv[0], kv[1]); });
+          if (f) q.set('from1', f);
+          if (t) { q.set('to1', t); q.set('from2', t); }
+          if (document.getElementById('searchDepart').value) q.set('date1', document.getElementById('searchDepart').value);
+          location.href = '/visitor/flights/multi-city?' + q.toString();
+          return;
+        }
+        syncTrip();
+      });
       syncTrip();
     }
     // 住宿：選好入住和退房日期後，在「退房」旁邊顯示共幾晚
@@ -94,6 +111,33 @@
       });
     }
   })();
+</script>
+<script>
+  // 住宿的入住/退房日期：一個框選一段日期(flatpickr 範圍模式)，選好後寫回兩個隱藏欄位
+  document.addEventListener('DOMContentLoaded', function () {
+    var range = document.getElementById('searchDateRange');
+    var checkin = document.getElementById('searchCheckin');
+    var checkout = document.getElementById('searchCheckout');
+    if (!range || !checkin || !checkout || !window.flatpickr) return;
+    var iso = function (d) { return window.flatpickr.formatDate(d, 'Y-m-d'); };
+    var fire = function (el) { el.dispatchEvent(new Event('change', { bubbles: true })); };
+    var englishPage = /(?:^|;\s*)googtrans=\/[^/;]*\/en(?:;|$)/.test(document.cookie);
+    var options = {
+      mode: 'range', dateFormat: 'Y/m/d', minDate: 'today',
+      showMonths: window.innerWidth > 760 ? 2 : 1,
+      onChange: function (dates) {
+        checkin.value = dates.length === 2 ? iso(dates[0]) : '';
+        checkout.value = dates.length === 2 ? iso(dates[1]) : '';
+        fire(checkin); fire(checkout);
+      }
+    };
+    // 中文日曆語言檔沒載入、或是英文版網頁時，不要傳 locale(傳 undefined 會讓日曆整個丟錯)
+    var zhTw = englishPage ? null : (window.flatpickr.l10ns && window.flatpickr.l10ns.zh_tw);
+    // 範圍分隔符號要放在 locale 裡才有效(框內顯示「2026/12/01 － 2026/12/08」)
+    options.locale = Object.assign({}, zhTw || {}, { rangeSeparator: ' － ' });
+    if (checkin.value && checkout.value) options.defaultDate = [new Date(checkin.value + 'T00:00:00'), new Date(checkout.value + 'T00:00:00')];
+    window.flatpickr(range, options);
+  });
 </script>
 <style>.nights-badge { margin-left: 6px; padding: 1px 8px; color: #078da4; background: #e5f4f7; border-radius: 999px; font-size: 12px; font-weight: 700; }</style>
 <script src="{{ url_for('static', filename='js/city-autocomplete.js') }}" defer></script>

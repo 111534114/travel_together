@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>飯店詳情｜走吧揪團</title>
+  <link rel="icon" type="image/png" href="{{ url_for('static', filename='images/logo.png') }}">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/site-shell.css') }}">
+  <script src="{{ url_for('static', filename='js/google-translate.js') }}"></script>
+  <style>
+    :root { --purple: #4B838B; --purple-light: #57A2AC; --purple-soft: #EDF6F7; --ink: #23373A; --muted: #708284; --line: #E1EBEC; --page: #EAF8F9; }
+    * { box-sizing: border-box; }
+    body { margin: 0; background: var(--page); color: var(--ink); font-family: "Noto Sans TC", "Segoe UI", sans-serif; }
+    a { color: inherit; text-decoration: none; }
+    button, input { font: inherit; }
+  </style>
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/member-nav.css') }}">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/hotel-detail.css') }}">
+  {% if session.get('user_id') and session.get('role') == 'member' %}<link rel="stylesheet" href="{{ url_for('static', filename='css/member_notifications.css') }}">{% endif %}
+</head>
+<body>
+  {% set is_member = session.get('user_id') and session.get('role') == 'member' %}
+  <div class="member-shell">
+{% include 'partials/site_sidenav.html' %}
+  <main class="member-content">
+    <div class="hd-page-wrap">
+      <a class="hd-back" id="hdBack" href="{{ url_for('visitor_hotel_search') }}">← 返回搜尋結果</a>
+      <div id="hotelDetailPage"></div>
+    </div>
+  </main>
+  </div>
+  {% if is_member %}{% include 'member/_notification_drawer.html' %}<script src="{{ url_for('static', filename='js/member_notifications.js') }}" defer></script>{% endif %}
+  <script src="{{ url_for('static', filename='js/member-nav.js') }}" defer></script>
+  <script src="{{ url_for('static', filename='js/hotel-detail.js') }}" defer></script>
+</body>
+</html>

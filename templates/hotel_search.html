@@ -105,6 +105,9 @@
     @media (max-width: 950px) { .results-layout { grid-template-columns: 1fr; } .results-sidebar { position: static; } .hotel-row { grid-template-columns: 1fr; } .hotel-side { align-items: flex-start; text-align: left; border-left: 0; border-top: 1px dashed var(--line); } .hotel-photo { height: 210px; } }
   </style>
   <link rel="stylesheet" href="{{ url_for('static', filename='css/member-nav.css') }}">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/flatpickr/4.6.13/flatpickr.min.css">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/flatpickr/4.6.13/flatpickr.min.js" defer></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/flatpickr/4.6.13/l10n/zh-tw.js" defer></script>
   <link rel="stylesheet" href="{{ url_for('static', filename='css/hotel-detail.css') }}">
   {% if session.get('user_id') and session.get('role') == 'member' %}<link rel="stylesheet" href="{{ url_for('static', filename='css/member_notifications.css') }}">{% endif %}
 </head>
@@ -147,9 +150,9 @@
           <div class="hotel-side">
             {% if hotel.deal %}<span class="deal-badge">{{ hotel.deal }}</span>{% endif %}
             {% if hotel.price %}
-            <span class="price-total">{% if hotel_source == 'db' %}站內收錄・參考價{% else %}最低價・以訂房網站為準{% endif %}</span>
+            <span class="price-total js-price-label">{% if hotel_source == 'db' %}站內收錄・參考價{% else %}Google 參考價・以訂房網站為準{% endif %}</span>
             <span class="price-night">{{ money(hotel.price) }}<small> / 晚{% if rooms > 1 %}・每間{% endif %}</small></span>
-            {% if hotel.total_price %}<span class="price-total">{% if rooms > 1 %}{{ rooms }} 間・{{ nights }} 晚約 {{ money(hotel.total_price * rooms) }}{% else %}{{ nights }} 晚共 {{ money(hotel.total_price) }}{% endif %}</span>{% endif %}
+            {% if hotel.total_price %}<span class="price-total js-price-total">{% if rooms > 1 %}{{ rooms }} 間・{{ nights }} 晚約 {{ money(hotel.total_price * rooms) }}{% else %}{{ nights }} 晚共 {{ money(hotel.total_price) }}{% endif %}</span>{% endif %}
             <span class="price-total">{{ party_label }}</span>
             {% else %}<span class="price-night"><small>價格洽詢</small></span>{% endif %}
             {% if party.note and hotel.price %}<span class="price-total price-warn">{{ party.note }}</span>{% endif %}

@@ -1,0 +1,24 @@
+{# 乘客與艙等：一顆小按鈕，點開是成人/兒童/嬰兒計數器和艙等選單。
+   include 前先 set：fp_pax_id(隱藏欄位 pax 的 id，沒設就不給 id)、fp_adults/fp_children/fp_infants/fp_cabin(預設值) #}
+{% set _a = fp_adults|default(1) %}{% set _c = fp_children|default(0) %}{% set _i = fp_infants|default(0) %}{% set _cab = fp_cabin|default('') %}
+<div class="fp" data-fp data-adults="{{ _a }}" data-children="{{ _c }}" data-infants="{{ _i }}" data-cabin="{{ _cab }}">
+  <button type="button" class="fp-toggle" aria-haspopup="true" aria-expanded="false"><span class="fp-summary">{{ _a }} 位成人・經濟艙</span><span class="fp-caret" aria-hidden="true">▾</span></button>
+  <div class="fp-panel" hidden>
+    <div class="fp-row"><div><strong>成人</strong><small>年滿 12 歲</small></div><div class="fp-counter"><button type="button" data-fp-minus="adults" aria-label="減少成人">−</button><span data-fp-val="adults">1</span><button type="button" data-fp-plus="adults" aria-label="增加成人">＋</button></div></div>
+    <div class="fp-row"><div><strong>兒童</strong><small>2–11 歲</small></div><div class="fp-counter"><button type="button" data-fp-minus="children" aria-label="減少兒童">−</button><span data-fp-val="children">0</span><button type="button" data-fp-plus="children" aria-label="增加兒童">＋</button></div></div>
+    <div class="fp-row"><div><strong>嬰兒(不佔位)</strong><small>未滿 2 歲</small></div><div class="fp-counter"><button type="button" data-fp-minus="infants" aria-label="減少嬰兒">−</button><span data-fp-val="infants">0</span><button type="button" data-fp-plus="infants" aria-label="增加嬰兒">＋</button></div></div>
+    <p class="fp-hint">請選擇正確乘客人數以便查看價格</p>
+    <p class="fp-note" hidden>每筆預訂限最多 9 位旅客。若還有更多旅客，請分開再搜尋並預訂下一筆。</p>
+    <select class="fp-cabin" aria-label="艙等">
+      <option value="">經濟艙</option>
+      <option value="豪華經濟艙">豪華經濟艙</option>
+      <option value="商務艙">商務艙</option>
+      <option value="頭等艙">頭等艙</option>
+    </select>
+  </div>
+  <input type="hidden" name="pax"{% if fp_pax_id %} id="{{ fp_pax_id }}"{% endif %} value="{{ _a + _c }}">
+  <input type="hidden" name="adults" value="{{ _a }}">
+  <input type="hidden" name="children" value="{{ _c }}">
+  <input type="hidden" name="infants" value="{{ _i }}">
+  <input type="hidden" name="cabin" value="{{ _cab }}" disabled>
+</div>

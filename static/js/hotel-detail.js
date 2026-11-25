@@ -119,7 +119,7 @@
     searchRow.append(search, aiButton);
     const topicsBox = el('div', 'hd-rv-topics');
     topicsBox.hidden = true;
-    tools.append(searchRow, topicsBox);
+    tools.append(searchRow);
 
     const body = el('div', 'hd-rv-body');
     const aiBox = el('div', 'hd-rv-aibox');
@@ -128,7 +128,7 @@
     const searchInfo = el('p', 'hd-rv-searchinfo');
     searchInfo.hidden = true;
     const listBox = el('div', 'hd-reviews');
-    body.append(aiBox, note, searchInfo, listBox);
+    body.append(topicsBox, aiBox, note, searchInfo, listBox);
     panel.append(head, tools, body);
     reviewsOverlay.appendChild(panel);
     document.body.appendChild(reviewsOverlay);
@@ -278,6 +278,7 @@
     const card = el('div', 'hd-ai');
     card.appendChild(el('b', 'hd-ai-title', 'AI 住客評價整理'));
     if (data.summary) card.appendChild(el('p', 'hd-ai-summary', data.summary));
+    const columns = el('div', 'hd-ai-cols');
     [['住客覺得很棒', data.strengths, 'good'], ['需要加強', data.improvements, 'bad']].forEach(([title, items, kind]) => {
       if (!items || !items.length) return;
       const group = el('div', 'hd-ai-group ' + kind);
@@ -285,8 +286,9 @@
       const list = el('ul');
       items.forEach((text) => list.appendChild(el('li', '', text)));
       group.appendChild(list);
-      card.appendChild(group);
+      columns.appendChild(group);
     });
+    card.appendChild(columns);
     card.appendChild(el('p', 'hd-ai-note', '由 AI 根據 Google 的評價統計與最新留言整理，僅供參考，實際情況以住客留言為準。'));
     return card;
   }
@@ -316,34 +318,46 @@
   function buildRatings(d, query) {
     const box = section('住客評價');
     if (d.rating) {
+      // 評分、留言數、「查看留言」按鈕收在同一張卡片的同一排(原本分三層上下堆疊)
       const head = el('div', 'hd-rating');
       const score = el('button', 'hd-score', `★ ${d.rating}`);
       score.type = 'button';
       score.title = '點一下查看住客留言';
       head.appendChild(score);
-      head.appendChild(el('span', '', `${d.reviews.toLocaleString('zh-TW')} 則 Google 評論${d.location_rating ? `・位置評分 ${d.location_rating}` : ''}`));
-      box.appendChild(head);
+      head.appendChild(el('span', 'hd-rating-text', `${d.reviews.toLocaleString('zh-TW')} 則 Google 評論${d.location_rating ? `・位置評分 ${d.location_rating}` : ''}`));
       if (d.property_token) {
-        const open = el('button', 'hd-btn hd-reviews-btn', '查看住客留言');
+        const open = el('button', 'hd-reviews-cta');
         open.type = 'button';
+        open.innerHTML = '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15a2 2 0 0 1-2 2H8l-5 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>';
+        open.appendChild(el('span', 'hd-cta-text', `查看 ${d.reviews.toLocaleString('zh-TW')} 則住客留言`));
+        open.appendChild(el('em', 'hd-cta-badge', 'AI 整理'));
         const show = () => openReviews(d, query);
         open.addEventListener('click', show);
         score.addEventListener('click', show);
-        box.appendChild(open);
+        head.appendChild(open);
       }
+      box.appendChild(head);
     }
+    // 星等分布 與 住客提到最多的面向：左右兩欄並排，不再上下堆疊成一長串
+    const grid = el('div', 'hd-rate-grid');
     const maxCount = Math.max(1, ...d.rating_counts.map((r) => r.count));
-    d.rating_counts.forEach((r) => {
-      const row = el('div', 'hd-bar-row');
-      row.appendChild(el('span', '', `${r.stars} 星`));
-      const bar = el('div', 'hd-bar'); const fill = el('i');
-      fill.style.width = `${Math.round((r.count / maxCount) * 100)}%`;
-      bar.appendChild(fill);
-      row.append(bar, el('span', '', r.count.toLocaleString('zh-TW')));
-      box.appendChild(row);
-    });
+    if (d.rating_counts.length) {
+      const col = el('div', 'hd-rate-col');
+      col.appendChild(el('h4', '', '星等分布'));
+      d.rating_counts.forEach((r) => {
+        const row = el('div', 'hd-bar-row');
+        row.appendChild(el('span', '', `${r.stars} 星`));
+        const bar = el('div', 'hd-bar'); const fill = el('i');
+        fill.style.width = `${Math.round((r.count / maxCount) * 100)}%`;
+        bar.appendChild(fill);
+        row.append(bar, el('span', '', r.count.toLocaleString('zh-TW')));
+        col.appendChild(row);
+      });
+      grid.appendChild(col);
+    }
     if (d.topics.length) {
-      box.appendChild(el('h3', '', '住客提到最多的面向')).style.marginTop = '16px';
+      const col = el('div', 'hd-rate-col');
+      col.appendChild(el('h4', '', '住客提到最多的面向'));
       d.topics.forEach((t) => {
         const row = el('div', 'hd-bar-row');
         row.appendChild(el('span', '', t.name));
@@ -351,9 +365,11 @@
         fill.style.width = `${Math.round((t.positive / t.total) * 100)}%`;
         bar.appendChild(fill);
         row.append(bar, el('span', '', `${Math.round((t.positive / t.total) * 100)}% 好評`));
-        box.appendChild(row);
+        col.appendChild(row);
       });
+      grid.appendChild(col);
     }
+    if (grid.children.length) box.appendChild(grid);
     return box;
   }
 
@@ -393,16 +409,21 @@
     return box;
   }
 
-  function buildOffers(d, query, onOffers) {
+  function buildOffers(d, query, onOffers, onFail) {
     const box = el('div', 'hd-offers');
     if (!d.property_token || !query) return box;
-    const button = el('button', 'hd-btn', '查看各訂房網站價格');
+    const button = el('button', 'hd-btn', '查詢各訂房網站報價中⋯⋯');
     button.type = 'button';
+    button.disabled = true;
     const list = el('div', 'hd-offer-list');
     const siteBox = buildSiteLinks(d, query);
-    button.addEventListener('click', async () => {
+    let running = false;
+    // 一打開詳情就自動查各訂房網站的即時報價，上方價格用這裡最低的那一家(不是搜尋列表那個摘要價)
+    async function load() {
+      if (running) return;
+      running = true;
       button.disabled = true;
-      button.textContent = '查詢中⋯⋯（約需 10 秒）';
+      button.textContent = '查詢各訂房網站報價中⋯⋯（約需 10 秒）';
       const params = new URLSearchParams({
         token: d.property_token, destination: query.destination, checkin: query.checkin,
         checkout: query.checkout, guests: query.adults, child_ages: query.childAges || '',
@@ -410,7 +431,7 @@
       try {
         const response = await fetch('/api/hotel-offers?' + params.toString(), { headers: { Accept: 'application/json' } });
         const data = await response.json().catch(() => ({}));
-        if (!response.ok) throw new Error(data.error || '查詢失敗，請稍後再試。');
+        if (!response.ok || !Array.isArray(data.offers)) throw new Error(data.error || '查詢失敗，請稍後再試。');
         button.remove();
         renderOffers(list, data.offers, query.party, query.partyNote);
         // 已經在比價清單裡有報價(附直接訂房連結)的網站，下面的搜尋入口就不用再放了，只留清單裡沒有的
@@ -421,15 +442,19 @@
         const note = siteBox.querySelector('.hd-offer-note');
         if (note) note.textContent = '以下網站在上面沒有報價，點進去自己搜尋：';
         if (!siteBox.querySelector('[data-site]')) siteBox.remove();
-        if (data.offers.length) onOffers(data.offers[0]);
+        if (data.offers.length) onOffers(data.offers[0], data.offers); else onFail();
       } catch (error) {
+        running = false;
         button.disabled = false;
-        button.textContent = '查看各訂房網站價格';
+        button.textContent = '重新查詢各訂房網站價格';
         list.replaceChildren(el('p', 'hd-offer-note', error.message));
+        onFail();
       }
-    });
+    }
+    button.addEventListener('click', load);
     box.append(button, list);
     box.appendChild(siteBox);
+    setTimeout(load, 0);
     return box;
   }
 
@@ -473,24 +498,46 @@
     const side = el('aside', 'hd-side');
     const rooms = query ? Number(query.rooms) || 1 : 1;
     const price = el('div', 'hd-price');
-    const priceLabel = el('small', 'hd-price-label', '搜尋列表最低價');
-    const priceValue = el('span', '', money(d.price));
+    const canLoad = !!(d.property_token && query);
+    const known = canLoad ? readReal(d, query) : null;  // 這間飯店的真實報價如果已經查過，直接用，不會先閃一個不同的數字
+    const priceLabel = el('small', 'hd-price-label', known ? `${known.source} 最低價` : (canLoad ? '查詢各訂房網站報價中⋯⋯' : 'Google 參考價'));
+    const priceValue = el('span', '', money(known ? known.price : d.price));
     price.append(priceLabel, el('br'), priceValue, el('small', '', rooms > 1 ? ' / 晚・每間' : ' / 晚'));
+    if (canLoad && !known) price.classList.add('is-ref');  // 報價還沒回來前，先用淡色顯示列表上的參考價
     side.appendChild(price);
     const totalText = (total) => (total ? `${rooms > 1 ? `${rooms} 間住宿期間約` : '住宿期間共'} ${money(total * rooms)}` : '');
-    const totalNode = el('div', 'hd-total', totalText(d.total_price));
+    const totalNode = el('div', 'hd-total', totalText(known && known.total ? known.total : d.total_price));
     side.appendChild(totalNode);
     const times = el('ul', 'hd-times');
     if (d.check_in_time) times.appendChild(el('li', '', `入住時間　${d.check_in_time}`));
     if (d.check_out_time) times.appendChild(el('li', '', `退房時間　${d.check_out_time}`));
     if (times.children.length) side.appendChild(times);
     if (query) side.appendChild(el('div', 'hd-total', query.party));
-    // 上方價格固定跟列表一致，不隨比價結果改變，避免跟列表上看到的價格對不起來
-    side.appendChild(buildOffers(d, query, () => {}));
+    const priceNote = el('p', 'hd-price-note');
+    priceNote.hidden = true;
+    side.appendChild(priceNote);
+    side.appendChild(buildOffers(d, query, (best) => {
+      // 換成各訂房網站真實報價裡最低的那一家，跟下面清單、跟那個網站上看到的價格一致
+      saveReal(d, query, best);  // 同時讓搜尋列表上這間飯店的價格也換成同一個數字
+      price.classList.remove('is-ref');
+      priceLabel.textContent = `${best.source} 最低價`;
+      priceValue.textContent = money(best.price);
+      totalNode.textContent = totalText(best.total_price);
+      if (Math.round(best.price) !== Math.round(d.price)) {
+        priceNote.textContent = '這是各訂房網站目前的實際報價。搜尋列表原本顯示的是 Google 的參考摘要價，已一併更新成這個價格。';
+        priceNote.hidden = false;
+      }
+    }, () => {
+      price.classList.remove('is-ref');
+      priceLabel.textContent = 'Google 參考價';
+      priceNote.textContent = '暫時查不到各訂房網站的即時報價，這個價格僅供參考，請以訂房網站為準。';
+      priceNote.hidden = false;
+    }));
+    const actions = el('div', 'hd-side-actions');  // 官網、地圖並排在同一排，不再各佔一整排
     if (d.website_url) {
       const a = el('a', 'hd-btn primary', '前往飯店官網');
       a.href = d.website_url; a.target = '_blank'; a.rel = 'noopener';
-      side.appendChild(a);
+      actions.appendChild(a);
     }
     const hotelName = d.original_name || d.name;
     const hotelLocation = d.address || (query && query.destination) || '';
@@ -504,27 +551,14 @@
       if (d.place_id) mapUrl.searchParams.set('query_place_id', d.place_id);
       a.href = mapUrl.toString();
       a.target = '_blank'; a.rel = 'noopener';
-      side.appendChild(a);
+      actions.appendChild(a);
     }
+    if (actions.children.length) side.appendChild(actions);
     return side;
   }
 
-  function open(d, trigger) {
-    close();
-    const queryBox = trigger.closest('[data-hotel-query]');
-    const query = queryBox ? { ...queryBox.dataset } : null;
-    lastFocus = trigger;
-    backdrop = el('div', 'hd-backdrop');
-    backdrop.addEventListener('mousedown', (event) => { if (event.target === backdrop) close(); });
-    const dialog = el('div', 'hd-dialog');
-    dialog.setAttribute('role', 'dialog');
-    dialog.setAttribute('aria-label', d.name);
-    const closeButton = el('button', 'hd-close', '×');
-    closeButton.type = 'button';
-    closeButton.setAttribute('aria-label', '關閉');
-    closeButton.addEventListener('click', close);
-    dialog.append(closeButton, buildGallery(d));
-
+  // 詳情內容(相簿 + 左邊評價/設施/附近 + 右邊價格)：視窗版與整頁版共用
+  function buildDetailParts(d, query) {
     const body = el('div', 'hd-body');
     const left = el('div');
     left.appendChild(el('h2', '', d.name));
@@ -552,19 +586,142 @@
       left.appendChild(box);
     }
     body.append(left, buildSide(d, query));
-    dialog.appendChild(body);
+    return { gallery: buildGallery(d), body };
+  }
+
+  // 視窗版(新分頁被瀏覽器擋掉、或存不了資料時的備案)
+  function open(d, trigger) {
+    close();
+    const queryBox = trigger.closest('[data-hotel-query]');
+    const query = queryBox ? { ...queryBox.dataset } : null;
+    lastFocus = trigger;
+    backdrop = el('div', 'hd-backdrop');
+    backdrop.addEventListener('mousedown', (event) => { if (event.target === backdrop) close(); });
+    const dialog = el('div', 'hd-dialog');
+    dialog.setAttribute('role', 'dialog');
+    dialog.setAttribute('aria-label', d.name);
+    const closeButton = el('button', 'hd-close', '×');
+    closeButton.type = 'button';
+    closeButton.setAttribute('aria-label', '關閉');
+    closeButton.addEventListener('click', close);
+    const parts = buildDetailParts(d, query);
+    dialog.append(closeButton, parts.gallery, parts.body);
     backdrop.appendChild(dialog);
     document.body.appendChild(backdrop);
     document.body.style.overflow = 'hidden';
     closeButton.focus();
   }
 
+  // ---- 整頁版：點「查看詳情」像 Trip.com 一樣開新分頁 ----
+  const STORE_PREFIX = 'hotelDetail:';
+  const REAL_PREFIX = 'hotelReal:';  // 詳情頁查到的「各訂房網站真實最低報價」，搜尋列表的卡片拿來更新價格，兩邊才會一致
+
+  const fmtTwd = (twd) => (window.siteCurrency ? window.siteCurrency.fmt(twd) : `NT$ ${Math.round(twd).toLocaleString('zh-TW')}`);
+  function realKey(token, query) {
+    return REAL_PREFIX + [token, query.checkin, query.checkout, query.adults, query.rooms || 1, query.childAges || ''].join('_');
+  }
+  function saveReal(d, query, best) {
+    try {
+      localStorage.setItem(realKey(d.property_token, query), JSON.stringify({ price: best.price, total: best.total_price, source: best.source, at: Date.now() }));
+    } catch (error) { /* 存不了就只有這一頁有效 */ }
+  }
+  function readReal(d, query) {
+    if (!d.property_token || !query) return null;
+    try {
+      const value = JSON.parse(localStorage.getItem(realKey(d.property_token, query)) || 'null');
+      return value && Date.now() - value.at < 3600 * 1000 ? value : null;  // 1 小時內有效(跟後端快取一致)
+    } catch (error) { return null; }
+  }
+
+  // 搜尋列表：看過詳情的飯店，卡片價格換成真實報價，跟詳情頁同一個數字
+  function applyRealPrices() {
+    document.querySelectorAll('.hotel-row[data-detail]').forEach((card) => {
+      const queryBox = card.closest('[data-hotel-query]');
+      if (!queryBox) return;
+      let detail;
+      try { detail = JSON.parse(card.dataset.detail); } catch (error) { return; }
+      const query = { ...queryBox.dataset };
+      const real = readReal(detail, query);
+      if (!real) return;
+      const rooms = Number(query.rooms) || 1;
+      const night = card.querySelector('.price-night [data-twd]');
+      if (night) { night.dataset.twd = String(real.price); night.textContent = fmtTwd(real.price); }
+      const totalNode = card.querySelector('.js-price-total [data-twd]');
+      if (totalNode && real.total) { totalNode.dataset.twd = String(real.total * rooms); totalNode.textContent = fmtTwd(real.total * rooms); }
+      const label = card.querySelector('.js-price-label');
+      if (label) label.textContent = `${real.source} 報價・以訂房網站為準`;
+    });
+  }
+  window.addEventListener('storage', (event) => { if (event.key && event.key.startsWith(REAL_PREFIX)) applyRealPrices(); });  // 另一個分頁查到報價就立刻更新
+  window.addEventListener('pageshow', applyRealPrices);
+  applyRealPrices();
+
+  function pruneStore() {
+    try {
+      const limit = Date.now() - 12 * 3600 * 1000;
+      Object.keys(localStorage).filter((k) => k.startsWith(STORE_PREFIX) || k.startsWith(REAL_PREFIX)).forEach((k) => {
+        let at = 0;
+        try { at = JSON.parse(localStorage.getItem(k)).at || 0; } catch (error) { /* 壞掉的直接清掉 */ }
+        if (at < limit) localStorage.removeItem(k);
+      });
+    } catch (error) { /* 忽略 */ }
+  }
+
+  // 資料暫存在瀏覽器(新分頁讀得到)：詳情資料搜尋結果裡本來就有，不用再花一次 API 額度
+  function openInTab(d, card) {
+    const queryBox = card.closest('[data-hotel-query]');
+    const query = queryBox ? { ...queryBox.dataset } : null;
+    const key = ((d.property_token || d.name) + '_' + ((query && query.checkin) || '') + '_' + ((query && query.checkout) || '')).replace(/[^\w\-]/g, '').slice(0, 200)
+      + '_' + Date.now().toString(36);
+    try {
+      pruneStore();
+      localStorage.setItem(STORE_PREFIX + key, JSON.stringify({ d, query, back: location.href, at: Date.now() }));
+    } catch (error) {
+      return false;
+    }
+    const params = new URLSearchParams({ k: key });
+    if (query) ['destination', 'checkin', 'checkout', 'adults', 'rooms'].forEach((name) => { if (query[name]) params.set(name, query[name]); });
+    const tab = window.open('/visitor/hotels/detail?' + params.toString(), '_blank');
+    return !!tab;
+  }
+
+  function renderPage(root) {
+    const params = new URLSearchParams(location.search);
+    let saved = null;
+    try { saved = JSON.parse(localStorage.getItem(STORE_PREFIX + params.get('k')) || 'null'); } catch (error) { saved = null; }
+    const back = document.getElementById('hdBack');
+    if (!saved || !saved.d) {
+      const box = el('div', 'hd-page-empty');
+      box.appendChild(el('b', '', '這間飯店的詳情已經過期'));
+      box.appendChild(el('p', '', '詳情是從搜尋結果頁帶過來的，暫存超過 12 小時或換了瀏覽器就會消失。請回到搜尋結果重新點「查看詳情」。'));
+      const link = el('a', 'hd-btn primary', '回到住宿搜尋');
+      const q = new URLSearchParams();
+      [['destination', 'destination'], ['checkin', 'checkin'], ['checkout', 'checkout'], ['adults', 'guests']].forEach(([from, to]) => { if (params.get(from)) q.set(to, params.get(from)); });
+      link.href = '/visitor/hotels' + (q.toString() ? '?' + q.toString() : '');
+      box.appendChild(link);
+      root.appendChild(box);
+      return;
+    }
+    if (back && saved.back) back.href = saved.back;
+    document.title = saved.d.name + '｜走吧揪團';
+    const dialog = el('div', 'hd-dialog hd-page-dialog');
+    const parts = buildDetailParts(saved.d, saved.query);
+    dialog.append(parts.gallery, parts.body);
+    root.appendChild(dialog);
+  }
+
+  const pageRoot = document.getElementById('hotelDetailPage');
+  if (pageRoot) renderPage(pageRoot);
+
   document.addEventListener('click', (event) => {
     if (!(event.target instanceof Element)) return;
     if (event.target.closest('.photo-nav, a, .booking-heart, .booking-save-form, .hotel-heart')) return;  // 相片左右箭頭、連結不要觸發開視窗
     const card = event.target.closest('.hotel-row');
     if (!card || !card.dataset.detail) return;
-    try { open(JSON.parse(card.dataset.detail), card); } catch (error) { /* 資料壞掉就不開 */ }
+    try {
+      const detail = JSON.parse(card.dataset.detail);
+      if (!openInTab(detail, card)) open(detail, card);  // 新分頁被擋或存不了資料，就用視窗
+    } catch (error) { /* 資料壞掉就不開 */ }
   });
   document.addEventListener('keydown', (event) => {
     if (event.key !== 'Escape') return;

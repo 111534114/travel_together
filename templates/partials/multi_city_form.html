@@ -1,0 +1,28 @@
+{# 多座城市結果頁上方的搜尋表單：跟單程/來回結果頁同一張「搜尋卡片」，可以直接修改每一段再重新搜尋 #}
+<div class="booking-search-card">
+  <form method="get" action="{{ url_for('visitor_multi_city_flight_search') }}" class="booking-search-form booking-search-form--flight booking-search-form--multicity" id="mcForm">
+    <div class="mc-top">
+      <button type="button" class="mc-add" id="mcAdd">＋ 添加航班</button>
+      {% set fp_pax_id = 'mcPax' %}{% set fp_adults = adults|default(pax) %}{% set fp_children = children|default(0) %}{% set fp_infants = infants|default(0) %}{% set fp_cabin = request.args.get('cabin', '') if request.args.get('cabin','') != 'all' else '' %}{% include 'partials/flight_passengers.html' %}
+      <button class="booking-search-submit" type="submit">搜尋</button>
+    </div>
+    <input type="hidden" name="legs" id="mcLegsCount" value="{{ legs|length }}">
+    <div class="mc-legs" id="mcLegs">
+      {% for leg in legs %}
+      <div class="mc-leg" data-leg>
+        <span class="mc-badge">{{ leg.index }}</span>
+        <div class="field"><label class="sr-only">出發地</label><input class="mc-from" name="from{{ leg.index }}" type="text" value="{{ leg.origin }}" placeholder="出發地(例如 台北)" autocomplete="off" data-city-autocomplete></div>
+        <button type="button" class="mc-swap" data-mc-swap aria-label="交換出發地與目的地">⇄</button>
+        <div class="field"><label class="sr-only">目的地</label><input class="mc-to" name="to{{ leg.index }}" type="text" value="{{ leg.destination }}" placeholder="目的地(例如 東京)" autocomplete="off" data-city-autocomplete></div>
+        <div class="field"><label class="sr-only">日期</label><input class="mc-date" name="date{{ leg.index }}" type="date" value="{{ leg.date }}"></div>
+        <button type="button" class="mc-remove" aria-label="移除這段航班"{% if legs|length <= 2 %} hidden{% endif %}>✕</button>
+      </div>
+      {% endfor %}
+    </div>
+  </form>
+</div>
+<link rel="stylesheet" href="{{ url_for('static', filename='css/multi-city-form.css') }}">
+<script src="{{ url_for('static', filename='js/city-autocomplete.js') }}" defer></script>
+<script src="{{ url_for('static', filename='js/multi-city-form.js') }}" defer></script>
+<link rel="stylesheet" href="{{ url_for('static', filename='css/flight-passengers.css') }}">
+<script src="{{ url_for('static', filename='js/flight-passengers.js') }}" defer></script>

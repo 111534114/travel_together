@@ -11,6 +11,8 @@ import tdx_trains
 booking_bp = Blueprint('booking', __name__)
 TABLES = {'hotel': ('accommodations', 'accommodation_id'), 'flight': ('flights', 'flight_id'), 'train': ('trains', 'train_id')}
 ENDPOINTS = {'visitor_hotel_search': 'hotel', 'visitor_flight_search': 'flight', 'visitor_train_search': 'train'}
+# 畫面上要顯示搜尋篩選欄、愛心收藏狀態的頁面(多座城市結果頁也要，但它的網址參數不一樣，所以不放進上面會做網址檢查的 ENDPOINTS)
+CONTEXT_KINDS = {**ENDPOINTS, 'visitor_multi_city_flight_search': 'flight'}
 FARES = {'all': '全部票種', 'regular': '一般票', 'discount': '打折票', 'promotion': '優惠票', 'student': '學生票'}
 # 火車票種只放 TDX 查得到真實票價的種類；'all' 顯示全票價
 TRAIN_FARES = {'all': '全票', 'concession': '優待票（孩童／敬老／愛心）', 'group': '團體票（高鐵 11 人以上）'}
@@ -223,10 +225,13 @@ def facet_options(rows, field, labels=None, price_field=None):
     )
 
 
-def apply_value_range(rows, field, param_prefix):
+def apply_value_range(rows, field, param_prefix, bounds=None):
     """用 query string 的 {param_prefix}_min / {param_prefix}_max 篩選某個數值欄位(分鐘)在範圍內的資料，
     例如 duration_min/duration_max 篩航程時長、layover_min/layover_max 篩中停時長。
-    沒帶這兩個參數就不篩選(顯示全部)。"""
+    沒帶這兩個參數就不篩選(顯示全部)。
+    bounds 是這批結果真實的 (最小, 最大)：側邊欄的滑桿每次送出表單都會一起送出目前的範圍，就算使用者完全沒動它；
+    範圍涵蓋了整個 bounds 就等於沒有限制，不要篩選——不然沒有這個欄位的航班(例如直飛沒有「中停時長」)會被誤殺，
+    勾一個「直飛」就變成查無資料。"""
     min_raw = request.args.get(f"{param_prefix}_min")
     max_raw = request.args.get(f"{param_prefix}_max")
     if not min_raw and not max_raw:
@@ -235,6 +240,8 @@ def apply_value_range(rows, field, param_prefix):
         min_val = int(min_raw) if min_raw else None
         max_val = int(max_raw) if max_raw else None
     except ValueError:
+        return rows
+    if bounds and (min_val is None or min_val <= bounds[0]) and (max_val is None or max_val >= bounds[1]):
         return rows
     result = []
     for row in rows:
@@ -336,7 +343,7 @@ def booking_context():
     session.setdefault('booking_csrf', secrets.token_urlsafe(32))
     saved = set()
     live_saved = set()
-    if session.get('role') == 'member' and (request.endpoint in ENDPOINTS or request.endpoint == 'booking.favorites'):
+    if session.get('role') == 'member' and (request.endpoint in CONTEXT_KINDS or request.endpoint == 'booking.favorites'):
         connection = get_db_connection()
         if connection:
             cursor = connection.cursor()
@@ -351,7 +358,7 @@ def booking_context():
             finally:
                 cursor.close(); connection.close()
     return dict(booking_saved=saved, booking_live_saved=live_saved, booking_csrf=session['booking_csrf'], fare_options=FARES, train_fare_options=TRAIN_FARES, GROUP_MIN_PAX=GROUP_MIN_PAX,
-                cabin_options=CABIN_CLASSES, booking_kind=ENDPOINTS.get(request.endpoint))
+                cabin_options=CABIN_CLASSES, booking_kind=CONTEXT_KINDS.get(request.endpoint))
 
 
 @booking_bp.route('/member/booking-favorites/<kind>/<int:target_id>', methods=['POST'])

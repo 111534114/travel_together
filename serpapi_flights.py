@@ -13,7 +13,7 @@ from datetime import datetime
 import requests
 
 from config import SERPAPI_API_KEY
-from flight_links import to_iata
+from flight_links import airline_display, to_iata
 
 SEARCH_URL = "https://serpapi.com/search"
 
@@ -89,7 +89,7 @@ def _flight_signature(offer):
     return (first_seg.get("dep_dt"), offer.get("flight_number"), offer.get("arrival_time"), int(offer["price"]))
 
 
-def search_flight_offers(origin_keyword, destination_keyword, departure_date, return_date=None, adults=1, cabin_class=None, more=False):
+def search_flight_offers(origin_keyword, destination_keyword, departure_date, return_date=None, adults=1, cabin_class=None, more=False, children=0, infants=0):
     """回傳一份機票清單(格式跟本地 flights 資料表一致，可以直接丟給既有的 flight_search.html 樣板)，
     把 SerpApi 當天查到的航班全部回傳，不做人為的筆數上限──有篩選需求(價格/直飛等)讓使用者自己
     用搜尋結果頁的篩選面板去篩，不要在這裡就先砍掉一部分資料。
@@ -104,7 +104,7 @@ def search_flight_offers(origin_keyword, destination_keyword, departure_date, re
     if not origin or not destination:
         return None
 
-    cache_key = (origin, destination, departure_date, return_date, adults, cabin_class, bool(more))
+    cache_key = (origin, destination, departure_date, return_date, adults, cabin_class, bool(more), children, infants)
     cached = _cache.get(cache_key)
     if cached and cached[0] > time.time():
         return cached[1]
@@ -119,6 +119,10 @@ def search_flight_offers(origin_keyword, destination_keyword, departure_date, re
         "adults": adults,
         "hl": "zh-tw",
     }
+    if children:
+        params["children"] = children  # 兒童(2–11 歲)佔位
+    if infants:
+        params["infants_on_lap"] = infants  # 嬰兒(未滿 2 歲)不佔位，坐在大人腿上
     if return_date:
         params["return_date"] = return_date
     if cabin_class and cabin_class in CABIN_CLASS_QUERY_CODES:
@@ -127,7 +131,7 @@ def search_flight_offers(origin_keyword, destination_keyword, departure_date, re
     try:
         resp = _get(params, 15)
         resp.raise_for_status()
-        offers = _parse_offers(resp.json())
+        offers = _parse_offers(resp.json(), adults + children)
         if more:
             offers = _merge_more(params, offers)
         _cache[cache_key] = (time.time() + CACHE_TTL_SECONDS, offers)
@@ -142,7 +146,7 @@ def _merge_more(params, offers):
     某一種條件查失敗就略過，不影響已經有的結果。"""
     def fetch(extra):
         try:
-            return _parse_offers(_get({**params, **extra}, 30).json())
+            return _parse_offers(_get({**params, **extra}, 30).json(), int(params.get("adults", 1)) + int(params.get("children", 0)))
         except Exception as error:
             print("SerpApi 更多航班查詢失敗：", error)
             return []
@@ -196,7 +200,7 @@ def search_return_offers(origin_keyword, destination_keyword, departure_date, re
     try:
         resp = _get(params, 20)
         resp.raise_for_status()
-        offers = _parse_offers(resp.json())
+        offers = _parse_offers(resp.json(), adults)
         _cache[cache_key] = (time.time() + CACHE_TTL_SECONDS, offers)
         return offers
     except Exception as error:
@@ -410,7 +414,7 @@ def _parse_segments(item):
                 "overnight": bool(lay.get("overnight")),
             }
         segments.append({
-            "airline": seg.get("airline") or "",
+            "airline": airline_display(seg.get("airline"), seg.get("flight_number")),
             "logo": seg.get("airline_logo"),
             "flight_number": seg.get("flight_number") or "",
             "airplane": seg.get("airplane") or "",
@@ -429,7 +433,10 @@ def _parse_segments(item):
     return segments
 
 
-def _parse_offers(data):
+def _parse_offers(data, seats=1):
+    """seats = 佔位的乘客人數(成人 + 兒童)。SerpApi 回傳的 price 是這些乘客加起來的總價(實測成人 2 位 = 1 位的兩倍)，
+    這裡先除以座位數，後面統一用「每人價」，畫面再乘以人數才不會重複相乘。"""
+    seats = max(1, int(seats or 1))
     results = []
     for bucket in ("best_flights", "other_flights"):
         for item in data.get(bucket, []):
@@ -438,13 +445,13 @@ def _parse_offers(data):
                 first_seg, last_seg = segments[0], segments[-1]
                 results.append({
                     "flight_id": "serpapi-" + str(abs(hash((item.get("price"), first_seg.get("flight_number"), first_seg["departure_airport"]["time"])))),
-                    "airline_name": first_seg.get("airline") or "未知航空公司",
+                    "airline_name": airline_display(first_seg.get("airline"), first_seg.get("flight_number")) or "未知航空公司",
                     "airline_logo": first_seg.get("airline_logo"),  # Google 自己託管的航空公司 logo 網址，不用自己存圖檔
                     "flight_number": first_seg.get("flight_number", ""),
                     "departure_time": first_seg["departure_airport"]["time"][11:16],
                     "arrival_time": last_seg["arrival_airport"]["time"][11:16],
                     "duration_minutes": item.get("total_duration") or sum(s.get("duration") or 0 for s in segments),
-                    "price": Decimal(str(item["price"])),  # 跟本地資料庫的 DECIMAL 價格型別一致，
+                    "price": (Decimal(str(item["price"])) / seats).quantize(Decimal("0.01")),  # 跟本地資料庫的 DECIMAL 價格型別一致，
                     # 避免跟 booking_search.py 裡用 Decimal 做價格篩選/排序時 float 對 Decimal 比較直接噴錯
                     "cabin_class": _translate_cabin_class(first_seg.get("travel_class")),
                     "amenities": _parse_amenities(first_seg.get("extensions")),

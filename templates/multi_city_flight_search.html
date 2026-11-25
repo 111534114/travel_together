@@ -11,75 +11,9 @@
   <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="{{ url_for('static', filename='css/site-shell.css') }}">
   <script src="{{ url_for('static', filename='js/google-translate.js') }}"></script>
-  <style>
-    :root { --purple: #4B838B; --purple-light: #57A2AC; --purple-soft: #EDF6F7; --ink: #23373A; --muted: #708284; --line: #E1EBEC; --page: #EAF8F9; }
-    * { box-sizing: border-box; }
-    body { margin: 0; background: var(--page); color: var(--ink); font-family: "Noto Sans TC", "Segoe UI", sans-serif; }
-    a { color: inherit; text-decoration: none; }
-    button, input { font: inherit; }
-    .site-nav { position: sticky; top: 0; z-index: 10; display: flex; align-items: center; min-height: 72px; padding: 8px max(24px, calc((100vw - 1180px) / 2)); background: #fff; border-bottom: 1px solid #E2EDEF; box-shadow: 0 2px 10px rgba(45, 37, 68, .05); }
-    .brand { display: flex; align-items: center; width: 126px; height: 56px; }
-    .brand img { display: block; width: 100%; height: 100%; object-fit: contain; }
-    .nav-links { display: flex; align-items: center; gap: 8px; margin-left: auto; }
-    .nav-links a { padding: 10px 13px; border-radius: 6px; color: #426064; font-size: 15px; }
-    .nav-links a:hover { color: var(--purple); background: var(--purple-soft); }
-    .nav-links .nav-register { color: #fff; background: var(--purple); }
-    .nav-links .nav-register:hover { color: #fff; background: #37676D; }
-    main { width: 100%; max-width: 1180px; margin: 0 auto; padding: 32px 36px 70px 0; }
-    .breadcrumb { margin: 0 0 18px; color: var(--muted); font-size: 14px; }
-    .breadcrumb a { color: var(--purple); font-weight: 600; }
-    .mc-sort label { display: flex; align-items: center; gap: 8px; color: var(--muted); font-size: 14px; font-weight: 600; }
-    .mc-sort select { padding: 8px 10px; color: var(--ink); background: #fff; border: 1px solid #C6DCDF; border-radius: 8px; font: inherit; }
-    .toast { position: fixed; z-index: 50; bottom: 30px; left: 50%; padding: 12px 22px; color: #fff; background: #293C3F; border-radius: 8px; box-shadow: 0 10px 25px rgba(0, 0, 0, .25); font-size: 14px; opacity: 0; transform: translate(-50%, 10px); transition: opacity 200ms ease, transform 200ms ease; pointer-events: none; }
-    .toast.show { opacity: 1; transform: translate(-50%, 0); }
-    .section-header { display: flex; align-items: end; justify-content: space-between; gap: 18px; margin-bottom: 18px; }
-    .section-header h2 { margin: 0; font-size: 26px; }
-    .section-header p { margin: 5px 0 0; color: var(--muted); font-size: 14px; }
-    .flight-leg { margin-bottom: 32px; }
-    .flight-leg:last-child { margin-bottom: 0; }
-    .flight-leg h3 { display: flex; align-items: center; gap: 10px; }
-    .flight-leg-badge { display: inline-flex; align-items: center; justify-content: center; width: 24px; height: 24px; color: #fff; background: var(--purple); border-radius: 50%; font-size: 13px; font-weight: 700; }
-    .flight-list { display: flex; flex-direction: column; gap: 16px; }
-    .flight-card { position: relative; display: flex; flex-wrap: wrap; align-items: center; gap: 18px; padding: 22px 24px; background: #fff; border: 1px solid var(--line); border-radius: 14px; box-shadow: 0 8px 22px rgba(45, 37, 68, .06); transition: transform 160ms ease, box-shadow 160ms ease, border-color 160ms ease; }
-    .flight-card:hover { z-index: 5; transform: translateY(-3px); box-shadow: 0 16px 34px rgba(45, 37, 68, .14); border-color: var(--purple-light); }
-    .flight-best-badge { position: absolute; top: -11px; left: 24px; padding: 3px 12px; color: #fff; background: var(--purple); border-radius: 999px; font-size: 11px; font-weight: 700; box-shadow: 0 4px 10px rgba(75, 131, 139, .35); }
-    .flight-airline { display: flex; flex: 0 0 170px; align-items: center; gap: 12px; }
-    .airline-logo { display: flex; flex: 0 0 auto; align-items: center; justify-content: center; width: 40px; height: 40px; color: #fff; background: linear-gradient(135deg, var(--purple), var(--purple-light)); border-radius: 50%; font-size: 16px; font-weight: 800; }
-    .airline-logo-img { flex: 0 0 auto; width: 40px; height: 40px; object-fit: contain; background: #fff; border: 1px solid var(--line); border-radius: 50%; padding: 4px; }
-    .flight-airline b { display: block; font-size: 14px; line-height: 1.4; }
-    .flight-airline span { color: var(--muted); font-size: 12px; }
-    .amenity-wrap { position: relative; display: inline-flex; gap: 6px; margin-top: 5px; cursor: default; }
-    .amenity-icon { display: inline-flex; color: var(--muted); }
-    .amenity-wrap:hover .amenity-tooltip, .amenity-wrap:focus .amenity-tooltip { display: block; }
-    .amenity-tooltip { display: none; position: absolute; z-index: 15; top: 100%; left: 0; margin-top: 6px; width: 210px; padding: 10px 12px; background: #fff; border: 1px solid var(--line); border-radius: 8px; box-shadow: 0 10px 24px rgba(45, 37, 68, .14); font-size: 12px; color: var(--ink); }
-    .amenity-tooltip b { display: block; font-size: 13px; margin-bottom: 2px; }
-    .amenity-tooltip > span { display: block; color: var(--muted); margin-bottom: 6px; }
-    .amenity-tooltip ul { margin: 0; padding-left: 16px; }
-    .amenity-tooltip li { margin-bottom: 2px; }
-    .flight-route { display: flex; flex: 1 1 320px; align-items: center; gap: 18px; }
-    .flight-time { display: flex; flex-direction: column; align-items: center; gap: 2px; min-width: 76px; }
-    .flight-time b { font-size: 24px; font-weight: 800; }
-    .flight-time span { color: var(--muted); font-size: 12px; }
-    .flight-path { display: flex; flex: 1; flex-direction: column; align-items: center; gap: 6px; color: var(--muted); font-size: 12px; }
-    .flight-stop-tag { padding: 2px 10px; border-radius: 999px; font-size: 11px; font-weight: 700; background: #EEF3F3; color: var(--muted); }
-    .flight-stop-tag.direct { background: var(--purple-soft); color: var(--purple); }
-    .flight-stop-tag.connecting { background: #FBE7E7; color: #B23B3B; }
-    .flight-path .line { position: relative; width: 100%; height: 2px; background: #D3E4E6; border-radius: 2px; }
-    .flight-path .line::before, .flight-path .line::after { content: ""; position: absolute; top: 50%; width: 6px; height: 6px; background: var(--purple-light); border-radius: 50%; transform: translateY(-50%); }
-    .flight-path .line::before { left: -2px; }
-    .flight-path .line::after { right: -2px; }
-    .flight-meta { display: flex; flex: 0 0 auto; flex-direction: column; gap: 5px; margin: 0 4px; padding-left: 16px; border-left: 1px dashed var(--line); color: var(--muted); font-size: 12px; }
-    .seats-low { color: #B23B3B; font-weight: 700; }
-    .flight-footer { display: flex; flex: 0 0 auto; align-items: center; gap: 16px; margin-left: auto; }
-    .price { color: var(--purple); font-size: 23px; font-weight: 800; text-align: right; }
-    .price small { display: block; color: var(--muted); font-size: 12px; font-weight: 500; }
-    .view-button { padding: 11px 22px; color: #fff; background: var(--purple); border: 0; border-radius: 8px; cursor: pointer; font-weight: 700; font-size: 14px; white-space: nowrap; box-shadow: 0 6px 16px rgba(75, 131, 139, .32); transition: background 160ms ease, transform 160ms ease; }
-    .view-button:hover { background: #37676D; transform: translateY(-1px); }
-    .empty { padding: 36px; color: var(--muted); text-align: center; background: #fff; border: 1px dashed #C6DCDF; border-radius: 8px; }
-    @media (max-width: 850px) { .site-nav { align-items: flex-start; flex-direction: column; gap: 6px; padding: 8px 18px 12px; } .nav-links { width: 100%; margin-left: 0; overflow-x: auto; } main { width: min(100% - 28px, 680px); padding: 24px 0 70px; } .flight-card { flex-direction: column; align-items: stretch; } .flight-meta { margin: 0; padding-left: 0; border-left: 0; } .flight-footer { margin-left: 0; justify-content: space-between; } }
-    @media (max-width: 560px) { .brand { width: 108px; height: 48px; } .nav-links { gap: 2px; } .nav-links a { padding: 8px; font-size: 14px; white-space: nowrap; } .section-header { align-items: stretch; flex-direction: column; } .section-header h2 { font-size: 22px; } .flight-route { flex-direction: column; align-items: stretch; } .flight-path { display: none; } }
-  </style>
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/flight-results.css') }}">
   <link rel="stylesheet" href="{{ url_for('static', filename='css/flight-card-mobile.css') }}">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/booking-heart.css') }}">
   <link rel="stylesheet" href="{{ url_for('static', filename='css/flight-detail.css') }}">
   <link rel="stylesheet" href="{{ url_for('static', filename='css/member-nav.css') }}">
   {% if session.get('user_id') and session.get('role') == 'member' %}<link rel="stylesheet" href="{{ url_for('static', filename='css/member_notifications.css') }}">{% endif %}
@@ -90,22 +24,17 @@
 {% include 'partials/site_sidenav.html' %}
   <main class="member-content">
     <p class="breadcrumb"><a href="{{ url_for('member.dashboard') if is_member else url_for('visitor') }}">{{ '← 返回會員首頁' if is_member else '← 返回訪客首頁' }}</a></p>
+{% include 'partials/multi_city_form.html' %}
+    <div class="results-layout">
+      <aside class="results-sidebar">
+{% include 'partials/booking_tools.html' %}
+      </aside>
+      <div class="results-main">
     <section id="multi-city-results">
       <div class="section-header">
         <div>
-          <h2>多座城市機票搜尋結果</h2>
-          <p>共 {{ legs|length }} 段航班 ・ {{ pax }} 人</p>
+          <h2>多座城市機票搜尋結果{% if using_live_data %}<span class="live-badge">即時報價</span>{% endif %}</h2>
         </div>
-        <form method="get" class="mc-sort">
-          {% for key, value in request.args.items(multi=True) %}{% if key != 'sort' %}<input type="hidden" name="{{ key }}" value="{{ value }}">{% endif %}{% endfor %}
-          <label>排序
-            <select name="sort" onchange="this.form.submit()">
-              {% for value, label in [('', '預設'), ('price_asc', '價格由低至高'), ('price_desc', '價格由高至低'), ('depart_earliest', '出發時間由早到晚'), ('depart_latest', '出發時間由晚到早'), ('featured', '精選')] %}
-              <option value="{{ value }}" {{ 'selected' if request.args.get('sort', '') == value }}>{{ label }}</option>
-              {% endfor %}
-            </select>
-          </label>
-        </form>
       </div>
       {% for leg in legs %}
       <div class="flight-leg">
@@ -113,7 +42,8 @@
         <div class="flight-list">
           {% set leg_min_price = leg.flights|map(attribute='price')|min if leg.flights else none %}
           {% for flight in leg.flights %}
-            <article class="flight-card">
+            {% set pick_href = url_for('visitor_flight_booking_redirect', **{'token': flight.booking_token, 'from': leg.origin, 'to': leg.destination, 'depart': leg.date, 'return': '', 'pax': pax, 'fallback': leg.skyscanner_url or ''}) if flight.booking_token else (leg.skyscanner_url or '') %}
+            <article class="flight-card" data-pick-leg="{{ leg.index }}" data-pick-price="{{ (flight.price * pax)|round(0)|int }}" data-pick-label="{{ flight.airline_name }} {{ flight.flight_number }}｜{{ flight.departure_time|hm }} → {{ flight.arrival_time|hm }}" data-pick-route="{{ leg.origin }} → {{ leg.destination }}" data-pick-date="{{ leg.date }}" data-pick-href="{{ pick_href }}">
 {% if flight.is_live %}{% set fav = live_flight_favorite(flight, leg.date, leg.origin, leg.destination, pax) %}{% include 'partials/booking_live_heart.html' %}{% else %}{% set save_kind='flight' %}{% set save_id=flight.flight_id %}{% include 'partials/booking_favorite_button.html' %}{% endif %}
               {% if flight.price == leg_min_price %}<span class="flight-best-badge">最低價</span>{% endif %}
               <div class="flight-airline">{% if flight.airline_logo %}<img class="airline-logo-img" src="{{ flight.airline_logo }}" alt="{{ flight.airline_name }}" loading="lazy">{% else %}<span class="airline-logo">{{ flight.airline_name[:1] }}</span>{% endif %}<div><b>{{ flight.airline_name }}</b><span>{{ flight.flight_number }}・{{ flight.cabin_class }}</span>{{ render_amenities(flight) }}</div></div>
@@ -126,6 +56,7 @@
               <div class="flight-footer">
                 <span class="price">{{ money(flight.price * pax) }}<small>{{ pax }} 人・{{ money(flight.price) }} /人</small></span>
                 {% if flight.booking_token %}<a class="view-button" href="{{ url_for('visitor_flight_booking_redirect', **{'token': flight.booking_token, 'from': leg.origin, 'to': leg.destination, 'depart': leg.date, 'return': '', 'pax': pax, 'fallback': leg.skyscanner_url or ''}) }}" target="_blank" rel="noopener" data-flights='{{ [flight_trip_item(flight, leg.date, pax)]|tojson }}'>選擇 →</a>{% elif leg.skyscanner_url %}<a class="view-button" href="{{ leg.skyscanner_url }}" target="_blank" rel="noopener">選擇 →</a>{% else %}<button class="view-button" type="button" onclick="showToast('找不到這個城市的比價連結，換個關鍵字試試。')">選擇航班</button>{% endif %}
+                <button class="pick-button" type="button" data-pick-toggle aria-pressed="false">加入已選航班</button>
               </div>
               {% include 'partials/flight_detail.html' %}
             </article>
@@ -136,6 +67,13 @@
       </div>
       {% endfor %}
     </section>
+      <section class="picked-summary" id="pickedSummary" hidden aria-live="polite">
+        <div class="picked-head"><h3>已選航班</h3><span class="picked-count" id="pickedCount"></span></div>
+        <ul class="picked-list" id="pickedList"></ul>
+        <div class="picked-foot"><div class="picked-total">合計 <b id="pickedTotal"></b><small>(含 {{ pax }} 位旅客，各航班依各航空公司報價加總，實際以訂票網站為準)</small></div><button type="button" class="picked-clear" id="pickedClear">清除</button></div>
+      </section>
+      </div>
+    </div>
   </main>
   </div>
   <script>
@@ -159,6 +97,8 @@
   <link rel="stylesheet" href="{{ url_for('static', filename='css/flight-trip-confirm.css') }}">
   <script src="{{ url_for('static', filename='js/flight-trip-confirm.js') }}" defer></script>
   <script src="{{ url_for('static', filename='js/booking-favorites.js') }}" defer></script>
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/picked-flights.css') }}">
+  <script src="{{ url_for('static', filename='js/picked-flights.js') }}" defer></script>
 </body>
 </html>
 

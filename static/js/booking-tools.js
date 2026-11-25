@@ -147,7 +147,11 @@
     const renderSummary = (instance) => {
       if (!instance.summaryEl) return;
       const [start, end] = instance.selectedDates;
-      const fmt = (d) => flatpickr.formatDate(d, dateLabel, instance.config.locale);
+      const fmt = (d) => flatpickr.formatDate(d, dateLabel, instance.l10n);  // 用日曆已經解析好的語言物件
+      if (instance.config.mode === 'single') {  // 多座城市每一段只選一天
+        instance.summaryEl.textContent = start ? fmt(start) : '請選擇日期';
+        return;
+      }
       if (start && end) {
         const nights = Math.round((end - start) / 86400000);
         instance.summaryEl.textContent = fmt(start) + ' - ' + fmt(end) + '（' + nights + '晚）';
@@ -178,22 +182,8 @@
       });
       instance.holidayEl.textContent = notes.length ? '• ' + notes.join('　• ') : '';
     };
-    Object.entries(rangeFieldConfig).forEach(([kind, cfg]) => {
-      const input = get(cfg.input);
-      if (!input) return;
-      pickers[kind] = flatpickr(input, {
-        mode: 'range',
-        altInput: true,
-        altInputClass: 'date-range-input',
-        altFormat: dateLabel,
-        dateFormat: 'Y-m-d',
-        minDate: 'today',
-        // 火車只能選開放訂票期間內的日期，更後面的日期反灰(後端 booking_search.py 也會再檢查)
-        maxDate: kind === 'train' ? trainMaxDate() : null,
-        locale: zhTw || undefined,
-        rangeSeparator: ' - ',
-        showMonths: window.innerWidth > 720 ? 2 : 1,
-        position: 'below',
+    // 日曆共用的外觀：頁尾(假日提示＋日期摘要)、月份切換時更新、打開時外框亮起。範圍選擇器與多座城市的單日選擇器都用這一份
+    const sharedHooks = {
         onReady: (selectedDates, dateStr, instance) => {
           instance.calendarContainer.querySelectorAll('.flatpickr-months, .flatpickr-weekdays, .flatpickr-days')
             .forEach((el) => el.classList.add('notranslate'));
@@ -218,7 +208,25 @@
         },
         onClose: (selectedDates, dateStr, instance) => {
           instance.input.closest('.date-range-box')?.classList.remove('active');
-        },
+        }
+    };
+    Object.entries(rangeFieldConfig).forEach(([kind, cfg]) => {
+      const input = get(cfg.input);
+      if (!input) return;
+      pickers[kind] = flatpickr(input, {
+        mode: 'range',
+        altInput: true,
+        altInputClass: 'date-range-input',
+        altFormat: dateLabel,
+        dateFormat: 'Y-m-d',
+        minDate: 'today',
+        // 火車只能選開放訂票期間內的日期，更後面的日期反灰(後端 booking_search.py 也會再檢查)
+        maxDate: kind === 'train' ? trainMaxDate() : null,
+        locale: zhTw || null,  // 沒有中文語言檔(英文版或沒載入)時傳 null 用內建英文；傳 undefined 會讓日曆整個丟錯
+        rangeSeparator: ' - ',
+        showMonths: window.innerWidth > 720 ? 2 : 1,
+        position: 'below',
+        ...sharedHooks,
         onChange: (selectedDates, dateStr, instance) => {
           const [start, end] = selectedDates;
           const toIso = d => d ? flatpickr.formatDate(d, 'Y-m-d') : '';
@@ -238,21 +246,69 @@
         },
       });
     });
+    // 多座城市每一段的日期：跟單程/來回同一套日曆(同樣的外觀與頁尾)，只是一次選一天
+    window.createSingleDatePicker = (input, { minDate = 'today', onPick } = {}) => flatpickr(input, {
+      mode: 'single',
+      altInput: true,
+      altInputClass: 'date-range-input',
+      altFormat: dateLabel,
+      dateFormat: 'Y-m-d',
+      minDate,
+      locale: zhTw || null,  // 沒有中文語言檔(英文版或沒載入)時傳 null 用內建英文；傳 undefined 會讓日曆整個丟錯
+      showMonths: window.innerWidth > 720 ? 2 : 1,
+      position: 'below',
+      ...sharedHooks,
+      onChange: (selectedDates, dateStr, instance) => {
+        renderSummary(instance);
+        if (onPick) onPick(selectedDates[0] || null);
+      },
+    });
   }
 
   const getMode = kind => document.querySelector('input[name="'+kind+'Mode"]:checked')?.value || (kind==='flight'?'roundtrip':'oneway');
+  // 單程/來回 切到「多座城市」：已經選好的出發地、目的地、去程日期、人數，帶入第一段；第二段的出發地預設是第一段的目的地。
+  // 多座城市那邊已經自己填過東西就不覆蓋。反過來切回單程/來回，單程那邊還是空的，就把第一段帶回去。
+  const mcLegs = () => document.querySelectorAll('#multiCityLegs .multi-city-leg');
+  const carryToMulti = () => {
+    const legs = mcLegs(); if (!legs.length) return;
+    const first = legs[0], from = first.querySelector('.mc-from'), to = first.querySelector('.mc-to'), date = first.querySelector('.mc-date');
+    if (!from.value && !to.value && !date.value) {
+      from.value = get('flightFrom') ? get('flightFrom').value : '';
+      to.value = get('flightTo') ? get('flightTo').value : '';
+      const departValue = get('flightDepart') ? get('flightDepart').value : '';
+      if (date._flatpickr) { if (departValue) date._flatpickr.setDate(departValue, true, 'Y-m-d'); }
+      else date.value = departValue;
+    }
+    const second = legs[1];
+    if (second) { const nextFrom = second.querySelector('.mc-from'); if (!nextFrom.value && to.value) { nextFrom.value = to.value; nextFrom.dataset.auto = '1'; } }
+    copyParty('flightPax', 'flightPaxMc');
+  };
+  // 乘客/艙等小視窗：用隱藏的 pax 欄位找到它的容器
+  const fpOf = (id) => { const el = get(id); const root = el && el.closest('[data-fp]'); return root ? (root._fp || (window.flightPassengers && window.flightPassengers.init(root))) : null; };
+  const copyParty = (fromId, toId) => { const a = fpOf(fromId), b = fpOf(toId); if (a && b) b.set(Object.assign({}, a.state)); };
+  const carryFromMulti = () => {
+    const legs = mcLegs(); if (!legs.length) return;
+    const from = legs[0].querySelector('.mc-from').value, to = legs[0].querySelector('.mc-to').value;
+    if (get('flightFrom') && !get('flightFrom').value && from) get('flightFrom').value = from;
+    if (get('flightTo') && !get('flightTo').value && to) get('flightTo').value = to;
+    copyParty('flightPaxMc', 'flightPax');
+  };
   ['flight','train'].forEach(kind => {
     const radios=document.querySelectorAll('input[name="'+kind+'Mode"]'); if (!radios.length) return;
     const tripMode=query.get('trip_mode');
     if (tripMode) radios.forEach(r=>{r.checked = r.value===tripMode;});
+    let prevMode = null;
     const sync=()=>{
       const mode=getMode(kind);
+      const wasMulti = prevMode==='multicity';
+      prevMode = mode;
       if (kind==='flight') {
         const isMulti = mode==='multicity';
         if (get('flightSingleFields')) get('flightSingleFields').hidden = isMulti;
         if (get('flightMultiFields')) get('flightMultiFields').hidden = !isMulti;
         if (get('flightDirectField')) get('flightDirectField').hidden = isMulti;
-        if (isMulti) return;
+        if (isMulti) { carryToMulti(); return; }
+        if (wasMulti) carryFromMulti();  // 只有「從多座城市切回來」才帶回，來回、單程互換不動人數
       }
       const picker=pickers[kind]; if (!picker) return;
       picker.set('mode', mode==='oneway' ? 'single' : 'range');
@@ -287,14 +343,52 @@
         renumber();
       });
     };
-    legsBox.querySelectorAll('.multi-city-leg').forEach(bindLeg);
+    // 新增航班用的乾淨範本(在綁日曆之前先複製，不然複製到的會帶著日曆的外掛元素)
+    const legTemplate = (() => {
+      const all = legsBox.querySelectorAll('.multi-city-leg');
+      const t = all[all.length - 1].cloneNode(true);
+      t.querySelectorAll('input').forEach(input => { input.value = ''; });
+      return t;
+    })();
+    // 每一段的日期：下一段最早只能選到上一段的日期，不能比前一段更早
+    const refreshMinDates = () => {
+      let previous = null;
+      legsBox.querySelectorAll('.multi-city-leg').forEach((leg) => {
+        const instance = leg.querySelector('.mc-date')._flatpickr;
+        if (!instance) return;
+        instance.set('minDate', previous || 'today');
+        const picked = instance.selectedDates[0] || null;
+        if (picked && previous && picked < previous) instance.clear();
+        previous = instance.selectedDates[0] || previous;
+      });
+    };
+    const bindDate = (leg) => {
+      const input = leg.querySelector('.mc-date');
+      if (window.createSingleDatePicker) window.createSingleDatePicker(input, { onPick: refreshMinDates });
+      else input.type = 'date';  // 日曆套件沒載入成功時退回瀏覽器內建的日期欄位
+    };
+    legsBox.querySelectorAll('.multi-city-leg').forEach((leg) => { bindLeg(leg); bindDate(leg); });
+    // 上一段的目的地填好(或換掉)，下一段的出發地跟著帶入；下一段的出發地如果是使用者自己填的，就不去動它
+    legsBox.addEventListener('change', (event) => {
+      if (!event.target.classList.contains('mc-to')) return;
+      const all = Array.from(legsBox.querySelectorAll('.multi-city-leg'));
+      const next = all[all.indexOf(event.target.closest('.multi-city-leg')) + 1];
+      if (!next) return;
+      const nextFrom = next.querySelector('.mc-from'), value = event.target.value.trim();
+      if (value && (!nextFrom.value.trim() || nextFrom.dataset.auto === '1')) { nextFrom.value = value; nextFrom.dataset.auto = '1'; }
+    });
+    legsBox.addEventListener('input', (event) => { if (event.target.classList.contains('mc-from')) delete event.target.dataset.auto; });
     addBtn.addEventListener('click', () => {
       const legs = legsBox.querySelectorAll('.multi-city-leg');
       if (legs.length >= MAX_LEGS) return;
-      const clone = legs[legs.length - 1].cloneNode(true);
-      clone.querySelectorAll('input').forEach(input => { input.value = ''; });
+      const clone = legTemplate.cloneNode(true);
+      // 新增的這一段，出發地直接接上一段的目的地(台北→東京→首爾→…)，旅客只要填下一個目的地
+      const previousTo = legs[legs.length - 1].querySelector('.mc-to').value.trim();
+      if (previousTo) { const f = clone.querySelector('.mc-from'); f.value = previousTo; f.dataset.auto = '1'; }
       legsBox.appendChild(clone);
       bindLeg(clone);
+      bindDate(clone);
+      refreshMinDates();
       renumber();
     });
     renumber();
@@ -302,9 +396,12 @@
       const legs = Array.from(legsBox.querySelectorAll('.multi-city-leg'));
       const params = new URLSearchParams();
       params.set('legs', legs.length);
-      params.set('pax', get('flightPaxMc').value || '1');
+      const party = fpOf('flightPaxMc');
+      if (party) Object.entries(party.params()).forEach(([k, v]) => params.set(k, v)); else params.set('pax', get('flightPaxMc').value || '1');
       legs.forEach((leg, i) => {
-        params.set('from' + (i + 1), leg.querySelector('.mc-from').value.trim());
+        // 後面幾段的出發地如果沒填，就用上一段的目的地
+        const previousTo = i > 0 ? legs[i - 1].querySelector('.mc-to').value.trim() : '';
+        params.set('from' + (i + 1), leg.querySelector('.mc-from').value.trim() || previousTo);
         params.set('to' + (i + 1), leg.querySelector('.mc-to').value.trim());
         params.set('date' + (i + 1), leg.querySelector('.mc-date').value);
       });
@@ -394,6 +491,7 @@
     if(failed){form.querySelector('[aria-invalid=true]')?.focus();return;}
     if(mode)params.set('trip_mode',mode);
     if(kind==='train')params.set('rail',form.querySelector('input[name="rail"]:checked')?.value||'thsr');
+    if(kind==='flight'){const party=fpOf('flightPax');if(party)Object.entries(party.params()).forEach(([k,v])=>params.set(k,v));}
     if(kind==='flight' && get('flightDirect')?.checked)params.set('stops','direct');
     location.href='/visitor/'+({hotel:'hotels',flight:'flights',train:'trains'}[kind])+'?'+params.toString();
   },true);
@@ -402,25 +500,14 @@
   noteText();document.querySelectorAll('.search-tab').forEach(el=>el.addEventListener('click',noteText));
 })();
 
-// 機票人數上限 9 位(Google Flights 一筆最多 9 位)：超過時自動改回 9，並在欄位下面說明，不用把上限寫在標籤上
+// 網址帶了乘客/艙等(例如從結果頁回首頁)就還原到小視窗
 (() => {
-  const MAX = 9;
-  const NOTE = '每筆預訂限最多 ' + MAX + ' 位旅客。若還有更多旅客，請分開再搜尋並預訂下一筆。';
-  const inputs = [document.getElementById('flightPax'), document.getElementById('flightPaxMc'), ...document.querySelectorAll('.booking-search-form--flight input[name="pax"]')]
-    .filter((el, index, list) => el && list.indexOf(el) === index);
-  inputs.forEach((input) => {
-    input.max = String(MAX);
-    const field = input.closest('.field') || input.parentElement;
-    const note = document.createElement('span');
-    note.className = 'pax-limit-note';
-    note.textContent = NOTE;
-    note.hidden = true;
-    field.appendChild(note);
-    input.addEventListener('input', () => {
-      const over = Number(input.value) > MAX;
-      if (over) input.value = String(MAX);
-      note.hidden = !over;
-    });
-    input.addEventListener('blur', () => { note.hidden = true; });
+  const q = new URLSearchParams(location.search);
+  ['flightPax', 'flightPaxMc'].forEach((id) => {
+    const el = document.getElementById(id), root = el && el.closest('[data-fp]');
+    const fp = root && (root._fp || (window.flightPassengers && window.flightPassengers.init(root)));
+    if (!fp || !(q.has('adults') || q.has('pax'))) return;
+    const adults = q.has('adults') ? q.get('adults') : q.get('pax');
+    fp.set({ adults: parseInt(adults, 10) || 1, children: parseInt(q.get('children'), 10) || 0, infants: parseInt(q.get('infants'), 10) || 0, cabin: q.get('cabin') && q.get('cabin') !== 'all' ? q.get('cabin') : '' });
   });
 })();

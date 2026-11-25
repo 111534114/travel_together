@@ -38,6 +38,7 @@ from blueprints.friend_groups_admin import friend_groups_admin_bp  # 匯入交�
 from content_admin_permissions import CONTENT_ADMIN_ACTIONS, content_admin_can
 from blueprints.member import COMMENT_REPORT_PREFIX, ISSUE_PREFIX, member_bp, _fetch_featured_public_trips  # 匯入會員功能的藍圖
 from blueprints.line_webhook import line_webhook_bp  # 匯入 LINE 官方帳號 webhook 的藍圖
+from blueprints.booking_compare import booking_compare_bp  # 匯入機票＋住宿比價的藍圖
 from blueprints.trip_assistant import trip_assistant_bp  # 匯入行程助理(行程頁 AI 聊天)的藍圖
 from blueprints.home_banners import fetch_active_banners, home_banners_bp  # 匯入首頁輪播圖(跑馬燈)後台與首頁查詢
 from activity_log import ACTION_LABELS, log_action
@@ -209,6 +210,7 @@ app.register_blueprint(friend_groups_bp)  # 註冊交友揪團(會員端)路由
 app.register_blueprint(friend_groups_admin_bp)  # 註冊交友揪團(後台審核)路由
 app.register_blueprint(member_bp)  # 註冊會員功能路由
 app.register_blueprint(trip_assistant_bp)  # 註冊行程助理(AI 聊天)路由
+app.register_blueprint(booking_compare_bp)  # 註冊機票＋住宿比價路由
 app.register_blueprint(line_webhook_bp)  # 註冊 LINE 官方帳號 webhook 路由
 
 
@@ -476,6 +478,11 @@ def api_hotel_offers():
     if offers is None:
         return jsonify(error="暫時查不到各訂房網站的價格，請稍後再試。"), 502
     return jsonify(offers=offers)
+
+
+@app.route("/visitor/hotels/detail")  # 飯店詳情整頁(點「查看詳情」開新分頁)：內容由前端從瀏覽器暫存讀取，不再多花 API 額度
+def visitor_hotel_detail():
+    return render_template("hotel_detail.html")
 
 
 @app.route("/visitor/hotels")  # 設定訪客住宿搜尋結果頁路由(從訪客頁面的住宿搜尋表單導入，帶入目的地/日期/人數)
@@ -750,12 +757,28 @@ def _search_flights(from_keyword, to_keyword, pax):
     return results
 
 
-def _live_flight_search(origin_keyword, destination_keyword, depart_date, return_date=None, pax=1, cabin_class=None, more=False):
+def _flight_party():
+    """旅客組成：成人、兒童(2–11 歲，佔位)、嬰兒(未滿 2 歲，不佔位)。回傳 (成人, 兒童, 嬰兒, pax)，
+    pax = 佔位人數(成人 + 兒童)，沿用到處在用的 pax 參數；Google Flights 一筆最多 9 位，嬰兒不能比成人多。"""
+    def num(name, default):
+        raw = (request.args.get(name) or "").strip()
+        return int(raw) if raw.isdigit() else default
+
+    if any((request.args.get(key) or "") != "" for key in ("adults", "children", "infants")):
+        adults = min(max(num("adults", 1), 1), 9)
+        children = min(max(num("children", 0), 0), 9 - adults)
+        infants = min(max(num("infants", 0), 0), adults)
+    else:
+        adults, children, infants = min(max(num("pax", 1), 1), 9), 0, 0
+    return adults, children, infants, adults + children
+
+
+def _live_flight_search(origin_keyword, destination_keyword, depart_date, return_date=None, pax=1, cabin_class=None, more=False, children=0, infants=0):
     """依序嘗試 SerpApi(Google Flights) -> Amadeus，兩個都沒設定金鑰/查不到/失敗就回傳 (None, False)，
     呼叫端自己改用本地資料庫的固定班表資料。回傳 (flights, is_live)。
     cabin_class：Google Flights 預設只查經濟艙，要查商務/頭等艙要指定這個，所以使用者在「艙等」篩選
     選了特定艙等時，呼叫端要帶這個參數重新查一次，不是拿經濟艙資料硬篩。"""
-    flights = serpapi_flights.search_flight_offers(origin_keyword, destination_keyword, depart_date, return_date, pax, cabin_class=cabin_class, more=more)
+    flights = serpapi_flights.search_flight_offers(origin_keyword, destination_keyword, depart_date, return_date, pax - children, cabin_class=cabin_class, more=more, children=children, infants=infants)
     if flights:
         return flights, True
     flights = amadeus_client.search_flight_offers(origin_keyword, destination_keyword, depart_date, pax)
@@ -882,8 +905,7 @@ def visitor_flight_search():
     depart_date = request.args.get("depart", "").strip()  # 取得去程日期(YYYY-MM-DD)
     return_date = request.args.get("return", "").strip()  # 取得回程日期(YYYY-MM-DD)，有填才會查回程班機
 
-    pax_raw = request.args.get("pax", "1").strip()  # 取得人數參數(字串)
-    pax = int(pax_raw) if pax_raw.isdigit() and int(pax_raw) > 0 else 1  # 驗證人數為正整數，否則預設 1 人
+    adults, children, infants, pax = _flight_party()  # 成人/兒童/嬰兒；pax = 佔位人數
 
     is_roundtrip = return_date and request.args.get('trip_mode', 'roundtrip') == 'roundtrip'
 
@@ -943,7 +965,7 @@ def visitor_flight_search():
     selected_cabin = request.args.get("cabin", "all")
     cabin_query = selected_cabin if selected_cabin != "all" else None
     show_more = request.args.get("more") == "1"  # 「顯示更多航班」：多查幾種條件把更多航班合併進來(多用幾次額度)
-    outbound_flights, using_live_data = _live_flight_search(origin, destination, depart_date, return_date if is_roundtrip else None, pax, cabin_class=cabin_query, more=show_more)
+    outbound_flights, using_live_data = _live_flight_search(origin, destination, depart_date, return_date if is_roundtrip else None, pax, cabin_class=cabin_query, more=show_more, children=children, infants=infants)
     if using_live_data and domestic_plan:
         combined = flight_combine.combine_with_domestic(
             domestic_plan["domestic"], outbound_flights, domestic_plan["feeder"], domestic_plan["feeder_label"])
@@ -1020,12 +1042,13 @@ def visitor_flight_search():
     )
     outbound_flights = apply_facets(outbound_flights, facet_fields)
     return_flights = apply_facets(return_flights, facet_fields)
+    range_bounds = {"duration": duration_bounds, "layover": layover_bounds, "depart_time": (0, 1439), "arrival_time": (0, 1439)}
     for field, param_prefix in (
         ("duration_minutes", "duration"), ("layover_minutes", "layover"),
         ("departure_minutes", "depart_time"), ("arrival_minutes", "arrival_time"),
     ):
-        outbound_flights = apply_value_range(outbound_flights, field, param_prefix)
-        return_flights = apply_value_range(return_flights, field, param_prefix)
+        outbound_flights = apply_value_range(outbound_flights, field, param_prefix, range_bounds[param_prefix])
+        return_flights = apply_value_range(return_flights, field, param_prefix, range_bounds[param_prefix])
     outbound_flights = apply_time_band(outbound_flights, "departure_time")
     return_flights = apply_time_band(return_flights, "departure_time")
 
@@ -1072,6 +1095,7 @@ def visitor_flight_search():
 
     return render_template(
         "flight_search.html",
+        adults=adults, children=children, infants=infants,
         transfer_notes=transfer_notes,
         show_more=show_more,
         origin=origin,
@@ -1137,10 +1161,9 @@ def visitor_flight_return_options():
     )
 
 
-@app.route("/visitor/flights/multi-city")  # 多座城市機票搜尋：一次查多段航班，每段都是獨立的單程搜尋
+@app.route("/visitor/flights/multi-city")  # 多座城市機票搜尋：一次查多段航班，每段都是獨立的單程搜尋；左邊的篩選跟單程/來回完全一樣
 def visitor_multi_city_flight_search():
-    pax_raw = request.args.get("pax", "1").strip()
-    pax = int(pax_raw) if pax_raw.isdigit() and int(pax_raw) > 0 else 1
+    adults, children, infants, pax = _flight_party()
 
     try:
         leg_count = int(request.args.get("legs", "2"))
@@ -1148,7 +1171,12 @@ def visitor_multi_city_flight_search():
         leg_count = 2
     leg_count = max(2, min(6, leg_count))  # 至少 2 段、最多 6 段，避免被亂帶參數灌爆查詢量
 
+    selected_cabin = request.args.get("cabin", "all")
+    cabin_query = selected_cabin if selected_cabin != "all" else None
+
     legs = []
+    all_rows = []
+    any_live = False
     for i in range(1, leg_count + 1):
         leg_origin = request.args.get(f"from{i}", "").strip()
         leg_destination = request.args.get(f"to{i}", "").strip()
@@ -1156,26 +1184,75 @@ def visitor_multi_city_flight_search():
         flights = None
         leg_is_live = False
         if leg_origin or leg_destination:
-            flights, leg_is_live = _live_flight_search(leg_origin, leg_destination, leg_date, None, pax)
+            flights, leg_is_live = _live_flight_search(leg_origin, leg_destination, leg_date, None, pax, cabin_class=cabin_query, children=children, infants=infants)
         if leg_is_live:
             for row in flights:
+                # 「機場」篩選要用真正的機場代碼當篩選值，所以先存代碼，再把顯示用的欄位換成好懂的名稱
+                row["origin_airport_code"] = row.get("origin_city")
+                row["destination_airport_code"] = row.get("destination_city")
                 row["origin_city"] = _live_airport_label(row.get("origin_city"), leg_origin)
                 row["destination_city"] = _live_airport_label(row.get("destination_city"), leg_destination)
+                row["layover_city"] = _live_layover_city_label(row.get("layovers"))
         elif leg_origin or leg_destination:
             flights = _search_flights(leg_origin, leg_destination, pax)
         else:
             flights = []
+        any_live = any_live or leg_is_live
+        all_rows.extend(flights)
         legs.append({
             "index": i,
             "origin": leg_origin,
             "destination": leg_destination,
             "date": leg_date,
-            "flights": filter_prices(flights, "price", "duration_minutes", "stops", cabin_field="cabin_class"),
+            "flights": flights,
             "is_live": leg_is_live,
             "skyscanner_url": flight_links.skyscanner_search_url(leg_origin, leg_destination, leg_date, None, pax),
         })
 
-    return render_template("multi_city_flight_search.html", legs=legs, pax=pax)
+    # 篩選選項：把所有段的航班合在一起統計(跟單程/來回同一套邏輯)，每一段再各自套用篩選與排序
+    for row in all_rows:
+        row["alliance"] = flight_links.AIRLINE_ALLIANCE.get(row.get("airline_name"))
+        row["stops_label"] = "直飛" if not row.get("stops") else f"轉機 {row['stops']} 次"
+        row["departure_minutes"] = _hm_to_minutes(row.get("departure_time"))
+        row["arrival_minutes"] = _hm_to_minutes(row.get("arrival_time"))
+    origin_airport_labels = {code: _airport_facet_label(code) for code in {r.get("origin_airport_code") for r in all_rows if r.get("origin_airport_code")}}
+    destination_airport_labels = {code: _airport_facet_label(code) for code in {r.get("destination_airport_code") for r in all_rows if r.get("destination_airport_code")}}
+    facet_fields = (
+        ("airline_name", "airline"), ("alliance", "alliance"), ("stops_label", "stops_count"),
+        ("layover_city", "layover_city"), ("airplane_category", "aircraft"),
+        ("origin_airport_code", "origin_airport"), ("destination_airport_code", "destination_airport"),
+    )
+    duration_bounds = value_range(all_rows, "duration_minutes")
+    layover_bounds = value_range(all_rows, "layover_minutes")
+    range_bounds = {"duration": duration_bounds, "layover": layover_bounds, "depart_time": (0, 1439), "arrival_time": (0, 1439)}
+    for leg in legs:
+        rows = apply_facets(leg["flights"], facet_fields)
+        for field, param_prefix in (
+            ("duration_minutes", "duration"), ("layover_minutes", "layover"),
+            ("departure_minutes", "depart_time"), ("arrival_minutes", "arrival_time"),
+        ):
+            rows = apply_value_range(rows, field, param_prefix, range_bounds[param_prefix])
+        rows = apply_time_band(rows, "departure_time")
+        leg["flights"] = filter_prices(rows, "price", "duration_minutes", "stops", cabin_field="cabin_class")
+
+    return render_template(
+        "multi_city_flight_search.html",
+        legs=legs,
+        pax=pax, adults=adults, children=children, infants=infants,
+        using_live_data=any_live,
+        price_buckets=price_buckets(all_rows, "price"),
+        price_max=price_range(all_rows, "price"),
+        airline_facets=facet_options(all_rows, "airline_name", price_field="price"),
+        alliance_facets=facet_options(all_rows, "alliance", labels=flight_links.ALLIANCE_NAMES, price_field="price"),
+        stops_facets=facet_options(all_rows, "stops_label", price_field="price"),
+        layover_city_facets=facet_options(all_rows, "layover_city", price_field="price"),
+        aircraft_facets=facet_options(all_rows, "airplane_category", price_field="price"),
+        origin_airport_facets=facet_options(all_rows, "origin_airport_code", labels=origin_airport_labels, price_field="price"),
+        destination_airport_facets=facet_options(all_rows, "destination_airport_code", labels=destination_airport_labels, price_field="price"),
+        duration_bounds=duration_bounds,
+        layover_bounds=layover_bounds,
+        depart_band_options=time_band_options(all_rows, "departure_time"),
+    )
 
 
 @app.route("/visitor/flights/booking-redirect")  # 點「選擇」之後先到這個載入畫面，背景去查這班飛機真正的訂票連結(要等 30~45 秒)

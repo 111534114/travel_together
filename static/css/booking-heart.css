@@ -1,0 +1,5 @@
+/* 愛心收藏按鈕(機票卡片)：沒有載入完整 booking-tools.css 的頁面(多座城市、選擇回程)也要有一樣的樣式 */
+.booking-heart { display:inline-grid; place-items:center; width:40px; height:40px; padding:0; color:#078da4; background:#fff; border:1px solid #9fc7cf; border-radius:50%; font:700 27px/1 Arial,sans-serif; text-decoration:none; cursor:pointer; transition:color .15s ease,background .15s ease,transform .15s ease; }
+.booking-heart:hover { color:#e54b6b; background:#fff3f6; transform:scale(1.06); }
+.booking-heart.is-saved { color:#e63861; border-color:#e99aae; background:#fff0f4; }
+.booking-heart:focus-visible { outline:3px solid rgba(7,141,164,.25); outline-offset:2px; }

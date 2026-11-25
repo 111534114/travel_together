@@ -191,4 +191,26 @@
     });
 
     load();
+
+    // ---------- 出發前檢查卡片 ----------
+    // 「🤖 請助理幫忙」：切到行程助理分頁，把問題交給助理(一樣會先列改動清單，按套用才改)
+    document.querySelectorAll('[data-precheck-ask]').forEach(function (button) {
+        button.addEventListener('click', function () {
+            showTab('assistant');
+            root.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            if (state.busy || state.remaining <= 0 || state.aiReady === false) {
+                input.value = button.dataset.precheckAsk;  // 現在不能問：先把問題填好
+                input.focus();
+                return;
+            }
+            ask(button.dataset.precheckAsk);
+        });
+    });
+    var toggle = document.querySelector('[data-precheck-toggle]');
+    if (toggle) toggle.addEventListener('click', function () {
+        var open = toggle.getAttribute('aria-expanded') !== 'true';
+        document.querySelectorAll('[data-precheck-extra]').forEach(function (li) { li.hidden = !open; });
+        toggle.setAttribute('aria-expanded', open ? 'true' : 'false');
+        toggle.textContent = open ? '收起來' : '看全部';
+    });
 })();

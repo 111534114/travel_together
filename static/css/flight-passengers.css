@@ -1,0 +1,22 @@
+.fp { position: relative; display: inline-block; align-self: flex-end; }
+.fp-toggle { display: inline-flex; align-items: center; gap: 8px; min-height: 46px; padding: 0 14px; color: #23373A; background: #fff; border: 1px solid #C6DCDF; border-radius: 8px; cursor: pointer; font: inherit; font-size: 15px; white-space: nowrap; }
+.fp-toggle:hover, .fp-toggle[aria-expanded="true"] { border-color: #078da4; }
+.fp-caret { color: #708284; font-size: 12px; }
+.fp-panel { position: absolute; right: 0; top: calc(100% + 6px); z-index: 60; width: 300px; padding: 14px 16px; background: #fff; border: 1px solid #DCE8EA; border-radius: 12px; box-shadow: 0 10px 28px rgba(35, 55, 58, .18); }
+.fp-panel[hidden] { display: none; }
+.fp-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 8px 0; }
+.fp-row strong { display: block; color: #23373A; font-size: 15px; }
+.fp-row small { color: #708284; font-size: 12px; }
+.fp-counter { display: inline-flex; align-items: center; gap: 12px; }
+.fp-counter button { width: 30px; height: 30px; color: #078da4; background: #fff; border: 1px solid #078da4; border-radius: 50%; cursor: pointer; font-size: 16px; line-height: 1; }
+.fp-counter button:disabled { color: #B8C7C9; border-color: #D5E0E2; cursor: not-allowed; }
+.fp-counter span { min-width: 16px; text-align: center; font-weight: 700; }
+.fp-hint, .fp-note { margin: 6px 0; color: #708284; font-size: 12px; }
+.fp-note { color: #B26A00; }
+.fp-cabin { width: 100%; min-height: 40px; margin-top: 8px; padding: 0 10px; font: inherit; border: 1px solid #C6DCDF; border-radius: 8px; background: #fff; }
+.search-actions, .booking-search-actions { display: flex; flex: 0 0 auto; align-items: flex-end; gap: 10px; margin-left: auto; }
+.search-actions .search-submit, .booking-search-actions .booking-search-submit { margin-left: 0; }
+.booking-search-form--multicity .mc-top .fp { margin-left: auto; align-self: center; }
+.booking-search-form--multicity .mc-top .fp-toggle { min-height: 38px; }
+.booking-search-form--multicity .mc-top .booking-search-submit { margin-left: 0; }
+@media (max-width: 560px) { .search-actions, .booking-search-actions { flex-wrap: wrap; width: 100%; } .fp-panel { right: auto; left: 0; width: min(300px, 90vw); } }

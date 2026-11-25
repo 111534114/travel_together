@@ -414,6 +414,8 @@
       input.value = value;
       saveRecent(mode.recentKey, mode.toItems ? (stationZh(value) || value) : value);
       panel.hidden = true;
+      // 程式直接改 input.value 不會觸發任何事件；多座城市的目的地要通知表單，下一段的出發地才能跟著填
+      if (input.classList.contains('mc-to')) input.dispatchEvent(new Event('change', { bubbles: true }));
     };
     renderStaticPanel(panel, keyword, onPick, mode);
     panel.hidden = false;

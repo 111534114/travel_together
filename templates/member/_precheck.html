@@ -1,0 +1,25 @@
+{# 出發前檢查卡片(每日行程最上面)。precheck_issues 為 None 代表旅程已結束不檢查；空清單代表沒問題。 #}
+{% if precheck_issues is not none %}
+{% set issue_count = precheck_issues|length %}
+<section class="precheck {{ 'is-ok' if not issue_count else '' }}" aria-labelledby="precheckTitle" data-precheck>
+    <div class="precheck-head">
+        <h3 id="precheckTitle">{% if issue_count %}🧭 出發前檢查：有 {{ issue_count }} 件事要注意{% else %}✅ 出發前檢查：目前沒有發現問題{% endif %}</h3>
+        <div class="precheck-head-actions">
+            {% if issue_count > 3 %}<button type="button" class="precheck-toggle" data-precheck-toggle aria-expanded="false">看全部</button>{% endif %}
+            <a class="precheck-refresh" href="{{ url_for('member.trip_detail', trip_id=trip.trip_id) }}#itinerary" title="重新檢查">🔄 重新檢查</a>
+        </div>
+    </div>
+    {% if issue_count %}
+    <ul class="precheck-list">
+        {% for issue in precheck_issues %}
+        <li class="precheck-item level-{{ issue.level }}" {% if loop.index > 3 %}data-precheck-extra hidden{% endif %}>
+            <span class="precheck-icon" aria-hidden="true">{{ issue.icon }}</span>
+            <span class="precheck-text">{{ issue.text }}</span>
+            {% if issue.ask %}<button type="button" class="precheck-ask" data-precheck-ask="{{ issue.ask }}">🤖 請助理幫忙</button>{% endif %}
+        </li>
+        {% endfor %}
+    </ul>
+    <p class="precheck-note">出發前 3 天和前 1 天會自動檢查，並用 LINE 和網站通知提醒所有旅伴（可以在通知設定關掉）。天氣只查得到台灣縣市、未來一週。</p>
+    {% endif %}
+</section>
+{% endif %}

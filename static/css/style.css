@@ -5035,3 +5035,118 @@ html { scroll-behavior: smooth; }
 .ta-foot { margin: 0; padding: 0 12px 8px; color: #708284; font-size: 12px; }
 @media (max-width: 900px) { .trip-assistant { height: 480px; } }
 @media (prefers-reduced-motion: reduce) { .ta-dots i { animation: none; } }
+
+/* 行程卡片：很長又沒有空格的文字(例如貼上的網址)自動換行，不要把整個版面撐寬 */
+.itinerary-item > div { min-width: 0; }
+.itinerary-item h3, .itinerary-item p, .itinerary-item small { overflow-wrap: anywhere; }
+.ta-bubble, .ta-plan li { overflow-wrap: anywhere; }
+
+/* 每日行程時間軸：左邊留給連接線的空間，展開的編輯表單、留言都從內容欄開始，不會被線穿過 */
+.itinerary-day-group::before { left: 27px; width: 2px; opacity: .25; border-radius: 2px; }
+.itinerary-item > .itinerary-edit-panel,
+.itinerary-item > .item-comment-thread { position: relative; z-index: 1; margin-left: 74px; }
+.itinerary-item > .itinerary-edit-panel { margin-top: 12px; margin-bottom: 14px; padding: 16px 18px; background: #F8FBFB; border: 1px solid #E1EBEC; border-radius: 12px; }
+.itinerary-item > .item-comment-thread { margin-top: 4px; margin-bottom: 12px; }
+@media (max-width: 640px) {
+    .itinerary-item > .itinerary-edit-panel,
+    .itinerary-item > .item-comment-thread { margin-left: 40px; }
+    .itinerary-item > .itinerary-edit-panel { padding: 12px; }
+}
+
+/* ---------- 出發前檢查卡片(每日行程最上面) ---------- */
+.precheck { margin: 0 0 18px; padding: 14px 16px; background: #FFF9EE; border: 1px solid #F2DDB4; border-radius: 12px; }
+.precheck.is-ok { padding: 10px 16px; background: #F1FAF4; border-color: #CBE8D4; }
+.precheck-head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; }
+.precheck-head h3 { margin: 0; color: #6B4A10; font-size: 15px; }
+.precheck.is-ok .precheck-head h3 { color: #22663F; font-size: 14px; }
+.precheck-head-actions { display: flex; gap: 8px; }
+.precheck-toggle, .precheck-refresh { padding: 4px 10px; color: #6B4A10; font: inherit; font-size: 12px; font-weight: 600; text-decoration: none; background: #fff; border: 1px solid #EAD3A6; border-radius: 999px; cursor: pointer; }
+.precheck.is-ok .precheck-refresh { color: #22663F; border-color: #CBE8D4; }
+.precheck-list { margin: 10px 0 0; padding: 0; list-style: none; }
+.precheck-item { display: flex; align-items: flex-start; gap: 8px; padding: 8px 0; border-top: 1px dashed #EAD9B8; font-size: 14px; line-height: 1.55; }
+.precheck-item[hidden] { display: none; }
+.precheck-icon { flex: none; width: 22px; text-align: center; }
+.precheck-text { flex: 1; min-width: 0; color: #3D3420; overflow-wrap: anywhere; }
+.precheck-item.level-danger .precheck-text { color: #A12A1F; font-weight: 600; }
+.precheck-item.level-info .precheck-text { color: #5E6B6D; }
+.precheck-ask { flex: none; padding: 4px 10px; color: #0f7c8c; font: inherit; font-size: 12px; font-weight: 700; background: #fff; border: 1px solid #C6DCDF; border-radius: 999px; cursor: pointer; white-space: nowrap; }
+.precheck-ask:hover { color: #fff; background: #0f7c8c; border-color: #0f7c8c; }
+.precheck-note { margin: 8px 0 0; color: #8A7A55; font-size: 12px; }
+@media (max-width: 560px) { .precheck-item { flex-wrap: wrap; } .precheck-ask { margin-left: 30px; } }
+
+/* ---------- 機票＋住宿比價(住宿與預算分頁) ---------- */
+.bc { margin: 0 0 22px; padding: 18px 20px; background: linear-gradient(135deg, #F7FBFC, #EAF5F6); border: 1px solid #CFE3E6; border-radius: 14px; }
+.bc-head h3 { margin: 0; font-size: 18px; }
+.bc-head p { margin: 4px 0 12px; color: #5E6B6D; font-size: 14px; }
+.bc-form { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 2fr); gap: 12px; }
+.bc-form label { display: flex; flex-direction: column; gap: 6px; color: #3D5154; font-size: 14px; font-weight: 600; }
+.bc-form input { padding: 10px 12px; font: inherit; border: 1px solid #C5D5D7; border-radius: 8px; background: #fff; }
+.bc-form-foot { grid-column: 1 / -1; display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px; }
+.bc-progress { grid-column: 1 / -1; margin: 0; color: #0f7c8c; font-size: 14px; font-weight: 600; }
+.bc-progress.is-error { color: #c0392b; }
+.bc-muted { color: #708284; font-size: 13px; }
+.bc-warn { color: #a12a1f; font-size: 14px; font-weight: 600; }
+.bc-result { margin-top: 14px; padding: 12px 14px; background: #fff; border: 1px solid #E1EBEC; border-radius: 12px; }
+.bc-result summary { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; color: #3D5154; font-size: 14px; font-weight: 700; cursor: pointer; }
+.bc-badge { padding: 2px 9px; font-size: 12px; font-style: normal; font-weight: 700; border-radius: 999px; }
+.bc-badge.running { color: #2f6b8a; background: #e6f3f8; }
+.bc-badge.failed, .bc-badge.over { color: #a12a1f; background: #fde8ea; }
+.bc-badge.ok { color: #22663F; background: #e3f5e9; }
+.bc-summary { margin: 10px 0; padding: 10px 12px; color: #23373A; font-size: 14px; line-height: 1.6; background: #EEF6F7; border-radius: 10px; }
+.bc-options { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 12px; }
+.bc-option { display: flex; flex-direction: column; padding: 12px 14px; border: 1px solid #E1EBEC; border-radius: 12px; }
+.bc-option.kind-cheapest { border-top: 4px solid #2f8f5b; }
+.bc-option.kind-balanced { border-top: 4px solid #0f7c8c; }
+.bc-option.kind-comfort { border-top: 4px solid #b07a1a; }
+.bc-option h4 { margin: 0; font-size: 16px; }
+.bc-reason { margin: 4px 0 6px; color: #5E6B6D; font-size: 13px; }
+.bc-option ul { flex: 1; margin: 0; padding: 0; list-style: none; }
+.bc-option li { padding: 8px 0; border-bottom: 1px dashed #E1EBEC; }
+.bc-line-title { font-size: 14px; font-weight: 700; overflow-wrap: anywhere; }
+.bc-line-detail { color: #5E6B6D; font-size: 12px; overflow-wrap: anywhere; }
+.bc-line-price { margin-top: 2px; color: #0f7c8c; font-size: 14px; font-weight: 700; }
+.bc-line-price small { color: #708284; font-size: 11px; font-weight: 500; }
+.bc-line-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 4px; font-size: 12px; }
+.bc-line-actions a { color: #0f7c8c; font-weight: 700; }
+.bc-line-actions button { padding: 2px 9px; color: #0f7c8c; font: inherit; font-size: 12px; font-weight: 700; background: #fff; border: 1px solid #C6DCDF; border-radius: 999px; cursor: pointer; }
+.bc-total { display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px 10px; margin-top: 10px; }
+.bc-total b { font-size: 17px; }
+.bc-total small, .bc-total span { color: #708284; font-size: 12px; }
+.bc-notes { margin: 10px 0 0; padding-left: 18px; color: #5E6B6D; font-size: 13px; }
+.bc-foot { margin: 8px 0 0; color: #8A9A9C; font-size: 12px; }
+@media (max-width: 640px) { .bc-form { grid-template-columns: 1fr; } }
+/* 比價表單：出發地、其他要求可以用點的 */
+.bc-field { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.bc-field > label { color: #3D5154; font-size: 14px; font-weight: 600; }
+.bc-field input { padding: 10px 12px; font: inherit; border: 1px solid #C5D5D7; border-radius: 8px; background: #fff; }
+.bc-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.bc-chip { padding: 5px 11px; color: #0f7c8c; font: inherit; font-size: 13px; background: #fff; border: 1px solid #C6DCDF; border-radius: 999px; cursor: pointer; transition: background .15s, color .15s; }
+.bc-chip:hover { background: #E3F2F4; }
+.bc-chip[aria-pressed="true"] { color: #fff; background: #0f7c8c; border-color: #0f7c8c; }
+.bc-chip[aria-pressed="true"]::before { content: "✓ "; }
+/* 比價：要比什麼(可以多選)、只比住宿時出發地變淡 */
+.bc-scope-field { grid-column: 1 / -1; }
+.bc-label { color: #3D5154; font-size: 14px; font-weight: 600; }
+.bc-scope { padding: 7px 14px; font-size: 14px; font-weight: 700; }
+[data-bc-origin-field].is-optional { opacity: .55; }
+[data-bc-origin-mark] { color: #c0392b; font-size: 12px; }
+[data-bc-origin-field].is-optional [data-bc-origin-mark] { color: #708284; }
+.bc-form .bc-field > label { display: block; }
+/* 比價出發地：依交通方式分組 */
+.bc-chip-groups { display: flex; flex-direction: column; gap: 8px; }
+.bc-chip-groups:empty { display: none; }
+.bc-chip-group-title { display: block; margin-bottom: 4px; color: #5E6B6D; font-size: 12px; font-weight: 700; }
+/* 比價：飯店加進行程前選要住哪幾晚 */
+.bc-nights { width: min(420px, calc(100vw - 32px)); padding: 0; border: 0; border-radius: 14px; box-shadow: 0 20px 50px rgba(20, 40, 45, .3); }
+.bc-nights::backdrop { background: rgba(20, 35, 38, .45); }
+.bc-nights-form { padding: 20px; }
+.bc-nights-form h3 { margin: 0; font-size: 18px; }
+.bc-nights-hotel { margin: 4px 0 12px; color: #0f7c8c; font-size: 14px; font-weight: 700; }
+.bc-nights-list { display: flex; flex-direction: column; gap: 6px; max-height: 50vh; overflow-y: auto; }
+.bc-night { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 10px; padding: 9px 12px; font-size: 15px; border: 1px solid #E1EBEC; border-radius: 10px; cursor: pointer; }
+.bc-night:has(input:checked) { background: #EEF6F7; border-color: #9FCBD1; }
+.bc-night input { width: 18px; height: 18px; accent-color: #0f7c8c; }
+.bc-night small { flex-basis: 100%; margin-left: 28px; color: #9a6b1f; font-size: 12px; }
+.bc-nights-actions { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-top: 16px; }
+.bc-nights-actions > div { display: flex; gap: 8px; }
+.bc-link { padding: 4px 6px; color: #0f7c8c; font: inherit; font-size: 13px; font-weight: 600; background: none; border: 0; cursor: pointer; text-decoration: underline; }

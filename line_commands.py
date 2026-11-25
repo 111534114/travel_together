@@ -113,8 +113,9 @@ def item_time_text(item):  # 行程項目的時間文字：有開始時間顯示
     return "全天" if item["is_all_day"] else "時間未定"
 
 
-def trip_card(cursor, trip, countdown, show_date, show_label, note=None):  # 行程卡片：「下一趟旅程」回覆與出發前一天提醒共用
-    """trip 需要 trip_id, trip_name, start_date, end_date, country, city，有 cover_image_path 會顯示封面。"""
+def trip_card(cursor, trip, countdown, show_date, show_label, note=None, checks=None):  # 行程卡片：「下一趟旅程」回覆與出發前提醒共用
+    """trip 需要 trip_id, trip_name, start_date, end_date, country, city，有 cover_image_path 會顯示封面。
+    checks：出發前檢查的結果(幾行字)；空清單代表檢查過沒問題，None 代表不顯示這一段。"""
     cursor.execute(
         "SELECT title,start_time,is_all_day FROM itineraries WHERE trip_id=%s AND itinerary_date=%s "
         "ORDER BY is_all_day DESC,start_time IS NULL,start_time,sort_order",
@@ -154,6 +155,13 @@ def trip_card(cursor, trip, countdown, show_date, show_label, note=None):  # 行
             body.append(flex.text(f"…還有 {len(items) - LIST_LIMIT} 項", size="xs", color=flex.MUTED))
     else:
         body.append(flex.text("還沒有安排行程項目", size="sm", color=flex.MUTED))
+    if checks is not None:  # 出發前檢查結果
+        body += [flex.separator(), flex.text("出發前檢查", size="sm", weight="bold", color=flex.PRIMARY_DEEP, margin="lg")]
+        if checks:
+            body += [flex.text(line, size="xs", color="#8A4B00", wrap=True) for line in checks]
+            body.append(flex.text("到行程頁可以請行程助理幫忙調整", size="xxs", color=flex.MUTED))
+        else:
+            body.append(flex.text("✅ 都檢查過了，沒問題！", size="sm", color="#2F8F5B"))
     if note:
         body.append(flex.text(note, size="xs", color=flex.MUTED, margin="lg"))
     card = flex.bubble(

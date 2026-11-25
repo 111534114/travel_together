@@ -27,6 +27,8 @@ from chat_moderation import REMOVED_CHAT_CONTENT, blocked_term, remove_trip_mess
 import smart_trip
 import trip_request
 import proposal_review
+import pre_trip_check
+import booking_compare
 from place_matching import SITE_PLACE_COLUMNS, find_site_place, search_site_places
 import currency_rates
 import theme_parks
@@ -2271,6 +2273,26 @@ def trip_detail(trip_id):
         city_weather = weather.get_weather_by_cities([trip["city"]]) if trip.get("city") else {}
         if trip.get("city") in city_weather:
             city_weather_days = {day["date"]: day for day in city_weather[trip["city"]]["days"]}
+        precheck_issues = None  # 出發前檢查(行程頁「每日行程」最上面)；旅程已經結束就不檢查
+        if trip["end_date"] >= date.today():
+            try:
+                precheck_issues = pre_trip_check.run_checks(cursor, trip)
+            except Exception as error:  # 檢查失敗不影響行程頁
+                print("出發前檢查失敗：", error)
+        compare_nights = []  # 比價「加進行程」時讓使用者勾選要住哪幾晚：每一晚的日期，以及那晚已經排的住宿
+        for offset in range(max(0, (trip["end_date"] - trip["start_date"]).days)):
+            night = trip["start_date"] + timedelta(days=offset)
+            stays = [it["title"] for it in itinerary if it["item_type"] == "accommodation" and it["itinerary_date"] == night]
+            compare_nights.append({"date": night.isoformat(), "label": f"{night.month}/{night.day}（{'一二三四五六日'[night.weekday()]}）",
+                                   "booked": "、".join(stays)})
+        compares, compare_remaining, compare_ready = [], 0, False  # 機票＋住宿比價(住宿與預算分頁)
+        try:
+            if booking_compare.table_available(cursor):
+                compare_ready = True
+                compares = booking_compare.latest(cursor, trip_id)
+                compare_remaining = max(0, booking_compare.DAILY_LIMIT - booking_compare.used_today(cursor, session["user_id"]))
+        except Exception as error:  # 比價資料讀取失敗不影響行程頁
+            print("讀取比價結果失敗：", error)
         cursor.execute("""SELECT tm.*, u.full_name,u.nickname,u.username,u.avatar_path FROM trip_members tm JOIN users u ON u.user_id=tm.user_id
                           WHERE tm.trip_id=%s AND tm.join_status='accepted' ORDER BY FIELD(tm.member_role,'owner','editor','viewer'),u.full_name""", (trip_id,)); members = cursor.fetchall()
         cursor.execute("""SELECT ti.*, u.full_name AS invitee_name, u.nickname AS invitee_nickname, u.avatar_path
@@ -2320,7 +2342,7 @@ def trip_detail(trip_id):
         my_preference, my_preference_source = trip_preferences.my_form_values(cursor, preference_rows, session["user_id"])
     finally:
         cursor.close(); connection.close()
-    return render_template("member/trip_detail.html", trip=trip, itinerary=itinerary, place_options=place_options, popular_attractions=popular_attractions, addable_trips=[trip], day_last_coords=day_last_coords, city_weather_days=city_weather_days, members=members, mention_members=[{"name": m["nickname"] or m["full_name"], "full_name": m["full_name"], "is_me": m["user_id"] == session["user_id"]} for m in members], pending_invitations=pending_invitations, pending_requests=pending_requests, invite_link=invite_link, proposals=proposals, votes=votes, comments=comments, itinerary_comments=itinerary_comments, proposal_comments=proposal_comments, reported_comment_ids=reported_comment_ids, comment_report_reasons=COMMENT_REPORT_REASONS, expenses=expenses, balance_summary=balance_summary, attachments=attachments, actual=actual, can_edit=_can_edit(trip), is_owner=trip["member_role"] == "owner", now=datetime.now(), item_type_labels=ITEM_TYPE_LABELS, itinerary_change_field_labels=ITINERARY_CHANGE_FIELD_LABELS, disney_parks=theme_parks.get_disney_parks(), transport_summary=transport_summary, preferences_ready=preference_rows is not None, my_preference=my_preference, my_preference_source=my_preference_source, preference_summary=trip_preferences.summarize(preference_rows), preference_options=trip_preferences, return_group_id=return_group_id, stay_plan=stay_plan, budget_estimate=budget_estimate, stay_tier=stay_tier, lodging_tiers=smart_trip.LODGING_TIERS, ai_ready=ai_ready())
+    return render_template("member/trip_detail.html", trip=trip, itinerary=itinerary, place_options=place_options, popular_attractions=popular_attractions, addable_trips=[trip], day_last_coords=day_last_coords, city_weather_days=city_weather_days, members=members, mention_members=[{"name": m["nickname"] or m["full_name"], "full_name": m["full_name"], "is_me": m["user_id"] == session["user_id"]} for m in members], pending_invitations=pending_invitations, pending_requests=pending_requests, invite_link=invite_link, proposals=proposals, votes=votes, comments=comments, itinerary_comments=itinerary_comments, proposal_comments=proposal_comments, reported_comment_ids=reported_comment_ids, comment_report_reasons=COMMENT_REPORT_REASONS, expenses=expenses, balance_summary=balance_summary, attachments=attachments, actual=actual, can_edit=_can_edit(trip), is_owner=trip["member_role"] == "owner", now=datetime.now(), item_type_labels=ITEM_TYPE_LABELS, itinerary_change_field_labels=ITINERARY_CHANGE_FIELD_LABELS, disney_parks=theme_parks.get_disney_parks(), transport_summary=transport_summary, preferences_ready=preference_rows is not None, my_preference=my_preference, my_preference_source=my_preference_source, preference_summary=trip_preferences.summarize(preference_rows), preference_options=trip_preferences, return_group_id=return_group_id, stay_plan=stay_plan, budget_estimate=budget_estimate, stay_tier=stay_tier, lodging_tiers=smart_trip.LODGING_TIERS, ai_ready=ai_ready(), precheck_issues=precheck_issues, compares=compares, compare_remaining=compare_remaining, compare_ready=compare_ready, compare_limit=booking_compare.DAILY_LIMIT, compare_nights=compare_nights)
 
 
 @member_bp.route("/trips/<int:trip_id>/export/excel")

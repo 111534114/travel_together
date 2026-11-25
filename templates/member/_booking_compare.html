@@ -1,0 +1,121 @@
+{# 機票＋住宿比價(住宿與預算分頁)。比價結果所有旅伴都看得到；價格全部來自真的查詢結果，總價由伺服器計算。 #}
+<section class="bc" id="bookingCompare" data-booking-compare
+         data-start-url="{{ url_for('booking_compare.start', trip_id=trip.trip_id) }}"
+         data-status-url="{{ url_for('booking_compare.status', trip_id=trip.trip_id, compare_id=0) }}"
+         data-add-url="{{ url_for('booking_compare.add_hotel', trip_id=trip.trip_id, compare_id=0) }}">
+    <div class="bc-head">
+        <h3>🔎 機票＋住宿比價</h3>
+        <p>住宿、機票、高鐵、台鐵可以分開查，也可以一起比，組出「最便宜／最划算／最舒適」三個方案。日期、目的地、人數、預算會自動帶入這趟行程。</p>
+    </div>
+
+    {% if not compare_ready %}
+        <p class="bc-warn">⚠️ 比價的資料表還沒建立，請系統管理員執行 database/migrate_1126_booking_compare.sql。</p>
+    {% elif trip.start_date < now.date() %}
+        <p class="bc-muted">這趟旅程已經出發了，查不到過去日期的票價。</p>
+    {% else %}
+    {% set domestic = trip.country in ('台灣', '臺灣') %}
+    {% set default_scope = ['thsr', 'hotel'] if domestic else ['flight', 'hotel'] %}
+<script type="application/json" data-bc-choices>{
+  "origins": {
+    "flight": {"title": "✈️ 機場", "items": [["台北", "台北（桃園／松山）"], ["台中", "台中"], ["高雄", "高雄"]]},
+    "thsr": {"title": "🚄 高鐵站", "items": [["台北", "台北"], ["南港", "南港"], ["板橋", "板橋"], ["桃園", "桃園"], ["新竹", "新竹"], ["台中", "台中"], ["嘉義", "嘉義"], ["台南", "台南"], ["左營", "左營（高雄）"]]},
+    "tra": {"title": "🚆 台鐵站", "items": [["台北", "台北"], ["板橋", "板橋"], ["桃園", "桃園"], ["新竹", "新竹"], ["台中", "台中"], ["彰化", "彰化"], ["嘉義", "嘉義"], ["台南", "台南"], ["高雄", "高雄"], ["宜蘭", "宜蘭"], ["花蓮", "花蓮"], ["台東", "台東"]]}
+  },
+  "requests": {
+    "hotel": ["住車站附近", "飯店評分高", "便宜優先"],
+    "flight": ["要直飛", "不要紅眼班機", "早上出發"],
+    "thsr": ["早上出發", "下午再回程", "搭商務車廂"],
+    "tra": ["早上出發", "下午再回程", "搭自強號"]
+  }
+}</script>
+    <form class="bc-form" data-bc-form>
+        <div class="bc-field bc-scope-field">
+            <span class="bc-label">要比什麼（可以只選一種，也可以多選）</span>
+            <div class="bc-chips" role="group" aria-label="要比什麼">
+                {% for key, label in [('hotel', '🏨 住宿'), ('flight', '✈️ 機票'), ('thsr', '🚄 高鐵'), ('tra', '🚆 台鐵')] %}
+                <button type="button" class="bc-chip bc-scope" data-bc-scope="{{ key }}" aria-pressed="{{ 'true' if key in default_scope else 'false' }}">{{ label }}</button>
+                {% endfor %}
+            </div>
+        </div>
+        <div class="bc-field" data-bc-origin-field>
+            <label for="bcOrigin">出發地 <span data-bc-origin-mark>*</span></label>
+            <input id="bcOrigin" name="origin" required maxlength="60" placeholder="點下面選，或自己輸入">
+            <div class="bc-chip-groups" data-bc-origin-chips aria-label="常用出發地"></div>
+        </div>
+        <div class="bc-field">
+            <label for="bcRequest">其他要求（可不填，可以點好幾個）</label>
+            <input id="bcRequest" name="request" maxlength="300" placeholder="點下面選，或自己輸入">
+            <div class="bc-chips" role="group" data-bc-request-chips aria-label="常見要求"></div>
+        </div>
+        <div class="bc-form-foot">
+            <span class="bc-muted">{{ trip.start_date.strftime('%m/%d') }}～{{ trip.end_date.strftime('%m/%d') }}・{{ trip.city }}・今天還可以比價 <b data-bc-remaining>{{ compare_remaining }}</b> 次（每天 {{ compare_limit }} 次）</span>
+            <button type="submit" class="member-btn primary" data-bc-submit {% if not compare_remaining or not ai_ready %}disabled{% endif %}>開始比價</button>
+        </div>
+        <p class="bc-progress" data-bc-progress hidden></p>
+    </form>
+    {% endif %}
+
+    {% for c in compares %}
+    <details class="bc-result" {% if loop.first %}open{% endif %} data-bc-result="{{ c.compare_id }}" data-bc-status="{{ c.status }}">
+        <summary>
+            <span>{{ c.user_name }} 在 {{ c.created_at.strftime('%m/%d %H:%M') }} 查{% if c.result and c.result.scope_labels %}{{ c.result.scope_labels|join('＋') }}{% endif %}：{% if c.origin %}{{ c.origin }} → {% endif %}{{ trip.city }}{% if c.request_text %}（{{ c.request_text }}）{% endif %}</span>
+            {% if c.status == 'running' %}<em class="bc-badge running">⏳ 比價中</em>{% elif c.status == 'failed' %}<em class="bc-badge failed">沒有成功</em>{% endif %}
+        </summary>
+        {% if c.status == 'running' %}
+            <p class="bc-muted">正在查詢中，大約 1 分鐘，完成後這裡會自動更新。</p>
+        {% elif c.status == 'failed' %}
+            <p class="bc-warn">{{ c.error_message or '比價沒有成功，請再試一次' }}</p>
+        {% elif c.result %}
+            {% set r = c.result %}
+            {% if r.summary %}<p class="bc-summary">🤖 {{ r.summary }}</p>{% endif %}
+            <div class="bc-options">
+                {% for o in r.options %}
+                <article class="bc-option kind-{{ o.kind }}">
+                    <h4>{{ o.label }}</h4>
+                    {% if o.reason %}<p class="bc-reason">{{ o.reason }}</p>{% endif %}
+                    <ul>
+                        {% for line in o.lines %}
+                        <li>
+                            <div class="bc-line-title"><span aria-hidden="true">{{ line.icon }}</span> {{ line.title }}</div>
+                            {% if line.detail %}<div class="bc-line-detail">{{ line.detail }}</div>{% endif %}
+                            <div class="bc-line-price">NT$ {{ '{:,}'.format(line.price) }} <small>{{ line.price_note }}</small></div>
+                            <div class="bc-line-actions">
+                                {% if line.link %}<a href="{{ line.link }}" target="_blank" rel="noopener">{{ line.link_label }} ↗</a>{% endif %}
+                                {% if line.type == 'hotel' and can_edit %}<button type="button" data-bc-add="{{ c.compare_id }}" data-kind="{{ o.kind }}" data-title="{{ line.title }}" data-per-night="{{ line.per_night }}">＋ 加進行程</button>{% endif %}
+                            </div>
+                        </li>
+                        {% endfor %}
+                    </ul>
+                    <div class="bc-total">
+                        <b>合計 NT$ {{ '{:,}'.format(o.total) }}</b>{% if o.estimated %}<small>（估計）</small>{% endif %}
+                        <span>每人約 NT$ {{ '{:,}'.format(o.per_person) }}</span>
+                        {% if o.budget %}
+                            {% if o.over_budget %}<em class="bc-badge over">⚠️ 超過預算 NT$ {{ '{:,}'.format(o.over_budget) }}</em>
+                            {% else %}<em class="bc-badge ok">✅ 在預算內</em>{% endif %}
+                        {% endif %}
+                    </div>
+                </article>
+                {% else %}
+                <p class="bc-muted">這次沒有組出方案。</p>
+                {% endfor %}
+            </div>
+            {% if r.notes %}<ul class="bc-notes">{% for note in r.notes %}<li>{{ note }}</li>{% endfor %}</ul>{% endif %}
+            <p class="bc-foot">價格是 {{ r.searched_at }} 查到的，可能已經變動，實際以訂票網站為準。{{ r.people }} 人{% if r.nights %}・{{ r.nights }} 晚・{{ r.rooms }} 間房{% endif %}。</p>
+        {% endif %}
+    </details>
+    {% endfor %}
+</section>
+<script type="application/json" data-bc-nights>{{ compare_nights | default([]) | tojson }}</script>
+{# 「加進行程」時選要住哪幾晚 #}
+<dialog class="bc-nights" data-bc-nights-dialog aria-labelledby="bcNightsTitle">
+    <form method="dialog" class="bc-nights-form">
+        <h3 id="bcNightsTitle">要住哪幾晚？</h3>
+        <p class="bc-nights-hotel" data-bc-nights-hotel></p>
+        <div class="bc-nights-list" data-bc-nights-list></div>
+        <div class="bc-nights-actions">
+            <div><button type="button" class="bc-link" data-bc-nights-all>全選</button><button type="button" class="bc-link" data-bc-nights-none>全不選</button></div>
+            <div><button type="button" class="member-btn" data-bc-nights-cancel>取消</button><button type="button" class="member-btn primary" data-bc-nights-ok>加入</button></div>
+        </div>
+    </form>
+</dialog>
+<script src="{{ url_for('static', filename='js/booking-compare.js') }}" defer></script>

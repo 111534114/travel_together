@@ -38,6 +38,7 @@ from blueprints.friend_groups_admin import friend_groups_admin_bp  # 匯入交�
 from content_admin_permissions import CONTENT_ADMIN_ACTIONS, content_admin_can
 from blueprints.member import COMMENT_REPORT_PREFIX, ISSUE_PREFIX, member_bp, _fetch_featured_public_trips  # 匯入會員功能的藍圖
 from blueprints.line_webhook import line_webhook_bp  # 匯入 LINE 官方帳號 webhook 的藍圖
+from blueprints.booking_compare import booking_compare_bp  # 匯入機票＋住宿比價的藍圖
 from blueprints.trip_assistant import trip_assistant_bp  # 匯入行程助理(行程頁 AI 聊天)的藍圖
 from blueprints.home_banners import fetch_active_banners, home_banners_bp  # 匯入首頁輪播圖(跑馬燈)後台與首頁查詢
 from activity_log import ACTION_LABELS, log_action
@@ -209,6 +210,7 @@ app.register_blueprint(friend_groups_bp)  # 註冊交友揪團(會員端)路由
 app.register_blueprint(friend_groups_admin_bp)  # 註冊交友揪團(後台審核)路由
 app.register_blueprint(member_bp)  # 註冊會員功能路由
 app.register_blueprint(trip_assistant_bp)  # 註冊行程助理(AI 聊天)路由
+app.register_blueprint(booking_compare_bp)  # 註冊機票＋住宿比價路由
 app.register_blueprint(line_webhook_bp)  # 註冊 LINE 官方帳號 webhook 路由
 
 

@@ -9,6 +9,7 @@ NOTIFICATION_CATEGORIES = {
     "friend_group": {"label": "交友揪團", "description": "揪團申請、審核與功能解鎖。"},
     "event": {"label": "官方活動公告", "description": "已報名活動的新公告。"},
     "album": {"label": "景點相簿審核", "description": "相簿照片審核結果。"},
+    "precheck": {"label": "出發前檢查", "description": "出發前 3 天、前 1 天檢查天氣、營業時間、住宿與預算，發現問題就提醒你（也會影響 LINE 提醒）。"},
 }
 
 _TABLE_MISSING = 1146

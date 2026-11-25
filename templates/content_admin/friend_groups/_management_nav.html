@@ -1,0 +1,8 @@
+<nav class="friend-group-admin-nav" aria-label="交友揪團管理項目">
+  <a class="{{ 'active' if friend_group_admin_current == 'applications' else '' }}" {% if friend_group_admin_current == 'applications' %}aria-current="page"{% endif %} href="{{ url_for('friend_groups_admin.list_applications') }}">使用申請</a>
+  <a class="{{ 'active' if friend_group_admin_current == 'international' else '' }}" {% if friend_group_admin_current == 'international' %}aria-current="page"{% endif %} href="{{ url_for('friend_groups_admin.international_hosts') }}">國際揪團資格</a>
+  <a class="{{ 'active' if friend_group_admin_current == 'events' else '' }}" {% if friend_group_admin_current == 'events' %}aria-current="page"{% endif %} href="{{ url_for('friend_groups_admin.list_events') }}">官方活動</a>
+  <a class="{{ 'active' if friend_group_admin_current == 'chat' else '' }}" {% if friend_group_admin_current == 'chat' %}aria-current="page"{% endif %} href="{{ url_for('friend_groups_admin.group_chat_messages') }}">聊天室</a>
+  <a class="{{ 'active' if friend_group_admin_current == 'reports' else '' }}" {% if friend_group_admin_current == 'reports' %}aria-current="page"{% endif %} href="{{ url_for('friend_groups_admin.group_reports') }}">揪團檢舉</a>
+  <a class="{{ 'active' if friend_group_admin_current == 'stats' else '' }}" {% if friend_group_admin_current == 'stats' %}aria-current="page"{% endif %} href="{{ url_for('friend_groups_admin.stats') }}">旅遊人格統計</a>
+</nav>

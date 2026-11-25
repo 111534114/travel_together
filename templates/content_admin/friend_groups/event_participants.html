@@ -2,35 +2,52 @@
 {% set active_menu = "friend_groups" %}
 {% block title %}{{ event.title }}報到名單｜Travel Together{% endblock %}
 {% block page_title %}{{ event.title }}{% endblock %}
-{% block page_subtitle %}{{ event.event_date }}｜活動結束後請幫出席的會員標記報到，報到紀錄是解鎖揪團資格的依據{% endblock %}
+{% block page_subtitle %}{{ event.event_date }}｜官方活動公告與報到管理{% endblock %}
 {% block content %}
+<div class="event-participants-page">
+  <a class="fg-manage-back" href="{{ url_for('friend_groups_admin.list_events') }}">← 返回官方活動列表</a>
+  <div class="event-admin-notice"><span aria-hidden="true">ⓘ</span><p>活動結束後請確認會員出席狀態。報到紀錄是解鎖交友揪團資格的依據。</p></div>
 {% if content_admin_can('friend_groups_admin', 'edit') %}
-<div class="admin-section">
-  <div class="section-title"><h2>活動公告</h2></div>
-  <form method="post" action="{{ url_for('friend_groups_admin.post_event_announcement', event_id=event.event_id) }}" class="content-form">
-    <div class="form-group">
-      <label for="content">發布新公告（會通知所有已報名／已報到的會員）</label>
-      <textarea id="content" name="content" rows="3" maxlength="1000" required placeholder="例如：活動地點改到 OO 教室、下雨備案等"></textarea>
+<section class="admin-section event-admin-card">
+  <div class="event-admin-section-head">
+    <div><p class="event-admin-kicker">會員通知</p><h2>活動公告</h2><p>發布集合資訊、地點異動或其他活動提醒。</p></div>
+  </div>
+  <form method="post" action="{{ url_for('friend_groups_admin.post_event_announcement', event_id=event.event_id) }}" class="content-form event-admin-announcement-form">
+    <label for="content">公告內容</label>
+    <textarea id="content" name="content" rows="3" maxlength="1000" required placeholder="例如：集合地點改到一樓大廳，請於 09:00 前抵達。"></textarea>
+    <div class="event-admin-form-footer">
+      <span>發布後會通知所有已報名或已報到的會員。</span>
+      <button type="submit" class="primary-button">發布公告</button>
     </div>
-    <div class="form-actions"><button type="submit" class="primary-button">發布公告</button></div>
   </form>
   {% if announcements %}
-  <div class="table-container" style="margin-top: 16px;">
-    <table class="admin-table">
-      <thead><tr><th>內容</th><th>發布者</th><th>時間</th></tr></thead>
-      <tbody>
+  <div class="event-admin-announcements">
+    <h3>已發布公告</h3>
+    <div class="event-admin-announcement-list">
       {% for a in announcements %}
-      <tr><td>{{ a.content }}</td><td>{{ a.nickname or a.full_name }}</td><td>{{ a.created_at.strftime('%Y/%m/%d %H:%M') }}</td></tr>
+      <article class="event-admin-announcement">
+        <p>{{ a.content }}</p>
+        <div><span>{{ a.nickname or a.full_name }}</span><time datetime="{{ a.created_at.isoformat() }}">{{ a.created_at.strftime('%Y/%m/%d %H:%M') }}</time></div>
+      </article>
       {% endfor %}
-      </tbody>
-    </table>
+    </div>
   </div>
   {% endif %}
-</div>
+</section>
 {% endif %}
-<div class="admin-section">
-  <div class="section-title"><h2>報名名單</h2><span>共 {{ participants|length }} 人</span></div>
-  <div class="table-container">
+<section class="admin-section event-admin-card event-admin-participants">
+  <div class="event-admin-section-head">
+    <div><p class="event-admin-kicker">出席管理</p><h2>報名名單</h2><p>可依實際出席情形標記報到，或將狀態更正為未出席。</p></div>
+    <span class="event-admin-count">共 {{ participants|length }} 人</span>
+  </div>
+  {% if participants %}
+  <div class="event-admin-stats">
+    <span>已報名 <strong>{{ participants|selectattr('status', 'equalto', 'registered')|list|length }}</strong></span>
+    <span>已報到 <strong>{{ participants|selectattr('status', 'equalto', 'attended')|list|length }}</strong></span>
+    <span>未出席 <strong>{{ participants|selectattr('status', 'equalto', 'no_show')|list|length }}</strong></span>
+  </div>
+  <p class="event-admin-scroll-hint">左右滑動表格可查看報到時間與操作。</p>
+  <div class="table-container event-admin-table-wrap">
     <table class="admin-table">
       <thead><tr><th>會員</th><th>狀態</th><th>報名時間</th><th>報到時間</th>{% if content_admin_can('friend_groups_admin', 'edit') %}<th>操作</th>{% endif %}</tr></thead>
       <tbody>
@@ -41,18 +58,22 @@
         <td>{{ p.registered_at.strftime('%Y/%m/%d %H:%M') }}</td>
         <td>{{ p.checked_in_at.strftime('%Y/%m/%d %H:%M') if p.checked_in_at else '—' }}</td>
         {% if content_admin_can('friend_groups_admin', 'edit') %}
-        <td class="stack-form">
-          {% if p.status != 'attended' %}<form method="post" action="{{ url_for('friend_groups_admin.check_in_participant', event_id=event.event_id, user_id=p.user_id) }}"><button class="small-button">標記報到</button></form>{% endif %}
-          {% if p.status != 'no_show' %}<form method="post" action="{{ url_for('friend_groups_admin.mark_no_show_participant', event_id=event.event_id, user_id=p.user_id) }}" onsubmit="return confirm('確定要把這位會員標記為未出席嗎？')"><button class="small-button">標記未出席</button></form>{% endif %}
-          {% if p.status in ('attended', 'no_show') %}<span class="muted" style="font-size:12px;">可再次點選上方按鈕更正</span>{% endif %}
+        <td>
+          <div class="event-admin-row-actions">
+            {% if p.status != 'attended' %}<form method="post" action="{{ url_for('friend_groups_admin.check_in_participant', event_id=event.event_id, user_id=p.user_id) }}"><button class="small-button" type="submit">標記報到</button></form>{% endif %}
+            {% if p.status != 'no_show' %}<form method="post" action="{{ url_for('friend_groups_admin.mark_no_show_participant', event_id=event.event_id, user_id=p.user_id) }}" onsubmit="return confirm('確定要把這位會員標記為未出席嗎？')"><button class="small-button event-admin-no-show" type="submit">標記未出席</button></form>{% endif %}
+          </div>
+          {% if p.status in ('attended', 'no_show') %}<small class="event-admin-correction-hint">可再次點選按鈕更正</small>{% endif %}
         </td>
         {% endif %}
       </tr>
-      {% else %}
-      <tr><td colspan="5" class="empty-data">目前還沒有人報名</td></tr>
       {% endfor %}
       </tbody>
     </table>
   </div>
+  {% else %}
+  <div class="event-admin-empty"><span aria-hidden="true">☑</span><strong>目前還沒有人報名</strong><p>有會員報名後，名單會顯示在這裡。</p></div>
+  {% endif %}
+</section>
 </div>
 {% endblock %}

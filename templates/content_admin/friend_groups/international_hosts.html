@@ -1,14 +1,13 @@
-{% extends admin_base %}
+{% extends "content_admin/base.html" %}
 {% set active_menu = "friend_groups" %}
-{% set active_page = "international_hosts" %}
 {% block title %}國際揪團資格審核｜Travel Together{% endblock %}
 {% block page_title %}國際揪團資格審核{% endblock %}
 {% block page_subtitle %}查看已完成國內揪團的團長及團員文字評價，決定是否開放國際揪團{% endblock %}
-{% block page_description %}查看已完成國內揪團的團長及團員文字評價，決定是否開放國際揪團{% endblock %}
 {% block content %}
-<a class="international-hosts-back" href="{{ url_for('system_admin_home') if is_system_admin else url_for('friend_groups_admin.list_applications') }}">← 返回管理首頁</a>
-<section class="admin-section international-hosts-section">
-  <div class="section-title"><h2>團長資格審核</h2><span class="international-hosts-count">共 {{ candidates|length }} 位</span></div>
+<div class="friend-group-admin-page">
+{% set friend_group_admin_current = 'international' %}{% include 'content_admin/friend_groups/_management_nav.html' %}
+<section class="admin-section international-hosts-section fg-manage-section">
+  <div class="fg-manage-heading"><div><p class="friend-group-admin-kicker">團長資格</p><h2>國際揪團審核</h2><p>參考國內揪團與團員文字評價，決定是否開放資格。</p></div><span class="friend-group-admin-count">共 {{ candidates|length }} 位</span></div>
   <div class="international-hosts-list">
     {% for candidate in candidates %}
     <article class="international-host-row">
@@ -26,7 +25,7 @@
         </div>
         {% endfor %}
       </div>
-      {% if is_system_admin or content_admin_can('friend_groups_admin', 'edit') %}
+      {% if content_admin_can('friend_groups_admin', 'edit') %}
       <form class="international-host-action" method="post" action="{{ url_for('friend_groups_admin.set_international_host', user_id=candidate.user_id) }}">
         <input type="hidden" name="approved" value="{{ '0' if candidate.approved else '1' }}">
         <button class="small-button {{ 'danger' if candidate.approved else '' }}" type="submit" onclick="return confirm('確定{{ '撤銷' if candidate.approved else '開放' }}這位團長的國際揪團資格嗎？')">{{ '撤銷資格' if candidate.approved else '開放國際揪團' }}</button>
@@ -34,8 +33,9 @@
       {% endif %}
     </article>
     {% else %}
-    <p class="empty-data">目前沒有完成國內揪團並收到團員文字評價的團長</p>
+    <div class="fg-manage-empty"><strong>目前沒有完成國內揪團並收到團員文字評價的團長</strong><p>符合資格的團長資料會顯示在這裡。</p></div>
     {% endfor %}
   </div>
 </section>
+</div>
 {% endblock %}

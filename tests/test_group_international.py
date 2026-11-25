@@ -2,7 +2,7 @@ import unittest
 from datetime import date
 from unittest.mock import MagicMock, patch
 
-from flask import session
+from flask import g, session
 
 from app import app
 from blueprints.friend_groups import _host_tier, group_reviews, new_group
@@ -50,13 +50,14 @@ class GroupInternationalTests(unittest.TestCase):
                              for call in cursor.execute.call_args_list))
         connection.commit.assert_not_called()
 
-    def test_system_admin_can_approve_qualified_host(self):
+    def test_content_admin_can_approve_qualified_host(self):
         cursor = MagicMock()
         connection = MagicMock()
         connection.cursor.return_value = cursor
         with app.test_request_context("/content-admin/friend-groups/international-hosts/7",
                                       method="POST", data={"approved": "1"}):
-            session.update(user_id=2, role="system_admin")
+            session.update(user_id=2, role="content_admin")
+            g.content_admin_denied = set()
             with patch("blueprints.friend_groups_admin.get_db_connection", return_value=connection), \
                  patch("blueprints.friend_groups_admin._has_attended_event", return_value=True), \
                  patch("blueprints.friend_groups_admin._international_candidate_reviews", return_value=[{"group_id": 8}]), \
@@ -68,18 +69,33 @@ class GroupInternationalTests(unittest.TestCase):
                             for call in cursor.execute.call_args_list))
         connection.commit.assert_called_once()
 
-    def test_system_admin_can_open_review_page(self):
+    def test_content_admin_can_open_review_page(self):
         cursor = MagicMock()
         cursor.fetchall.return_value = []
         connection = MagicMock()
         connection.cursor.return_value = cursor
         with app.test_request_context("/content-admin/friend-groups/international-hosts"):
-            session.update(user_id=2, role="system_admin")
+            session.update(user_id=2, role="content_admin")
+            g.content_admin_denied = set()
             with patch("blueprints.friend_groups_admin.get_db_connection", return_value=connection), \
                  patch("blueprints.friend_groups_admin._international_candidate_reviews", return_value=[]):
                 html = international_hosts()
         self.assertIn("國際揪團資格審核", html)
         self.assertIn("目前沒有完成國內揪團", html)
+
+    def test_system_admin_cannot_open_or_approve_international_hosts(self):
+        for method, path, view in (
+            ("GET", "/content-admin/friend-groups/international-hosts", lambda: international_hosts()),
+            ("POST", "/content-admin/friend-groups/international-hosts/7", lambda: set_international_host(7)),
+        ):
+            with self.subTest(method=method):
+                with app.test_request_context(path, method=method, data={"approved": "1"} if method == "POST" else None):
+                    session.update(user_id=2, role="system_admin")
+                    with patch("blueprints.friend_groups_admin.get_db_connection") as connect:
+                        response = view()
+                self.assertEqual(response.status_code, 302)
+                self.assertIn("/login", response.headers["Location"])
+                connect.assert_not_called()
 
     def test_first_written_domestic_review_notifies_admin(self):
         cursor = MagicMock()
@@ -102,6 +118,8 @@ class GroupInternationalTests(unittest.TestCase):
         self.assertEqual(response.status_code, 302)
         self.assertEqual(notify.call_count, 1)
         self.assertEqual(notify.call_args.args[1], 2)
+        self.assertTrue(any("role='content_admin'" in call.args[0]
+                            for call in cursor.execute.call_args_list))
         connection.commit.assert_called_once()
 
     def test_content_admin_approval_requires_edit_permission(self):

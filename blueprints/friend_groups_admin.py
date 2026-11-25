@@ -10,7 +10,6 @@ from db import get_db_connection
 from notification_preferences import send_notification
 from chat_moderation import REMOVED_CHAT_CONTENT, SETTING_KEY, parse_terms, remove_trip_message
 from blueprints.friend_groups import _event_registration_deadline, _event_registration_open, _event_start_datetime, _has_attended_event, _international_candidate_reviews, _latest_application
-from content_admin_permissions import require_content_admin_module
 
 friend_groups_admin_bp = Blueprint("friend_groups_admin", __name__, url_prefix="/content-admin/friend-groups")
 
@@ -223,12 +222,8 @@ def set_early_access(user_id):
 
 
 @friend_groups_admin_bp.route("/international-hosts")
-@login_required()
+@login_required("content_admin")
 def international_hosts():
-    if session.get("role") == "content_admin":
-        require_content_admin_module()
-    elif session.get("role") != "system_admin":
-        return redirect(url_for("login"))
     connection = get_db_connection()
     if connection is None:
         flash("資料庫連線失敗", "error")
@@ -260,17 +255,12 @@ def international_hosts():
     finally:
         cursor.close(); connection.close()
     return render_template("content_admin/friend_groups/international_hosts.html",
-                           candidates=list(candidates.values()), is_system_admin=session["role"] == "system_admin",
-                           admin_base="system_admin_base.html" if session["role"] == "system_admin" else "content_admin/base.html")
+                           candidates=list(candidates.values()))
 
 
 @friend_groups_admin_bp.route("/international-hosts/<int:user_id>", methods=["POST"])
-@login_required()
+@login_required("content_admin")
 def set_international_host(user_id):
-    if session.get("role") == "content_admin":
-        require_content_admin_module()
-    elif session.get("role") != "system_admin":
-        return redirect(url_for("login"))
     value = request.form.get("approved")
     if value not in ("0", "1"):
         flash("請選擇有效的審核結果。", "error")

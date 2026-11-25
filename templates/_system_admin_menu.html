@@ -1,0 +1,13 @@
+<nav class="admin-menu" aria-label="系統管理選單">
+    <a class="{{ 'active' if active_page == 'dashboard' else '' }}" href="{{ url_for('system_admin_home') }}">主畫面</a>
+    <a class="{{ 'active' if active_page == 'users' else '' }}" href="{{ url_for('admin_users') }}">帳號管理</a>
+    <a class="{{ 'active' if active_page == 'trips' else '' }}" href="{{ url_for('admin_public_trips') }}">公開行程管理</a>
+    <a class="{{ 'active' if active_page == 'early_access' else '' }}" href="{{ url_for('friend_groups_admin.early_access') }}">揪團提早開放</a>
+    <a class="{{ 'active' if active_page == 'issues' else '' }}" href="{{ url_for('admin_issues') }}">問題回報</a>
+    <a class="{{ 'active' if active_page == 'comment_reports' else '' }}" href="{{ url_for('admin_comment_reports') }}">留言檢舉</a>
+    <a class="{{ 'active' if active_page == 'announcements' else '' }}" href="{{ url_for('admin_announcements') }}">公告管理</a>
+    <a class="{{ 'active' if active_page == 'home_banners' else '' }}" href="{{ url_for('home_banners.manage_banners') }}">首頁輪播圖</a>
+    <a class="{{ 'active' if active_page == 'statistics' else '' }}" href="{{ url_for('admin_statistics') }}">統計報表</a>
+    <a class="{{ 'active' if active_page == 'logs' else '' }}" href="{{ url_for('admin_logs') }}">操作紀錄</a>
+    <a href="{{ url_for('logout') }}">登出</a>
+</nav>

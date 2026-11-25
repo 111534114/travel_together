@@ -4,43 +4,48 @@
 {% block page_title %}交友揪團管理{% endblock %}
 {% block page_subtitle %}審核使用申請、管理官方活動，通過審核且出席過官方活動的會員才能加入/發起會員揪團{% endblock %}
 {% block content %}
-<div class="admin-section">
-  <div class="section-title">
-    <h2>功能總開關</h2>
-    <span>{{ '目前開啟中，會員看得到交友揪團入口' if feature_enabled else '目前關閉中，會員看不到交友揪團入口' }}</span>
+<div class="friend-group-admin-page">
+  <div class="friend-group-admin-settings">
+    <section class="admin-section friend-group-admin-card friend-group-admin-toggle">
+      <div class="friend-group-admin-card-head">
+        <div><p class="friend-group-admin-kicker">功能設定</p><h2>交友揪團入口</h2></div>
+        <span class="friend-group-admin-state {{ 'is-on' if feature_enabled else 'is-off' }}">{{ '● 開放中' if feature_enabled else '● 已關閉' }}</span>
+      </div>
+      <p class="friend-group-admin-description">{{ '會員目前可以看到交友揪團入口。' if feature_enabled else '會員目前看不到交友揪團入口。' }}</p>
+      {% if content_admin_can('friend_groups_admin', 'edit') %}
+      <form method="post" action="{{ url_for('friend_groups_admin.toggle_setting') }}" class="friend-group-admin-card-action">
+        <button class="small-button {{ 'danger' if feature_enabled else '' }}" type="submit">{{ '關閉功能' if feature_enabled else '開啟功能' }}</button>
+      </form>
+      {% endif %}
+    </section>
+
+    <section class="admin-section friend-group-admin-card friend-group-admin-terms">
+      <div class="friend-group-admin-card-head"><div><p class="friend-group-admin-kicker">聊天管理</p><h2>聊天室敏感詞</h2></div></div>
+      <p class="friend-group-admin-description">行程與官方活動聊天室在訊息送出前會檢查這些詞語。</p>
+      <form method="post" action="{{ url_for('friend_groups_admin.save_chat_terms') }}">
+        <label for="blockedTerms">敏感詞</label>
+        <textarea id="blockedTerms" name="blocked_terms" rows="3" maxlength="255" placeholder="以逗號或換行分隔" {% if not content_admin_can('friend_groups_admin', 'edit') %}readonly{% endif %}>{{ blocked_terms or '' }}</textarea>
+        <div class="friend-group-admin-terms-footer">
+          <span>以逗號或換行分隔，最多 255 字。</span>
+          {% if content_admin_can('friend_groups_admin', 'edit') %}<button class="small-button" type="submit">儲存敏感詞</button>{% endif %}
+        </div>
+      </form>
+    </section>
   </div>
-  {% if content_admin_can('friend_groups_admin', 'edit') %}
-  <form method="post" action="{{ url_for('friend_groups_admin.toggle_setting') }}">
-    <button class="small-button {{ 'danger' if feature_enabled else '' }}">{{ '關閉功能' if feature_enabled else '開啟功能' }}</button>
-  </form>
-  {% endif %}
-</div>
 
-<div class="admin-section">
-  <div class="section-title"><h2>聊天室敏感詞</h2><span>行程與官方活動聊天室送出前檢查</span></div>
-  <form method="post" action="{{ url_for('friend_groups_admin.save_chat_terms') }}">
-    <label for="blockedTerms">敏感詞（以逗號或換行分隔）</label>
-    <textarea id="blockedTerms" name="blocked_terms" rows="3" maxlength="255" style="width:100%;margin:10px 0;">{{ blocked_terms or '' }}</textarea>
-    {% if content_admin_can('friend_groups_admin', 'edit') %}<button class="small-button" type="submit">儲存敏感詞</button>{% endif %}
-  </form>
-</div>
+  {% set friend_group_admin_current = 'applications' %}{% include 'content_admin/friend_groups/_management_nav.html' %}
 
-<div class="type-tabs">
-  <a href="{{ url_for('friend_groups_admin.international_hosts') }}">國際揪團資格審核</a>
-  <a href="{{ url_for('friend_groups_admin.list_events') }}">官方活動管理</a>
-  <a href="{{ url_for('friend_groups_admin.group_chat_messages') }}">聊天室管理</a>
-  <a href="{{ url_for('friend_groups_admin.group_reports') }}">揪團檢舉</a>
-  <a href="{{ url_for('friend_groups_admin.stats') }}">旅遊人格統計</a>
-</div>
-
-<div class="type-tabs">
-  {% for value, label in status_labels.items() %}<a class="{{ 'active' if status == value else '' }}" href="{{ url_for('friend_groups_admin.list_applications', status=value) }}">{{ label }}</a>{% endfor %}
-  <a class="{{ 'active' if status == 'all' else '' }}" href="{{ url_for('friend_groups_admin.list_applications', status='all') }}">全部</a>
-</div>
-
-<div class="admin-section">
-  <div class="section-title"><h2>使用申請列表</h2><span>共 {{ total }} 筆</span></div>
-  <div class="table-container">
+  <section class="admin-section friend-group-admin-list">
+    <div class="friend-group-admin-list-head">
+      <div><p class="friend-group-admin-kicker">會員審核</p><h2>使用申請列表</h2></div>
+      <span class="friend-group-admin-count">共 {{ total }} 筆</span>
+    </div>
+    <nav class="friend-group-admin-filters" aria-label="申請狀態篩選">
+      {% for value, label in status_labels.items() %}<a class="{{ 'active' if status == value else '' }}" {% if status == value %}aria-current="page"{% endif %} href="{{ url_for('friend_groups_admin.list_applications', status=value) }}">{{ label }}</a>{% endfor %}
+      <a class="{{ 'active' if status == 'all' else '' }}" {% if status == 'all' %}aria-current="page"{% endif %} href="{{ url_for('friend_groups_admin.list_applications', status='all') }}">全部</a>
+    </nav>
+    {% if applications %}
+    <div class="table-container">
     <table class="admin-table">
       <thead><tr><th>申請人</th><th>生日</th><th>申請動機</th><th>狀態</th><th>申請時間</th>{% if content_admin_can('friend_groups_admin', 'edit') %}<th>操作</th>{% endif %}</tr></thead>
       <tbody>
@@ -57,18 +62,20 @@
         {% if content_admin_can('friend_groups_admin', 'edit') %}
         <td>
           {% if application.status == 'pending' %}
-          <form method="post" action="{{ url_for('friend_groups_admin.approve_application', application_id=application.application_id) }}" style="display:inline-block;"><input type="hidden" name="status" value="{{ status }}"><button class="small-button">核准</button></form>
-          <details class="post-review-reject" style="display:inline-block;"><summary class="small-button danger">退回</summary><form method="post" action="{{ url_for('friend_groups_admin.reject_application', application_id=application.application_id) }}"><input type="hidden" name="status" value="{{ status }}"><input name="review_note" maxlength="255" required placeholder="請填寫退回原因"><button class="small-button danger">確定退回</button></form></details>
+          <form method="post" action="{{ url_for('friend_groups_admin.approve_application', application_id=application.application_id) }}" class="friend-group-admin-inline-action"><input type="hidden" name="status" value="{{ status }}"><button class="small-button">核准</button></form>
+          <details class="post-review-reject friend-group-admin-reject"><summary class="small-button danger">退回</summary><form method="post" action="{{ url_for('friend_groups_admin.reject_application', application_id=application.application_id) }}"><input type="hidden" name="status" value="{{ status }}"><input name="review_note" maxlength="255" required placeholder="請填寫退回原因"><button class="small-button danger">確定退回</button></form></details>
           {% else %}—{% endif %}
         </td>
         {% endif %}
       </tr>
-      {% else %}
-      <tr><td colspan="6" class="empty-data">目前沒有符合條件的申請</td></tr>
       {% endfor %}
       </tbody>
     </table>
-  </div>
-  {% if total_pages > 1 %}<div class="pagination">{% for p in range(1, total_pages + 1) %}{% if p == page %}<span class="current">{{ p }}</span>{% else %}<a href="{{ url_for('friend_groups_admin.list_applications', status=status, page=p) }}">{{ p }}</a>{% endif %}{% endfor %}</div>{% endif %}
+    </div>
+    {% else %}
+    <div class="friend-group-admin-empty"><span aria-hidden="true">☑</span><strong>目前沒有符合條件的申請</strong><p>可以切換上方狀態，查看其他申請紀錄。</p></div>
+    {% endif %}
+    {% if total_pages > 1 %}<div class="pagination">{% for p in range(1, total_pages + 1) %}{% if p == page %}<span class="current">{{ p }}</span>{% else %}<a href="{{ url_for('friend_groups_admin.list_applications', status=status, page=p) }}">{{ p }}</a>{% endif %}{% endfor %}</div>{% endif %}
+  </section>
 </div>
 {% endblock %}

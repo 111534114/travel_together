@@ -19,20 +19,7 @@
             <img src="{{ url_for('static', filename='images/mascot_bear.png') }}" alt="">
             <img src="{{ url_for('static', filename='images/mascot_frog.png') }}" alt="">
         </div>
-        <nav class="admin-menu">
-            <a class="{{ 'active' if active_page == 'dashboard' }}" href="{{ url_for('system_admin_home') }}">主畫面</a>
-            <a class="{{ 'active' if active_page == 'users' }}" href="{{ url_for('admin_users') }}">帳號管理</a>
-            <a class="{{ 'active' if active_page == 'trips' }}" href="{{ url_for('admin_public_trips') }}">公開行程管理</a>
-            <a class="{{ 'active' if active_page == 'international_hosts' }}" href="{{ url_for('friend_groups_admin.international_hosts') }}">國際揪團資格</a>
-            <a class="{{ 'active' if active_page == 'early_access' }}" href="{{ url_for('friend_groups_admin.early_access') }}">揪團提早開放</a>
-            <a class="{{ 'active' if active_page == 'issues' }}" href="{{ url_for('admin_issues') }}">問題回報</a>
-            <a class="{{ 'active' if active_page == 'comment_reports' }}" href="{{ url_for('admin_comment_reports') }}">留言檢舉</a>
-            <a class="{{ 'active' if active_page == 'announcements' }}" href="{{ url_for('admin_announcements') }}">公告管理</a>
-            <a class="{{ 'active' if active_page == 'home_banners' }}" href="{{ url_for('home_banners.manage_banners') }}">首頁輪播圖</a>
-            <a class="{{ 'active' if active_page == 'statistics' }}" href="{{ url_for('admin_statistics') }}">統計報表</a>
-            <a class="{{ 'active' if active_page == 'logs' }}" href="{{ url_for('admin_logs') }}">操作紀錄</a>
-            <a href="{{ url_for('logout') }}">登出</a>
-        </nav>
+        {% include '_system_admin_menu.html' %}
     </aside>
     <main class="admin-main">
         <div class="admin-topbar">

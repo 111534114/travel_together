@@ -4,8 +4,11 @@
 {% block page_title %}{{ '編輯官方活動' if event else '建立官方活動' }}{% endblock %}
 {% block page_subtitle %}官方活動是會員認識彼此、累積信任的第一步{% endblock %}
 {% block content %}
-<div class="admin-section">
-  <form method="post" class="content-form">
+<div class="friend-group-admin-page">
+  <a class="fg-manage-back" href="{{ url_for('friend_groups_admin.list_events') }}">← 返回官方活動列表</a>
+  <section class="admin-section fg-manage-section">
+    <div class="fg-manage-heading"><div><p class="friend-group-admin-kicker">官方活動</p><h2>{{ '編輯活動資訊' if event else '填寫活動資訊' }}</h2><p>請確認時間、地點與報名截止設定。</p></div></div>
+  <form method="post" class="content-form fg-event-form">
     <div class="form-grid">
       <div class="form-group">
         <label for="title">活動名稱 *</label>
@@ -23,7 +26,7 @@
         <label for="end_time">結束時間</label>
         <input type="time" id="end_time" name="end_time" value="{{ event.end_time or '' }}">
       </div>
-      <div class="form-group" style="grid-column: 1 / -1;">
+      <div class="form-group full-width">
         <label for="registration_deadline">報名截止日期與時間（選填，台灣時間）</label>
         <input type="datetime-local" id="registration_deadline" name="registration_deadline" value="{{ event.registration_deadline.strftime('%Y-%m-%dT%H:%M') if event and event.registration_deadline else '' }}">
         <small>例如活動 12/5 09:30 開始，可設定 12/4 18:00 截止；留空則於活動開始時截止。</small>
@@ -36,26 +39,27 @@
         <label for="capacity">人數上限（留空表示不限制）</label>
         <input type="number" id="capacity" name="capacity" min="1" value="{{ event.capacity or '' }}">
       </div>
-      <div class="form-group" style="grid-column: 1 / -1;">
+      <div class="form-group full-width">
         <label for="description">活動說明</label>
         <textarea id="description" name="description" rows="4">{{ event.description or '' }}</textarea>
       </div>
     </div>
 
-    <div class="form-group" style="margin-top: 24px;">
-      <label>活動行程時間軸（選填，讓會員知道這天幾點做什麼）</label>
+    <section class="fg-event-timeline">
+      <div class="fg-manage-heading"><div><h3>活動行程時間軸</h3><p>選填，讓會員知道活動當天的安排。</p></div></div>
       <div id="itemsContainer"></div>
-      <button type="button" id="addItemBtn" class="small-button" style="margin-top: 8px;">＋ 新增行程項目</button>
-    </div>
+      <button type="button" id="addItemBtn" class="fg-manage-secondary-button">＋ 新增行程項目</button>
+    </section>
 
-    <div class="form-actions">
+    <div class="form-actions fg-event-form-actions">
       <button type="submit" class="primary-button">{{ '儲存變更' if event else '建立活動' }}</button>
     </div>
   </form>
+  </section>
 </div>
 
 <template id="itemRowTemplate">
-  <div class="form-grid event-item-row" style="margin-bottom: 10px; padding: 12px; background: #F7FBFB; border: 1px solid #E6F0F1; border-radius: 8px;">
+  <div class="form-grid event-item-row fg-event-item-row">
     <div class="form-group">
       <label>開始時間 *</label>
       <input type="time" name="item_start_time[]">
@@ -72,8 +76,8 @@
       <label>地點</label>
       <input type="text" name="item_location[]" maxlength="255">
     </div>
-    <div class="form-group" style="align-self: end;">
-      <button type="button" class="remove-item-btn disable-button">移除</button>
+    <div class="form-group fg-event-remove">
+      <button type="button" class="remove-item-btn fg-manage-outline-danger">移除項目</button>
     </div>
   </div>
 </template>

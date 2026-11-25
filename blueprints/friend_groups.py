@@ -1234,7 +1234,7 @@ def group_reviews(group_id):
                     cursor.execute("SELECT t.country_id FROM trips t WHERE t.trip_id=%s", (group["trip_id"],))
                     trip = cursor.fetchone()
                     if trip and _is_domestic_country(cursor, trip["country_id"]):
-                        cursor.execute("SELECT user_id FROM users WHERE role IN ('content_admin','system_admin') AND status='active'")
+                        cursor.execute("SELECT user_id FROM users WHERE role='content_admin' AND status='active'")
                         for admin in cursor.fetchall():
                             send_notification(cursor, admin["user_id"], "friend_group", "system",
                                               "國際揪團資格待審",

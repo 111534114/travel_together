@@ -2,44 +2,43 @@
 {% set active_menu = "friend_groups" %}
 {% block title %}官方活動管理｜Travel Together{% endblock %}
 {% block page_title %}官方活動管理{% endblock %}
-{% block page_subtitle %}會員要出席過一場官方活動，才能加入或發起會員揪團{% endblock %}
+{% block page_subtitle %}管理活動資訊、報名與出席紀錄{% endblock %}
 {% block content %}
-<div class="type-tabs">
-  <a href="{{ url_for('friend_groups_admin.list_applications') }}">使用申請審核</a>
-  <a class="active" href="{{ url_for('friend_groups_admin.list_events') }}">官方活動管理</a>
-  <a href="{{ url_for('friend_groups_admin.stats') }}">旅遊人格統計</a>
-</div>
-<div class="admin-section">
-  <div class="section-title">
-    <h2>官方活動列表</h2>
-    {% if content_admin_can('friend_groups_admin', 'edit') %}<a class="small-button" href="{{ url_for('friend_groups_admin.new_event') }}">＋ 建立新活動</a>{% endif %}
-  </div>
-  <div class="table-container">
-    <table class="admin-table">
-      <thead><tr><th>活動名稱</th><th>日期</th><th>報名截止</th><th>地點</th><th>報名人數</th><th>已報到</th><th>狀態</th><th>操作</th></tr></thead>
-      <tbody>
-      {% for event in events %}
-      <tr>
-        <td>{{ event.title }}</td>
-        <td>{{ event.event_date }}{% if event.start_time %} {{ event.start_time }}{% endif %}</td>
-        <td>{{ event.registration_deadline_display }}</td>
-        <td>{{ event.location or '—' }}</td>
-        <td>{{ event.registered_count }}{% if event.capacity %} / {{ event.capacity }}{% endif %}</td>
-        <td>{{ event.attended_count }}</td>
-        <td><span class="status-{{ 'active' if event.status == 'open' and event.registration_open else event.status }}">{{ '報名已截止' if event.status == 'open' and not event.registration_open else status_labels[event.status] }}</span></td>
-        <td>
-          <a class="small-button" href="{{ url_for('friend_groups_admin.event_participants', event_id=event.event_id) }}">報到名單</a>
-          {% if content_admin_can('friend_groups_admin', 'edit') %}
-          <a class="small-button" href="{{ url_for('friend_groups_admin.edit_event', event_id=event.event_id) }}">編輯</a>
-          {% if event.status != 'cancelled' %}<form method="post" action="{{ url_for('friend_groups_admin.cancel_event', event_id=event.event_id) }}" style="display:inline-block;" onsubmit="return confirm('確定要取消這場活動嗎？')"><button class="small-button danger">取消活動</button></form>{% endif %}
-          {% endif %}
-        </td>
-      </tr>
-      {% else %}
-      <tr><td colspan="8" class="empty-data">目前還沒有官方活動</td></tr>
-      {% endfor %}
-      </tbody>
-    </table>
-  </div>
+<div class="friend-group-admin-page">
+  {% set friend_group_admin_current = 'events' %}{% include 'content_admin/friend_groups/_management_nav.html' %}
+  <section class="admin-section fg-manage-section">
+    <div class="fg-manage-heading">
+      <div><p class="friend-group-admin-kicker">官方活動</p><h2>活動列表</h2><p>會員出席過官方活動後，才能加入或發起會員揪團。</p></div>
+      {% if content_admin_can('friend_groups_admin', 'edit') %}<a class="fg-manage-button" href="{{ url_for('friend_groups_admin.new_event') }}">＋ 建立新活動</a>{% endif %}
+    </div>
+    {% if events %}
+    <p class="fg-manage-scroll-hint">左右滑動表格可查看完整資訊與操作。</p>
+    <div class="table-container fg-manage-table-wrap">
+      <table class="admin-table fg-manage-table fg-events-table">
+        <thead><tr><th>活動名稱</th><th>日期</th><th>報名截止</th><th>地點</th><th>報名人數</th><th>已報到</th><th>狀態</th><th>操作</th></tr></thead>
+        <tbody>
+        {% for event in events %}
+        <tr>
+          <td><strong>{{ event.title }}</strong></td>
+          <td>{{ event.event_date }}{% if event.start_time %}<br><small>{{ event.start_time }}</small>{% endif %}</td>
+          <td>{{ event.registration_deadline_display }}</td>
+          <td>{{ event.location or '—' }}</td>
+          <td>{{ event.registered_count }}{% if event.capacity %} / {{ event.capacity }}{% endif %}</td>
+          <td>{{ event.attended_count }}</td>
+          <td><span class="fg-manage-status {{ 'is-open' if event.status == 'open' and event.registration_open else 'is-cancelled' if event.status == 'cancelled' else 'is-closed' }}">{{ '報名已截止' if event.status == 'open' and not event.registration_open else status_labels[event.status] }}</span></td>
+          <td><div class="fg-manage-row-actions">
+            <a href="{{ url_for('friend_groups_admin.event_participants', event_id=event.event_id) }}">報到名單</a>
+            {% if content_admin_can('friend_groups_admin', 'edit') %}
+            <a href="{{ url_for('friend_groups_admin.edit_event', event_id=event.event_id) }}">編輯</a>
+            {% if event.status != 'cancelled' %}<form method="post" action="{{ url_for('friend_groups_admin.cancel_event', event_id=event.event_id) }}" onsubmit="return confirm('確定要取消這場活動嗎？')"><button type="submit" class="is-danger">取消活動</button></form>{% endif %}
+            {% endif %}
+          </div></td>
+        </tr>
+        {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% else %}<div class="fg-manage-empty"><strong>目前還沒有官方活動</strong><p>建立活動後，報名與報到資訊會出現在這裡。</p></div>{% endif %}
+  </section>
 </div>
 {% endblock %}

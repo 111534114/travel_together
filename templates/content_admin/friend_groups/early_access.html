@@ -1,11 +1,13 @@
 {% extends "system_admin_base.html" %}
+{% set active_page = 'early_access' %}
 {% block title %}揪團提早開放{% endblock %}
 {% block page_title %}揪團提早開放{% endblock %}
 {% block page_description %}官方活動當天已報到的會員，可由系統管理員提前開放揪團資格。{% endblock %}
 {% block content %}
-<section class="admin-section early-access-section">
-  <div class="section-title"><h2>今日已報到會員</h2><span>共 {{ members|length }} 位</span></div>
-  <p class="early-access-note">只有使用申請已核准、且今天在官方活動報到的會員會出現在此。一般會員仍須等活動日期結束後才會自動開放。</p>
+<div class="friend-group-admin-page">
+<section class="admin-section early-access-section fg-manage-section">
+  <div class="fg-manage-heading"><div><p class="friend-group-admin-kicker">系統管理</p><h2>今日已報到會員</h2><p>僅顯示申請已核准、且今天在官方活動完成報到的會員。</p></div><span class="friend-group-admin-count">共 {{ members|length }} 位</span></div>
+  <p class="early-access-note fg-manage-info">一般會員會在活動日期結束後自動取得揪團資格；如需當天開團，可在這裡提早開放。</p>
   <div class="early-access-list">
     {% for member in members %}
     <div class="early-access-row">
@@ -18,8 +20,9 @@
       </form>
     </div>
     {% else %}
-    <p class="empty-data">今天沒有已通過申請並完成官方活動報到的會員。</p>
+    <div class="fg-manage-empty"><strong>今天沒有可提早開放的會員</strong><p>已通過申請並完成今日官方活動報到的會員會顯示在這裡。</p></div>
     {% endfor %}
   </div>
 </section>
+</div>
 {% endblock %}

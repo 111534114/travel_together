@@ -21,6 +21,8 @@ from werkzeug.middleware.proxy_fix import ProxyFix
 from config import FLASK_SECRET_KEY, GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, LINE_CHANNEL_ID, LINE_CHANNEL_SECRET  # 匯入第三方登入設定
 from config import LIFF_ID, PUBLIC_BASE_URL  # 匯入 LIFF ID 與網站公開網址(分享給別人的連結要用這個網址)
 from db import get_db_connection  # 匯入自訂的資料庫連線函式
+from auth import remember_next_page  # 沒登入被擋下時記住原本要去的頁面
+import pending_actions  # 訪客按的收藏／加入行程／上傳照片：登入後自動完成
 from blueprints.attractions import attractions_bp  # 匯入景點管理的藍圖(Blueprint)
 from blueprints.restaurants import restaurants_bp  # 匯入餐廳管理的藍圖
 from blueprints.accommodations import accommodations_bp  # 匯入住宿管理的藍圖
@@ -231,17 +233,48 @@ def inactive_account_message(status):
     }.get(status, "此帳號目前無法登入。")
 
 
+ROLE_AREAS = {"member": "/member", "content_admin": "/content-admin", "system_admin": "/system-admin"}
+
+
+def _remembered_page(role):
+    """沒登入時被擋下來的頁面(auth.remember_next_page 記的)：只有在自己身分能用的區域才帶回去，用過就清掉。"""
+    path = session.pop("pending_next", None)
+    area = ROLE_AREAS.get(role)
+    if not path or not area or path.startswith("//"):
+        return None
+    if path == area or path.startswith(area + "/") or path.startswith(area + "?"):
+        return path
+    return None
+
+
 def redirect_by_role(role):  # 定義函式：依照使用者角色導向對應首頁
+    remembered_page = _remembered_page(role)  # 登入前原本要去的頁面(例如「尋找旅伴」、填好資料的「建立行程」)
     if role == "member":  # 如果角色是一般會員
         pending_invite_token = session.pop("pending_invite_token", None)  # 如果是透過邀請連結導來登入/註冊的，登入後直接回去接受邀請
         if pending_invite_token:
             return redirect(url_for("member.accept_invite_link", token=pending_invite_token))
+        pending_apply_trip_id = session.get("pending_apply_trip_id")  # 訪客按「登入後一鍵套用」的行程：登入後直接幫他套用
+        if pending_apply_trip_id:
+            return redirect(url_for("member.apply_trip_after_login", trip_id=pending_apply_trip_id))
+        pending_favorite_trip_id = session.get("pending_favorite_trip_id")  # 訪客按「☆ 收藏」的行程：登入後直接幫他收藏
+        if pending_favorite_trip_id:
+            return redirect(url_for("member.favorite_trip_after_login", trip_id=pending_favorite_trip_id))
+        if session.get("pending_action"):  # 訪客按的收藏／加入行程／上傳照片：登入後自動完成再帶回原本頁面
+            return redirect(url_for("member.run_pending_action"))
+        if session.get("pending_ai_query"):  # 訪客登入前打好的 AI 排行程需求：回會員首頁自動開始排
+            return redirect(url_for("member.dashboard") + "#ai-home")
+        if remembered_page:  # 回到登入前原本要去的頁面
+            return redirect(remembered_page)
         return redirect(url_for("member_home"))  # 導向會員首頁路由
 
     if role == "content_admin":  # 如果角色是旅遊內容管理員
+        if remembered_page:
+            return redirect(remembered_page)
         return redirect(url_for("content_admin_home"))  # 導向內容管理員首頁路由
 
     if role == "system_admin":  # 如果角色是系統管理員
+        if remembered_page:
+            return redirect(remembered_page)
         return redirect(url_for("system_admin_home"))  # 導向系統管理員首頁路由
 
     session.clear()  # 角色不在預期範圍內，清空 session 避免殘留錯誤狀態
@@ -297,6 +330,55 @@ def visitor():
         planning_trips=[],
         quick_cities=quick_cities,
     )
+
+
+@app.route("/visitor/remember", methods=["POST"])
+def visitor_remember_action():
+    """訪客按了要登入才能用的按鈕(收藏、加入行程、上傳照片、訂房／機票／火車的 ♡)：先記住，登入後自動完成。"""
+    action = pending_actions.remember(request.form.get("target"), request.form.get("back"), request.form)
+    if action is None:
+        flash("請先登入再使用這個功能。", "error")
+        return redirect(url_for("login"))
+    session["pending_action"] = action
+    if session.get("role") == "member":  # 已經登入的會員直接執行
+        return redirect(url_for("member.run_pending_action"))
+    flash(pending_actions.MESSAGES[action["type"]] + "還沒有帳號的話，先免費註冊再登入也可以。", "success")
+    return redirect(url_for("login"))
+
+
+@app.route("/visitor/ai-plan", methods=["POST"])
+def visitor_ai_plan():
+    """訪客在首頁打好 AI 排行程需求：先記住，登入(或註冊後登入)完成就自動幫他排。"""
+    query = request.form.get("q", "").strip()[:1000]
+    if not query:
+        flash("請先說說你想去哪裡、玩幾天。", "error")
+        return redirect(url_for("visitor") + "#ai-home")
+    session["pending_ai_query"] = query
+    if session.get("role") == "member":  # 已經登入的會員直接回會員首頁開始排
+        return redirect(url_for("member.dashboard") + "#ai-home")
+    flash("登入後就會自動用你剛剛寫的需求幫你排行程。還沒有帳號的話，先免費註冊再登入也可以。", "success")
+    return redirect(url_for("login"))
+
+
+@app.route("/visitor/trips/<int:trip_id>/favorite")
+def favorite_trip_after_login(trip_id):
+    """訪客按「☆ 收藏」：先記住要收藏哪一趟，登入(或註冊後登入)完成就自動收藏。"""
+    session["pending_favorite_trip_id"] = trip_id
+    if session.get("role") == "member":  # 已經登入的會員直接收藏
+        return redirect(url_for("member.favorite_trip_after_login", trip_id=trip_id))
+    flash("登入後就會自動幫你收藏這個行程。還沒有帳號的話，先免費註冊再登入也可以。", "success")
+    return redirect(url_for("login"))
+
+
+@app.route("/visitor/trips/<int:trip_id>/apply")
+def apply_trip_after_login(trip_id):
+    """訪客按「登入後一鍵套用」：先記住要套用哪一趟，登入(或註冊後登入)完成就自動複製到他的行程。"""
+    if session.get("role") == "member":  # 已經登入的會員直接套用
+        session["pending_apply_trip_id"] = trip_id
+        return redirect(url_for("member.apply_trip_after_login", trip_id=trip_id))
+    session["pending_apply_trip_id"] = trip_id
+    flash("登入後就會自動幫你套用這個行程。還沒有帳號的話，先免費註冊再登入也可以。", "success")
+    return redirect(url_for("login"))
 
 
 @app.route("/api/hotel-place-search")  # 住宿目的地自動完成打字時用的 AJAX 端點：全世界(Google 地點自動完成)，退回站內台灣住宿資料
@@ -1483,6 +1565,11 @@ def login():  # 定義登入功能函式
             return render_template("login.html")  # 重新顯示登入頁
 
         pending_invite_token = session.get("pending_invite_token")  # 清空 session 前先保留邀請連結的 token，避免被清掉
+        pending_apply_trip_id = session.get("pending_apply_trip_id")  # 也保留「登入後一鍵套用」的行程
+        pending_ai_query = session.get("pending_ai_query")  # 也保留訪客打好的 AI 排行程需求
+        pending_favorite_trip_id = session.get("pending_favorite_trip_id")  # 也保留「登入後收藏」的行程
+        pending_next = session.get("pending_next")  # 也保留登入前原本要去的頁面
+        pending_action = session.get("pending_action")  # 也保留訪客按的收藏／加入行程／上傳照片
         session.clear()  # 登入成功前先清空舊的 session 資料
         session["user_id"] = user["user_id"]  # 把使用者 ID 存入 session
         session["username"] = user["username"]  # 把帳號存入 session
@@ -1491,6 +1578,16 @@ def login():  # 定義登入功能函式
         session["role"] = user["role"]  # 把角色存入 session
         if pending_invite_token:
             session["pending_invite_token"] = pending_invite_token
+        if pending_apply_trip_id:
+            session["pending_apply_trip_id"] = pending_apply_trip_id
+        if pending_ai_query:
+            session["pending_ai_query"] = pending_ai_query
+        if pending_favorite_trip_id:
+            session["pending_favorite_trip_id"] = pending_favorite_trip_id
+        if pending_next:
+            session["pending_next"] = pending_next
+        if pending_action:
+            session["pending_action"] = pending_action
 
         return redirect_by_role(user["role"])  # 登入成功，依角色導向對應首頁
 
@@ -1679,6 +1776,11 @@ def google_callback():
         return redirect(url_for("login"))
 
     pending_invite_token = session.get("pending_invite_token")
+    pending_apply_trip_id = session.get("pending_apply_trip_id")
+    pending_ai_query = session.get("pending_ai_query")
+    pending_favorite_trip_id = session.get("pending_favorite_trip_id")
+    pending_next = session.get("pending_next")
+    pending_action = session.get("pending_action")
     session.clear()
     session["user_id"] = user["user_id"]
     session["username"] = user["username"]
@@ -1687,6 +1789,16 @@ def google_callback():
     session["role"] = user["role"]
     if pending_invite_token:
         session["pending_invite_token"] = pending_invite_token
+    if pending_apply_trip_id:
+        session["pending_apply_trip_id"] = pending_apply_trip_id
+    if pending_ai_query:
+        session["pending_ai_query"] = pending_ai_query
+    if pending_favorite_trip_id:
+        session["pending_favorite_trip_id"] = pending_favorite_trip_id
+    if pending_next:
+        session["pending_next"] = pending_next
+    if pending_action:
+        session["pending_action"] = pending_action
     return redirect_by_role(user["role"])
 
 
@@ -1859,6 +1971,11 @@ def finish_line_login(line_sub, display_name, friend_flag, next_url=None):  # LI
         return redirect(url_for("login"))
 
     pending_invite_token = session.get("pending_invite_token")
+    pending_apply_trip_id = session.get("pending_apply_trip_id")
+    pending_ai_query = session.get("pending_ai_query")
+    pending_favorite_trip_id = session.get("pending_favorite_trip_id")
+    pending_next = session.get("pending_next")
+    pending_action = session.get("pending_action")
     session.clear()
     session.update(
         user_id=user["user_id"], username=user["username"],
@@ -1866,7 +1983,17 @@ def finish_line_login(line_sub, display_name, friend_flag, next_url=None):  # LI
     )
     if pending_invite_token:
         session["pending_invite_token"] = pending_invite_token
-    if next_url and not pending_invite_token:
+    if pending_apply_trip_id:
+        session["pending_apply_trip_id"] = pending_apply_trip_id
+    if pending_ai_query:
+        session["pending_ai_query"] = pending_ai_query
+    if pending_favorite_trip_id:
+        session["pending_favorite_trip_id"] = pending_favorite_trip_id
+    if pending_next:
+        session["pending_next"] = pending_next
+    if pending_action:
+        session["pending_action"] = pending_action
+    if next_url and not pending_invite_token and not pending_apply_trip_id and not pending_ai_query and not pending_favorite_trip_id and not pending_action:
         return redirect(next_url)
     return redirect_by_role(user["role"])
 
@@ -1993,6 +2120,11 @@ def line_complete_profile():
         connection.close()
 
     pending_invite_token = session.get("pending_invite_token")
+    pending_apply_trip_id = session.get("pending_apply_trip_id")
+    pending_ai_query = session.get("pending_ai_query")
+    pending_favorite_trip_id = session.get("pending_favorite_trip_id")
+    pending_next = session.get("pending_next")
+    pending_action = session.get("pending_action")
     session.clear()
     session.update(
         user_id=user["user_id"], username=user["username"],
@@ -2000,6 +2132,16 @@ def line_complete_profile():
     )
     if pending_invite_token:
         session["pending_invite_token"] = pending_invite_token
+    if pending_apply_trip_id:
+        session["pending_apply_trip_id"] = pending_apply_trip_id
+    if pending_ai_query:
+        session["pending_ai_query"] = pending_ai_query
+    if pending_favorite_trip_id:
+        session["pending_favorite_trip_id"] = pending_favorite_trip_id
+    if pending_next:
+        session["pending_next"] = pending_next
+    if pending_action:
+        session["pending_action"] = pending_action
     return redirect_by_role(user["role"])
 
 
@@ -2886,6 +3028,8 @@ def enable_user(user_id):
 def system_admin_required():
     """Return a redirect when the current user is not a system administrator."""
     if "user_id" not in session or session.get("role") != "system_admin":
+        if "user_id" not in session:
+            remember_next_page()  # 記住原本要去的後台頁面，登入後帶回來
         return redirect(url_for("login"))
     return None
 

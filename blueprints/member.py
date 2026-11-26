@@ -28,6 +28,7 @@ import smart_trip
 import trip_request
 import proposal_review
 import pre_trip_check
+import pending_actions
 import booking_compare
 from place_matching import SITE_PLACE_COLUMNS, find_site_place, search_site_places
 import currency_rates
@@ -530,6 +531,7 @@ def dashboard():
         trips_timeline_json=trips_timeline_json, issue_reasons=ISSUE_REASONS,
         home_banners=home_banners, featured_trips=featured_trips, planning_trips=planning_trips,
         quick_cities=quick_cities,
+        pending_ai_query=session.pop("pending_ai_query", None),  # 訪客登入前打好的 AI 排行程需求(只用一次)
     )
 
 
@@ -891,6 +893,67 @@ def submit_trip_issue(trip_id):
         cursor.close()
         connection.close()
     return redirect(url_for("member.dashboard") + "#trips")
+
+
+@member_bp.route("/pending-action")
+@login_required("member")
+def run_pending_action():
+    """訪客登入前按的收藏／加入行程／上傳照片(pending_actions)：登入後自動完成，再帶回原本的頁面。只會執行一次。"""
+    action = session.pop("pending_action", None)
+    if not action:
+        return redirect(url_for("member.dashboard"))
+    connection = _connection_or_home()
+    if connection is None:
+        return redirect(pending_actions.safe_back(action.get("back")) or url_for("member.dashboard"))
+    cursor = connection.cursor(dictionary=True)
+    try:
+        message, category, back = pending_actions.run(cursor, session["user_id"], action)
+        connection.commit()
+    except Exception as error:
+        connection.rollback()
+        print("登入後自動完成動作失敗：", error)
+        message, category, back = "剛剛的動作沒有完成，請再按一次。", "error", pending_actions.safe_back(action.get("back")) or url_for("member.dashboard")
+    finally:
+        cursor.close()
+        connection.close()
+    if message:
+        flash(message, category)
+    return redirect(back)
+
+
+@member_bp.route("/trips/<int:trip_id>/favorite-after-login")
+@login_required("member")
+def favorite_trip_after_login(trip_id):
+    """訪客在首頁按「☆ 收藏」→ 登入後自動來這裡收藏那趟行程。只加入、不會取消(已經收藏過就維持)。
+    只有 session 裡記著同一趟行程時才會收藏(是訪客自己按的)，別人傳來的連結不會幫你亂收藏。"""
+    back = redirect(url_for("member.dashboard") + "#featured-trips")
+    if session.pop("pending_favorite_trip_id", None) != trip_id:
+        return back
+    connection = _connection_or_home()
+    if connection is None:
+        return back
+    cursor = connection.cursor(dictionary=True)
+    try:
+        cursor.execute("SELECT trip_name FROM trips WHERE trip_id=%s AND visibility='public' AND moderation_status='visible' AND deleted_at IS NULL", (trip_id,))
+        trip = cursor.fetchone()
+        if not trip:
+            flash("只能收藏公開行程。", "error")
+            return back
+        cursor.execute("SELECT favorite_id FROM favorites WHERE user_id=%s AND trip_id=%s", (session["user_id"], trip_id))
+        if cursor.fetchone():
+            flash(f"「{trip['trip_name']}」已經在你的收藏裡了。", "success")
+            return back
+        cursor.execute("INSERT INTO favorites (user_id, target_type, trip_id) VALUES (%s,'trip',%s)", (session["user_id"], trip_id))
+        connection.commit()
+        flash(f"已經幫你收藏「{trip['trip_name']}」！可以到「我的旅程」的收藏裡找到它。", "success")
+    except Exception as error:
+        connection.rollback()
+        print("登入後收藏行程失敗：", error)
+        flash("收藏失敗，請再試一次。", "error")
+    finally:
+        cursor.close()
+        connection.close()
+    return back
 
 
 @member_bp.route("/trips/<int:trip_id>/favorite", methods=["POST"])
@@ -2673,54 +2736,56 @@ def purge_trip(trip_id):
     return redirect(url_for("member.dashboard") + "#trip-trash")
 
 
-@member_bp.route("/trips/<int:trip_id>/duplicate", methods=["POST"])
-@login_required("member")
-def duplicate_trip(trip_id):
+def _duplicate_trip_for(cursor, trip_id, user_id):
+    """把一趟行程(自己的，或開放複製的公開行程)複製成 user_id 的新行程。回傳 (新行程 ID, 錯誤訊息)；呼叫端負責 commit。"""
+    cursor.execute("SELECT * FROM trips WHERE trip_id=%s AND deleted_at IS NULL", (trip_id,))
+    trip = cursor.fetchone()
+    if not trip or trip["moderation_status"] != "visible":
+        return None, "找不到這個行程。"
+    if trip["owner_id"] != user_id and trip["visibility"] != "public":
+        return None, "只能複製自己的行程，或是公開行程。"
+    if trip["owner_id"] != user_id and not trip["allow_copy"]:
+        return None, "行程建立者沒有開放這個行程被複製。"
+
+    cursor.execute("""
+        INSERT INTO trips (owner_id,trip_name,country_id,city_id,start_date,end_date,
+                            people_count,total_budget,currency,introduction,visibility,status,share_token)
+        VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,'private','planning',%s)
+    """, (user_id, trip["trip_name"] + "（複製）", trip["country_id"], trip["city_id"],
+          trip["start_date"], trip["end_date"], trip["people_count"], trip["total_budget"], trip["currency"],
+          trip["introduction"], secrets.token_urlsafe(16)))
+    new_trip_id = cursor.lastrowid
+    cursor.execute(
+        "INSERT INTO trip_members (trip_id,user_id,member_role,join_status,joined_at) VALUES (%s,%s,'owner','accepted',NOW())",
+        (new_trip_id, user_id)
+    )
+
+    cursor.execute("SELECT * FROM itineraries WHERE trip_id=%s ORDER BY itinerary_date, sort_order", (trip_id,))
+    for item in cursor.fetchall():
+        cursor.execute("""
+            INSERT INTO itineraries (trip_id,created_by,itinerary_date,item_type,title,start_time,end_time,is_all_day,
+                                      address,transport_method,transport_minutes,estimated_cost,notes,
+                                      attraction_id,restaurant_id,accommodation_id,sort_order)
+            VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
+        """, (new_trip_id, user_id, item["itinerary_date"], item["item_type"], item["title"],
+              item["start_time"], item["end_time"], item["is_all_day"], item["address"], item["transport_method"],
+              item["transport_minutes"], item["estimated_cost"], item["notes"],
+              item["attraction_id"], item["restaurant_id"], item["accommodation_id"], item["sort_order"]))
+    return new_trip_id, None
+
+
+def _duplicate_and_redirect(trip_id, success_message):
     connection = _connection_or_home()
     if connection is None:
         return redirect(url_for("member.dashboard"))
     cursor = connection.cursor(dictionary=True)
     try:
-        cursor.execute("SELECT * FROM trips WHERE trip_id=%s AND deleted_at IS NULL", (trip_id,))
-        trip = cursor.fetchone()
-        if not trip or trip["moderation_status"] != "visible":
-            flash("找不到這個行程。", "error")
+        new_trip_id, error = _duplicate_trip_for(cursor, trip_id, session["user_id"])
+        if error:
+            flash(error, "error")
             return redirect(url_for("member.dashboard"))
-        if trip["owner_id"] != session["user_id"] and trip["visibility"] != "public":
-            flash("只能複製自己的行程，或是公開行程。", "error")
-            return redirect(url_for("member.dashboard"))
-        if trip["owner_id"] != session["user_id"] and not trip["allow_copy"]:
-            flash("行程建立者沒有開放這個行程被複製。", "error")
-            return redirect(url_for("member.dashboard"))
-
-        cursor.execute("""
-            INSERT INTO trips (owner_id,trip_name,country_id,city_id,start_date,end_date,
-                                people_count,total_budget,currency,introduction,visibility,status,share_token)
-            VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,'private','planning',%s)
-        """, (session["user_id"], trip["trip_name"] + "（複製）", trip["country_id"], trip["city_id"],
-              trip["start_date"], trip["end_date"], trip["people_count"], trip["total_budget"], trip["currency"],
-              trip["introduction"], secrets.token_urlsafe(16)))
-        new_trip_id = cursor.lastrowid
-        cursor.execute(
-            "INSERT INTO trip_members (trip_id,user_id,member_role,join_status,joined_at) VALUES (%s,%s,'owner','accepted',NOW())",
-            (new_trip_id, session["user_id"])
-        )
-
-        cursor.execute("SELECT * FROM itineraries WHERE trip_id=%s ORDER BY itinerary_date, sort_order", (trip_id,))
-        items = cursor.fetchall()
-        for item in items:
-            cursor.execute("""
-                INSERT INTO itineraries (trip_id,created_by,itinerary_date,item_type,title,start_time,end_time,is_all_day,
-                                          address,transport_method,transport_minutes,estimated_cost,notes,
-                                          attraction_id,restaurant_id,accommodation_id,sort_order)
-                VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
-            """, (new_trip_id, session["user_id"], item["itinerary_date"], item["item_type"], item["title"],
-                  item["start_time"], item["end_time"], item["is_all_day"], item["address"], item["transport_method"],
-                  item["transport_minutes"], item["estimated_cost"], item["notes"],
-                  item["attraction_id"], item["restaurant_id"], item["accommodation_id"], item["sort_order"]))
-
         connection.commit()
-        flash("行程已複製，你可以開始編輯這份新的行程。", "success")
+        flash(success_message, "success")
         return redirect(url_for("member.trip_detail", trip_id=new_trip_id))
     except Exception as error:
         connection.rollback()
@@ -2730,6 +2795,22 @@ def duplicate_trip(trip_id):
     finally:
         cursor.close()
         connection.close()
+
+
+@member_bp.route("/trips/<int:trip_id>/duplicate", methods=["POST"])
+@login_required("member")
+def duplicate_trip(trip_id):
+    return _duplicate_and_redirect(trip_id, "行程已複製，你可以開始編輯這份新的行程。")
+
+
+@member_bp.route("/trips/<int:trip_id>/apply-after-login")
+@login_required("member")
+def apply_trip_after_login(trip_id):
+    """訪客在首頁按「登入後一鍵套用」→ 登入後自動來這裡複製那趟行程。
+    只有 session 裡記著同一趟行程時才會複製(是訪客自己按的)，別人傳來的連結不會幫你亂複製。"""
+    if session.pop("pending_apply_trip_id", None) != trip_id:
+        return redirect(url_for("member.dashboard"))
+    return _duplicate_and_redirect(trip_id, "已經幫你套用這個行程！這是你自己的一份，可以開始微調路線和時間。")
 
 
 @member_bp.route("/trips/<int:trip_id>/itinerary", methods=["POST"])

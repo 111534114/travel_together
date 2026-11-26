@@ -20,4 +20,5 @@
   </div>
   {% if is_member %}{% include 'member/_notification_drawer.html' %}<script src="{{ url_for('static', filename='js/member_notifications.js') }}" defer></script>{% endif %}
   <script src="{{ url_for('static', filename='js/member-nav.js') }}" defer></script>
+  {% if not is_member %}<script src="{{ url_for('static', filename='js/guest-actions.js') }}" defer></script>{% endif %}
 </body></html>

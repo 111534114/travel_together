@@ -6,4 +6,4 @@
   <input type="hidden" name="action" value="{{ 'remove' if is_saved else 'save' }}">
   <button class="booking-heart {{ 'is-saved' if is_saved }}" type="submit" aria-label="{{ '取消收藏' if is_saved else '加入我的收藏' }}" title="{{ '取消收藏' if is_saved else '加入我的收藏' }}"><span aria-hidden="true">{{ '♥' if is_saved else '♡' }}</span></button>
 </form>
-{% else %}<a class="booking-heart" href="{{ url_for('login') }}" aria-label="登入後收藏" title="登入後收藏"><span aria-hidden="true">♡</span></a>{% endif %}
+{% else %}{% set remember_target = url_for('booking.save_favorite', kind=save_kind, target_id=save_id) %}{% set remember_label = '<span aria-hidden="true">♡</span>' %}{% set remember_class = 'booking-heart' %}{% set remember_fields = {} %}{% include 'partials/remember_button.html' %}{% endif %}

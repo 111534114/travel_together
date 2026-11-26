@@ -13,4 +13,4 @@
   <input type="hidden" name="rail" value="{{ train.train_type }}">
   <button class="booking-heart" type="submit" aria-label="加入我的收藏" title="加入我的收藏"><span aria-hidden="true">♡</span></button>
 </form>
-{% else %}<a class="booking-heart" href="{{ url_for('login') }}" aria-label="登入後收藏" title="登入後收藏"><span aria-hidden="true">♡</span></a>{% endif %}
+{% else %}{% set remember_target = url_for('booking.save_live_train') %}{% set remember_label = '<span aria-hidden="true">♡</span>' %}{% set remember_class = 'booking-heart' %}{% set remember_fields = {'live_id': train.train_id, 'from': train.origin_station, 'to': train.destination_station, 'date': live_date, 'rail': train.train_type} %}{% include 'partials/remember_button.html' %}{% endif %}

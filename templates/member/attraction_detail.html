@@ -85,12 +85,19 @@
     <div class="panel" id="album">
         <h2>景點相簿</h2>
         <p class="form-hint">分享實拍照片與旅遊心得；內容會先經過審核。</p>
+        {% if session.get('role') == 'member' %}
         <form method="post" action="{{ url_for('member.add_attraction_post', attraction_id=a.attraction_id) }}" enctype="multipart/form-data" class="attraction-post-form" id="attractionPostForm">
             <textarea name="caption" rows="2" maxlength="1000" placeholder="分享這裡的心得⋯（選填）"></textarea>
             <div class="attraction-post-form-actions"><input type="file" name="images" id="attractionPostImages" accept=".png,.jpg,.jpeg,.gif,.webp" multiple><button class="member-btn primary">發佈</button></div>
             <p class="form-hint">一次最多 6 張，支援 PNG／JPG／GIF／WEBP，單張 5MB 以內。</p>
             <p class="form-hint attraction-post-file-error" id="attractionPostFileError" hidden></p>
         </form>
+        {% else %}
+        <div class="attraction-post-guest">
+            <p>想分享你在這裡拍的照片嗎？登入後就能上傳，會回到這裡讓你直接分享。</p>
+            {% set remember_target = url_for('member.add_attraction_post', attraction_id=a.attraction_id) %}{% set remember_label = '📷 登入後分享照片' %}{% set remember_class = 'member-btn primary' %}{% set remember_fields = {} %}{% set remember_title = '登入後分享照片' %}{% include 'partials/remember_button.html' %}
+        </div>
+        {% endif %}
         <div class="attraction-post-feed">
           {% for post in posts %}<article class="attraction-post-card">
             <div class="attraction-post-head"><i>{{ (post.nickname or post.full_name)[:1] }}</i><div class="attraction-post-meta"><b>{{ post.nickname or post.full_name }}</b><small>{{ post.created_at.strftime('%Y/%m/%d %H:%M') }}</small></div>

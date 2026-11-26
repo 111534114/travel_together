@@ -185,5 +185,20 @@ window.estimateTransportMinutes = function (lat1, lng1, lat2, lng2, method) {
     modal.addEventListener('click', function (e) { if (e.target === modal) close(); });
     document.addEventListener('keydown', function (e) { if (e.key === 'Escape' && !modal.hidden) close(); });
     if (select) select.addEventListener('change', syncTrip);
+
+    // 訪客按「加入行程」→ 登入後回到這一頁(網址帶 ?add_to_trip=attraction-12)：自動打開那個地點的「加入行程」視窗
+    (function () {
+        var params = new URLSearchParams(location.search);
+        var wanted = params.get('add_to_trip');
+        if (!wanted) return;
+        var parts = wanted.split('-');
+        var segment = { attraction: 'attractions', restaurant: 'restaurants', accommodation: 'accommodations' }[parts[0]];
+        var button = segment && Array.prototype.find.call(document.querySelectorAll('[data-add-to-trip]'), function (b) {
+            return (b.dataset.action || '').indexOf('/' + segment + '/' + parts[1] + '/add-to-trip') !== -1;
+        });
+        params.delete('add_to_trip');  // 只自動打開一次，重新整理不會再跳出來
+        history.replaceState(null, '', location.pathname + (params.toString() ? '?' + params : '') + location.hash);
+        if (button) { button.scrollIntoView({ block: 'center' }); open(button); }
+    })();
 })();
 </script>

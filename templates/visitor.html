@@ -434,7 +434,7 @@
       {% if is_member %}
       <form method="post" action="{{ url_for('member.ai_create_trip') }}" class="ai-home-form" id="aiHomeForm">
         <label class="visually-hidden" for="aiHomeInput">旅行需求</label>
-        <textarea id="aiHomeInput" name="q" rows="3" maxlength="1000" required placeholder="例如：12 月想跟朋友去東京 5 天，喜歡逛街和美食，住宿希望在車站附近，預算每人 3 萬">{{ request.args.get('q', '') }}</textarea>
+        <textarea id="aiHomeInput" name="q" rows="3" maxlength="1000" required placeholder="例如：12 月想跟朋友去東京 5 天，喜歡逛街和美食，住宿希望在車站附近，預算每人 3 萬"{% if pending_ai_query %} data-autosubmit="1"{% endif %}>{{ pending_ai_query or request.args.get('q', '') }}</textarea>
         <div class="ai-home-actions">
           <button type="button" class="ai-voice-btn" data-voice-target="aiHomeInput" data-voice-status="aiHomeStatus" aria-pressed="false">🎤 語音輸入</button>
           <button type="submit" class="ai-submit-btn" id="aiHomeSubmit">開始規劃 →</button>
@@ -442,9 +442,9 @@
       </form>
       {% else %}
       {# 訪客：AI 排行程是會員功能，送出時導向登入頁 #}
-      <form method="get" action="{{ url_for('login') }}" class="ai-home-form" id="aiHomeForm">
+      <form method="post" action="{{ url_for('visitor_ai_plan') }}" class="ai-home-form" id="aiHomeForm" data-guest="1">
         <label class="visually-hidden" for="aiHomeInput">旅行需求</label>
-        <textarea id="aiHomeInput" rows="3" maxlength="1000" placeholder="例如：12 月想跟朋友去東京 5 天，喜歡逛街和美食，住宿希望在車站附近，預算每人 3 萬"></textarea>
+        <textarea id="aiHomeInput" name="q" rows="3" maxlength="1000" placeholder="例如：12 月想跟朋友去東京 5 天，喜歡逛街和美食，住宿希望在車站附近，預算每人 3 萬"></textarea>
         <div class="ai-home-actions">
           <a class="ai-voice-btn" href="{{ url_for('register') }}" style="text-decoration: none">免費註冊</a>
           <button type="submit" class="ai-submit-btn" id="aiHomeSubmit">🔒 登入後開始規劃 →</button>
@@ -514,8 +514,8 @@
                 {% endif %}
                 <form method="post" action="{{ url_for('member.toggle_trip_favorite', trip_id=trip.trip_id) }}"><input type="hidden" name="next" value="{{ url_for('member.dashboard') }}#featured-trips"><button class="view-button" type="submit">{{ '取消收藏' if trip.is_favorited else '☆ 收藏' }}</button></form>
                 {% else %}
-                {% if trip.can_duplicate %}<a class="view-button primary" href="{{ url_for('login') }}">登入後一鍵套用</a>{% endif %}
-                <a class="view-button" href="{{ url_for('login') }}">☆ 收藏</a>
+                {% if trip.can_duplicate %}<a class="view-button primary" href="{{ url_for('apply_trip_after_login', trip_id=trip.trip_id) }}">登入後一鍵套用</a>{% endif %}
+                <a class="view-button" href="{{ url_for('favorite_trip_after_login', trip_id=trip.trip_id) }}">☆ 收藏</a>
                 {% endif %}
               </div>
             </div>
@@ -806,7 +806,7 @@
   })();
   (function () {  // 送出後 AI 需要一點時間，鎖住按鈕並告訴使用者正在做什麼
     var form = document.getElementById('aiHomeForm');
-    if (!form || form.method.toLowerCase() !== 'post') return;  // 訪客版表單只是導向登入頁
+    if (!form || form.dataset.guest) return;  // 訪客版表單只是記住需求、導向登入頁
     form.addEventListener('submit', function () {
       var button = document.getElementById('aiHomeSubmit');
       button.disabled = true;
@@ -814,6 +814,15 @@
       form.setAttribute('aria-busy', 'true');
       document.getElementById('aiHomeStatus').textContent = 'AI 正在判斷目的地與日期，並排好每一天的行程，約需 30–60 秒，完成後會自動打開新行程，請勿關閉頁面。';
     });
+  })();
+  (function () {  // 訪客登入前打好的需求：登入後自動填回來並直接開始排行程
+    var input = document.getElementById('aiHomeInput');
+    if (!input || !input.dataset.autosubmit || !input.value.trim()) return;
+    var form = input.form;
+    document.getElementById('ai-home').scrollIntoView({ behavior: 'smooth', block: 'center' });
+    setTimeout(function () {
+      if (form.requestSubmit) form.requestSubmit(); else form.submit();
+    }, 600);
   })();
   document.querySelectorAll('[data-ai-example]').forEach(function (chip) {
     chip.addEventListener('click', function () {

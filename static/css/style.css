@@ -5399,3 +5399,7 @@ html { scroll-behavior: smooth; }
 .bc-nights-actions { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-top: 16px; }
 .bc-nights-actions > div { display: flex; gap: 8px; }
 .bc-link { padding: 4px 6px; color: #0f7c8c; font: inherit; font-size: 13px; font-weight: 600; background: none; border: 0; cursor: pointer; text-decoration: underline; }
+/* 訪客版的相簿分享提示、記住再登入的按鈕 */
+.attraction-post-guest { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px; margin: 10px 0 16px; padding: 14px 16px; background: #F4FBFC; border: 1px dashed #C6DCDF; border-radius: 12px; }
+.attraction-post-guest p { margin: 0; color: #3D5154; font-size: 14px; }
+.remember-form { display: inline; margin: 0; }

@@ -114,6 +114,7 @@ def default_city_id(country, cities, popular_city_ids=()):
 
 
 def match_days(text):
+    """回傳 (實際採用的天數, 使用者原本要求的天數)；原本要求的天數只有被 MAX_DAYS 砍掉時才會回傳，沒被砍就是 None。"""
     match = re.search(NUM + r"\s*天", text) or re.search(NUM + r"\s*日遊", text)
     if match:
         days = _number(match.group(1))
@@ -121,12 +122,16 @@ def match_days(text):
         match = re.search(NUM + r"\s*(?:晚|夜)", text)
         days = _number(match.group(1)) + 1 if match and _number(match.group(1)) else None
     if not days:
-        return None
-    return max(1, min(MAX_DAYS, days))
+        return None, None
+    capped = max(1, min(MAX_DAYS, days))
+    return capped, (days if days > MAX_DAYS else None)
+
+
+SEASON_MONTHS = {"暑假": 7, "寒假": 2, "過年": 2, "春節": 2}  # 口語的假期名稱，沒寫明確月份時拿來估一個月份（台灣學校行事曆的概略月份）
 
 
 def match_start_date(text, today):
-    """「12/5」「12月5日」→ 該日期；只有「12 月」→ 該月份第一個合理日期；過去的日期往明年推。"""
+    """「12/5」「12月5日」→ 該日期；只有「12 月」→ 該月份第一個合理日期；只有「暑假」「寒假」這種假期名稱→估一個對應月份；過去的日期（或已過的月份）往明年推。"""
     earliest = today + timedelta(days=1)
     match = re.search(r"(\d{1,2})\s*[/月]\s*(\d{1,2})(?!\s*(?:天|晚|夜|人|位|\d))", text)
     if match:
@@ -141,6 +146,11 @@ def match_start_date(text, today):
         return None
     match = re.search(NUM + r"\s*月", text)
     month = _number(match.group(1)) if match else None
+    if not month:
+        for keyword, season_month in SEASON_MONTHS.items():
+            if keyword in text:
+                month = season_month
+                break
     if month and 1 <= month <= 12:
         year = today.year if month >= today.month else today.year + 1
         first = date(year, month, 1)
@@ -192,11 +202,13 @@ def infer(text, countries, cities, popular_city_ids=(), today=None):
     if city_id:
         result["city_id"] = city_id
     start = match_start_date(text, today)
-    days = match_days(text)
+    days, requested_days = match_days(text)
     if start or days:
         start = start or today + timedelta(days=DEFAULT_LEAD_DAYS)
         result["start_date"] = start
         result["end_date"] = start + timedelta(days=(days or DEFAULT_DAYS) - 1)
+    if requested_days:
+        result["requested_days"] = requested_days
     people = match_people(text)
     if people:
         result["people_count"] = people

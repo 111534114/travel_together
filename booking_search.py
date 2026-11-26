@@ -317,6 +317,8 @@ def filter_prices(rows, field, duration_field=None, stops_field=None, cabin_fiel
             continue
         result.append(row)
     sort = request.args.get('sort', '')
+    if not sort and stops_field:
+        sort = 'featured'  # 機票沒選排序時預設用「綜合推薦」(車票沒有轉機欄位，維持原本順序)
     if sort in ('price_asc', 'price_desc'):
         result.sort(key=lambda r: (not bool(r.get(field)), (r.get(field) or 0) * (-1 if sort == 'price_desc' else 1)))
     elif sort == 'featured' and duration_field:

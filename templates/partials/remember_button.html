@@ -1,0 +1,9 @@
+{# 訪客版按鈕：按下去先記住要做什麼，登入後網站自動完成並帶回這一頁。
+   需要先 set：remember_target(原本要送去的網址)、remember_label、remember_class；
+   可選 remember_fields(額外欄位 dict)、remember_title。 #}
+<form method="post" action="{{ url_for('visitor_remember_action') }}" class="booking-save-form remember-form">
+  <input type="hidden" name="target" value="{{ remember_target }}">
+  <input type="hidden" name="back" value="{{ request.full_path if request.query_string else request.path }}">
+  {% for name, value in (remember_fields or {}).items() %}<input type="hidden" name="{{ name }}" value="{{ value|string|forceescape }}">{% endfor %}
+  <button type="submit" class="{{ remember_class }}" aria-label="{{ remember_title or '登入後收藏' }}" title="{{ remember_title or '登入後收藏' }}">{{ remember_label|safe }}</button>
+</form>

@@ -74,7 +74,10 @@ def generate_plan(user_request, country, city, start_date, end_date, people_coun
         "真的免費（例如免門票的寺廟、公園、自由散步）才填 0。"
         "這是行前預算參考，不是即時報價，請在 notes 簡短寫出估算依據（例如「門票約 ¥2,000／人」）。"
         "不要捏造即時班次、空房或宣稱已訂位；不確定的內容在 notes 標示須自行查證。"
-        f"目的地：{country} {city}。日期：{start_date} 到 {end_date}。人數：{people_count}。"
+        "summary 欄位只需要一兩句話描述這趟行程的主題與亮點（例如城市、天數、風格），"
+        "不要提到日期或天數是怎麼決定的、是否跟旅客原本的要求一致——這個日期範圍是系統另外計算好的，"
+        "不一定是旅客原文裡寫的日期，你看不出兩者差異的原因，不要臆測或在 summary 裡解釋，系統會另外告知旅客。"
+        f"目的地：{country} {city}。系統安排的日期：{start_date} 到 {end_date}（已經是最終日期，直接照這個排即可）。人數：{people_count}。"
         f"總預算參考：{budget} TWD。旅客需求：{user_request}"
     )
     if GEMINI_API_KEY:

@@ -34,7 +34,10 @@
   function buildGallery(d) {
     const gallery = el('div', 'hd-gallery');
     const main = el('div', 'hd-main');
-    if (!d.images.length) {
+    // 載不出來的圖(網址失效、被擋)直接從相簿拿掉，不留一張破圖；全部都壞才顯示「沒有圖片」
+    const urls = d.images.slice();
+    const thumbNodes = [];
+    if (!urls.length) {
       main.appendChild(el('div', 'hotel-photo-empty', '沒有圖片'));
       gallery.appendChild(main);
       return gallery;
@@ -44,29 +47,50 @@
     image.referrerPolicy = 'no-referrer';
     main.appendChild(image);
     const thumbs = el('div', 'hd-thumbs');
-    const thumbNodes = d.images.map((url, index) => {
+    urls.forEach((url, index) => {
       const thumb = el('img');
       thumb.src = sized(url).replace(/=s1200$/, '=s200');
       thumb.alt = `${d.name} 第 ${index + 1} 張`;
       thumb.referrerPolicy = 'no-referrer';
-      thumb.addEventListener('click', () => show(index));
+      thumb.dataset.url = url;
+      thumb.addEventListener('click', () => show(thumbNodes.indexOf(thumb)));
+      thumb.addEventListener('error', () => drop(thumb.dataset.url));
       thumbs.appendChild(thumb);
-      return thumb;
+      thumbNodes.push(thumb);
     });
     let current = 0;
+    let arrows = [];
+    function drop(url) {
+      const index = urls.indexOf(url);
+      if (index < 0) return;
+      urls.splice(index, 1);
+      const node = thumbNodes.splice(index, 1)[0];
+      if (node) node.remove();
+      if (!urls.length) {
+        main.textContent = '';
+        main.appendChild(el('div', 'hotel-photo-empty', '沒有圖片'));
+        thumbs.remove();
+        return;
+      }
+      if (urls.length < 2) arrows.forEach((a) => a.remove());
+      show(Math.min(index < current ? current - 1 : current, urls.length - 1));
+    }
     function show(index) {
-      current = (index + d.images.length) % d.images.length;
-      image.src = sized(d.images[current]);
+      current = (index + urls.length) % urls.length;
+      image.dataset.url = urls[current];
+      image.src = sized(urls[current]);
       thumbNodes.forEach((node, i) => node.classList.toggle('active', i === current));
       thumbNodes[current].scrollIntoView({ block: 'nearest', inline: 'center' });
     }
-    if (d.images.length > 1) {
+    image.addEventListener('error', () => drop(image.dataset.url));
+    if (urls.length > 1) {
       [['prev', '‹', -1], ['next', '›', 1]].forEach(([cls, glyph, step]) => {
         const arrow = el('button', 'hd-arrow ' + cls, glyph);
         arrow.type = 'button';
         arrow.setAttribute('aria-label', step < 0 ? '上一張' : '下一張');
         arrow.addEventListener('click', () => show(current + step));
         main.appendChild(arrow);
+        arrows.push(arrow);
       });
     }
     gallery.append(main, thumbs);
@@ -501,8 +525,9 @@
     const canLoad = !!(d.property_token && query);
     const known = canLoad ? readReal(d, query) : null;  // 這間飯店的真實報價如果已經查過，直接用，不會先閃一個不同的數字
     const priceLabel = el('small', 'hd-price-label', known ? `${known.source} 最低價` : (canLoad ? '查詢各訂房網站報價中⋯⋯' : 'Google 參考價'));
-    const priceValue = el('span', '', money(known ? known.price : d.price));
-    price.append(priceLabel, el('br'), priceValue, el('small', '', rooms > 1 ? ' / 晚・每間' : ' / 晚'));
+    const noRef = !known && !(Number(d.price) > 0);  // Google 沒給這間的價格(例如日期超過 30 晚、或當天沒房)，不要顯示 NT$ 0
+    const priceValue = el('span', '', noRef ? '暫無報價' : money(known ? known.price : d.price));
+    price.append(priceLabel, el('br'), priceValue, noRef ? document.createTextNode('') : el('small', '', rooms > 1 ? ' / 晚・每間' : ' / 晚'));
     if (canLoad && !known) price.classList.add('is-ref');  // 報價還沒回來前，先用淡色顯示列表上的參考價
     side.appendChild(price);
     const totalText = (total) => (total ? `${rooms > 1 ? `${rooms} 間住宿期間約` : '住宿期間共'} ${money(total * rooms)}` : '');
@@ -530,7 +555,7 @@
     }, () => {
       price.classList.remove('is-ref');
       priceLabel.textContent = 'Google 參考價';
-      priceNote.textContent = '暫時查不到各訂房網站的即時報價，這個價格僅供參考，請以訂房網站為準。';
+      priceNote.textContent = noRef ? '這個日期查不到報價(住宿最多可查 30 晚，或當天已客滿)，請縮短日期或換日期再試。' : '暫時查不到各訂房網站的即時報價，這個價格僅供參考，請以訂房網站為準。';
       priceNote.hidden = false;
     }));
     const actions = el('div', 'hd-side-actions');  // 官網、地圖並排在同一排，不再各佔一整排
@@ -538,6 +563,11 @@
       const a = el('a', 'hd-btn primary', '前往飯店官網');
       a.href = d.website_url; a.target = '_blank'; a.rel = 'noopener';
       actions.appendChild(a);
+      // 官網網域到期、網站關閉的連結(按下去只會看到 404)就把按鈕拿掉；查不出來(逾時、被擋)就維持顯示
+      fetch('/api/hotel-link-check?url=' + encodeURIComponent(d.website_url))
+        .then((r) => r.json())
+        .then((r) => { if (r && r.alive === false) a.remove(); })
+        .catch(() => {});
     }
     const hotelName = d.original_name || d.name;
     const hotelLocation = d.address || (query && query.destination) || '';

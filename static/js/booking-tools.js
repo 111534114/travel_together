@@ -487,6 +487,7 @@
     if(!rangeMissing && values[end] && values[start] && (values[end]<values[start] || (kind==='hotel' && values[end]===values[start]))) {
       rangeError(kind,kind==='hotel'?'退房日期必須晚於入住':'回程不能早於去程');failed=true;
     }
+    if(kind==='hotel' && !rangeMissing && values.checkin && values.checkout && (new Date(values.checkout)-new Date(values.checkin))/86400000>30){rangeError(kind,'住宿最多可查 30 晚，請縮短入住日期範圍');failed=true;}
     if(kind!=='hotel' && values.from && values.from===values.to){error(get(ids[kind].to),'出發地與目的地不能相同');failed=true;}
     if(failed){form.querySelector('[aria-invalid=true]')?.focus();return;}
     if(mode)params.set('trip_mode',mode);

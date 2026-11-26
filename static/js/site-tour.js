@@ -21,6 +21,9 @@
   let overlay = null;
   let steps = [];
   let index = 0;
+  let playing = true;   // 自動播放：每一步停留幾秒就換下一步，可以暫停
+  let timer = null;
+  const stepDelay = (step) => 3500 + step.text.length * 70;  // 字多的步驟多停一下
 
   function visible(element) {
     const rect = element.getBoundingClientRect();
@@ -57,7 +60,27 @@
     return node;
   }
 
+  function clearTimer() { if (timer) { clearTimeout(timer); timer = null; } }
+
+  function schedule() {
+    clearTimer();
+    if (!overlay) return;
+    const bar = overlay.querySelector('.tour-progress');
+    bar.style.transition = 'none'; bar.style.width = '0';
+    if (!playing) return;
+    const delay = stepDelay(steps[index]);
+    requestAnimationFrame(() => requestAnimationFrame(() => { bar.style.transition = `width ${delay}ms linear`; bar.style.width = '100%'; }));
+    timer = setTimeout(() => go(1), delay);  // 最後一步播完就自動結束
+  }
+
+  function setPlaying(value) {
+    playing = value;
+    if (overlay) overlay.querySelector('[data-tour-play]').textContent = playing ? '暫停' : '繼續播放';
+    schedule();
+  }
+
   function close() {
+    clearTimer();
     if (overlay) overlay.remove();
     overlay = null;
     document.removeEventListener('keydown', onKey);
@@ -68,6 +91,7 @@
     if (event.key === 'Escape') close();
     if (event.key === 'ArrowRight') go(1);
     if (event.key === 'ArrowLeft') go(-1);
+    if (event.key === ' ') { event.preventDefault(); setPlaying(!playing); }
   }
 
   function go(step) {
@@ -119,6 +143,7 @@
     overlay.querySelector('[data-tour-prev]').disabled = index === 0;
     overlay.querySelector('[data-tour-next]').textContent = index === steps.length - 1 ? '完成' : '下一步';
     requestAnimationFrame(place);
+    schedule();
   }
 
   function start() {
@@ -127,6 +152,7 @@
     document.body.classList.remove('nav-open');
     steps = buildSteps();
     index = 0;
+    playing = true;
     overlay = el('div', 'tour-overlay');
     overlay.setAttribute('role', 'dialog');
     overlay.setAttribute('aria-label', '系統導覽');
@@ -137,12 +163,17 @@
     footer.append(el('span', 'tour-count'));
     const actions = el('div', 'tour-actions');
     const skip = el('button', 'tour-btn', '結束'); skip.type = 'button'; skip.addEventListener('click', close);
+    const play = el('button', 'tour-btn', '暫停'); play.type = 'button'; play.dataset.tourPlay = ''; play.addEventListener('click', () => setPlaying(!playing));
     const prev = el('button', 'tour-btn', '上一步'); prev.type = 'button'; prev.dataset.tourPrev = ''; prev.addEventListener('click', () => go(-1));
     const next = el('button', 'tour-btn tour-primary', '下一步'); next.type = 'button'; next.dataset.tourNext = ''; next.addEventListener('click', () => go(1));
-    actions.append(skip, prev, next);
+    actions.append(play, prev, next);
     footer.appendChild(actions);
     card.appendChild(footer);
-    overlay.append(spot, card);
+    const progress = el('div', 'tour-progress-track'); progress.appendChild(el('div', 'tour-progress'));
+    card.appendChild(progress);
+    // 隨時可以按的結束鈕：固定在畫面右上角，不跟著說明卡移動
+    const exit = el('button', 'tour-exit', '✕ 結束導覽'); exit.type = 'button'; exit.addEventListener('click', close);
+    overlay.append(spot, card, exit);
     overlay.addEventListener('mousedown', (event) => { if (event.target === overlay) close(); });
     document.body.appendChild(overlay);
     document.addEventListener('keydown', onKey);

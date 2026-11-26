@@ -129,13 +129,13 @@
           <h2>住宿搜尋結果</h2>
         </div>
       </div>
-      {% if hotel_source == 'db' %}<p class="live-note">{% if live_failed %}即時住宿報價暫時無法取得，以下是站內收錄的住宿，{% else %}以下是站內收錄的住宿，{% endif %}價格請向業者確認。</p>{% endif %}
+      {% if stay_too_long %}<p class="live-note">住宿最多可查 30 晚，請把入住與退房日期縮短到 30 晚以內再搜尋。</p>{% elif hotel_source == 'db' %}<p class="live-note">{% if live_failed %}即時住宿報價暫時無法取得，以下是站內收錄的住宿，{% else %}以下是站內收錄的住宿，{% endif %}價格請向業者確認。</p>{% endif %}
       <div class="hotel-list" data-hotel-query data-destination="{{ destination }}" data-checkin="{{ checkin }}" data-checkout="{{ checkout }}" data-adults="{{ party.adults_per_room }}" data-child-ages="{{ party.ages_per_room|join(',') }}" data-rooms="{{ rooms }}" data-party="{{ party_label }}" data-party-note="{{ party.note }}" data-total-adults="{{ party.adults }}" data-total-children="{{ party.children }}">
         {% for hotel in hotels %}
         <article class="hotel-row" data-detail='{{ hotel.detail|tojson }}'>
           <div class="hotel-photo" data-photos='{{ hotel.images|map(attribute="thumb")|list|tojson }}'>
             {% if hotel.images %}
-              <img src="{{ hotel.images[0].thumb }}" alt="{{ hotel.name }}" loading="lazy" referrerpolicy="no-referrer" onerror="this.replaceWith(Object.assign(document.createElement('div'), {className: 'hotel-photo-empty', textContent: '圖片無法載入'}))">
+              <img src="{{ hotel.images[0].thumb }}" alt="{{ hotel.name }}" loading="lazy" referrerpolicy="no-referrer">
               {% if hotel.images|length > 1 %}<button type="button" class="photo-nav prev" data-photo-dir="-1" aria-label="上一張">&#8249;</button><button type="button" class="photo-nav next" data-photo-dir="1" aria-label="下一張">&#8250;</button><span class="photo-count">1 / {{ hotel.images|length }}</span>{% endif %}
             {% else %}<div class="hotel-photo-empty">沒有圖片</div>{% endif %}
           </div>
@@ -170,6 +170,27 @@
   </main>
   </div>
   <script>
+    // 列表卡片的相片：載不出來的圖從輪播拿掉、換下一張；全部都壞才顯示「沒有圖片」
+    function dropBrokenPhoto(image) {
+      const box = image.closest('.hotel-photo');
+      if (!box) return;
+      const bad = image.getAttribute('src');
+      const photos = JSON.parse(box.dataset.photos || '[]').filter((url) => url !== bad);
+      box.dataset.photos = JSON.stringify(photos);
+      if (!photos.length) {
+        box.querySelectorAll('.photo-nav, .photo-count').forEach((node) => node.remove());
+        image.replaceWith(Object.assign(document.createElement('div'), { className: 'hotel-photo-empty', textContent: '沒有圖片' }));
+        return;
+      }
+      image.src = photos[0];
+      const count = box.querySelector('.photo-count');
+      if (count) count.textContent = '1 / ' + photos.length;
+      if (photos.length < 2) box.querySelectorAll('.photo-nav, .photo-count').forEach((node) => node.remove());
+    }
+    document.addEventListener('error', (event) => {
+      if (event.target instanceof HTMLImageElement && event.target.closest('.hotel-photo')) dropBrokenPhoto(event.target);
+    }, true);
+    document.querySelectorAll('.hotel-photo img').forEach((img) => { if (img.complete && img.naturalWidth === 0 && img.getAttribute('src')) dropBrokenPhoto(img); });
     document.addEventListener('click', (event) => {
       const button = event.target instanceof Element ? event.target.closest('[data-photo-dir]') : null;
       if (!button) return;

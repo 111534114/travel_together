@@ -85,12 +85,25 @@
         <h2>回程航班選項</h2>
         <p>{{ destination }} → {{ origin }} ・ 回程 {{ return_date }} ・ {{ pax }} 人{% if request.args.get('stops') == 'direct' %}・只顯示直飛{% endif %}</p>
       </div>
+      {% if separate_fallback %}<div class="step-banner"><p>Google 查不到這班去程配套的來回票，所以改列出 {{ return_date }} 的回程「單程」航班。這代表去程和回程要<b>分開購買</b>，下面的價格是回程單程價，不是來回總價。</p></div>{% endif %}
+      {% if separate_fallback %}
+      <div class="step-banner" style="flex-wrap: wrap; gap: 10px;">
+        <span class="step-badge">去程</span>
+        {% if outbound_single %}
+        <p style="flex: 1;"><b>{{ outbound_single.airline_name }} {{ outbound_single.flight_number }}</b>　{{ outbound_single.departure_time|hm }} {{ outbound_single.origin_city }} → {{ outbound_single.arrival_time|hm }} {{ outbound_single.destination_city }}・{{ origin }} → {{ destination }} {{ depart_date }}・單程價 {{ money(outbound_single.price * pax) }}</p>
+        {% if outbound_single.booking_token %}<a class="view-button" href="{{ url_for('visitor_flight_booking_redirect', **{'token': outbound_single.booking_token, 'from': origin, 'to': destination, 'depart': depart_date, 'return': '', 'pax': pax, 'fallback': skyscanner_url or ''}) }}" target="_blank" rel="noopener">單獨購買去程 →</a>{% endif %}
+        {% else %}
+        <p style="flex: 1;">{{ outbound_item.title if outbound_item else origin ~ ' → ' ~ destination }}・{{ depart_date }}。找不到這班去程的單程訂票資料。</p>
+        {% if skyscanner_url %}<a class="view-button" href="{{ skyscanner_url }}" target="_blank" rel="noopener">到比價網站找去程 →</a>{% endif %}
+        {% endif %}
+      </div>
+      {% endif %}
       <div class="flight-list">
         {% set return_min_price = return_flights|map(attribute='price')|min if return_flights else none %}
         {% for flight in return_flights %}
         <article class="flight-card">
 {% set fav = live_flight_favorite(flight, return_date, destination, origin, pax) %}{% include 'partials/booking_live_heart.html' %}
-          {% if flight.price == return_min_price %}<span class="flight-best-badge">最低來回總價</span>{% endif %}
+          {% if flight.price == return_min_price %}<span class="flight-best-badge">{% if separate_fallback %}最低單程價{% else %}最低來回總價{% endif %}</span>{% endif %}
           <div class="flight-airline">{% if flight.airline_logo %}<img class="airline-logo-img" src="{{ flight.airline_logo }}" alt="{{ flight.airline_name }}" loading="lazy">{% else %}<span class="airline-logo">{{ flight.airline_name[:1] }}</span>{% endif %}<div><b>{{ flight.airline_name }}</b><span>{{ flight.flight_number }}・{{ flight.cabin_class }}</span>{{ render_amenities(flight) }}</div></div>
           <div class="flight-route">
             <div class="flight-time"><b>{{ flight.departure_time|hm }}</b><span>{{ flight.origin_city }}</span></div>
@@ -98,7 +111,7 @@
             <div class="flight-time"><b>{{ flight.arrival_time|hm }}</b><span>{{ flight.destination_city }}</span></div>
           </div>
           <div class="flight-footer">
-            <span class="price">{{ money(flight.price * pax) }}<small>{{ pax }} 人・去程＋回程來回總價</small></span>
+            <span class="price">{{ money(flight.price * pax) }}<small>{{ pax }} 人・{% if separate_fallback %}回程單程價(去程另外買){% else %}去程＋回程來回總價{% endif %}</small></span>
             {% if flight.booking_token %}<a class="view-button" href="{{ url_for('visitor_flight_booking_redirect', **{'token': flight.booking_token, 'from': destination, 'to': origin, 'depart': return_date, 'return': '', 'pax': pax, 'fallback': skyscanner_url or ''}) }}" target="_blank" rel="noopener" data-flights='{{ (([outbound_item] if outbound_item else []) + [flight_trip_item(flight, return_date, pax, bundled=true)])|tojson }}'>選擇 →</a>{% elif skyscanner_url %}<a class="view-button" href="{{ skyscanner_url }}" target="_blank" rel="noopener">選擇 →</a>{% else %}<button class="view-button" type="button" onclick="alert('找不到這個航班的訂票連結，換一個試試。')">選擇航班</button>{% endif %}
           </div>
           {% include 'partials/flight_detail.html' %}

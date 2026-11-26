@@ -1,5 +1,6 @@
 from markupsafe import Markup  # 匯入 Markup，money() 輸出的 HTML 不要被跳脫
 import json  # 匯入 json 模組，解析來回票第二步帶回來的去程資料
+from concurrent.futures import ThreadPoolExecutor  # 日期列的價格同時查
 import time  # 匯入 time 模組，幣別匯率的快取過期判斷
 import os  # 匯入作業系統功能，用來判斷 Flask 開發伺服器是哪一個行程
 import re  # 匯入正規表示式模組，用來驗證註冊欄位格式
@@ -9,6 +10,7 @@ from booking_search import (
     TRAIN_TYPE_LABELS, apply_facets, apply_time_band, apply_value_range, booking_bp, facet_options,
     filter_prices, mark_saved_live_trains, price_buckets, price_range, time_band_options, value_range,
 )
+import link_check  # 飯店官網連結檢查
 import requests  # 匯入 requests，用來呼叫 LINE 的個人資料 API
 from datetime import datetime, timedelta
 from authlib.integrations.flask_client import OAuth  # 匯入 Authlib 的 Flask 整合，處理 Google 登入 OAuth 流程
@@ -480,9 +482,20 @@ def api_hotel_offers():
     return jsonify(offers=offers)
 
 
+@app.route("/api/hotel-link-check")  # 檢查飯店官網連結是否還有效：失效的連結詳情頁就隱藏「前往飯店官網」按鈕
+def api_hotel_link_check():
+    url = request.args.get("url", "").strip()
+    if len(url) > 500 or urlsplit(url).scheme not in ("http", "https"):
+        return jsonify(alive=True)
+    return jsonify(alive=link_check.check(url))
+
+
 @app.route("/visitor/hotels/detail")  # 飯店詳情整頁(點「查看詳情」開新分頁)：內容由前端從瀏覽器暫存讀取，不再多花 API 額度
 def visitor_hotel_detail():
     return render_template("hotel_detail.html")
+
+
+MAX_HOTEL_NIGHTS = 30  # 住宿即時報價最多可查的晚數
 
 
 @app.route("/visitor/hotels")  # 設定訪客住宿搜尋結果頁路由(從訪客頁面的住宿搜尋表單導入，帶入目的地/日期/人數)
@@ -508,7 +521,8 @@ def visitor_hotel_search():
     next_page_token = None
     live_failed = False
     page_token = request.args.get("page_token", "").strip() or None
-    if destination and nights and serpapi_hotels.is_configured():
+    stay_too_long = bool(nights and nights > MAX_HOTEL_NIGHTS)  # Google Hotels 超過 30 晚就查不到(實測 30 晚有結果、31 晚是 0 筆)，不浪費 API 額度
+    if destination and nights and not stay_too_long and serpapi_hotels.is_configured():
         live = serpapi_hotels.search_hotels(destination, checkin, checkout, party["adults_per_room"], page_token, party["ages_per_room"])
         if live and live["hotels"]:
             live_hotels, next_page_token = live["hotels"], live["next_page_token"]
@@ -565,7 +579,7 @@ def visitor_hotel_search():
     # 沒有連上 API(沒金鑰、查詢失敗)時，資料庫的住宿也用跟即時資料一樣的版面顯示
     cards = [_db_hotel_card(row, nights) for row in accommodations]
     serpapi_hotels.translate_names(cards)  # 資料庫裡少數英文名稱的住宿也翻成中文
-    return _render_live_hotels(cards, destination, checkin, checkout, guests, nights, None, party, source="db", live_failed=live_failed)
+    return _render_live_hotels(cards, destination, checkin, checkout, guests, nights, None, party, source="db", live_failed=live_failed, stay_too_long=stay_too_long)
 
 
 HOTEL_MAX_GUESTS = 60  # 住客上限(成人+兒童)，比照 Agoda；Trip.com 只有 8 人，太少
@@ -645,7 +659,7 @@ def _db_hotel_card(row, nights):
     }
 
 
-def _render_live_hotels(hotels, destination, checkin, checkout, guests, nights, next_page_token, party, source="live", live_failed=False):
+def _render_live_hotels(hotels, destination, checkin, checkout, guests, nights, next_page_token, party, source="live", live_failed=False, stay_too_long=False):
     star_facets = _hotel_facet(hotels, "star", lambda v: f"{v} 星級", sort_key=lambda o: -int(o["value"]))
     # 側邊欄不列「度假租屋」，只留「飯店」一個選項(結果裡有混到租屋時才有篩選意義)
     type_facets = [f for f in _hotel_facet(hotels, "property_type", lambda v: v) if f["value"] == "飯店"]
@@ -703,7 +717,7 @@ def _render_live_hotels(hotels, destination, checkin, checkout, guests, nights, 
         popular_facets=popular_facets, rating_facets=rating_facets,
         map_url="https://www.google.com/maps/search/?api=1&query=" + quote(f"{destination} 飯店"),
         next_page_token=next_page_token, accommodations=[],
-        party=party, rooms=party["rooms"], party_label=party["label"], hotel_source=source, live_failed=live_failed,
+        party=party, rooms=party["rooms"], party_label=party["label"], hotel_source=source, live_failed=live_failed, stay_too_long=stay_too_long,
     )
 
 
@@ -1069,18 +1083,35 @@ def visitor_flight_search():
                 r = base_return + timedelta(days=offset) if base_return else None
                 return {"depart": d.isoformat(), "return": r.isoformat() if r else ""}
 
+            def strip_lookup(offset):
+                d = base_depart + timedelta(days=offset)
+                r = base_return + timedelta(days=offset) if base_return else None
+                # r 有值時，SerpApi 直接回傳配好最便宜回程的真實來回總價，不用自己查兩段單程再加總。
+                # 偶爾單次查詢會逾時或被限流，所以失敗時再試一次，不要讓那天的價格留白。
+                for _attempt in range(2):
+                    price = _live_cheapest_price(origin, destination, d.isoformat(), pax, return_date=(r.isoformat() if r else None))
+                    if price is not None:
+                        return price
+                return None
+
+            # 6 個日期同時查(原本是一個一個等，慢又容易逾時)
+            today = datetime.now().date()
+            strip_offsets = [o for o in range(-3, 4) if o != 0 and base_depart + timedelta(days=o) >= today]  # 過去的日期查不到也不能訂，不查
+            if using_live_data:
+                with ThreadPoolExecutor(max_workers=6) as pool:
+                    strip_results = dict(zip(strip_offsets, pool.map(strip_lookup, strip_offsets)))
+            else:
+                strip_results = {}
             for offset in range(-3, 4):
+                if base_depart + timedelta(days=offset) < today:
+                    continue  # 日期列不顯示已經過去的日子
                 entry = shifted(offset)
                 d = base_depart + timedelta(days=offset)
                 r = base_return + timedelta(days=offset) if base_return else None
                 entry["label"] = f"{d.month}月{d.day}日" + (f"－{r.month}月{r.day}日" if r else "")
                 entry["selected"] = offset == 0
                 if using_live_data:
-                    if offset == 0:
-                        entry["price"] = strip_price
-                    else:
-                        # r 有值時，SerpApi 直接回傳配好最便宜回程的真實來回總價，不用自己查兩段單程再加總。
-                        entry["price"] = _live_cheapest_price(origin, destination, d.isoformat(), pax, return_date=(r.isoformat() if r else None))
+                    entry["price"] = strip_price if offset == 0 else strip_results.get(offset)
                 else:
                     entry["price"] = strip_price
                 date_strip.append(entry)
@@ -1153,10 +1184,38 @@ def visitor_flight_return_options():
         row["origin_city"] = _live_airport_label(row.get("origin_city"), destination)
         row["destination_city"] = _live_airport_label(row.get("destination_city"), origin)
 
+    return_flights = filter_prices(return_flights, 'price', 'duration_minutes', 'stops', cabin_field='cabin_class')
+    separate_fallback = False
+    outbound_single = None
+    if not return_flights and not request.args.get("stops"):
+        # Google 對少數去程(常見於便宜但轉機很久的組合)回「完全沒有結果」，實測就是沒有配套的來回票。
+        # 這時改列出回程當天的「單程」航班，讓旅客至少能分開買回程；價格是單程價，不是來回總價。
+        single, live = _live_flight_search(destination, origin, return_date, None, pax, cabin_class=cabin_query)
+        if live and single:
+            for row in single:
+                row["origin_city"] = _live_airport_label(row.get("origin_city"), destination)
+                row["destination_city"] = _live_airport_label(row.get("destination_city"), origin)
+            return_flights = filter_prices(single, 'price', 'duration_minutes', 'stops', cabin_field='cabin_class')
+            separate_fallback = bool(return_flights)
+        if separate_fallback and outbound_item:
+            # 去程也要能單獨買：查同一天的單程，用班號和起飛時間找出同一班，拿它的單程訂票資料
+            # 這類便宜組合常常不在 Google 預設的前幾筆裡，先用一般搜尋找，找不到再用「更多航班」(多花幾次額度)找
+            for want_more in (False, True):
+                outs, out_live = _live_flight_search(origin, destination, depart_date, None, pax, cabin_class=cabin_query, more=want_more)
+                for row in (outs if out_live else []):
+                    number = (row.get("flight_number") or "").strip()
+                    if number and number in outbound_item["title"] and format_hm(row.get("departure_time")) == outbound_item["start_time"]:
+                        row["origin_city"] = _live_airport_label(row.get("origin_city"), origin)
+                        row["destination_city"] = _live_airport_label(row.get("destination_city"), destination)
+                        outbound_single = row
+                        break
+                if outbound_single:
+                    break
+
     return render_template(
         "flight_return_options.html",
         origin=origin, destination=destination, depart_date=depart_date, return_date=return_date, pax=pax,
-        return_flights=filter_prices(return_flights, 'price', 'duration_minutes', 'stops', cabin_field='cabin_class'),
+        return_flights=return_flights, separate_fallback=separate_fallback, outbound_single=outbound_single,
         lookup_failed=False, skyscanner_url=skyscanner_url, outbound_item=outbound_item,
     )
 

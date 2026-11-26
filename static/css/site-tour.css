@@ -11,3 +11,8 @@
 .tour-btn { padding: 7px 12px; color: #426064; background: #fff; border: 1px solid #C6DCDF; border-radius: 8px; font: inherit; font-size: 13px; font-weight: 700; cursor: pointer; }
 .tour-btn:disabled { opacity: .45; cursor: default; }
 .tour-primary { color: #fff; background: #4B838B; border-color: #4B838B; }
+
+.tour-progress-track { height: 3px; margin: 12px -18px -16px; background: #E6EEF0; border-radius: 0 0 12px 12px; overflow: hidden; }
+.tour-progress { width: 0; height: 100%; background: #4B838B; }
+.tour-exit { position: fixed; top: 16px; right: 16px; z-index: 3001; padding: 10px 18px; color: #fff; background: #B23B3B; border: 2px solid #fff; border-radius: 999px; box-shadow: 0 6px 20px rgba(0, 0, 0, .35); font: inherit; font-size: 15px; font-weight: 800; cursor: pointer; }
+.tour-exit:hover { background: #8F2D2D; }

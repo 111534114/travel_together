@@ -17,7 +17,7 @@
   <script src="https://cdnjs.cloudflare.com/ajax/libs/flatpickr/4.6.13/l10n/zh-tw.js" defer></script>
   <link rel="stylesheet" href="{{ url_for('static', filename='css/site-shell.css') }}">
   <style>
-    :root { --purple: #4B838B; --purple-light: #57A2AC; --purple-soft: #EDF6F7; --ink: #23373A; --muted: #708284; --line: #E1EBEC; --page: #EAF8F9; }
+    :root { --purple: #4B838B; --purple-light: #57A2AC; --purple-soft: #EDF6F7; --ink: #23373A; --muted: #708284; --line: #E1EBEC; --page: #EAF7F7; }
     * { box-sizing: border-box; }
     html { scroll-behavior: smooth; }
     body { margin: 0; background: var(--page); color: var(--ink); font-family: "Noto Sans TC", "Segoe UI", sans-serif; }
@@ -257,30 +257,51 @@
     .planning-card .view-button { flex: 0 0 auto; }
     @media (max-width: 560px) { .planning-card { flex-direction: column; align-items: stretch; } }
     .plan-flow b { display: block; color: var(--ink, #1f2a2c); font-size: 15px; }
-    .ai-home { margin: 28px 0 0; padding: 24px 26px; background: linear-gradient(135deg, #ffffff 0%, #EAF7F8 100%); border: 1px solid #C6DCDF; border-radius: 12px; box-shadow: 0 8px 22px rgba(45, 37, 68, .06); }
-    .ai-home h2 { margin: 0; font-size: 24px; }
-    .ai-home-hint { margin: 6px 0 14px; color: var(--muted); font-size: 14px; }
-    .ai-home-form textarea { width: 100%; box-sizing: border-box; padding: 14px 16px; font: inherit; font-size: 16px; line-height: 1.6; resize: vertical; background: #fff; border: 1px solid #C6DCDF; border-radius: 10px; }
-    .ai-home-form textarea:focus { outline: none; border-color: var(--purple); box-shadow: 0 0 0 3px rgba(15, 124, 140, .15); }
-    .ai-home-actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 10px; }
-    .ai-voice-btn, .ai-submit-btn { padding: 10px 18px; font: inherit; font-weight: 700; border-radius: 8px; cursor: pointer; }
-    .ai-voice-btn { color: var(--purple); background: #fff; border: 1px solid #C6DCDF; }
-    .ai-voice-btn:hover { border-color: var(--purple); }
-    .ai-voice-btn.is-listening { color: #fff; background: #D9534F; border-color: #D9534F; animation: ai-pulse 1.2s ease-in-out infinite; }
-    @keyframes ai-pulse { 0%, 100% { box-shadow: 0 0 0 0 rgba(217, 83, 79, .45); } 50% { box-shadow: 0 0 0 8px rgba(217, 83, 79, 0); } }
-    .ai-submit-btn { color: #fff; background: var(--purple); border: 1px solid var(--purple); }
-    .ai-submit-btn:hover { filter: brightness(1.08); }
-    .ai-home-examples { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 12px; color: var(--muted); font-size: 13px; }
-    .ai-home-examples button { padding: 5px 12px; color: var(--purple); font: inherit; font-size: 13px; background: #fff; border: 1px solid #C6DCDF; border-radius: 999px; cursor: pointer; }
-    .ai-home-examples button:hover { color: #fff; background: var(--purple); border-color: var(--purple); }
-    .ai-home-status { min-height: 1em; margin: 8px 0 0; color: var(--muted); font-size: 13px; }
+    .ai-home { --ai-accent: #4F8585; --ai-ink: #355B55; --ai-muted: #71827E; --ai-border: #C3D9CF; position: relative; overflow: hidden; margin: 28px 0 0; padding: 26px 28px; background: #D6E8DF; border: 1px solid var(--ai-border); border-radius: 16px; box-shadow: 0 10px 26px rgba(52, 79, 76, .12); }
+    .ai-home::before, .ai-home::after { content: '✦'; position: absolute; color: rgba(79,133,133,.45); font-size: 20px; animation: ai-twinkle 2.6s ease-in-out infinite; }
+    .ai-home::before { top: 14px; right: 90px; animation-delay: .3s; }
+    .ai-home::after { bottom: 18px; right: 36px; font-size: 14px; animation-delay: 1.1s; }
+    @keyframes ai-twinkle { 0%, 100% { opacity: .3; transform: scale(.8) rotate(0deg); } 50% { opacity: 1; transform: scale(1.2) rotate(15deg); } }
+    .ai-home h2 { margin: 0; color: var(--ai-ink); font-size: 25px; }
+    .ai-home h2 .ai-home-sparkle { display: inline-block; animation: ai-spin-bounce 2.4s ease-in-out infinite; }
+    @keyframes ai-spin-bounce { 0%, 100% { transform: rotate(0deg) scale(1); } 25% { transform: rotate(-12deg) scale(1.15); } 50% { transform: rotate(0deg) scale(1); } 75% { transform: rotate(12deg) scale(1.15); } }
+    .ai-home-hint { position: relative; margin: 6px 0 14px; color: var(--ai-muted); font-size: 14px; }
+    .ai-home-form textarea { position: relative; width: 100%; box-sizing: border-box; padding: 14px 16px; font: inherit; font-size: 16px; line-height: 1.6; resize: vertical; color: var(--ai-ink); background: #FFFFFF; border: 1px solid var(--ai-border); border-radius: 10px; box-shadow: 0 4px 12px rgba(52,79,76,.08); }
+    .ai-home-form textarea:focus { outline: none; border-color: var(--ai-accent); box-shadow: 0 0 0 3px rgba(79,133,133,.18); }
+    .ai-home-actions { position: relative; display: flex; justify-content: flex-end; gap: 10px; margin-top: 10px; }
+    .ai-voice-btn, .ai-submit-btn { padding: 10px 18px; font: inherit; font-weight: 700; border-radius: 999px; cursor: pointer; transition: transform .15s ease, filter .15s ease; }
+    .ai-voice-btn { color: var(--ai-ink); background: rgba(255,255,255,.6); border: 2px solid var(--ai-border); }
+    .ai-voice-btn:hover { background: #fff; border-color: var(--ai-accent); transform: translateY(-2px); }
+    .ai-voice-btn.is-listening { color: #fff; background: #B4584F; border-color: #B4584F; animation: ai-pulse 1.2s ease-in-out infinite; }
+    @keyframes ai-pulse { 0%, 100% { box-shadow: 0 0 0 0 rgba(180, 88, 79, .4); } 50% { box-shadow: 0 0 0 8px rgba(180, 88, 79, 0); } }
+    .ai-submit-btn { color: #fff; background: var(--ai-accent); border: none; box-shadow: 0 6px 16px rgba(52,79,76,.22); animation: ai-nudge 3.2s ease-in-out infinite; }
+    .ai-submit-btn:hover { animation: none; transform: translateY(-2px) scale(1.03); filter: brightness(1.06); }
+    @keyframes ai-nudge {
+      0%, 60%, 100% { transform: translateY(0) rotate(0deg); }
+      68% { transform: translateY(-7px) rotate(-2deg); }
+      76% { transform: translateY(0) rotate(2deg); }
+      84% { transform: translateY(-3px) rotate(-1deg); }
+      92% { transform: translateY(0) rotate(0deg); }
+    }
+    .ai-home-examples { position: relative; display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 12px; color: var(--ai-muted); font-size: 13px; }
+    .ai-home-examples button { padding: 5px 12px; color: var(--ai-ink); font: inherit; font-size: 13px; background: rgba(255,255,255,.65); border: 1px solid var(--ai-border); border-radius: 999px; cursor: pointer; transition: transform .15s ease, background .15s ease; animation: ai-nudge 3.2s ease-in-out infinite; }
+    .ai-home-examples button:hover { color: #fff; background: var(--ai-accent); border-color: var(--ai-accent); transform: translateY(-2px); animation: none; }
+    .ai-home-examples button:nth-child(2) { animation-delay: .25s; }
+    .ai-home-examples button:nth-child(3) { animation-delay: .5s; }
+    .ai-home-examples button:nth-child(4) { animation-delay: .75s; }
+    .ai-home-status { position: relative; min-height: 1em; margin: 8px 0 0; color: var(--ai-muted); font-size: 13px; }
     .visually-hidden { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
     @media (max-width: 560px) { .ai-home { padding: 18px 16px; } .ai-home-actions { flex-direction: column; } }
-    .quick-create { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 10px; margin-top: 16px; padding-top: 14px; border-top: 1px dashed #C6DCDF; }
-    .quick-create-title { align-self: center; color: var(--muted); font-size: 14px; font-weight: 700; }
-    .quick-create label { display: grid; gap: 4px; color: var(--muted); font-size: 12px; font-weight: 700; }
-    .quick-create input { padding: 8px 10px; font: inherit; font-size: 14px; background: #fff; border: 1px solid #C6DCDF; border-radius: 8px; }
+    @media (prefers-reduced-motion: reduce) {
+      .ai-home::before, .ai-home::after, .ai-home h2 .ai-home-sparkle, .ai-submit-btn, .ai-home-examples button { animation: none; }
+    }
+    .quick-create { position: relative; display: flex; flex-wrap: wrap; align-items: flex-end; gap: 10px; margin-top: 16px; padding-top: 14px; border-top: 1px dashed var(--ai-border); }
+    .quick-create-title { align-self: center; color: var(--ai-muted); font-size: 14px; font-weight: 700; }
+    .quick-create label { display: grid; gap: 4px; color: var(--ai-muted); font-size: 12px; font-weight: 700; }
+    .quick-create input { padding: 8px 10px; font: inherit; font-size: 14px; color: var(--ai-ink); background: #FFFFFF; border: 1px solid var(--ai-border); border-radius: 8px; box-shadow: 0 3px 10px rgba(52,79,76,.06); }
     .quick-create input[type=number] { width: 72px; }
+    .ai-home .quick-create .view-button { color: #fff; background: var(--ai-accent); font-weight: 800; box-shadow: 0 6px 16px rgba(52,79,76,.22); transition: transform .15s ease; }
+    .ai-home .quick-create .view-button:hover { transform: translateY(-2px) scale(1.03); filter: brightness(1.06); }
     @media (max-width: 560px) { .quick-create label { flex: 1 1 40%; } .quick-create input { width: 100%; box-sizing: border-box; } }
     .featured-trips { margin: 28px 0 40px; }
     .featured-trips .trip-intro { display: -webkit-box; margin: 0 0 12px; overflow: hidden; color: #4B5D60; font-size: 14px; line-height: 1.6; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
@@ -429,7 +450,7 @@
       {% endif %}
     </section>
     <section class="ai-home" id="ai-home" aria-labelledby="ai-home-title">
-      <h2 id="ai-home-title">✨ 讓 AI 幫你排行程</h2>
+      <h2 id="ai-home-title"><span class="ai-home-sparkle">✨</span> 讓 AI 幫你排行程</h2>
       <p class="ai-home-hint">說說你想去哪裡、玩幾天、喜歡什麼、預算多少，AI 會直接幫你建立行程並排好每一天，之後再到行程頁微調。沒寫日期就預設兩週後出發、玩 3 天。</p>
       {% if is_member %}
       <form method="post" action="{{ url_for('member.ai_create_trip') }}" class="ai-home-form" id="aiHomeForm">

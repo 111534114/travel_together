@@ -6,262 +6,605 @@
 <link rel="icon" type="image/png" href="{{ url_for('static', filename='images/logo.png') }}">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Klee+One:wght@400;600&family=Noto+Sans+TC:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Huninn&family=Noto+Sans+TC:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <style>
     :root {
-        --paper: #FBF3E6; --paper-deep: #F2E4CC; --ink: #4A3B2E; --muted: #8A7A66;
-        --red: #C25B44; --blue: #7FA2C4; --pink: #E39FAE; --yellow: #E2B559; --green: #8FAE82; --purple: #AD95C9;
-        --border: #D9C6A3;
+        --paper: #FFFCF6; --ink: #3E3A39;
+        --coral: #E2543C; --yellow: #F5B23A; --blue: #4F9FB8; --green: #6EA86B;
+        --coral-soft: #FBDCD2; --yellow-soft: #FCEBC4; --blue-soft: #DAEDF1; --green-soft: #E2EEDD;
+        --nav-h: 108px;
     }
+    @media (min-width: 640px) { :root { --nav-h: 64px; } }
     * { box-sizing: border-box; }
-    body { margin: 0; font-family: 'Noto Sans TC', 'Microsoft JhengHei', sans-serif; color: var(--ink); background: #EFE6D4; }
-    .stamp-font { font-family: 'Klee One', 'Noto Sans TC', sans-serif; }
-    .toolbar { position: sticky; top: 0; z-index: 20; display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 10px 12px; padding: 14px 24px; background: #fff; border-bottom: 1px solid var(--border); }
-    .toolbar a, .toolbar button { font: inherit; font-weight: 700; font-size: 14px; padding: 9px 18px; border-radius: 10px; border: 1px solid var(--red); cursor: pointer; text-decoration: none; }
-    .toolbar .ghost { background: #fff; color: var(--red); }
-    .toolbar .primary { background: var(--red); color: #fff; }
-    .toolbar-hint { flex: 1; min-width: 0; font-size: 12.5px; color: var(--muted); text-align: center; padding: 0 12px; }
-    .toolbar-actions { display: flex; align-items: center; gap: 10px; }
+    body { margin: 0; font-family: 'Huninn', 'Noto Sans TC', 'Microsoft JhengHei', sans-serif; color: var(--ink); background: var(--paper); line-height: 1.6; }
+    h1, h2, h3 { margin: 0; }
+    section[id] { scroll-margin-top: calc(var(--nav-h) + 12px); }
+    .card { background: #fff; border: 3px solid var(--ink); border-radius: 24px; }
 
-    .book-wrap { max-width: 860px; margin: 24px auto 20px; padding: 0 20px; }
+    /* 頂端固定選單 */
+    .top-nav { position: sticky; top: 0; z-index: 30; background: var(--paper); border-bottom: 3px solid var(--ink); }
+    .top-nav-row { display: flex; align-items: center; gap: 10px; padding: 10px 16px; }
+    .top-nav .brand { display: flex; align-items: center; gap: 8px; font-weight: 700; font-size: 15px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .top-nav .brand .logo-dot { flex-shrink: 0; width: 30px; height: 30px; border-radius: 50%; background: var(--coral); border: 3px solid var(--ink); display: flex; align-items: center; justify-content: center; font-size: 15px; }
+    .top-nav-actions { margin-left: auto; display: flex; gap: 8px; flex-shrink: 0; }
+    .icon-btn { font: inherit; font-size: 16px; width: 38px; height: 38px; border-radius: 50%; border: 3px solid var(--ink); background: #fff; cursor: pointer; display: flex; align-items: center; justify-content: center; }
+    .icon-btn:active { transform: translateY(1px); }
+    .nav-tabs { display: flex; gap: 8px; overflow-x: auto; padding: 0 16px 10px; }
+    .nav-tabs::-webkit-scrollbar { display: none; }
+    .nav-tab { font: inherit; font-weight: 700; font-size: 13.5px; white-space: nowrap; padding: 7px 16px; border-radius: 999px; border: 3px solid var(--ink); background: #fff; color: var(--ink); cursor: pointer; }
+    .nav-tab.is-active { background: var(--ink); color: var(--paper); }
+    [data-tab-panel] { display: none; }
+    [data-tab-panel].is-active-tab { display: block; }
 
-    /* 翻書舞台：每一頁疊在同一個位置，翻頁時用 3D 旋轉把目前這頁翻開 */
-    .book-stage { position: relative; min-height: 640px; perspective: 2200px; }
-    .book-page {
-        position: absolute; inset: 0; overflow-y: auto;
-        background: var(--paper); border: 1px solid var(--border); border-radius: 4px;
-        box-shadow: 0 14px 36px rgba(74,59,46,.18);
-        transform-origin: left center; transform-style: preserve-3d; backface-visibility: hidden;
-        transition: transform .75s cubic-bezier(.45,.05,.2,1);
+    main { max-width: 760px; margin: 0 auto; padding: 18px 16px 60px; }
+    .panel { padding: 24px 18px; margin-bottom: 22px; }
+    .panel-head { display: flex; align-items: center; gap: 10px; margin-bottom: 18px; }
+    .panel-head h2 { font-size: 19px; }
+    .panel-head .count-badge { margin-left: auto; font-size: 12.5px; font-weight: 700; background: var(--yellow-soft); border: 2px solid var(--ink); border-radius: 999px; padding: 3px 11px; }
+
+    /* 首頁：插畫＋標題＋倒數 */
+    .hero {
+        text-align: center;
+        background-image: radial-gradient(var(--coral-soft) 3px, transparent 3px), radial-gradient(var(--blue-soft) 3px, transparent 3px);
+        background-size: 48px 48px; background-position: 0 0, 24px 24px;
     }
-    .book-page.is-flipped { transform: rotateY(-178deg); box-shadow: none; }
+    .hero-illustration { width: 100%; max-width: 420px; margin: 0 auto 16px; border: 3px solid var(--ink); border-radius: 28px; overflow: hidden; background: var(--blue-soft); }
+    .hero-illustration svg { width: 100%; height: auto; display: block; }
+    .tag-pill { display: inline-block; font-size: 13px; font-weight: 700; background: var(--coral-soft); border: 3px solid var(--coral); border-radius: 999px; padding: 4px 16px; margin-bottom: 10px; }
+    .hero h1 { position: relative; display: inline-block; font-size: 30px; margin-bottom: 8px; }
+    .sparkle { position: absolute; font-size: 16px; animation: twinkle 2.2s ease-in-out infinite; }
+    .sparkle-1 { top: -14px; right: -22px; }
+    .sparkle-2 { bottom: -6px; left: -26px; font-size: 13px; animation-delay: .7s; }
+    @keyframes twinkle { 0%, 100% { opacity: .35; transform: scale(.75) rotate(0deg); } 50% { opacity: 1; transform: scale(1.15) rotate(12deg); } }
+    .hero .date-range { font-size: 14px; color: var(--ink); opacity: .75; margin-bottom: 18px; }
+    .hero .date-range b { font-weight: 700; opacity: 1; }
+    .countdown { display: flex; justify-content: center; gap: 10px; margin-bottom: 10px; flex-wrap: wrap; }
+    .countdown-box { width: 68px; background: #fff; border: 3px solid var(--ink); border-radius: 16px; padding: 8px 0; text-align: center; }
+    .countdown-box:nth-child(1) { background: var(--coral-soft); border-color: var(--coral); }
+    .countdown-box:nth-child(2) { background: var(--yellow-soft); border-color: var(--yellow); }
+    .countdown-box:nth-child(3) { background: var(--blue-soft); border-color: var(--blue); }
+    .countdown-box:nth-child(4) { background: var(--green-soft); border-color: var(--green); }
+    .countdown-box span { display: block; font-size: 26px; font-weight: 700; }
+    .countdown-box small { font-size: 11.5px; opacity: .7; }
+    .countdown-note { font-size: 13px; opacity: .7; margin-bottom: 20px; }
+    .countdown-note.is-started { font-weight: 700; opacity: 1; color: var(--coral); }
+    .quick-stats { display: flex; justify-content: center; flex-wrap: wrap; gap: 10px; }
+    .quick-stats span { font-size: 13px; font-weight: 700; background: var(--green-soft); border: 3px solid var(--green); border-radius: 999px; padding: 5px 14px; }
+    .quick-stats .stat-budget { background: var(--coral-soft); border-color: var(--coral); }
+    .quick-stats .stat-days { background: var(--blue-soft); border-color: var(--blue); }
 
-    .book-nav { display: flex; align-items: center; justify-content: center; gap: 16px; margin: 18px 0 40px; }
-    .book-nav button { font: inherit; font-weight: 700; font-size: 20px; width: 42px; height: 42px; border-radius: 50%; border: 1px solid var(--red); color: var(--red); background: #fff; cursor: pointer; }
-    .book-nav button:disabled { opacity: .3; cursor: default; }
-    .book-nav .count { font-size: 13.5px; color: var(--muted); min-width: 70px; text-align: center; }
+    /* 航班卡片 */
+    .flight-card { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 16px; padding: 16px; border: 3px solid var(--ink); border-radius: 20px; background: var(--blue-soft); margin-bottom: 14px; }
+    .flight-card .leg-tag { font-size: 12px; font-weight: 700; background: var(--ink); color: var(--paper); border-radius: 999px; padding: 3px 12px; }
+    .flight-card .flight-route { font-size: 17px; font-weight: 700; display: flex; align-items: center; gap: 8px; width: 100%; }
+    .flight-card .flight-meta { font-size: 13px; opacity: .8; display: flex; flex-wrap: wrap; gap: 4px 12px; width: 100%; }
+    .empty-state { text-align: center; padding: 26px 16px; color: var(--ink); opacity: .65; font-size: 14px; }
 
-    /* 封面：仿旅遊手冊書封 */
-    .cover { position: relative; padding: 56px 40px 44px; text-align: center; background: var(--paper); border-bottom: 3px double var(--border); }
-    .cover::before, .cover::after { content: '✦'; position: absolute; top: 18px; color: var(--border); font-size: 14px; }
-    .cover::before { left: 20px; } .cover::after { right: 20px; }
-    .cover .eyebrow { margin: 0 0 10px; letter-spacing: .3em; font-size: 12px; color: var(--muted); }
-    .cover h1 { margin: 0 0 6px; font-size: 44px; font-weight: 800; color: var(--red); letter-spacing: .04em; }
-    .cover .sub { margin: 0 0 20px; font-size: 13px; letter-spacing: .25em; color: var(--muted); text-transform: uppercase; }
-    .cover .date-ribbon { display: inline-block; position: relative; margin: 0 0 20px; padding: 7px 26px; font-size: 14px; font-weight: 700; color: #fff; background: var(--blue); }
-    .cover .date-ribbon::before, .cover .date-ribbon::after { content: ''; position: absolute; top: 0; border-top: 15px solid var(--blue); }
-    .cover .date-ribbon::before { left: -14px; border-left: 14px solid transparent; }
-    .cover .date-ribbon::after { right: -14px; border-right: 14px solid transparent; }
-    .cover .meta { display: flex; flex-wrap: wrap; justify-content: center; gap: 10px 16px; font-size: 14px; color: var(--ink); margin: 0 0 16px; }
-    .cover .meta span { background: #fff; border: 1px solid var(--border); border-radius: 999px; padding: 4px 12px; }
-    .cover .intro { margin: 14px auto 0; max-width: 56ch; line-height: 1.8; color: var(--muted); font-size: 13.5px; }
-    .cover-image { width: calc(100% - 80px); height: 220px; object-fit: cover; display: block; margin: 0 auto 28px; border: 6px solid #fff; border-radius: 2px; box-shadow: 0 8px 20px rgba(74,59,46,.22); transform: rotate(-1deg); }
-    .cover-fallback { font-size: 48px; margin: 0 0 20px; letter-spacing: 10px; }
-    .hint { position: absolute; bottom: 14px; left: 0; right: 0; text-align: center; font-size: 12px; color: var(--muted); }
+    /* 行程：日期切換 + 時間軸 */
+    .day-tabs { display: flex; gap: 8px; overflow-x: auto; padding-bottom: 4px; margin-bottom: 18px; }
+    .day-tab { font: inherit; flex-shrink: 0; text-align: center; font-weight: 700; font-size: 13px; padding: 8px 16px; border-radius: 16px; border: 3px solid var(--ink); background: #fff; cursor: pointer; }
+    .day-tab small { display: block; font-weight: 500; font-size: 10.5px; opacity: .7; }
+    .day-tab.is-active { background: var(--coral); color: #fff; }
+    .day-tab.is-active.bounce { animation: tab-bounce .35s ease; }
+    @keyframes tab-bounce { 0% { transform: scale(1); } 45% { transform: scale(1.14); } 100% { transform: scale(1); } }
 
-    .members { padding: 20px 40px; border-bottom: 1px dashed var(--border); display: flex; flex-wrap: wrap; gap: 10px 14px; align-items: center; background: var(--paper-deep); }
-    .members h2 { margin: 0 18px 0 0; font-size: 13px; color: var(--muted); font-weight: 700; }
-    .member-chip { display: inline-flex; align-items: center; gap: 6px; font-size: 13.5px; padding: 5px 13px; border-radius: 999px; background: #fff; border: 1px solid var(--border); color: var(--ink); }
-    .member-chip small { color: var(--muted); }
+    .day-panel { display: none; }
+    .day-panel.is-active { display: block; }
+    .stay-callout { display: flex; gap: 10px; align-items: flex-start; background: var(--green-soft); border: 3px solid var(--ink); border-radius: 18px; padding: 12px 14px; margin-bottom: 14px; }
+    .stay-callout .emoji { font-size: 20px; }
+    .stay-callout b { font-size: 14px; }
+    .stay-callout .address { font-size: 12.5px; opacity: .8; margin-top: 2px; }
 
-    /* 每日行程：仿手帳內頁 */
-    .day-block { position: relative; padding: 32px 40px 28px; }
-    .day-block::before { content: ''; position: absolute; top: 0; left: 40px; width: 70px; height: 22px; background: rgba(226,181,89,.45); transform: rotate(-2deg); }
-    .day-heading { display: flex; align-items: center; gap: 14px; margin-bottom: 20px; }
-    .day-heading .stamp { display: inline-flex; align-items: center; justify-content: center; width: 58px; height: 58px; border: 2px solid var(--red); border-radius: 50%; color: var(--red); font-weight: 800; font-size: 13px; line-height: 1.2; text-align: center; transform: rotate(-6deg); flex-shrink: 0; }
-    .day-heading .date { font-size: 15px; color: var(--muted); font-weight: 600; }
-    .item { display: flex; gap: 16px; padding: 14px 16px; margin-bottom: 10px; background: #fff; border: 1px solid var(--border); border-left: 4px solid var(--blue); border-radius: 6px; }
-    .item.type-attraction { border-left-color: var(--blue); }
-    .item.type-restaurant { border-left-color: var(--pink); }
-    .item.type-accommodation { border-left-color: var(--purple); }
-    .item.type-transport { border-left-color: var(--green); }
-    .item.type-shopping, .item.type-free_time { border-left-color: var(--yellow); }
-    .item .time { flex: 0 0 82px; font-weight: 700; color: var(--red); font-size: 13.5px; white-space: nowrap; }
-    .item .body { flex: 1; min-width: 0; }
-    .item .title-row { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; font-weight: 700; font-size: 16px; }
-    .item .type-tag { font-size: 11.5px; font-weight: 700; color: #fff; padding: 2px 10px; border-radius: 999px; background: var(--blue); }
-    .item.type-restaurant .type-tag { background: var(--pink); }
-    .item.type-accommodation .type-tag { background: var(--purple); }
-    .item.type-transport .type-tag { background: var(--green); }
-    .item.type-shopping .type-tag, .item.type-free_time .type-tag { background: var(--yellow); }
-    .item .address, .item .notes { margin: 5px 0 0; font-size: 13px; color: var(--muted); line-height: 1.6; }
-    .item .address a { color: var(--blue); text-decoration: none; font-weight: 600; }
-    .item .address a:hover { text-decoration: underline; }
-    .item .notes { font-style: italic; }
-    .empty-day { color: var(--muted); font-size: 14px; }
+    .timeline { position: relative; padding-left: 20px; }
+    .timeline::before { content: ''; position: absolute; left: 5px; top: 6px; bottom: 6px; width: 3px; background: var(--ink); opacity: .2; border-radius: 3px; }
+    .timeline-item { position: relative; margin-bottom: 16px; }
+    .timeline-item::before { content: ''; position: absolute; left: -20px; top: 6px; width: 13px; height: 13px; border-radius: 50%; background: var(--coral); border: 3px solid var(--ink); }
+    .timeline-item.type-attraction::before { background: var(--blue); }
+    .timeline-item.type-transport::before { background: var(--yellow); }
+    .timeline-item.type-restaurant::before { background: var(--coral); }
+    .timeline-item .time { font-size: 12.5px; font-weight: 700; opacity: .7; margin-bottom: 3px; }
+    .timeline-item .item-card { border: 3px solid var(--ink); border-radius: 18px; padding: 12px 14px; background: #fff; }
+    .timeline-item .title-row { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
+    .timeline-item .title-row b { font-size: 15.5px; flex: 1; min-width: 0; }
+    .type-tag { font-size: 11px; font-weight: 700; padding: 2px 10px; border-radius: 999px; border: 2px solid var(--ink); background: var(--blue-soft); white-space: nowrap; }
+    .timeline-item.type-restaurant .type-tag { background: var(--coral-soft); }
+    .timeline-item.type-transport .type-tag { background: var(--yellow-soft); }
+    .timeline-item.type-shopping .type-tag, .timeline-item.type-free_time .type-tag, .timeline-item.type-meeting .type-tag, .timeline-item.type-other .type-tag { background: var(--green-soft); }
+    .star-btn { font: inherit; font-size: 16px; line-height: 1; border: none; background: none; cursor: pointer; padding: 2px; flex-shrink: 0; }
+    .must-tag { font-size: 11px; font-weight: 700; padding: 2px 10px; border-radius: 999px; background: var(--coral-soft); color: var(--ink); border: 2px solid var(--coral); display: none; }
+    .timeline-item.is-starred .must-tag { display: inline-block; }
+    .timeline-item.is-starred .item-card { background: var(--coral-soft); }
+    .item-card .address, .item-card .notes { font-size: 12.5px; opacity: .8; margin: 5px 0 0; }
+    .item-card .address a { color: var(--ink); font-weight: 700; text-decoration: underline; }
+    .empty-day { text-align: center; opacity: .6; font-size: 13.5px; padding: 20px 0; }
 
-    @media (max-width: 640px) {
-        .book-stage { min-height: 720px; }
-        .cover, .day-block { padding-left: 22px; padding-right: 22px; }
-        .cover h1 { font-size: 32px; }
-        .toolbar-hint { display: none; }
+    /* 清單：出發前清單／行李清單 */
+    .checklist-group { margin-bottom: 18px; }
+    .checklist-group h3 { font-size: 14px; margin-bottom: 8px; opacity: .85; }
+    .checklist { list-style: none; margin: 0 0 8px; padding: 0; }
+    .checklist li { display: flex; align-items: center; gap: 10px; padding: 9px 4px; border-bottom: 2px dashed var(--ink); font-size: 14px; }
+    .checklist li:last-child { border-bottom: none; }
+    .checklist input[type="checkbox"] { width: 20px; height: 20px; flex-shrink: 0; accent-color: var(--coral); }
+    .checklist label { flex: 1; cursor: pointer; }
+    .checklist input:checked ~ label { text-decoration: line-through; opacity: .5; }
+    .add-item-row { display: flex; gap: 8px; }
+    .add-item-row input[type="text"] { flex: 1; font: inherit; font-size: 13.5px; padding: 8px 12px; border: 3px solid var(--ink); border-radius: 12px; background: #fff; color: var(--ink); }
+    .add-item-row button { font: inherit; font-weight: 700; font-size: 13px; padding: 8px 14px; border: 3px solid var(--ink); border-radius: 12px; background: var(--yellow); cursor: pointer; }
+    .remove-item-btn { font: inherit; font-size: 15px; border: none; background: none; cursor: pointer; opacity: .5; }
+
+    .members-panel { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
+    .member-chip { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; font-weight: 700; padding: 5px 13px; border-radius: 999px; background: var(--yellow-soft); border: 3px solid var(--yellow); }
+    .member-chip small { font-weight: 500; opacity: .7; }
+
+    /* 插畫動畫 */
+    .float-slow { animation: float-y 5s ease-in-out infinite; }
+    .float-fast { animation: float-y 3.4s ease-in-out infinite; }
+    .plane-fly { animation: plane-move 4.5s ease-in-out infinite; }
+    .train-move { animation: train-slide 3.6s ease-in-out infinite alternate; }
+    .wheel-spin { animation: wheel-spin 1.8s linear infinite; }
+    .sun-spin { animation: sun-spin 14s linear infinite; }
+    @keyframes float-y { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-6px); } }
+    @keyframes plane-move { 0%, 100% { transform: translate(0,0); } 50% { transform: translate(6px,-5px); } }
+    @keyframes train-slide { from { transform: translateX(0); } to { transform: translateX(18px); } }
+    @keyframes wheel-spin { to { transform: rotate(360deg); } }
+    @keyframes sun-spin { to { transform: rotate(360deg); } }
+    @media (prefers-reduced-motion: reduce) {
+        *, *::before, *::after { animation: none !important; transition: none !important; }
     }
 
-    /* 列印時不要翻書效果，所有頁面照順序平鋪、一天一頁 */
+    @media (max-width: 480px) {
+        .hero h1 { font-size: 24px; }
+        .countdown-box { width: 58px; }
+        .countdown-box span { font-size: 21px; }
+    }
+
+    /* 桌面：加寬主要內容，首頁插畫跟文字並排，航班卡片跟行李清單排成多欄 */
+    @media (min-width: 860px) {
+        main { max-width: 1080px; padding: 28px 24px 70px; }
+        .panel { padding: 32px 44px; }
+        .hero-inner { display: flex; align-items: center; gap: 44px; text-align: left; }
+        .hero-illustration { flex: 0 0 420px; max-width: 420px; margin: 0; }
+        .hero-text { flex: 1; min-width: 0; }
+        .hero-text .countdown, .hero-text .quick-stats { justify-content: flex-start; }
+        .hero h1 { font-size: 36px; }
+        .flights-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 16px; align-items: start; }
+        .flight-card { margin-bottom: 0; }
+        .pack-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 4px 36px; }
+        .day-tabs { flex-wrap: wrap; overflow-x: visible; }
+    }
+
     @media print {
-        body { background: #fff; }
-        .toolbar, .book-nav, .hint { display: none; }
-        .book-wrap { max-width: none; margin: 0; padding: 0; }
-        .book-stage { min-height: 0; perspective: none; }
-        .book-page {
-            position: static !important; inset: auto; overflow: visible;
-            border: none; border-radius: 0; box-shadow: none;
-            transform: none !important; transition: none;
-            page-break-before: always; page-break-inside: avoid;
-        }
-        .book-page:first-child { page-break-before: auto; }
-        .cover, .members, .item, .day-heading .stamp, .cover .date-ribbon, .day-block::before {
-            -webkit-print-color-adjust: exact; print-color-adjust: exact;
-        }
+        .top-nav, .add-item-row, .remove-item-btn, .star-btn { display: none !important; }
+        main { max-width: none; padding: 0; }
+        [data-tab-panel] { display: block !important; }
+        .day-panel { display: block !important; page-break-before: always; }
+        #home { page-break-before: auto; }
+        .card, .panel { box-shadow: none; }
     }
 </style>
 </head>
 <body>
 
-<div class="toolbar">
-    {% if is_public_view %}
-    <a class="ghost" href="{{ url_for('visitor') }}">走吧揪團 →</a>
-    {% else %}
-    <a class="ghost" href="{{ url_for('member.trip_detail', trip_id=trip.trip_id) }}">← 返回行程</a>
-    {% endif %}
-    <span class="toolbar-hint stamp-font">📖 這裡可以翻頁瀏覽，按右邊按鈕會轉成一頁一天的格式來下載</span>
-    <div class="toolbar-actions">
-        {% if not is_public_view %}
-        <button class="ghost" type="button" data-copy-link="{{ public_url('member.shared_trip_handbook', token=trip.share_token) }}">🔗 分享給家人朋友</button>
-        {% endif %}
-        <button class="primary" type="button" onclick="window.print()">⬇️ 下載 PDF／列印</button>
-    </div>
-</div>
-
-<div class="book-wrap">
-<div class="book-stage" id="bookStage">
-
-    <section class="book-page">
-        <section class="cover">
-            <p class="eyebrow stamp-font">TRAVEL HANDBOOK · 旅遊手冊</p>
-            <h1>{{ trip.trip_name }}</h1>
-            <p class="sub stamp-font">{{ trip.city }}{% if trip.country %} · {{ trip.country }}{% endif %}</p>
-            <div class="date-ribbon stamp-font">{{ trip.start_date }} ～ {{ trip.end_date }}</div>
-            {% if trip.cover_image_path %}
-            <img class="cover-image" src="{{ url_for('static', filename=trip.cover_image_path) }}" alt="{{ trip.trip_name }}">
-            {% else %}
-            <p class="cover-fallback">✈ 🧳 📍</p>
+<nav class="top-nav">
+    <div class="top-nav-row">
+        <span class="brand"><span class="logo-dot">✈</span>{{ trip.trip_name }}</span>
+        <div class="top-nav-actions">
+            {% if not is_public_view %}
+            <button class="icon-btn" type="button" title="分享給家人朋友" data-copy-link="{{ public_url('member.shared_trip_handbook', token=trip.share_token) }}">🔗</button>
             {% endif %}
-            <div class="meta">
-                <span>👥 {{ trip.people_count }} 人</span>
-                {% if trip.total_budget %}<span>💰 {{ '{:,.0f}'.format(trip.total_budget) }} {{ trip.currency }}</span>{% endif %}
-            </div>
-            {% if trip.introduction %}<p class="intro">{{ trip.introduction }}</p>{% endif %}
-        </section>
-        <section class="members">
-            <h2>同行旅伴</h2>
-            {% for member in members %}
-            <span class="member-chip">{{ member.nickname or member.full_name }}<small>（{{ role_labels.get(member.member_role, member.member_role) }}）</small></span>
-            {% endfor %}
-        </section>
-        <p class="hint stamp-font">點右下角「→」或按鍵盤方向鍵翻頁</p>
-    </section>
-
-    {% for day in days %}
-    <section class="book-page">
-        <div class="day-block">
-            <div class="day-heading">
-                <span class="stamp">DAY<br>{{ day.day_number }}</span>
-                <span class="date">{{ day.date }}</span>
-            </div>
-            {% for item in day['items'] %}
-            <div class="item type-{{ item.item_type }}">
-                <div class="time">
-                    {% if item.start_time %}{{ item.start_time|hm }}{% if item.end_time %} - {{ item.end_time|hm }}{% endif %}{% else %}未定時間{% endif %}
-                </div>
-                <div class="body">
-                    <div class="title-row">
-                        <span>{{ item_type_labels.get(item.item_type, {}).get('icon', '📌') }}</span>
-                        <span>{{ item.title }}</span>
-                        <span class="type-tag">{{ item_type_labels.get(item.item_type, {}).get('label', item.item_type) }}</span>
-                    </div>
-                    {% if item.address %}
-                    <p class="address">📍 {{ item.address }}
-                        {% set map_url = google_maps_url(item.address) %}
-                        {% if map_url %}<a href="{{ map_url }}" target="_blank" rel="noopener">查看地圖 →</a>{% endif %}
-                    </p>
-                    {% endif %}
-                    {% if item.transport_method %}<p class="address">🚗 {{ item.transport_method }}{% if item.transport_minutes %}・約 {{ item.transport_minutes }} 分鐘{% endif %}</p>{% endif %}
-                    {% if item.notes %}<p class="notes">💬 {{ item.notes }}</p>{% endif %}
-                </div>
-            </div>
-            {% endfor %}
+            <button class="icon-btn" type="button" title="下載 PDF／列印" onclick="window.print()">🖨️</button>
         </div>
-    </section>
+    </div>
+    <div class="nav-tabs" id="navTabs">
+        <button class="nav-tab is-active" type="button" data-nav-target="home">🏠 首頁</button>
+        <button class="nav-tab" type="button" data-nav-target="flights">✈️ 航班</button>
+        <button class="nav-tab" type="button" data-nav-target="itinerary">🗓️ 行程</button>
+        <button class="nav-tab" type="button" data-nav-target="checklist">🎒 清單</button>
+    </div>
+</nav>
+
+<main>
+
+<section id="home" class="panel card hero" data-tab-panel="home">
+  <div class="hero-inner">
+    <div class="hero-illustration">
+        <svg viewBox="0 0 400 260" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+            <rect x="0" y="0" width="400" height="260" fill="var(--blue-soft)"/>
+            <g class="sun-spin" style="transform-origin:336px 40px">
+                <line x1="336" y1="12" x2="336" y2="2" stroke="var(--ink)" stroke-width="3" stroke-linecap="round"/>
+                <line x1="360" y1="20" x2="368" y2="12" stroke="var(--ink)" stroke-width="3" stroke-linecap="round"/>
+                <line x1="368" y1="40" x2="378" y2="40" stroke="var(--ink)" stroke-width="3" stroke-linecap="round"/>
+                <line x1="336" y1="68" x2="336" y2="78" stroke="var(--ink)" stroke-width="3" stroke-linecap="round"/>
+                <line x1="304" y1="40" x2="294" y2="40" stroke="var(--ink)" stroke-width="3" stroke-linecap="round"/>
+            </g>
+            <circle class="float-slow" cx="336" cy="40" r="24" fill="var(--yellow)" stroke="var(--ink)" stroke-width="3"/>
+            <path class="float-slow" d="M38 52 a16 16 0 0 1 30-7 a13 13 0 0 1 20 12 a14 14 0 0 1-4 27 h-46 a15 15 0 0 1 0-32z" fill="#fff" stroke="var(--ink)" stroke-width="3" stroke-linejoin="round"/>
+            <path class="float-fast" d="M150 34 a12 12 0 0 1 22-5 a10 10 0 0 1 15 9 a11 11 0 0 1-3 21 h-34 a11 11 0 0 1 0-25z" fill="#fff" stroke="var(--ink)" stroke-width="3" stroke-linejoin="round"/>
+            <path d="M225,36 q6,-7 12,0 M250,36 q6,-7 12,0" fill="none" stroke="var(--ink)" stroke-width="3" stroke-linecap="round" class="float-fast"/>
+            <path d="M0 150 Q 60 90 120 128 T 240 112 T 400 140 L400 260 L0 260 Z" fill="var(--green-soft)" stroke="var(--ink)" stroke-width="2"/>
+            <path d="M0 178 Q 70 122 150 158 T 300 150 T 400 170 L400 260 L0 260 Z" fill="var(--green)" stroke="var(--ink)" stroke-width="3" stroke-linejoin="round"/>
+            <rect x="0" y="214" width="400" height="46" fill="var(--yellow-soft)"/>
+            <ellipse class="float-slow" cx="80" cy="230" rx="10" ry="4" fill="var(--green)" stroke="var(--ink)" stroke-width="2"/>
+            <ellipse class="float-fast" cx="340" cy="236" rx="8" ry="3" fill="var(--green)" stroke="var(--ink)" stroke-width="2"/>
+            <g>
+                <path d="M160 150 Q195 112 230 150 Q226 156 160 156 Z" fill="var(--coral)" stroke="var(--ink)" stroke-width="3" stroke-linejoin="round"/>
+                <rect x="170" y="150" width="60" height="58" rx="6" fill="var(--yellow-soft)" stroke="var(--ink)" stroke-width="3"/>
+                <rect x="205" y="98" width="11" height="20" fill="var(--coral)" stroke="var(--ink)" stroke-width="3"/>
+                <circle class="float-slow" cx="208" cy="92" r="6" fill="#fff" stroke="var(--ink)" stroke-width="2"/>
+                <circle class="float-slow" cx="216" cy="84" r="8" fill="#fff" stroke="var(--ink)" stroke-width="2"/>
+                <circle cx="184" cy="172" r="8" fill="var(--blue)" stroke="var(--ink)" stroke-width="3"/>
+                <circle cx="216" cy="172" r="8" fill="var(--blue)" stroke="var(--ink)" stroke-width="3"/>
+                <path d="M194 208 v-24 a6 6 0 0 1 12 0 v24 z" fill="#fff" stroke="var(--ink)" stroke-width="3"/>
+                <circle cx="197" cy="196" r="1.6" fill="var(--ink)"/>
+            </g>
+            <g>
+                <rect x="0" y="236" width="400" height="4" fill="var(--ink)"/>
+                <rect x="18" y="246" width="18" height="6" fill="var(--ink)" opacity=".55"/>
+                <rect x="54" y="246" width="18" height="6" fill="var(--ink)" opacity=".55"/>
+                <rect x="90" y="246" width="18" height="6" fill="var(--ink)" opacity=".55"/>
+                <rect x="126" y="246" width="18" height="6" fill="var(--ink)" opacity=".55"/>
+                <rect x="162" y="246" width="18" height="6" fill="var(--ink)" opacity=".55"/>
+                <rect x="198" y="246" width="18" height="6" fill="var(--ink)" opacity=".55"/>
+            </g>
+            <g class="train-move">
+                <g class="float-slow">
+                    <circle cx="68" cy="214" r="6" fill="#fff" stroke="var(--ink)" stroke-width="2"/>
+                    <path d="M68 209 v10 M63 214 h10" stroke="var(--ink)" stroke-width="2"/>
+                </g>
+                <rect x="20" y="172" width="34" height="34" rx="12" fill="var(--coral)" stroke="var(--ink)" stroke-width="3"/>
+                <rect x="50" y="182" width="56" height="30" rx="8" fill="var(--yellow)" stroke="var(--ink)" stroke-width="3"/>
+                <circle cx="33" cy="186" r="6" fill="#fff" stroke="var(--ink)" stroke-width="2.5"/>
+                <circle cx="65" cy="196" r="6" fill="#fff" stroke="var(--ink)" stroke-width="2.5"/>
+                <circle cx="84" cy="196" r="6" fill="#fff" stroke="var(--ink)" stroke-width="2.5"/>
+                <g class="wheel-spin" style="transform-origin:35px 212px">
+                    <circle cx="35" cy="212" r="9" fill="var(--ink)" stroke="var(--ink)" stroke-width="2"/>
+                    <circle cx="35" cy="212" r="3" fill="#fff"/>
+                </g>
+                <g class="wheel-spin" style="transform-origin:68px 212px">
+                    <circle cx="68" cy="212" r="9" fill="var(--ink)" stroke="var(--ink)" stroke-width="2"/>
+                    <circle cx="68" cy="212" r="3" fill="#fff"/>
+                </g>
+                <g class="wheel-spin" style="transform-origin:94px 212px">
+                    <circle cx="94" cy="212" r="9" fill="var(--ink)" stroke="var(--ink)" stroke-width="2"/>
+                    <circle cx="94" cy="212" r="3" fill="#fff"/>
+                </g>
+            </g>
+            <g class="plane-fly" transform="translate(270,70) rotate(14)">
+                <path d="M-16 6 q-9 1 -16 3 M-12 14 q-9 1 -16 3" stroke="var(--ink)" stroke-width="2.5" fill="none" stroke-linecap="round" opacity=".5"/>
+                <path d="M0 10 L34 10 L46 2 L54 2 L44 10 L54 18 L46 18 L34 12 L0 12 Z" fill="#fff" stroke="var(--ink)" stroke-width="3" stroke-linejoin="round"/>
+                <circle cx="14" cy="10.5" r="2" fill="var(--blue)"/>
+                <circle cx="22" cy="10.5" r="2" fill="var(--blue)"/>
+            </g>
+        </svg>
+    </div>
+    <div class="hero-text">
+        <p class="tag-pill">📍 {{ trip.country }}・{{ trip.city }}</p>
+        <h1>{{ trip.trip_name }}<span class="sparkle sparkle-1">✨</span><span class="sparkle sparkle-2">⭐</span></h1>
+        <p class="date-range"><b>{{ trip.start_date }}（{{ trip.start_date|weekday_cn }}）</b> — <b>{{ trip.end_date }}（{{ trip.end_date|weekday_cn }}）</b> ・ {{ (trip.end_date - trip.start_date).days + 1 }}天{{ (trip.end_date - trip.start_date).days }}夜</p>
+        <div class="countdown" id="countdown" data-target="{{ countdown_target }}">
+            <div class="countdown-box"><span id="cdDays">0</span><small>天</small></div>
+            <div class="countdown-box"><span id="cdHours">00</span><small>時</small></div>
+            <div class="countdown-box"><span id="cdMins">00</span><small>分</small></div>
+            <div class="countdown-box"><span id="cdSecs">00</span><small>秒</small></div>
+        </div>
+        <p class="countdown-note" id="countdownNote">距離出發</p>
+        <div class="quick-stats">
+            <span class="stat-people">👥 {{ trip.people_count }} 人</span>
+            {% if trip.total_budget %}<span class="stat-budget">💰 {{ '{:,.0f}'.format(trip.total_budget) }} {{ trip.currency }}</span>{% endif %}
+            <span class="stat-days">🗓️ 共 {{ days|length }} 天行程</span>
+        </div>
+    </div>
+  </div>
+</section>
+
+<section id="flights" class="panel card" data-tab-panel="flights">
+    <div class="panel-head"><h2>✈️ 航班資訊</h2><span class="count-badge">{{ flights|length }} 筆</span></div>
+    {% if flights %}
+    <div class="flights-grid">
+        {% for f in flights %}
+        <div class="flight-card">
+            <span class="leg-tag">{% if loop.first %}去程{% elif loop.last and flights|length > 1 %}回程{% else %}航班{% endif %}</span>
+            {% if f.flight_info %}
+            <div class="flight-route">✈ {{ f.flight_info.airline }} {{ f.flight_info.flight_number }}　{{ f.flight_info.origin }} → {{ f.flight_info.destination }}</div>
+            {% else %}
+            <div class="flight-route">✈ {{ f.title }}</div>
+            {% endif %}
+            <div class="flight-meta">
+                <span>📅 {{ f.itinerary_date }}（{{ f.itinerary_date|weekday_cn }}）</span>
+                {% if f.start_time %}<span>🕐 {{ f.start_time|hm }}{% if f.end_time %} - {{ f.end_time|hm }}{% endif %}</span>{% endif %}
+                {% if f.estimated_cost %}<span>💰 {{ '{:,.0f}'.format(f.estimated_cost) }} {{ trip.currency }}</span>{% endif %}
+            </div>
+            {% if f.notes %}<div class="flight-meta">💬 {{ f.notes }}</div>{% endif %}
+        </div>
+        {% endfor %}
+    </div>
     {% else %}
-    <section class="book-page"><div class="day-block"><p class="empty-day">這趟旅程還沒有安排任何行程項目。</p></div></section>
+    <p class="empty-state">還沒有加入航班資訊，到「管理行程」的每日安排新增交通／航班就會顯示在這裡。</p>
+    {% endif %}
+</section>
+
+<section id="itinerary" class="panel card" data-tab-panel="itinerary">
+    <div class="panel-head"><h2>🗓️ 每日行程</h2></div>
+    <div class="day-tabs" id="dayTabs">
+        {% for day in days %}
+        <button class="day-tab{{ ' is-active' if loop.first }}" type="button" data-day-index="{{ loop.index0 }}">DAY{{ day.day_number }}<small>{{ day.date }}</small></button>
+        {% endfor %}
+    </div>
+    <div id="dayPanels">
+        {% for day in days %}
+        <div class="day-panel{{ ' is-active' if loop.first }}" data-day-index="{{ loop.index0 }}">
+            {% for stay in day['items'] if stay.item_type == 'accommodation' %}
+            <div class="stay-callout">
+                <span class="emoji">🏨</span>
+                <div><b>今晚住宿：{{ stay.title }}</b>
+                    {% if stay.address %}<p class="address">📍 {{ stay.address }}
+                        {% set map_url = google_maps_url(stay.address) %}
+                        {% if map_url %}<a href="{{ map_url }}" target="_blank" rel="noopener">查看地圖 →</a>{% endif %}
+                    </p>{% endif %}
+                </div>
+            </div>
+            {% endfor %}
+            <div class="timeline">
+                {% for item in day['items'] if item.item_type != 'accommodation' %}
+                <div class="timeline-item type-{{ item.item_type }}" data-item-id="{{ item.itinerary_id }}">
+                    <div class="time">{% if item.start_time %}{{ item.start_time|hm }}{% if item.end_time %} - {{ item.end_time|hm }}{% endif %}{% else %}未定時間{% endif %}</div>
+                    <div class="item-card">
+                        <div class="title-row">
+                            <span>{{ item_type_labels.get(item.item_type, {}).get('icon', '📌') }}</span>
+                            <b>{{ item.title }}</b>
+                            <span class="must-tag">必去</span>
+                            <span class="type-tag">{{ item_type_labels.get(item.item_type, {}).get('label', item.item_type) }}</span>
+                            <button class="star-btn" type="button" data-star-toggle title="標記必去">☆</button>
+                        </div>
+                        {% if item.address %}
+                        <p class="address">📍 {{ item.address }}
+                            {% set map_url = google_maps_url(item.address) %}
+                            {% if map_url %}<a href="{{ map_url }}" target="_blank" rel="noopener">查看地圖 →</a>{% endif %}
+                        </p>
+                        {% endif %}
+                        {% if item.transport_method %}<p class="address">🚗 {{ item.transport_method }}{% if item.transport_minutes %}・約 {{ item.transport_minutes }} 分鐘{% endif %}</p>{% endif %}
+                        {% if item.notes %}<p class="notes">💬 {{ item.notes }}</p>{% endif %}
+                    </div>
+                </div>
+                {% else %}
+                <p class="empty-day">這天還沒有安排其他行程。</p>
+                {% endfor %}
+            </div>
+        </div>
+        {% else %}
+        <p class="empty-day">這趟旅程還沒有安排任何行程項目。</p>
+        {% endfor %}
+    </div>
+</section>
+
+<section id="checklist" class="panel card" data-tab-panel="checklist">
+    <div class="panel-head"><h2>✅ 出發前清單</h2></div>
+    <ul class="checklist" data-checklist="predeparture">
+        <li data-key="passport"><input type="checkbox" id="pd-passport"><label for="pd-passport">護照效期還有 6 個月以上</label></li>
+        <li data-key="tickets"><input type="checkbox" id="pd-tickets"><label for="pd-tickets">機票與訂房證明已下載存檔</label></li>
+        <li data-key="insurance"><input type="checkbox" id="pd-insurance"><label for="pd-insurance">旅遊保險已購買</label></li>
+        <li data-key="currency"><input type="checkbox" id="pd-currency"><label for="pd-currency">當地貨幣／信用卡已準備</label></li>
+        <li data-key="sim"><input type="checkbox" id="pd-sim"><label for="pd-sim">手機漫遊或網卡已安排</label></li>
+        <li data-key="emergency"><input type="checkbox" id="pd-emergency"><label for="pd-emergency">緊急聯絡人資訊已告知家人</label></li>
+    </ul>
+    <div class="add-item-row" data-add-for="predeparture">
+        <input type="text" placeholder="新增一項…" maxlength="60">
+        <button type="button">＋ 新增</button>
+    </div>
+</section>
+
+<section class="panel card" data-tab-panel="checklist">
+    <div class="panel-head"><h2>🎒 行李清單</h2></div>
+    <div class="pack-grid">
+    <div class="checklist-group">
+        <h3>證件財物</h3>
+        <ul class="checklist" data-checklist="pack-docs">
+            <li data-key="passport"><input type="checkbox" id="pk-passport"><label for="pk-passport">護照、簽證、電子機票</label></li>
+            <li data-key="booking"><input type="checkbox" id="pk-booking"><label for="pk-booking">訂房證明</label></li>
+            <li data-key="cash"><input type="checkbox" id="pk-cash"><label for="pk-cash">少量當地現金、信用卡</label></li>
+        </ul>
+        <div class="add-item-row" data-add-for="pack-docs"><input type="text" placeholder="新增一項…" maxlength="60"><button type="button">＋ 新增</button></div>
+    </div>
+    <div class="checklist-group">
+        <h3>衣物</h3>
+        <ul class="checklist" data-checklist="pack-clothes">
+            <li data-key="clothes"><input type="checkbox" id="pk-clothes"><label for="pk-clothes">依天氣準備的衣物、外套</label></li>
+            <li data-key="shoes"><input type="checkbox" id="pk-shoes"><label for="pk-shoes">舒適走路鞋</label></li>
+        </ul>
+        <div class="add-item-row" data-add-for="pack-clothes"><input type="text" placeholder="新增一項…" maxlength="60"><button type="button">＋ 新增</button></div>
+    </div>
+    <div class="checklist-group">
+        <h3>盥洗保養</h3>
+        <ul class="checklist" data-checklist="pack-toiletries">
+            <li data-key="toiletries"><input type="checkbox" id="pk-toiletries"><label for="pk-toiletries">牙刷牙膏、保養品、防曬乳</label></li>
+            <li data-key="medicine"><input type="checkbox" id="pk-medicine"><label for="pk-medicine">常備藥品、隱形眼鏡／眼鏡</label></li>
+        </ul>
+        <div class="add-item-row" data-add-for="pack-toiletries"><input type="text" placeholder="新增一項…" maxlength="60"><button type="button">＋ 新增</button></div>
+    </div>
+    <div class="checklist-group">
+        <h3>3C 與其他</h3>
+        <ul class="checklist" data-checklist="pack-electronics">
+            <li data-key="charger"><input type="checkbox" id="pk-charger"><label for="pk-charger">充電器、行動電源、轉接頭</label></li>
+            <li data-key="camera"><input type="checkbox" id="pk-camera"><label for="pk-camera">相機、耳機</label></li>
+        </ul>
+        <div class="add-item-row" data-add-for="pack-electronics"><input type="text" placeholder="新增一項…" maxlength="60"><button type="button">＋ 新增</button></div>
+    </div>
+    </div>
+</section>
+
+<section class="panel card members-panel" data-tab-panel="home">
+    {% for member in members %}
+    <span class="member-chip">{{ member.nickname or member.full_name }}<small>（{{ role_labels.get(member.member_role, member.member_role) }}）</small></span>
     {% endfor %}
+</section>
 
-</div>
-
-<div class="book-nav">
-    <button type="button" id="bookPrev" aria-label="上一頁">←</button>
-    <span class="count stamp-font" id="bookCount">1 / 1</span>
-    <button type="button" id="bookNext" aria-label="下一頁">→</button>
-</div>
-</div>
+</main>
 
 <script>
 (function () {
-    var pages = Array.prototype.slice.call(document.querySelectorAll('#bookStage .book-page'));
-    if (!pages.length) return;
-    var current = 0;
-    var prevBtn = document.getElementById('bookPrev');
-    var nextBtn = document.getElementById('bookNext');
-    var count = document.getElementById('bookCount');
-
-    pages.forEach(function (page, i) { page.style.zIndex = pages.length - i; });
-
-    function render() {
-        count.textContent = (current + 1) + ' / ' + pages.length;
-        prevBtn.disabled = current === 0;
-        nextBtn.disabled = current === pages.length - 1;
+    var STORE_KEY = 'hb_{{ trip.trip_id }}_';
+    function safeGet(key, fallback) {
+        try { var v = localStorage.getItem(STORE_KEY + key); return v ? JSON.parse(v) : fallback; } catch (e) { return fallback; }
+    }
+    function safeSet(key, value) {
+        try { localStorage.setItem(STORE_KEY + key, JSON.stringify(value)); } catch (e) {}
     }
 
-    function next() {
-        if (current >= pages.length - 1) return;
-        pages[current].classList.add('is-flipped');
-        current += 1;
-        render();
+    // 頂端選單：點了切換分頁（同一時間只顯示一個分頁的內容）
+    var navTabs = Array.prototype.slice.call(document.querySelectorAll('.nav-tab'));
+    var tabPanels = Array.prototype.slice.call(document.querySelectorAll('[data-tab-panel]'));
+    function showTabPanel(name) {
+        tabPanels.forEach(function (panel) { panel.classList.toggle('is-active-tab', panel.dataset.tabPanel === name); });
     }
-
-    function prev() {
-        if (current <= 0) return;
-        current -= 1;
-        pages[current].classList.remove('is-flipped');
-        render();
-    }
-
-    nextBtn.addEventListener('click', next);
-    prevBtn.addEventListener('click', prev);
-    document.addEventListener('keydown', function (event) {
-        if (event.key === 'ArrowRight') next();
-        if (event.key === 'ArrowLeft') prev();
+    navTabs.forEach(function (tab) {
+        tab.addEventListener('click', function () {
+            navTabs.forEach(function (t) { t.classList.remove('is-active'); });
+            tab.classList.add('is-active');
+            showTabPanel(tab.dataset.navTarget);
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+        });
     });
-    render();
-})();
+    showTabPanel('home');
 
-// 分享連結按鈕：複製網址，貼給家人朋友就能看到唯讀版的電子旅遊手冊，不用登入
-document.querySelectorAll('[data-copy-link]').forEach(function (btn) {
-    btn.addEventListener('click', function () {
-        var url = btn.dataset.copyLink;
-        var done = function () {
-            var original = btn.textContent;
-            btn.textContent = '已複製連結 ✓';
-            setTimeout(function () { btn.textContent = original; }, 1800);
-        };
-        if (navigator.clipboard && window.isSecureContext) {
-            navigator.clipboard.writeText(url).then(done).catch(function () { window.prompt('複製這個連結：', url); });
-        } else {
-            window.prompt('複製這個連結：', url);
+    // 倒數計時
+    var cd = document.getElementById('countdown');
+    if (cd && cd.dataset.target) {
+        var target = new Date(cd.dataset.target);
+        var note = document.getElementById('countdownNote');
+        function tick() {
+            var diff = target.getTime() - Date.now();
+            if (diff <= 0) {
+                document.getElementById('cdDays').textContent = '0';
+                document.getElementById('cdHours').textContent = '00';
+                document.getElementById('cdMins').textContent = '00';
+                document.getElementById('cdSecs').textContent = '00';
+                note.textContent = '🎉 旅程已經開始，祝旅途愉快！';
+                note.classList.add('is-started');
+                return;
+            }
+            var totalSec = Math.floor(diff / 1000);
+            var days = Math.floor(totalSec / 86400);
+            var hours = Math.floor((totalSec % 86400) / 3600);
+            var mins = Math.floor((totalSec % 3600) / 60);
+            var secs = totalSec % 60;
+            document.getElementById('cdDays').textContent = days;
+            document.getElementById('cdHours').textContent = String(hours).padStart(2, '0');
+            document.getElementById('cdMins').textContent = String(mins).padStart(2, '0');
+            document.getElementById('cdSecs').textContent = String(secs).padStart(2, '0');
+            note.textContent = '距離出發';
+        }
+        tick();
+        setInterval(tick, 1000);
+    }
+
+    // 行程日期切換
+    var dayTabs = Array.prototype.slice.call(document.querySelectorAll('.day-tab'));
+    var dayPanels = Array.prototype.slice.call(document.querySelectorAll('.day-panel'));
+    dayTabs.forEach(function (tab) {
+        tab.addEventListener('click', function () {
+            var idx = tab.dataset.dayIndex;
+            dayTabs.forEach(function (t) { t.classList.remove('is-active', 'bounce'); });
+            dayPanels.forEach(function (p) { p.classList.toggle('is-active', p.dataset.dayIndex === idx); });
+            tab.classList.add('is-active', 'bounce');
+        });
+    });
+
+    // 必去標記（存在這台瀏覽器，不會同步給其他旅伴）
+    var starred = safeGet('starred', []);
+    document.querySelectorAll('[data-star-toggle]').forEach(function (btn) {
+        var item = btn.closest('.timeline-item');
+        var id = item.dataset.itemId;
+        function apply() {
+            var on = starred.indexOf(id) !== -1;
+            item.classList.toggle('is-starred', on);
+            btn.textContent = on ? '★' : '☆';
+        }
+        apply();
+        btn.addEventListener('click', function () {
+            var at = starred.indexOf(id);
+            if (at === -1) { starred.push(id); } else { starred.splice(at, 1); }
+            safeSet('starred', starred);
+            apply();
+        });
+    });
+
+    // 清單勾選狀態 + 自訂新增項目（存在這台瀏覽器）
+    document.querySelectorAll('.checklist').forEach(function (list) {
+        var listKey = list.dataset.checklist;
+        var checked = safeGet('check_' + listKey, {});
+        var customItems = safeGet('custom_' + listKey, []);
+
+        function bindItem(li) {
+            var checkbox = li.querySelector('input[type="checkbox"]');
+            var key = li.dataset.key;
+            if (checked[key]) checkbox.checked = true;
+            checkbox.addEventListener('change', function () {
+                checked[key] = checkbox.checked;
+                safeSet('check_' + listKey, checked);
+            });
+        }
+        list.querySelectorAll('li').forEach(bindItem);
+
+        customItems.forEach(function (custom) {
+            addCustomLi(custom.key, custom.text);
+        });
+
+        function addCustomLi(key, text) {
+            var li = document.createElement('li');
+            li.dataset.key = key;
+            var cb = document.createElement('input');
+            cb.type = 'checkbox'; cb.id = listKey + '-' + key;
+            var label = document.createElement('label');
+            label.htmlFor = cb.id; label.textContent = text;
+            var removeBtn = document.createElement('button');
+            removeBtn.type = 'button'; removeBtn.className = 'remove-item-btn'; removeBtn.title = '移除'; removeBtn.textContent = '✕';
+            li.appendChild(cb); li.appendChild(label); li.appendChild(removeBtn);
+            list.appendChild(li);
+            bindItem(li);
+            removeBtn.addEventListener('click', function () {
+                li.remove();
+                customItems = customItems.filter(function (c) { return c.key !== key; });
+                safeSet('custom_' + listKey, customItems);
+                delete checked[key];
+                safeSet('check_' + listKey, checked);
+            });
+        }
+
+        var addRow = document.querySelector('.add-item-row[data-add-for="' + listKey + '"]');
+        if (addRow) {
+            var input = addRow.querySelector('input');
+            var addBtn = addRow.querySelector('button');
+            function submitAdd() {
+                var text = input.value.trim();
+                if (!text) return;
+                var key = 'custom-' + Date.now();
+                customItems.push({ key: key, text: text });
+                safeSet('custom_' + listKey, customItems);
+                addCustomLi(key, text);
+                input.value = '';
+            }
+            addBtn.addEventListener('click', submitAdd);
+            input.addEventListener('keydown', function (e) { if (e.key === 'Enter') { e.preventDefault(); submitAdd(); } });
         }
     });
-});
+
+    // 分享連結按鈕：複製網址，貼給家人朋友就能看到唯讀版的電子旅遊手冊，不用登入
+    document.querySelectorAll('[data-copy-link]').forEach(function (btn) {
+        btn.addEventListener('click', function () {
+            var url = btn.dataset.copyLink;
+            var done = function () {
+                var original = btn.textContent;
+                btn.textContent = '✓';
+                setTimeout(function () { btn.textContent = original; }, 1800);
+            };
+            if (navigator.clipboard && window.isSecureContext) {
+                navigator.clipboard.writeText(url).then(done).catch(function () { window.prompt('複製這個連結：', url); });
+            } else {
+                window.prompt('複製這個連結：', url);
+            }
+        });
+    });
+})();
 </script>
 
 </body>

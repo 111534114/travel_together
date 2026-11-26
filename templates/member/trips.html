@@ -51,6 +51,9 @@
                 <div class="card-actions">
                     <form method="post" action="{{ url_for('member.duplicate_trip', trip_id=trip.trip_id) }}" style="margin:0;"><button type="submit" class="member-btn ghost small" title="複製這個行程">複製</button></form>
                     <a class="member-btn primary small" href="{{ url_for('member.trip_detail', trip_id=trip.trip_id) }}">管理行程</a>
+                    {% if trip.member_role == 'owner' %}
+                    <form method="post" action="{{ url_for('member.delete_trip', trip_id=trip.trip_id) }}" style="margin:0;" data-trip-name="{{ trip.trip_name }}" onsubmit="return confirm('確定要刪除「' + this.dataset.tripName + '」嗎？30 天內可以在「最近刪除」復原。')"><button type="submit" class="member-btn ghost small" title="刪除這個行程">刪除</button></form>
+                    {% endif %}
                 </div>
             </div>
         </div>
@@ -61,7 +64,7 @@
     {% endif %}
 </section>
 {% if deleted_trips %}
-<section class="trip-trash">
+<section class="trip-trash" id="trip-trash">
     <div class="trip-trash-head"><div><h3>🗑️ 最近刪除 <span>{{ deleted_trips|length }}</span></h3><p>刪除的行程會保留 {{ trip_trash_days }} 天，期間可以復原；超過期限會自動永久刪除。</p></div></div>
     <div class="trip-trash-list">
         {% for trip in deleted_trips %}

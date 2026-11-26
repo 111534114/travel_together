@@ -171,6 +171,7 @@ app.jinja_env.globals["line_add_friend_url"] = line_messaging.add_friend_url()  
 app.jinja_env.globals["line_qr_code_url"] = line_messaging.qr_code_url()  # LINE 官方帳號加好友 QR Code 圖片網址
 app.jinja_env.globals["station_label"] = lambda name: tdx_trains.normalize_station(name) if name and name.isascii() else name  # 車票結果頁顯示站名：英文輸入換成中文
 app.jinja_env.filters["hm"] = format_hm  # 註冊成樣板過濾器，任何頁面都能直接用 {{ 值 | hm }} 把 TIME 欄位格式化成 HH:MM
+app.jinja_env.filters["weekday_cn"] = lambda d: "一二三四五六日"[d.weekday()] if d else ""  # DATE 欄位轉成中文星期（一～日），例如旅遊手冊的日期顯示
 app.jinja_env.globals["content_admin_can"] = content_admin_can
 app.jinja_env.globals["friend_group_feature_enabled"] = friend_group_feature_enabled  # 任何頁面都能直接用 friend_group_feature_enabled() 判斷交友揪團總開關是否開啟
 

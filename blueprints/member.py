@@ -2515,8 +2515,23 @@ def export_trip_excel(trip_id):
     )
 
 
+FLIGHT_TITLE_RE = re.compile(r"^(.*?)\s*([A-Za-z]{2}\d{2,4})?｜\s*(.+?)\s*→\s*(.+)$")
+
+
+def _parse_flight_title(title):
+    """把「航空公司 班號｜起點 → 終點」的標題拆開；格式對不上就回傳 None，當成一般交通項目顯示。"""
+    match = FLIGHT_TITLE_RE.match(title or "")
+    if not match:
+        return None
+    airline, flight_number, origin, destination = match.groups()
+    airline = (airline or "").strip()
+    if not airline or not origin.strip() or not destination.strip():
+        return None
+    return {"airline": airline, "flight_number": flight_number or "", "origin": origin.strip(), "destination": destination.strip()}
+
+
 def _load_handbook_data(cursor, trip_id):
-    """旅遊手冊共用的資料整理：查出每日行程(依日期分組)跟同行旅伴，登入版跟公開分享版都靠這個組出一樣的內容。"""
+    """旅遊手冊共用的資料整理：查出每日行程(依日期分組)、航班卡片跟同行旅伴，登入版跟公開分享版都靠這個組出一樣的內容。"""
     cursor.execute("SELECT * FROM itineraries WHERE trip_id=%s ORDER BY itinerary_date, sort_order", (trip_id,))
     items = cursor.fetchall()
     cursor.execute("""SELECT tm.member_role, u.full_name, u.nickname, u.avatar_path FROM trip_members tm JOIN users u ON u.user_id=tm.user_id
@@ -2526,13 +2541,29 @@ def _load_handbook_data(cursor, trip_id):
 
     days = []  # 把行程項目依日期分組，模板直接逐天印出來
     days_by_date = {}
+    flights = []  # 用「加入航班」功能存進來的交通項目（transport_method='飛機'），整理成航班卡片用
     for item in items:
         day_key = item["itinerary_date"]
         if day_key not in days_by_date:
             days_by_date[day_key] = {"date": day_key, "day_number": len(days) + 1, "items": []}
             days.append(days_by_date[day_key])
         days_by_date[day_key]["items"].append(item)
-    return days, members
+        if item["item_type"] == "transport" and item.get("transport_method") == "飛機":
+            item["flight_info"] = _parse_flight_title(item["title"])
+            flights.append(item)
+    return days, members, flights
+
+
+def _handbook_countdown_target(trip, flights):
+    """倒數計時的目標時間：有加入航班就用最早那班的出發日期+時間，不然用旅程的出發日期 00:00。"""
+    if flights:
+        first = flights[0]
+        base = datetime.combine(first["itinerary_date"], dt_time())
+        start_time = first.get("start_time")
+        if isinstance(start_time, timedelta):
+            base += start_time
+        return base.isoformat()
+    return datetime.combine(trip["start_date"], dt_time()).isoformat()
 
 
 @member_bp.route("/trips/<int:trip_id>/handbook")
@@ -2546,12 +2577,13 @@ def trip_handbook(trip_id):
         if not trip:
             flash("你沒有查看這個行程的權限。", "error")
             return redirect(url_for("member.dashboard"))
-        days, members = _load_handbook_data(cursor, trip_id)
+        days, members, flights = _load_handbook_data(cursor, trip_id)
     finally:
         cursor.close(); connection.close()
 
     return render_template(
-        "member/trip_handbook.html", trip=trip, days=days, members=members, is_public_view=False,
+        "member/trip_handbook.html", trip=trip, days=days, members=members, flights=flights, is_public_view=False,
+        countdown_target=_handbook_countdown_target(trip, flights),
         item_type_labels=ITEM_TYPE_LABELS, role_labels={"owner": "建立者", "editor": "共同編輯者", "viewer": "查看者"},
     )
 
@@ -2574,12 +2606,13 @@ def shared_trip_handbook(token):
         if not trip:
             flash("找不到這個旅遊手冊，連結可能已經失效。", "error")
             return redirect(url_for("visitor"))
-        days, members = _load_handbook_data(cursor, trip["trip_id"])
+        days, members, flights = _load_handbook_data(cursor, trip["trip_id"])
     finally:
         cursor.close(); connection.close()
 
     return render_template(
-        "member/trip_handbook.html", trip=trip, days=days, members=members, is_public_view=True,
+        "member/trip_handbook.html", trip=trip, days=days, members=members, flights=flights, is_public_view=True,
+        countdown_target=_handbook_countdown_target(trip, flights),
         item_type_labels=ITEM_TYPE_LABELS, role_labels={"owner": "建立者", "editor": "共同編輯者", "viewer": "查看者"},
     )
 
@@ -2711,7 +2744,7 @@ def delete_trip(trip_id):
     finally:
         cursor.close()
         connection.close()
-    return redirect(url_for("member.dashboard") + "#trip-trash")
+    return redirect(url_for("member.my_trips") + "#trip-trash")
 
 
 def _owned_deleted_trip(cursor, trip_id):
@@ -2733,7 +2766,7 @@ def restore_trip(trip_id):
         trip = _owned_deleted_trip(cursor, trip_id)
         if not trip:
             flash("找不到這個已刪除的行程。", "error")
-            return redirect(url_for("member.dashboard") + "#trip-trash")
+            return redirect(url_for("member.my_trips") + "#trip-trash")
         cursor.execute("UPDATE trips SET deleted_at=NULL, deleted_by=NULL WHERE trip_id=%s", (trip_id,))
         connection.commit()
         flash(f"行程「{trip['trip_name']}」已復原。", "success")
@@ -2741,7 +2774,7 @@ def restore_trip(trip_id):
         connection.rollback()
         print("復原行程失敗：", error)
         flash("復原行程失敗，請稍後再試。", "error")
-        return redirect(url_for("member.dashboard") + "#trip-trash")
+        return redirect(url_for("member.my_trips") + "#trip-trash")
     finally:
         cursor.close()
         connection.close()
@@ -2771,7 +2804,7 @@ def purge_trip(trip_id):
     finally:
         cursor.close()
         connection.close()
-    return redirect(url_for("member.dashboard") + "#trip-trash")
+    return redirect(url_for("member.my_trips") + "#trip-trash")
 
 
 def _duplicate_trip_for(cursor, trip_id, user_id):

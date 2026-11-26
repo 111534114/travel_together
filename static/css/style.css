@@ -2689,6 +2689,37 @@ body {
     cursor: grabbing;
 }
 
+.itinerary-trash-zone {
+    position: fixed;
+    left: 50%;
+    bottom: 24px;
+    z-index: 500;
+    padding: 14px 28px;
+    font-size: 14px;
+    font-weight: 700;
+    color: #b74343;
+    background: #fff;
+    border: 2px dashed #b74343;
+    border-radius: 999px;
+    box-shadow: 0 8px 22px rgba(0, 0, 0, .18);
+    opacity: 0;
+    pointer-events: none;
+    transform: translate(-50%, 16px);
+    transition: opacity .15s ease, transform .15s ease, background .15s ease;
+}
+
+.itinerary-trash-zone.is-visible {
+    opacity: 1;
+    pointer-events: auto;
+    transform: translate(-50%, 0);
+}
+
+.itinerary-trash-zone.is-armed {
+    color: #fff;
+    background: #b74343;
+    transform: translate(-50%, 0) scale(1.06);
+}
+
 .itinerary-item.dragging {
     opacity: .4;
 }
@@ -4677,7 +4708,7 @@ html { scroll-behavior: smooth; }
 .post-review-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:18px}.post-review-card{overflow:hidden;border:1px solid #e1ebec;border-radius:10px}.post-review-images{display:grid;grid-template-columns:repeat(auto-fit,minmax(90px,1fr))}.post-review-images img{width:100%;height:140px;object-fit:cover}.post-review-images-empty{display:grid;place-items:center;height:80px;background:#f6f8f9}.post-review-body{padding:14px}.post-review-note{display:block;color:#a23a3a}.post-review-reject form{display:flex;gap:6px;margin-top:8px}.small-button.danger{background:#c84b4b}
 
 /* ===== 從首頁抽出的獨立功能頁：我的旅程／尋找旅伴／公告事項／旅遊相簿 ===== */
-.card-content .card-actions { display: flex; gap: 8px; margin-top: 14px; }
+.card-content .card-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 14px; }
 .trip-grid > .panel { margin-bottom: 0; }
 .phase-tabs { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-bottom: 16px; }
 .phase-tab { padding: 8px 16px; color: #777084; background: #fff; border: 1px solid #E5EEEF; border-radius: 999px; cursor: pointer; font-size: 14px; font-weight: 600; }

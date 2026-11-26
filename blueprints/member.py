@@ -2133,8 +2133,12 @@ def ai_create_trip():
             """, (trip_id, session["user_id"], item["date"], item["type"], item["title"],
                   item["start_time"], item["address"], item["estimated_cost"], item["notes"], sort_order))
         connection.commit()
+        cap_note = (
+            f"你的需求提到 {guess['requested_days']} 天，AI 一次最多只能排 {trip_request.MAX_DAYS} 天（天數太多估算容易失真），"
+            f"已經先用 {days} 天幫你規劃，想排更長可以之後自己在「編輯行程」調整天數、再手動加項目。"
+        ) if guess.get("requested_days") else ""
         flash(f"AI 已建立「{trip_name}」（{start_date:%m/%d}–{end_date:%m/%d}，{guess['people_count']} 人）。"
-              "日期、人數是從你的需求推測的，可按「編輯行程」修改；每日項目也請確認營業時間與價格。", "success")
+              f"日期、人數是從你的需求推測的，可按「編輯行程」修改；每日項目也請確認營業時間與價格。{cap_note}", "success")
         return redirect(url_for("member.trip_detail", trip_id=trip_id))
     except (ValueError, RuntimeError) as error:
         connection.rollback()
@@ -2448,6 +2452,26 @@ def export_trip_excel(trip_id):
     )
 
 
+def _load_handbook_data(cursor, trip_id):
+    """旅遊手冊共用的資料整理：查出每日行程(依日期分組)跟同行旅伴，登入版跟公開分享版都靠這個組出一樣的內容。"""
+    cursor.execute("SELECT * FROM itineraries WHERE trip_id=%s ORDER BY itinerary_date, sort_order", (trip_id,))
+    items = cursor.fetchall()
+    cursor.execute("""SELECT tm.member_role, u.full_name, u.nickname, u.avatar_path FROM trip_members tm JOIN users u ON u.user_id=tm.user_id
+                      WHERE tm.trip_id=%s AND tm.join_status='accepted'
+                      ORDER BY FIELD(tm.member_role,'owner','editor','viewer'), u.full_name""", (trip_id,))
+    members = cursor.fetchall()
+
+    days = []  # 把行程項目依日期分組，模板直接逐天印出來
+    days_by_date = {}
+    for item in items:
+        day_key = item["itinerary_date"]
+        if day_key not in days_by_date:
+            days_by_date[day_key] = {"date": day_key, "day_number": len(days) + 1, "items": []}
+            days.append(days_by_date[day_key])
+        days_by_date[day_key]["items"].append(item)
+    return days, members
+
+
 @member_bp.route("/trips/<int:trip_id>/handbook")
 @login_required("member")
 def trip_handbook(trip_id):
@@ -2459,26 +2483,40 @@ def trip_handbook(trip_id):
         if not trip:
             flash("你沒有查看這個行程的權限。", "error")
             return redirect(url_for("member.dashboard"))
-        cursor.execute("SELECT * FROM itineraries WHERE trip_id=%s ORDER BY itinerary_date, sort_order", (trip_id,))
-        items = cursor.fetchall()
-        cursor.execute("""SELECT tm.member_role, u.full_name, u.nickname, u.avatar_path FROM trip_members tm JOIN users u ON u.user_id=tm.user_id
-                          WHERE tm.trip_id=%s AND tm.join_status='accepted'
-                          ORDER BY FIELD(tm.member_role,'owner','editor','viewer'), u.full_name""", (trip_id,))
-        members = cursor.fetchall()
+        days, members = _load_handbook_data(cursor, trip_id)
     finally:
         cursor.close(); connection.close()
 
-    days = []  # 把行程項目依日期分組，模板直接逐天印出來
-    days_by_date = {}
-    for item in items:
-        day_key = item["itinerary_date"]
-        if day_key not in days_by_date:
-            days_by_date[day_key] = {"date": day_key, "day_number": len(days) + 1, "items": []}
-            days.append(days_by_date[day_key])
-        days_by_date[day_key]["items"].append(item)
+    return render_template(
+        "member/trip_handbook.html", trip=trip, days=days, members=members, is_public_view=False,
+        item_type_labels=ITEM_TYPE_LABELS, role_labels={"owner": "建立者", "editor": "共同編輯者", "viewer": "查看者"},
+    )
+
+
+@member_bp.route("/handbook/<token>")  # 分享給非會員（例如家人）看的旅遊手冊，憑無法猜到的分享連結瀏覽，不用登入、唯讀
+def shared_trip_handbook(token):
+    connection = get_db_connection()
+    if connection is None:
+        flash("目前無法連線資料庫，請稍後再試。", "error")
+        return redirect(url_for("visitor"))
+    cursor = connection.cursor(dictionary=True)
+    try:
+        cursor.execute("""
+            SELECT t.*, co.name AS country, ci.name AS city FROM trips t
+            JOIN countries co ON co.country_id = t.country_id
+            JOIN cities ci ON ci.city_id = t.city_id
+            WHERE t.share_token = %s AND t.deleted_at IS NULL
+        """, (token,))
+        trip = cursor.fetchone()
+        if not trip:
+            flash("找不到這個旅遊手冊，連結可能已經失效。", "error")
+            return redirect(url_for("visitor"))
+        days, members = _load_handbook_data(cursor, trip["trip_id"])
+    finally:
+        cursor.close(); connection.close()
 
     return render_template(
-        "member/trip_handbook.html", trip=trip, days=days, members=members,
+        "member/trip_handbook.html", trip=trip, days=days, members=members, is_public_view=True,
         item_type_labels=ITEM_TYPE_LABELS, role_labels={"owner": "建立者", "editor": "共同編輯者", "viewer": "查看者"},
     )
 

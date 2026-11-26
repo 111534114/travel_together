@@ -2,16 +2,15 @@
   // 系統導覽：點側邊欄的「系統導覽」，一步一步介紹網站有哪些功能。每一步會把畫面上對應的位置亮起來。
   // 步驟是依「這一頁實際有哪些導覽項目」動態組出來的，訪客跟會員看到的內容不一樣，找不到的項目就直接跳過。
   const NAV_STEPS = [
+    ['公開行程', '看看其他人公開分享的行程，覺得不錯可以直接複製來改——這是我們最大的亮點，先逛逛大家都在排什麼行程吧！'],
     ['首頁', '回到首頁。上方的搜尋面板可以查住宿、機票、高鐵／火車票。'],
     ['我的旅程', '建立旅程、安排每天的行程、邀請旅伴一起編輯。'],
     ['我的收藏', '在住宿、機票、車票按愛心收藏的項目都會集中在這裡。'],
-    ['公開行程', '看看其他人公開分享的行程，覺得不錯可以直接複製來改。'],
     ['探索景點', '瀏覽景點、看排行與評價，並能直接加入你的行程。'],
     ['探索餐廳', '找旅途中想吃的餐廳。'],
     ['探索住宿', '瀏覽站內收錄的住宿。'],
     ['公告事項', '網站的最新消息與公告。'],
     ['目的地天氣', '查看熱門目的地的天氣預報。'],
-    ['探索行程', '瀏覽大家公開分享的行程。'],
     ['尋找旅伴', '發起揪團或加入別人的行程，找到一起出發的朋友。'],
     ['旅遊相簿', '旅行回來後，把照片分享到相簿。'],
     ['個人資料', '修改個人資料、通知偏好與帳號設定。'],
@@ -30,6 +29,15 @@
   function buildSteps() {
     const list = [];
     const links = Array.from(document.querySelectorAll('.member-sidenav a.side-link'));
+    const addedNames = new Set();
+    function addNavStep(name) {
+      const entry = NAV_STEPS.find(([stepName]) => stepName === name);
+      if (!entry) return;
+      const link = links.find((a) => a.textContent.trim() === name);
+      if (link && visible(link)) { list.push({ target: link, title: name, text: entry[1] }); addedNames.add(name); }
+    }
+    // 「公開行程」是我們最大的亮點，不管這頁有沒有搜尋面板，都讓它當整個導覽的第一步
+    addNavStep('公開行程');
     const searchTabs = document.querySelector('.search-tabs');
     if (searchTabs) list.push({ target: searchTabs, title: '搜尋面板', text: '在這裡切換「住宿」「機票」「高鐵／火車票」，填好條件就能查詢。' });
     const searchCard = document.querySelector('.booking-search-card');
@@ -37,6 +45,7 @@
     const sidebar = document.querySelector('.results-sidebar');
     if (sidebar) list.push({ target: sidebar, title: '篩選與排序', text: '用價格、星級、設施等條件縮小範圍。游標移到這一欄時可以單獨捲動。' });
     NAV_STEPS.forEach(([name, text]) => {
+      if (addedNames.has(name)) return;
       const link = links.find((a) => a.textContent.trim() === name);
       if (link && visible(link)) list.push({ target: link, title: name, text });
     });

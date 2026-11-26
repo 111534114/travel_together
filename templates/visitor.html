@@ -486,7 +486,7 @@
       </div>
       <div class="trip-grid" data-bounce-grid>
         {% for trip in featured_trips %}
-          <article class="trip-card" style="--i: {{ loop.index0 }}">
+          <article class="trip-card" style="--i: {{ loop.index0 }}; cursor: pointer;" onclick="openTripModal('{{ trip.trip_id }}')" role="button" tabindex="0" onkeydown="if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); openTripModal('{{ trip.trip_id }}'); }">
             <div class="trip-art {% if trip.cover_image_path %}with-image{% endif %}" {% if trip.cover_image_path %}style="background-image: url('{{ url_for('static', filename=trip.cover_image_path) }}')"{% endif %}>
               {% if not trip.cover_image_path %}<span>✈</span>{% endif %}
               {% if loop.index <= 3 and trip.favorite_count %}<span class="visibility">🔥 熱門</span>{% endif %}
@@ -506,7 +506,7 @@
                 {% if trip.people_count %}<span>{{ trip.people_count }} 人</span>{% endif %}
                 {% if trip.total_budget is not none %}<span>參考預算 {{ trip.currency }} {{ "{:,.0f}".format(trip.total_budget) }}</span>{% endif %}
               </div>
-              <div class="featured-actions">
+              <div class="featured-actions" onclick="event.stopPropagation()">
                 <button class="view-button" type="button" onclick="openTripModal('{{ trip.trip_id }}')">查看行程</button>
                 {% if is_member %}
                 {% if trip.can_duplicate %}

@@ -110,7 +110,7 @@ class October8IntegrationTests(unittest.TestCase):
                     preference_options=__import__('trip_preferences'))
                 for section in ('itinerary', 'proposals', 'chat', 'budget'):
                     self.assertEqual(html.count('id="'+section+'"'), 1)
-                for text in ('09:00', '景點詳細介紹', '時間不合', '發票明細', 'split_user_ids', 'Viewer', 'trip-chat.js', 'expense-invoice.js', 'id="itineraryMap"', 'item-comment-thread'):
+                for text in ('09:00', '景點詳細介紹', '時間不合', '發票明細', 'split_user_ids', 'Viewer', 'trip-chat.js', 'expense-invoice.js', 'id="itineraryMap"'):
                     self.assertIn(text, html)
                 self.assertIn('/static/uploads/avatars/updated.webp', html)
                 if can_edit:

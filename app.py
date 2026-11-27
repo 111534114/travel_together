@@ -66,6 +66,21 @@ import trip_reminders
 
 app = Flask(__name__)  # 建立 Flask 應用程式實例
 app.wsgi_app = ProxyFix(app.wsgi_app, x_proto=1, x_host=1)
+
+
+@app.after_request
+def no_cache_for_logged_in_pages(response):
+    """登入狀態下看到的網頁不讓瀏覽器留副本：登出後按「上一頁」，瀏覽器必須重新跟網站要，
+    這時已經登出了，就會被帶回登入頁，不會再看到登入時的畫面。
+    (Chrome 的「上一頁快取」也會因為 no-store 加上登出時 cookie 變了而不使用舊畫面)"""
+    if response.mimetype == "text/html" and (
+            "user_id" in session or request.path.startswith(("/member", "/content-admin", "/system-admin"))):
+        response.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0"
+        response.headers["Pragma"] = "no-cache"
+        response.headers["Expires"] = "0"
+    return response
+
+
 app.register_blueprint(booking_bp)
 
 # 未設定 .env 時只使用每次啟動都不同的暫時金鑰；對外服務入口會要求固定金鑰。

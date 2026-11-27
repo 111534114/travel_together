@@ -69,6 +69,18 @@
     .hotel-list { display: grid; gap: 16px; }
     .hotel-row { position: relative; display: grid; grid-template-columns: 270px minmax(0, 1fr) 190px; overflow: hidden; background: #fff; border: 1px solid var(--line); border-radius: 10px; box-shadow: 0 8px 22px rgba(45, 37, 68, .06); }
     .hotel-row { cursor: pointer; }
+    /* 結果區太窄時(左邊有選單、視窗又不大)：照片在左，名稱與價格上下排，名稱不會被擠成一字一行 */
+    .results-main { container-type: inline-size; min-width: 0; }
+    @container (max-width: 760px) {
+      .hotel-row { grid-template-columns: 220px minmax(0, 1fr); }
+      .hotel-photo { grid-row: span 2; height: auto; min-height: 100%; }
+      .hotel-side { grid-column: 2; align-items: flex-start; text-align: left; border-left: 0; border-top: 1px dashed var(--line); }
+    }
+    @container (max-width: 520px) {
+      .hotel-row { grid-template-columns: 1fr; }
+      .hotel-photo { grid-row: auto; height: 210px; }
+      .hotel-side { grid-column: auto; }
+    }
     .hotel-row:hover { box-shadow: 0 12px 28px rgba(45, 37, 68, .12); }
     .hotel-photo { position: relative; min-height: 200px; background: #DCE8EA; }
     .hotel-photo img { display: block; width: 100%; height: 100%; object-fit: cover; }

@@ -1,0 +1,3 @@
+{# 登出後按「上一頁」：有些瀏覽器(例如 iPhone 的 Safari)會直接拿出之前存的畫面，看起來像還沒登出。
+   偵測到畫面是從「上一頁快取」拿出來的，就重新跟網站要一次；已經登出的話網站會帶去登入頁。 #}
+{% if session.get('user_id') %}<script>window.addEventListener('pageshow', function (e) { if (e.persisted) location.reload(); });</script>{% endif %}

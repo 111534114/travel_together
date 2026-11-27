@@ -26,6 +26,16 @@
     var panelVisible = false;
     var polling = false;
     var canModerate = false;
+    var canReply = false;
+    var replyTo = null;          // 正在回覆的那則訊息 {id, name, content}
+    var firstLoad = true;
+    var replyBar = document.getElementById('chatReplyBar');
+    // 新訊息提示卡要在任何分頁都看得到，所以搬到 body 底下(聊天室分頁隱藏時也不會跟著藏起來)
+    var toast = document.getElementById('chatToast');
+    if (toast) document.body.appendChild(toast);
+    var toastTimer = null;
+    var toastCount = 0;
+    var baseTitle = document.title;
 
     function el(tag, className, text) {
         var node = document.createElement(tag);
@@ -63,6 +73,83 @@
         });
     }
 
+    // 這則訊息有沒有 @ 我(或 @ALL)
+    function mentionsMe(content) {
+        if (!content || content.indexOf('@') === -1) return false;
+        if (/@(ALL|所有人)(?![A-Za-z0-9_])/i.test(content)) return true;
+        var mine = members.filter(function (m) { return m.user_id === me; })[0];
+        return !!mine && content.indexOf('@' + mine.name) !== -1;
+    }
+
+    function jumpTo(id) {
+        var row = listEl.querySelector('.chat-message[data-id="' + id + '"]');
+        if (!row) { showError('原訊息太舊了，沒有顯示在畫面上。'); return; }
+        row.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        row.classList.remove('flash');
+        void row.offsetWidth;
+        row.classList.add('flash');
+    }
+
+    function startReply(message) {
+        replyTo = { id: message.id };
+        replyBar.querySelector('[data-reply-name]').textContent = message.user_id === me ? '自己' : message.name;
+        replyBar.querySelector('[data-reply-text]').textContent = message.content.length > 40 ? message.content.slice(0, 40) + '…' : message.content;
+        replyBar.hidden = false;
+        input.focus();
+    }
+
+    function cancelReply() {
+        replyTo = null;
+        if (replyBar) replyBar.hidden = true;
+    }
+    if (replyBar) replyBar.querySelector('[data-reply-cancel]').addEventListener('click', function () { cancelReply(); input.focus(); });
+
+    // ---------- 新訊息提示(顯眼一點) ----------
+    function chatOnScreen() {
+        return panelVisible && document.visibilityState === 'visible' && !panel.hidden;
+    }
+
+    function hideToast() {
+        if (!toast) return;
+        toast.hidden = true;
+        toast.classList.remove('show', 'for-me');
+        toastCount = 0;
+        clearTimeout(toastTimer);
+    }
+
+    function openChat() {
+        if (window.openTripTab) window.openTripTab('chat');
+        hideToast();
+        setTimeout(function () {
+            panel.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            listEl.scrollTop = listEl.scrollHeight;
+            input.focus({ preventScroll: true });
+        }, 50);
+    }
+
+    function showToast(newMessages) {
+        if (!toast || !newMessages.length) return;
+        var last = newMessages[newMessages.length - 1];
+        var forMe = newMessages.some(function (m) { return mentionsMe(m.content) || (m.reply && m.reply.user_id === me); });
+        toastCount += newMessages.length;
+        toast.querySelector('[data-toast-avatar]').textContent = last.name.slice(0, 1);
+        var lastForMe = newMessages.filter(function (m) { return mentionsMe(m.content) || (m.reply && m.reply.user_id === me); }).pop();
+        if (lastForMe) last = lastForMe;  // 有跟我有關的訊息就優先顯示那一則
+        toast.querySelector('[data-toast-title]').textContent = forMe ? last.name + (last.reply && last.reply.user_id === me ? ' 回覆了你' : ' 提到你') :
+            last.name + (toastCount > 1 ? ' 等 ' + toastCount + ' 則新訊息' : ' 傳了新訊息');
+        toast.querySelector('[data-toast-text]').textContent = last.content.length > 60 ? last.content.slice(0, 60) + '…' : last.content;
+        if (forMe) toast.classList.add('for-me');
+        toast.hidden = false;
+        void toast.offsetWidth;
+        toast.classList.add('show');
+        clearTimeout(toastTimer);
+        toastTimer = setTimeout(hideToast, toast.classList.contains('for-me') ? 15000 : 8000);  // 提到你的停久一點
+    }
+    if (toast) {
+        toast.querySelector('[data-toast-open]').addEventListener('click', openChat);
+        toast.querySelector('[data-toast-close]').addEventListener('click', hideToast);
+    }
+
     function appendMessage(message) {
         var mine = message.user_id === me;
         var row = el('div', 'chat-message' + (mine ? ' mine' : ''));
@@ -71,6 +158,18 @@
         if (!mine) row.appendChild(el('i', 'chat-avatar', message.name.slice(0, 1)));
         var bubbleWrap = el('div', 'chat-msg-body');
         if (!mine) bubbleWrap.appendChild(el('b', 'chat-name', message.name));
+        if (message.reply) {
+            // 引用的原訊息：點一下跳回那一則
+            var quote = el('button', 'chat-quote');
+            quote.type = 'button';
+            quote.title = '跳到原訊息';
+            quote.appendChild(el('b', '', '↩ ' + (message.reply.name || '原訊息')));
+            quote.appendChild(el('span', '', message.reply.content));
+            quote.addEventListener('click', function () { jumpTo(message.reply.id); });
+            bubbleWrap.appendChild(quote);
+        }
+        var forMe = mine ? '' : (message.reply && message.reply.user_id === me ? ' · 回覆你' : (mentionsMe(message.content) ? ' · 提到你' : ''));
+        if (forMe) { row.classList.add('for-me'); bubbleWrap.querySelector('.chat-name').dataset.forMe = forMe; }
         var text = el('p', 'chat-text');
         // @提及標示由 trip_detail.html 提供；沒有的話就當純文字
         text.appendChild(window.highlightMentions ? window.highlightMentions(message.content) : document.createTextNode(message.content));
@@ -78,8 +177,14 @@
         var meta = el('small', 'chat-meta');
         meta.appendChild(el('span', 'chat-read'));
         meta.appendChild(el('span', '', message.time));
+        if (canReply && !message.removed) {
+            var replyBtn = el('button', 'chat-reply-button', '↩ 回覆');
+            replyBtn.type = 'button';
+            replyBtn.addEventListener('click', function () { startReply(message); });
+            meta.appendChild(replyBtn);
+        }
         bubbleWrap.appendChild(meta);
-        if (canModerate && !message.removed) {
+        if (canModerate && !message.removed) {  // 團長的「移除」放在時間那一行，不另外佔一行
             var remove = el('button', 'chat-remove-button', '移除');
             remove.type = 'button';
             remove.title = '移除不當訊息';
@@ -89,7 +194,7 @@
                     .then(function () { showError(''); return poll(); })
                     .catch(function (err) { showError(err.message); });
             });
-            bubbleWrap.appendChild(remove);
+            meta.appendChild(remove);
         }
         row.appendChild(bubbleWrap);
         listEl.appendChild(row);
@@ -180,6 +285,10 @@
         }).length;
         unreadBadge.textContent = count > 99 ? '99+' : count;
         unreadBadge.hidden = !count;
+        // 瀏覽器分頁標題也顯示未讀數，切到別的網頁也看得到
+        document.title = (count ? '(' + (count > 99 ? '99+' : count) + ') 💬 ' : '') + baseTitle;
+        var tab = unreadBadge.closest('.trip-tab');
+        if (tab) tab.classList.toggle('has-unread', !!count);
     }
 
     function poll() {
@@ -200,10 +309,14 @@
                 if (lastId === 0) listEl.textContent = '';
                 me = data.me;
                 canModerate = !!data.can_moderate;
+                canReply = !!data.can_reply;
                 members = data.members;
                 latestId = data.latest_id;
                 members.forEach(function (m) { if (m.user_id === me) myLastRead = Math.max(myLastRead, m.last_read); });
                 data.messages.forEach(appendMessage);
+                var fromOthers = data.messages.filter(function (m) { return m.user_id !== me && m.id > myLastRead && !m.removed; });
+                if (!firstLoad && fromOthers.length && !chatOnScreen()) showToast(fromOthers);
+                firstLoad = false;
                 (data.removed_ids || []).forEach(function (id) {
                     var row = listEl.querySelector('.chat-message[data-id="' + id + '"]');
                     if (!row) return;
@@ -221,6 +334,7 @@
                 updateUnreadBadge();
                 if (stick) listEl.scrollTop = listEl.scrollHeight;
                 markRead();
+                if (chatOnScreen()) hideToast();
             })
             .catch(function (err) { showError(err.message || '聊天室連線中斷，稍後自動重試。'); })
             .then(function () { polling = false; });
@@ -232,14 +346,17 @@
         if (!content) return;
         var button = form.querySelector('button');
         button.disabled = true;
-        postJson(form.action, { content: content })
-            .then(function () { input.value = ''; showError(''); return poll(); })
+        var body = { content: content };
+        if (replyTo) body.reply_to = replyTo.id;
+        postJson(form.action, body)
+            .then(function () { input.value = ''; cancelReply(); showError(''); return poll(); })
             .then(function () { listEl.scrollTop = listEl.scrollHeight; })
             .catch(function (err) { showError(err.message); })
             .then(function () { button.disabled = false; input.focus(); });
     });
 
     input.addEventListener('keydown', function (event) {
+        if (event.key === 'Escape' && replyTo) { cancelReply(); return; }
         if (event.key === 'Enter' && !event.shiftKey && !event.isComposing) {
             event.preventDefault();
             form.requestSubmit();
@@ -250,6 +367,7 @@
         new IntersectionObserver(function (entries) {
             panelVisible = entries[0].isIntersecting;
             markRead();
+            if (chatOnScreen()) hideToast();
         }, { threshold: 0.3 }).observe(listEl);
     } else {
         panelVisible = true;

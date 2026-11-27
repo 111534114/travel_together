@@ -8,10 +8,15 @@
 
 /* 側欄底部的登出／登入文字置中(所有頁面共用) */
 .member-shell .side-link.side-logout,
-.member-shell .side-link.side-login {
+.member-shell .side-link.side-login,
+.member-shell .side-link.side-register {
     text-align: center;
     justify-content: center;
 }
+
+/* 訪客的「免費註冊」：實心按鈕。原本只寫在 site-shell.css，用會員版面的頁面(例如目的地天氣)沒載入就跑版 */
+.member-shell .side-link.side-register { margin-top: 4px; color: #fff; background: #4B838B; }
+.member-shell .side-link.side-register:hover { color: #fff; background: #37676D; }
 
 /* 電腦版左側欄的 logo：放大，右邊站著三小隻(手機版頂部列的大小在下方 850px 規則裡，三小隻在手機版隱藏) */
 .brand-mascots {
@@ -226,3 +231,39 @@
     }
 }
 
+
+/* 左邊選單「我的旅程」旁邊的紅色數字：所有旅程的新通知＋聊天室未讀 */
+.side-badge {
+    display: inline-block;
+    min-width: 22px;
+    height: 22px;
+    margin-left: 8px;
+    padding: 0 7px;
+    color: #fff;
+    background: #E5484D;
+    border-radius: 999px;
+    font-size: 12px;
+    font-weight: 800;
+    line-height: 22px;
+    text-align: center;
+    vertical-align: 1px;
+    box-shadow: 0 3px 8px rgba(229, 72, 77, .35);
+    animation: side-badge-pop 2s ease-in-out infinite;
+}
+.side-badge[hidden] { display: none; }
+@keyframes side-badge-pop { 0%, 100% { transform: scale(1); } 12% { transform: scale(1.2); } 24% { transform: scale(1); } }
+
+/* 手機版漢堡按鈕右上角的紅點(選單收起來時也知道有新訊息) */
+.nav-toggle { position: relative; }
+.nav-toggle-dot {
+    position: absolute;
+    top: 6px;
+    right: 6px;
+    width: 10px;
+    height: 10px;
+    background: #E5484D;
+    border: 2px solid #fff;
+    border-radius: 50%;
+}
+.nav-toggle-dot[hidden] { display: none; }
+@media (prefers-reduced-motion: reduce) { .side-badge { animation: none; } }

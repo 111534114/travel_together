@@ -11,6 +11,7 @@
 .booking-search-form .field[hidden] { display:none; }
 .booking-search-form--train .field { min-width:120px; }
 .booking-search-form--train .field.field-compact { flex:0 1 110px; min-width:92px; }
+@media (max-width:560px){ .booking-search-form--train .field.field-compact { flex:1 1 130px; min-width:130px; } }  /* 手機上「高鐵＋台鐵」不要被切掉 */
 .booking-search-form .field label { color:#536970; font-size:14px; font-weight:600; }
 .booking-search-form .field input, .booking-search-form .field select {
   min-height:48px; padding:10px 14px; color:#1c3236; background:#fff;

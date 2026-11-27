@@ -194,42 +194,18 @@ def _load_votes(cursor, trip_id, user_id):
     return votes
 
 
-def _load_comments(cursor, trip_id):
+def _load_proposal_comments(cursor, trip_id):
+    """提案底下的留言。(整趟行程的留言討論、每日行程項目底下的留言都已拿掉，旅伴改用聊天室)"""
     cursor.execute("""
         SELECT c.*, u.full_name, u.nickname
         FROM comments c JOIN users u ON u.user_id = c.user_id
-        WHERE c.trip_id=%s AND c.itinerary_id IS NULL AND c.proposal_id IS NULL AND c.status='visible'
+        WHERE c.trip_id=%s AND c.status='visible' AND c.proposal_id IS NOT NULL
         ORDER BY c.created_at ASC
     """, (trip_id,))
-    rows = cursor.fetchall()
-
-    replies_by_parent = {}
-    for r in rows:
-        if r["parent_comment_id"] is not None:
-            replies_by_parent.setdefault(r["parent_comment_id"], []).append(r)
-
-    top_level = [r for r in rows if r["parent_comment_id"] is None]
-    for c in top_level:
-        c["replies"] = replies_by_parent.get(c["comment_id"], [])
-
-    return top_level
-
-
-def _load_item_comments(cursor, trip_id):
-    """每日行程項目與提案底下的留言，不含整趟行程的討論（那些由 _load_comments 處理）。"""
-    cursor.execute("""
-        SELECT c.*, u.full_name, u.nickname
-        FROM comments c JOIN users u ON u.user_id = c.user_id
-        WHERE c.trip_id=%s AND c.status='visible' AND (c.itinerary_id IS NOT NULL OR c.proposal_id IS NOT NULL)
-        ORDER BY c.created_at ASC
-    """, (trip_id,))
-    itinerary_comments, proposal_comments = {}, {}
+    proposal_comments = {}
     for row in cursor.fetchall():
-        if row["itinerary_id"] is not None:
-            itinerary_comments.setdefault(row["itinerary_id"], []).append(row)
-        elif row["proposal_id"] is not None:
-            proposal_comments.setdefault(row["proposal_id"], []).append(row)
-    return itinerary_comments, proposal_comments
+        proposal_comments.setdefault(row["proposal_id"], []).append(row)
+    return proposal_comments
 
 
 # 留言 @提及：@暱稱（或本名）提及特定旅伴，@ALL／@所有人 通知全部旅伴
@@ -473,7 +449,7 @@ def _parse_trip(form):
         "people_count": form.get("people_count", "1").strip(),
         "total_budget": form.get("total_budget", "0").strip(),
         "currency": form.get("currency", "TWD").strip().upper(),
-        "introduction": form.get("introduction", "").strip(),
+        "introduction": "" if form.get("introduction", "").strip() == "None" else form.get("introduction", "").strip(),  # 舊版表單會把空的介紹送成「None」
         "visibility": form.get("visibility", "private").strip(),
         "allow_copy": 1 if form.get("allow_copy") == "on" else 0,
     }
@@ -644,6 +620,36 @@ def _fetch_featured_public_trips(cursor, user_id, limit=6):
         return [], {}
 
 
+def _trip_unread_counts(cursor, user_id, trip_ids):
+    """我的旅程每張卡片用：每趟旅程的未讀通知數、聊天室未讀訊息數。查詢失敗就當 0，不影響我的旅程頁。"""
+    unread, chat_unread = {}, {}
+    if not trip_ids:
+        return unread, chat_unread
+    marks = ",".join(["%s"] * len(trip_ids))
+    try:
+        cursor.execute(f"""
+            SELECT trip_id, COUNT(*) AS n FROM notifications
+            WHERE user_id=%s AND is_read=FALSE AND trip_id IN ({marks}) GROUP BY trip_id
+        """, (user_id, *trip_ids))
+        unread = {row["trip_id"]: int(row["n"]) for row in cursor.fetchall()}
+    except Exception as error:
+        print("讀取旅程未讀通知失敗：", error)
+    try:
+        # 聊天室未讀：別人傳的、比我「讀到的最後一則」還新的訊息(被團長移除的不算)
+        cursor.execute(f"""
+            SELECT m.trip_id, COUNT(*) AS n
+            FROM trip_chat_messages m
+            LEFT JOIN trip_chat_reads r ON r.trip_id = m.trip_id AND r.user_id = %s
+            WHERE m.trip_id IN ({marks}) AND m.user_id <> %s
+              AND m.message_id > COALESCE(r.last_read_message_id, 0) AND m.content <> %s
+            GROUP BY m.trip_id
+        """, (user_id, *trip_ids, user_id, REMOVED_CHAT_CONTENT))
+        chat_unread = {row["trip_id"]: int(row["n"]) for row in cursor.fetchall()}
+    except Exception as error:
+        print("讀取聊天室未讀數失敗：", error)
+    return unread, chat_unread
+
+
 @member_bp.route("/trips")
 @login_required("member")
 def my_trips():
@@ -681,8 +687,11 @@ def my_trips():
             ORDER BY t.start_date ASC, t.created_at DESC
         """, (user_id,))
         trips = cursor.fetchall()
+        notice_unread, chat_unread = _trip_unread_counts(cursor, user_id, [t["trip_id"] for t in trips])
         today = date.today()
         for t in trips:
+            t["notice_unread"] = notice_unread.get(t["trip_id"], 0)
+            t["chat_unread"] = chat_unread.get(t["trip_id"], 0)
             if t["end_date"] < today:
                 t["phase"] = "completed"
             elif t["start_date"] <= today <= t["end_date"]:
@@ -993,6 +1002,34 @@ def toggle_trip_favorite(trip_id):
     return redirect(next_url)
 
 
+def _my_trips_unread(cursor, user_id):
+    """左邊選單「我的旅程」旁邊的數字：所有(還在、已加入的)旅程的未讀通知＋聊天室未讀訊息。
+    算法跟我的旅程頁每張卡片一樣，加起來會對得上。查詢失敗就當 0，不影響鈴鐺。"""
+    notices = chat = 0
+    try:
+        cursor.execute("""
+            SELECT COUNT(*) AS n FROM notifications n
+            JOIN trip_members tm ON tm.trip_id = n.trip_id AND tm.user_id = n.user_id AND tm.join_status = 'accepted'
+            JOIN trips t ON t.trip_id = n.trip_id AND t.deleted_at IS NULL
+            WHERE n.user_id=%s AND n.is_read=FALSE
+        """, (user_id,))
+        notices = int(cursor.fetchone()["n"])
+    except Exception as error:
+        print("計算旅程未讀通知失敗：", error)
+    try:
+        cursor.execute("""
+            SELECT COUNT(*) AS n FROM trip_chat_messages m
+            JOIN trip_members tm ON tm.trip_id = m.trip_id AND tm.user_id = %s AND tm.join_status = 'accepted'
+            JOIN trips t ON t.trip_id = m.trip_id AND t.deleted_at IS NULL
+            LEFT JOIN trip_chat_reads r ON r.trip_id = m.trip_id AND r.user_id = %s
+            WHERE m.user_id <> %s AND m.message_id > COALESCE(r.last_read_message_id, 0) AND m.content <> %s
+        """, (user_id, user_id, user_id, REMOVED_CHAT_CONTENT))
+        chat = int(cursor.fetchone()["n"])
+    except Exception as error:
+        print("計算聊天室未讀失敗：", error)
+    return notices, chat
+
+
 @member_bp.route("/notifications/unread")
 @login_required("member")
 def unread_notifications():
@@ -1010,16 +1047,20 @@ def unread_notifications():
         total = cursor.fetchone()["total"]
         # 已讀的通知也一起回傳，標為已讀後仍留在清單裡，只是改成已讀樣式
         cursor.execute("""
-            SELECT notification_id, title, message, target_url, created_at, is_read
-            FROM notifications WHERE user_id=%s
-            ORDER BY created_at DESC, notification_id DESC LIMIT 30
+            SELECT n.notification_id, n.title, n.message, n.target_url, n.created_at, n.is_read,
+                   CASE WHEN t.deleted_at IS NULL THEN t.trip_name END AS trip_name
+            FROM notifications n LEFT JOIN trips t ON t.trip_id = n.trip_id
+            WHERE n.user_id=%s
+            ORDER BY n.created_at DESC, n.notification_id DESC LIMIT 30
         """, (session["user_id"],))
         notifications = cursor.fetchall()
         for notification in notifications:
             notification["created_at"] = notification["created_at"].strftime("%Y/%m/%d %H:%M")
             notification["is_read"] = bool(notification["is_read"])
+        trip_notices, trip_chat = _my_trips_unread(cursor, session["user_id"])
         return jsonify({"total": total, "notifications": notifications,
-                        "login_id": session["notification_login_id"]})
+                        "login_id": session["notification_login_id"],
+                        "my_trips": {"notices": trip_notices, "chat": trip_chat, "total": trip_notices + trip_chat}})
     finally:
         cursor.close()
         connection.close()
@@ -2378,8 +2419,7 @@ def trip_detail(trip_id):
             p["before"] = json.loads(p["before_data"]) if p["before_data"] else None
             p["after"] = json.loads(p["after_data"]) if p["after_data"] else None
         votes = _load_votes(cursor, trip_id, session["user_id"])
-        comments = _load_comments(cursor, trip_id)
-        itinerary_comments, proposal_comments = _load_item_comments(cursor, trip_id)
+        proposal_comments = _load_proposal_comments(cursor, trip_id)
         cursor.execute("SELECT target_id FROM reports WHERE reporter_id=%s AND target_type='comment' AND status IN ('pending','processing')", (session["user_id"],))
         reported_comment_ids = {row["target_id"] for row in cursor.fetchall()}
         expenses = _load_expenses(cursor, trip_id)
@@ -2409,7 +2449,7 @@ def trip_detail(trip_id):
         my_preference, my_preference_source = trip_preferences.my_form_values(cursor, preference_rows, session["user_id"])
     finally:
         cursor.close(); connection.close()
-    return render_template("member/trip_detail.html", trip=trip, itinerary=itinerary, place_options=place_options, popular_attractions=popular_attractions, addable_trips=[trip], day_last_coords=day_last_coords, city_weather_days=city_weather_days, members=members, mention_members=[{"name": m["nickname"] or m["full_name"], "full_name": m["full_name"], "is_me": m["user_id"] == session["user_id"]} for m in members], pending_invitations=pending_invitations, pending_requests=pending_requests, invite_link=invite_link, proposals=proposals, votes=votes, comments=comments, itinerary_comments=itinerary_comments, proposal_comments=proposal_comments, reported_comment_ids=reported_comment_ids, comment_report_reasons=COMMENT_REPORT_REASONS, expenses=expenses, balance_summary=balance_summary, attachments=attachments, actual=actual, can_edit=_can_edit(trip), is_owner=trip["member_role"] == "owner", now=datetime.now(), item_type_labels=ITEM_TYPE_LABELS, itinerary_change_field_labels=ITINERARY_CHANGE_FIELD_LABELS, disney_parks=theme_parks.get_disney_parks(), transport_summary=transport_summary, preferences_ready=preference_rows is not None, my_preference=my_preference, my_preference_source=my_preference_source, preference_summary=trip_preferences.summarize(preference_rows), preference_options=trip_preferences, return_group_id=return_group_id, stay_plan=stay_plan, budget_estimate=budget_estimate, stay_tier=stay_tier, lodging_tiers=smart_trip.LODGING_TIERS, ai_ready=ai_ready(), precheck_issues=precheck_issues, compares=compares, compare_remaining=compare_remaining, compare_ready=compare_ready, compare_limit=booking_compare.DAILY_LIMIT, compare_nights=compare_nights)
+    return render_template("member/trip_detail.html", trip=trip, itinerary=itinerary, place_options=place_options, popular_attractions=popular_attractions, addable_trips=[trip], day_last_coords=day_last_coords, city_weather_days=city_weather_days, members=members, mention_members=[{"name": m["nickname"] or m["full_name"], "full_name": m["full_name"], "is_me": m["user_id"] == session["user_id"]} for m in members], pending_invitations=pending_invitations, pending_requests=pending_requests, invite_link=invite_link, proposals=proposals, votes=votes, proposal_comments=proposal_comments, reported_comment_ids=reported_comment_ids, comment_report_reasons=COMMENT_REPORT_REASONS, expenses=expenses, balance_summary=balance_summary, attachments=attachments, actual=actual, can_edit=_can_edit(trip), is_owner=trip["member_role"] == "owner", now=datetime.now(), item_type_labels=ITEM_TYPE_LABELS, itinerary_change_field_labels=ITINERARY_CHANGE_FIELD_LABELS, disney_parks=theme_parks.get_disney_parks(), transport_summary=transport_summary, preferences_ready=preference_rows is not None, my_preference=my_preference, my_preference_source=my_preference_source, preference_summary=trip_preferences.summarize(preference_rows), preference_options=trip_preferences, return_group_id=return_group_id, stay_plan=stay_plan, budget_estimate=budget_estimate, stay_tier=stay_tier, lodging_tiers=smart_trip.LODGING_TIERS, ai_ready=ai_ready(), precheck_issues=precheck_issues, compares=compares, compare_remaining=compare_remaining, compare_ready=compare_ready, compare_limit=booking_compare.DAILY_LIMIT, compare_nights=compare_nights)
 
 
 @member_bp.route("/trips/<int:trip_id>/export/excel")
@@ -3820,9 +3860,8 @@ def close_vote(trip_id, vote_id):
 
 
 def _comment_anchor(comment):
-    if comment.get("itinerary_id"): return "#itinerary"
     if comment.get("proposal_id"): return "#proposals"
-    return "#discussion"
+    return "#chat"
 
 
 @member_bp.route("/trips/<int:trip_id>/comments", methods=["POST"])
@@ -3831,24 +3870,20 @@ def add_comment(trip_id):
     connection = _connection_or_home()
     if connection is None: return redirect(url_for("member.dashboard"))
     cursor = connection.cursor(dictionary=True)
-    anchor = "#discussion"
+    anchor = "#chat"
     try:
         trip = _member_access(cursor, trip_id, session["user_id"])
         content = request.form.get("content", "").strip()
         parent_id = request.form.get("parent_comment_id", "").strip() or None
-        itinerary_id = request.form.get("itinerary_id", "").strip() or None
         proposal_id = request.form.get("proposal_id", "").strip() or None
 
-        if itinerary_id:
-            cursor.execute("SELECT itinerary_id FROM itineraries WHERE itinerary_id=%s AND trip_id=%s", (itinerary_id, trip_id))
-            if not cursor.fetchone(): itinerary_id = None
-            else: anchor = "#itinerary"
-        elif proposal_id:
+        if proposal_id:
             cursor.execute("SELECT proposal_id FROM proposals WHERE proposal_id=%s AND trip_id=%s", (proposal_id, trip_id))
             if not cursor.fetchone(): proposal_id = None
             else: anchor = "#proposals"
 
         if not trip: flash("你沒有留言的權限。", "error")
+        elif not proposal_id: flash("留言只保留在提案底下；行程的討論請到聊天室跟旅伴聊。", "error")
         elif not content: flash("留言內容不能是空的。", "error")
         else:
             if parent_id:
@@ -3856,7 +3891,7 @@ def add_comment(trip_id):
                 if not cursor.fetchone():
                     parent_id = None
             cursor.execute("""INSERT INTO comments (trip_id,user_id,parent_comment_id,itinerary_id,proposal_id,content)
-                              VALUES (%s,%s,%s,%s,%s,%s)""", (trip_id, session["user_id"], parent_id, itinerary_id, proposal_id, content))
+                              VALUES (%s,%s,%s,%s,%s,%s)""", (trip_id, session["user_id"], parent_id, None, proposal_id, content))
             _notify_mentions(cursor, trip, _load_mention_members(cursor, trip_id), content, anchor, session["user_id"])
             connection.commit()
             flash("留言已送出。", "success")
@@ -3873,7 +3908,7 @@ def edit_comment(trip_id, comment_id):
     connection = _connection_or_home()
     if connection is None: return redirect(url_for("member.dashboard"))
     cursor = connection.cursor(dictionary=True)
-    anchor = "#discussion"
+    anchor = "#chat"
     try:
         trip = _member_access(cursor, trip_id, session["user_id"])
         cursor.execute("SELECT * FROM comments WHERE comment_id=%s AND trip_id=%s", (comment_id, trip_id))
@@ -3906,7 +3941,7 @@ def delete_comment(trip_id, comment_id):
     connection = _connection_or_home()
     if connection is None: return redirect(url_for("member.dashboard"))
     cursor = connection.cursor(dictionary=True)
-    anchor = "#discussion"
+    anchor = "#chat"
     try:
         trip = _member_access(cursor, trip_id, session["user_id"])
         cursor.execute("SELECT * FROM comments WHERE comment_id=%s AND trip_id=%s", (comment_id, trip_id))
@@ -3934,7 +3969,7 @@ def report_comment(trip_id, comment_id):
     connection = _connection_or_home()
     if connection is None: return redirect(url_for("member.dashboard"))
     cursor = connection.cursor(dictionary=True)
-    anchor = "#discussion"
+    anchor = "#chat"
     try:
         trip = _member_access(cursor, trip_id, session["user_id"])
         cursor.execute("SELECT * FROM comments WHERE comment_id=%s AND trip_id=%s", (comment_id, trip_id))
@@ -3965,6 +4000,47 @@ def report_comment(trip_id, comment_id):
 
 
 CHAT_MAX_LENGTH = 1000
+_chat_reply_ready = False
+_chat_reply_checked_at = 0.0
+
+
+def _chat_reply_available(cursor):
+    """聊天室「回覆」要用到 reply_to_message_id 欄位(database/migrate_1127_chat_reply.sql)。
+    還沒加欄位時聊天室照常用，只是不能回覆；每 60 秒最多重新檢查一次。"""
+    global _chat_reply_ready, _chat_reply_checked_at
+    import time as _time
+    if _chat_reply_ready: return True
+    if _time.time() - _chat_reply_checked_at < 60: return False
+    _chat_reply_checked_at = _time.time()
+    try:
+        cursor.execute("SELECT reply_to_message_id FROM trip_chat_messages LIMIT 0")
+        cursor.fetchall()
+        _chat_reply_ready = True
+    except Exception:
+        pass
+    return _chat_reply_ready
+
+
+def _chat_message_sql(with_reply):
+    """聊天訊息的 SELECT 欄位與 JOIN；有回覆欄位時順便帶出「被回覆的那則」的作者與內容。"""
+    columns = "m.message_id, m.user_id, m.content, m.created_at, u.full_name, u.nickname"
+    joins = "FROM trip_chat_messages m JOIN users u ON u.user_id = m.user_id"
+    if with_reply:
+        columns += (", m.reply_to_message_id, p.content AS reply_content, p.user_id AS reply_user_id,"
+                    " pu.full_name AS reply_full_name, pu.nickname AS reply_nickname")
+        joins += (" LEFT JOIN trip_chat_messages p ON p.message_id = m.reply_to_message_id AND p.trip_id = m.trip_id"
+                  " LEFT JOIN users pu ON pu.user_id = p.user_id")
+    return columns, joins
+
+
+def _chat_reply_payload(row):
+    if not row.get("reply_to_message_id"): return None
+    if row.get("reply_content") is None:
+        return {"id": row["reply_to_message_id"], "name": "", "content": "原訊息已不存在"}
+    content = "訊息已由團長移除" if row["reply_content"] == REMOVED_CHAT_CONTENT else row["reply_content"]
+    return {"id": row["reply_to_message_id"], "user_id": row["reply_user_id"],
+            "name": row["reply_nickname"] or row["reply_full_name"],
+            "content": content if len(content) <= 80 else content[:80] + "…"}
 
 
 def _display_name(row):
@@ -4006,8 +4082,12 @@ def _open_vote_progress(cursor, trip_id, members):
     return progress
 
 
-def _post_chat_message(cursor, trip_id, user_id, content):
-    cursor.execute("INSERT INTO trip_chat_messages (trip_id,user_id,content) VALUES (%s,%s,%s)", (trip_id, user_id, content))
+def _post_chat_message(cursor, trip_id, user_id, content, reply_to=None):
+    if reply_to:
+        cursor.execute("INSERT INTO trip_chat_messages (trip_id,user_id,content,reply_to_message_id) VALUES (%s,%s,%s,%s)",
+                       (trip_id, user_id, content, reply_to))
+    else:
+        cursor.execute("INSERT INTO trip_chat_messages (trip_id,user_id,content) VALUES (%s,%s,%s)", (trip_id, user_id, content))
     message_id = cursor.lastrowid
     # 自己送出的訊息當然算自己已讀
     cursor.execute("""INSERT INTO trip_chat_reads (trip_id,user_id,last_read_message_id) VALUES (%s,%s,%s)
@@ -4028,17 +4108,17 @@ def chat_feed(trip_id):
         if not trip:
             return jsonify(error="你沒有查看此行程的權限。"), 403
         after = request.args.get("after", 0, type=int)
+        can_reply = _chat_reply_available(cursor)
+        columns, joins = _chat_message_sql(can_reply)
         if after > 0:
-            cursor.execute("""SELECT m.message_id, m.user_id, m.content, m.created_at, u.full_name, u.nickname
-                              FROM trip_chat_messages m JOIN users u ON u.user_id = m.user_id
-                              WHERE m.trip_id=%s AND m.message_id > %s ORDER BY m.message_id""", (trip_id, after))
+            cursor.execute(f"""SELECT {columns} {joins}
+                               WHERE m.trip_id=%s AND m.message_id > %s ORDER BY m.message_id""", (trip_id, after))
             rows = cursor.fetchall()
         else:
-            cursor.execute("""SELECT * FROM (
-                                  SELECT m.message_id, m.user_id, m.content, m.created_at, u.full_name, u.nickname
-                                  FROM trip_chat_messages m JOIN users u ON u.user_id = m.user_id
-                                  WHERE m.trip_id=%s ORDER BY m.message_id DESC LIMIT 200
-                              ) recent ORDER BY message_id""", (trip_id,))
+            cursor.execute(f"""SELECT * FROM (
+                                   SELECT {columns} {joins}
+                                   WHERE m.trip_id=%s ORDER BY m.message_id DESC LIMIT 200
+                               ) recent ORDER BY message_id""", (trip_id,))
             rows = cursor.fetchall()
         members = _chat_members(cursor, trip_id)
         cursor.execute("SELECT COALESCE(MAX(message_id),0) AS latest FROM trip_chat_messages WHERE trip_id=%s", (trip_id,))
@@ -4052,8 +4132,10 @@ def chat_feed(trip_id):
                 "id": r["message_id"], "user_id": r["user_id"], "name": _display_name(r),
                 "content": "訊息已由團長移除" if r["content"] == REMOVED_CHAT_CONTENT else r["content"],
                 "removed": r["content"] == REMOVED_CHAT_CONTENT, "time": r["created_at"].strftime("%m/%d %H:%M"),
+                "reply": _chat_reply_payload(r),
             } for r in rows],
             "can_moderate": trip["member_role"] == "owner",
+            "can_reply": can_reply,
             "removed_ids": removed_ids,
             "members": [{
                 "user_id": m["user_id"], "name": _display_name(m), "role": m["member_role"],
@@ -4070,7 +4152,10 @@ def chat_feed(trip_id):
 @member_bp.route("/trips/<int:trip_id>/chat", methods=["POST"])
 @login_required("member")
 def chat_send(trip_id):
-    content = ((request.get_json(silent=True) or {}).get("content") or "").strip()
+    body = request.get_json(silent=True) or {}
+    content = (body.get("content") or "").strip()
+    reply_to = body.get("reply_to")
+    reply_to = reply_to if isinstance(reply_to, int) and not isinstance(reply_to, bool) and reply_to > 0 else None
     if not content or content == REMOVED_CHAT_CONTENT: return jsonify(error="訊息不能是空的或使用系統保留文字。"), 400
     if len(content) > CHAT_MAX_LENGTH: return jsonify(error=f"訊息最多 {CHAT_MAX_LENGTH} 字。"), 400
     connection = get_db_connection()
@@ -4082,8 +4167,27 @@ def chat_send(trip_id):
             return jsonify(error="你沒有這個行程的聊天權限。"), 403
         if blocked_term(cursor, content):
             return jsonify(error="訊息包含禁止內容，請修改後再送出。"), 400
-        message_id = _post_chat_message(cursor, trip_id, session["user_id"], content)
-        _notify_mentions(cursor, trip, _load_mention_members(cursor, trip_id), content, "#chat", session["user_id"], place="聊天室")
+        replied = None
+        if reply_to:
+            if not _chat_reply_available(cursor):
+                return jsonify(error="聊天室回覆功能還沒開通(資料庫還沒更新)，請先直接傳訊息。"), 400
+            cursor.execute("SELECT user_id, content FROM trip_chat_messages WHERE message_id=%s AND trip_id=%s", (reply_to, trip_id))
+            replied = cursor.fetchone()
+            if not replied or replied["content"] == REMOVED_CHAT_CONTENT:
+                return jsonify(error="要回覆的訊息不存在或已被移除。"), 400
+        message_id = _post_chat_message(cursor, trip_id, session["user_id"], content, reply_to=reply_to)
+        mention_members = _load_mention_members(cursor, trip_id)
+        notified = set()
+        if replied and replied["user_id"] != session["user_id"]:
+            # 被回覆的人一定會收到通知(就算沒有 @ 他)
+            author = next((m for m in mention_members if m["user_id"] == session["user_id"]), {})
+            author_name = author.get("nickname") or author.get("full_name") or "旅伴"
+            snippet = content if len(content) <= 60 else content[:60] + "…"
+            send_notification(cursor, replied["user_id"], "mention", "comment", "有人回覆了你的聊天訊息",
+                              f"{author_name} 在「{trip['trip_name']}」的聊天室回覆了你：{snippet}",
+                              url_for("member.trip_detail", trip_id=trip_id) + "#chat", trip_id=trip_id)
+            notified.add(replied["user_id"])
+        _notify_mentions(cursor, trip, mention_members, content, "#chat", session["user_id"], exclude_ids=notified, place="聊天室")
         connection.commit()
     except Exception:
         connection.rollback(); return jsonify(error="訊息送出失敗，請再試一次。"), 500

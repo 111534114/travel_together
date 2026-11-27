@@ -39,6 +39,8 @@
     <div class="trip-grid" id="memberTripGrid">
         {% for trip in trips %}
         <div class="trip-card-member" data-member-search="{{ trip.trip_name }} {{ trip.country or '' }} {{ trip.city or '' }}" data-phase="{{ trip.phase }}" style="cursor:pointer;" onclick="if (!event.target.closest('form, button, a')) { window.location.href='{{ url_for('member.trip_detail', trip_id=trip.trip_id) }}'; }">
+            {% set alert_total = (trip.notice_unread or 0) + (trip.chat_unread or 0) %}
+            {% if alert_total %}<b class="trip-card-dot" aria-label="{{ alert_total }} 則未讀">{{ alert_total if alert_total < 100 else '99+' }}</b>{% endif %}
             <div class="card-art" {% if trip.cover_image_path %}style="background-image:url('{{ url_for('static', filename=trip.cover_image_path) }}'); background-size:cover; background-position:center;"{% endif %}>
                 {% if not trip.cover_image_path %}✦{% endif %}
                 <span>{{ '公開' if trip.visibility == 'public' else '私人旅程' }}</span>
@@ -47,6 +49,12 @@
                 <p>{{ trip.country }} · {{ trip.city }}</p>
                 <h3>{{ trip.trip_name }}</h3>
                 <div>{{ trip.start_date }} — {{ trip.end_date }}</div>
+                {% if trip.notice_unread or trip.chat_unread %}
+                <div class="trip-card-alerts">
+                    {% if trip.notice_unread %}<button type="button" class="trip-alert notice" data-notice-filter="{{ trip.trip_id }}" title="打開通知">🔔 {{ trip.notice_unread }} 則新通知</button>{% endif %}
+                    {% if trip.chat_unread %}<a class="trip-alert chat" href="{{ url_for('member.trip_detail', trip_id=trip.trip_id) }}#chat" title="打開聊天室">💬 {{ trip.chat_unread if trip.chat_unread < 100 else '99+' }} 則未讀訊息</a>{% endif %}
+                </div>
+                {% endif %}
                 <footer><span>{{ trip.member_count }} 位旅伴</span><span>{{ trip.itinerary_count }} 個項目</span><span>{{ {'upcoming':'即將開始','ongoing':'進行中','completed':'已完成'}.get(trip.phase, trip.phase) }}</span></footer>
                 <div class="card-actions">
                     <form method="post" action="{{ url_for('member.duplicate_trip', trip_id=trip.trip_id) }}" style="margin:0;"><button type="submit" class="member-btn ghost small" title="複製這個行程">複製</button></form>
@@ -194,5 +202,14 @@
         if (btn) btn.classList.add('active');
         filterMemberTrips();
     }
+</script>
+<script>
+// 卡片上的「🔔 N 則新通知」：打開右下角的通知鈴鐺(每則通知都標了是哪一趟旅程)
+document.querySelectorAll('[data-notice-filter]').forEach(function (btn) {
+    btn.addEventListener('click', function () {
+        var bell = document.getElementById('memberNotificationBell');
+        if (bell) bell.click();
+    });
+});
 </script>
 {% endblock %}

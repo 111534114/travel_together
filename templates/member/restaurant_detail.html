@@ -22,7 +22,9 @@
         <div class="attraction-detail-stats">
             <div><span>料理類型</span><strong>{{ r.cuisine_type or '未提供' }}</strong></div>
             <div><span>價位</span><strong>{{ {'low':'$（平價）','medium':'$$（中等）','high':'$$$（偏高）','luxury':'$$$$（奢華）'}.get(r.price_level, '未提供') }}</strong></div>
-            <div><span>營業時間</span><strong>{{ r.opening_hours or '未提供' }}</strong></div>
+            <div class="detail-hours"><span>營業時間</span><strong>{{ (r.opening_hours or '未提供').replace('；', '
+').replace('; ', '
+') }}</strong></div>
         </div>
 
         <div class="attraction-detail-location">

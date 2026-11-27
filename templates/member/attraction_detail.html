@@ -21,7 +21,9 @@
 
         <div class="attraction-detail-stats">
             <div><span>票價</span><strong>{{ 'NT$ {:,.0f}'.format(a.ticket_price) if a.ticket_price else '免費' }}</strong></div>
-            <div><span>營業時間</span><strong>{{ a.opening_hours or '未提供' }}</strong></div>
+            <div class="detail-hours"><span>營業時間</span><strong>{{ (a.opening_hours or '未提供').replace('；', '
+').replace('; ', '
+') }}</strong></div>
             <div><span>建議停留時間</span><strong>{{ (a.suggested_duration_minutes ~ ' 分鐘') if a.suggested_duration_minutes else '未提供' }}</strong></div>
         </div>
 

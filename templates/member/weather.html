@@ -50,7 +50,8 @@
   .wx-today-temp span { color: var(--wx-rain); font-size: 13px; font-weight: 600; }
   .wx-remove { margin-left: 8px; padding: 2px 8px; color: var(--wx-muted); font: inherit; font-size: 12px; background: transparent; border: 1px solid var(--wx-line); border-radius: 999px; cursor: pointer; vertical-align: middle; }
   .wx-remove:hover { color: var(--wx-ink); background: #fff; }
-  .wx-week { display: grid; grid-template-columns: repeat(7, minmax(76px, 1fr)); overflow-x: auto; border-top: 1px solid var(--wx-line); }
+  /* 氣象署有時給 7 天、有時給 8 天(今天＋後面 7 天)：有幾天就排幾欄，全部在同一排；太窄時左右滑 */
+  .wx-week { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(70px, 1fr); overflow-x: auto; border-top: 1px solid var(--wx-line); }
   .wx-day { display: flex; flex-direction: column; align-items: center; gap: 3px; padding: 12px 6px 14px; text-align: center; border-left: 1px solid var(--wx-line); }
   .wx-day:first-child { border-left: 0; background: #FAFDFD; }
   .wx-day-name { font-size: 14px; font-weight: 700; }
@@ -63,12 +64,16 @@
   .wx-empty[hidden] { display: none; }
   .wx-empty div { font-size: 40px; }
   .wx-source { margin: 18px 0 0; color: var(--wx-muted); font-size: 12px; }
-  @media (max-width: 900px) {
+  @media (max-width: 1180px) {  /* 左邊選單約佔 220px，所以要早一點改成上下排 */
     .wx-layout { grid-template-columns: minmax(0, 1fr); }
     .wx-side { position: static; }
     .tw-map { max-width: 320px; max-height: none; }
   }
   @media (max-width: 640px) {
+    /* 手機放不下 8 天：右邊淡出，看得出還可以往左滑；每天會對齊停好 */
+    .wx-week { scroll-snap-type: x mandatory; -webkit-mask-image: linear-gradient(90deg, #000 82%, transparent); mask-image: linear-gradient(90deg, #000 82%, transparent); }
+    .wx-week.at-end { -webkit-mask-image: none; mask-image: none; }
+    .wx-day { scroll-snap-align: start; }
     .wx-today { grid-template-columns: auto minmax(0, 1fr); padding: 16px; }
     .wx-today-temp { grid-column: 1 / -1; text-align: left; }
     .wx-today-emoji { font-size: 42px; }
@@ -140,6 +145,12 @@
 <script>
   (function () {  // 自選縣市：地圖、清單、卡片三邊同步；選擇記在這台瀏覽器，沒選過就用預設(公開行程的目的地)
     var page = document.querySelector('[data-weather-page]');
+    document.querySelectorAll('.wx-week').forEach(function (week) {
+      var check = function () { week.classList.toggle('at-end', week.scrollLeft + week.clientWidth >= week.scrollWidth - 4); };
+      week.addEventListener('scroll', check, { passive: true });
+      window.addEventListener('resize', check);
+      check();
+    });
     var options = page ? Array.prototype.slice.call(page.querySelectorAll('[data-weather-option]')) : [];
     if (!options.length) return;
     var STORAGE_KEY = 'homeWeatherCities';

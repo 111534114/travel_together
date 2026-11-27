@@ -144,6 +144,7 @@ class GroupFeatureTests(unittest.TestCase):
             session.update(user_id=2, role="member")
             with patch("blueprints.member.get_db_connection", return_value=connection), \
                  patch("blueprints.member._member_access", return_value={"member_role": "owner"}), \
+                 patch("blueprints.member._chat_reply_available", return_value=False), \
                  patch("blueprints.member._chat_members", return_value=[]), \
                  patch("blueprints.member._open_vote_progress", return_value=[]):
                 response = chat_feed(8)

@@ -171,7 +171,7 @@
     .section-header h2 { margin: 0; font-size: 28px; }
     .section-header p { margin: 5px 0 0; color: var(--muted); font-size: 14px; }
     .search-result, .section-link { color: var(--purple); font-size: 14px; font-weight: 700; }
-    .trip-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 18px; }
+    .trip-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(max(270px, calc((100% - 36px) / 3)), 1fr)); gap: 18px; }  /* 最多 3 欄；畫面變窄時每張卡至少 270px，放不下就自動變 2 欄、1 欄 */
     .trip-card { display: flex; flex-direction: column; overflow: hidden; background: #fff; border: 1px solid var(--line); border-radius: 8px; box-shadow: 0 8px 22px rgba(45, 37, 68, .06); transition: transform 160ms ease, box-shadow 160ms ease; }
     .trip-card:hover { transform: translateY(-3px); box-shadow: 0 12px 28px rgba(45, 37, 68, .12); }
     .trip-art { position: relative; display: grid; min-height: 142px; place-items: center; color: #fff; background: #477d78; background-position: center; background-size: cover; font-size: 36px; font-weight: 700; }
@@ -309,6 +309,10 @@
     .featured-trips .trip-badges span { padding: 3px 8px; color: var(--purple); background: #EAF5F6; border-radius: 999px; font-size: 12px; font-weight: 700; }
     .featured-actions { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 14px; }
     .featured-actions form { margin: 0; }
+    /* 「一鍵套用」放第一排佔滿，「查看行程」「收藏」並排在下面，卡片變窄也不會亂跳行 */
+    .featured-actions > form:has(.primary), .featured-actions > a.primary { order: -1; flex: 1 1 100%; }
+    .featured-actions > form, .featured-actions > .view-button { flex: 1 1 0; }
+    .featured-actions .view-button { width: 100%; text-align: center; white-space: nowrap; }
     .featured-cta { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; margin-top: 18px; padding: 16px 20px; background: #fff; border: 1px dashed #C6DCDF; border-radius: 8px; color: var(--muted); font-size: 14px; }
     .member-step-heading { margin: 0 0 12px; }
     .member-step-heading h2 { margin: 0; font-size: 22px; }
@@ -318,7 +322,7 @@
     .empty-mascot { height: 64px; width: auto; display: block; animation: float-y 3.2s ease-in-out infinite; filter: drop-shadow(0 6px 6px rgba(11,59,74,.15)); }
     .section-sparkle { display: inline-block; vertical-align: -2px; margin-right: 6px; animation: twinkle-spin 2.6s ease-in-out infinite; }
     .companions { margin-top: 64px; }
-    .companion-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 18px; }
+    .companion-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(max(270px, calc((100% - 36px) / 3)), 1fr)); gap: 18px; }  /* 最多 3 欄；畫面變窄時每張卡至少 270px，放不下就自動變 2 欄、1 欄 */
     .companion-card { padding: 20px; background: #fff; border: 1px solid var(--line); border-radius: 8px; }
     .companion-card h3 { margin: 0 0 7px; font-size: 18px; }
     .companion-card p { margin: 0; color: var(--muted); font-size: 14px; }

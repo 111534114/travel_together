@@ -42,3 +42,5 @@
 .member-notification-footer button:disabled { opacity: .5; cursor: default; }
 @media (prefers-reduced-motion: reduce) { .member-notification-drawer, .member-notification-launcher, .member-notification-bell { transition: none; } }
 
+/* 右下角鈴鐺裡：通知是哪一趟旅程的 */
+.member-notification-trip { display: inline-block; margin-bottom: 6px; padding: 2px 8px; color: var(--ocean-primary-dark, #0B5C63); background: #E0F2F4; border-radius: 999px; font-size: 12px; font-weight: 700; }

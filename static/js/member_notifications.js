@@ -98,6 +98,11 @@
         });
         actions.append(view);
       }
+      // 是哪一趟旅程的通知，標在最上面
+      if (item.trip_name) {
+        const trip = document.createElement('span'); trip.className = 'member-notification-trip'; trip.textContent = '📍 ' + item.trip_name;
+        article.append(trip);
+      }
       article.append(title, message, meta);
       if (actions.childElementCount) article.append(actions);
       list.append(article);
@@ -108,6 +113,16 @@
     launcher.classList.toggle('is-tucked', tucked);
     bell.setAttribute('aria-label', tucked ? '顯示通知按鈕' : '查看通知');
     bell.title = tucked ? '顯示通知按鈕' : '查看通知';
+  }
+  // 左邊選單「我的旅程」旁邊的紅色數字 = 旅程的新通知 + 聊天室未讀訊息
+  function renderMyTripsBadge(info) {
+    const n = info ? info.total : 0;
+    document.querySelectorAll('[data-my-trips-badge]').forEach(badge => {
+      badge.textContent = n > 99 ? '99+' : String(n);
+      badge.hidden = !n;
+      badge.title = n ? `${info.notices} 則新通知、${info.chat} 則未讀訊息` : '';
+    });
+    document.querySelectorAll('[data-my-trips-dot]').forEach(dot => { dot.hidden = !n; });
   }
   async function refresh(autoOpen) {
     const response = await fetch('/member/notifications/unread', { credentials: 'same-origin', cache: 'no-store' });
@@ -121,6 +136,7 @@
     notifications = data.notifications;
     total = data.total;
     render();
+    renderMyTripsBadge(data.my_trips);
     if (autoOpen && !isTucked() && drawer.hidden && notifications.some(item => !item.is_read && !dismissedIds().has(item.notification_id))) openDrawer();
   }
   bell.addEventListener('click', async () => {

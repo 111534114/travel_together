@@ -107,10 +107,6 @@ def list_applications():
     cursor = connection.cursor(dictionary=True)
     try:
         feature_enabled = _feature_enabled(cursor)
-        cursor.execute("SELECT setting_value FROM app_settings WHERE setting_key=%s", (SETTING_KEY,))
-        terms_row = cursor.fetchone()
-        blocked_terms = terms_row["setting_value"] if terms_row else ""
-
         params = []
         where_clause = ""
         if status != "all":
@@ -144,7 +140,6 @@ def list_applications():
         "content_admin/friend_groups/applications.html",
         applications=applications, status=status, status_labels=APPLICATION_STATUS_LABELS,
         page=page, total_pages=total_pages, total=total, feature_enabled=feature_enabled,
-        blocked_terms=blocked_terms,
     )
 
 
@@ -299,18 +294,38 @@ def set_international_host(user_id):
     return redirect(url_for("friend_groups_admin.international_hosts"))
 
 
-@friend_groups_admin_bp.route("/settings/chat-terms", methods=["POST"])
-@login_required("content_admin")
-def save_chat_terms():
-    terms = parse_terms(request.form.get("blocked_terms", ""))
-    value = ",".join(terms)
-    if len(value) > 255 or any(len(term) > 40 for term in terms):
-        flash("敏感詞總長最多 255 字，每個詞最多 40 字。", "error")
-        return redirect(url_for("friend_groups_admin.list_applications"))
+@friend_groups_admin_bp.route("/settings/chat-terms")
+@login_required("system_admin")
+def chat_terms():
     connection = get_db_connection()
     if connection is None:
         flash("資料庫連線失敗", "error")
-        return redirect(url_for("friend_groups_admin.list_applications"))
+        return render_template("content_admin/friend_groups/chat_terms.html", blocked_terms="",
+                               active_page="chat_terms")
+    cursor = connection.cursor(dictionary=True)
+    try:
+        cursor.execute("SELECT setting_value FROM app_settings WHERE setting_key=%s", (SETTING_KEY,))
+        row = cursor.fetchone()
+        blocked_terms = row["setting_value"] if row else ""
+    finally:
+        cursor.close()
+        connection.close()
+    return render_template("content_admin/friend_groups/chat_terms.html", blocked_terms=blocked_terms,
+                           active_page="chat_terms")
+
+
+@friend_groups_admin_bp.route("/settings/chat-terms", methods=["POST"])
+@login_required("system_admin")
+def save_chat_terms():
+    terms = parse_terms(request.form.get("blocked_terms", ""))
+    value = ",".join(terms)
+    if any(len(term) > 40 for term in terms):
+        flash("每個敏感詞最多 40 字。", "error")
+        return redirect(url_for("friend_groups_admin.chat_terms"))
+    connection = get_db_connection()
+    if connection is None:
+        flash("資料庫連線失敗", "error")
+        return redirect(url_for("friend_groups_admin.chat_terms"))
     cursor = connection.cursor(dictionary=True)
     try:
         cursor.execute("""INSERT INTO app_settings (setting_key, setting_value, updated_by) VALUES (%s,%s,%s)
@@ -325,7 +340,7 @@ def save_chat_terms():
     finally:
         cursor.close()
         connection.close()
-    return redirect(url_for("friend_groups_admin.list_applications"))
+    return redirect(url_for("friend_groups_admin.chat_terms"))
 
 
 @friend_groups_admin_bp.route("/chat")

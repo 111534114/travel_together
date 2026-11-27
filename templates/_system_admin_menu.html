@@ -3,6 +3,7 @@
     <a class="{{ 'active' if active_page == 'users' else '' }}" href="{{ url_for('admin_users') }}">帳號管理</a>
     <a class="{{ 'active' if active_page == 'trips' else '' }}" href="{{ url_for('admin_public_trips') }}">公開行程管理</a>
     <a class="{{ 'active' if active_page == 'early_access' else '' }}" href="{{ url_for('friend_groups_admin.early_access') }}">揪團提早開放</a>
+    <a class="{{ 'active' if active_page == 'chat_terms' else '' }}" href="{{ url_for('friend_groups_admin.chat_terms') }}">聊天室敏感詞</a>
     <a class="{{ 'active' if active_page == 'issues' else '' }}" href="{{ url_for('admin_issues') }}">問題回報</a>
     <a class="{{ 'active' if active_page == 'comment_reports' else '' }}" href="{{ url_for('admin_comment_reports') }}">留言檢舉</a>
     <a class="{{ 'active' if active_page == 'announcements' else '' }}" href="{{ url_for('admin_announcements') }}">公告管理</a>

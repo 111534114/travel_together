@@ -19,18 +19,6 @@
       {% endif %}
     </section>
 
-    <section class="admin-section friend-group-admin-card friend-group-admin-terms">
-      <div class="friend-group-admin-card-head"><div><p class="friend-group-admin-kicker">聊天管理</p><h2>聊天室敏感詞</h2></div></div>
-      <p class="friend-group-admin-description">行程與官方活動聊天室在訊息送出前會檢查這些詞語。</p>
-      <form method="post" action="{{ url_for('friend_groups_admin.save_chat_terms') }}">
-        <label for="blockedTerms">敏感詞</label>
-        <textarea id="blockedTerms" name="blocked_terms" rows="3" maxlength="255" placeholder="以逗號或換行分隔" {% if not content_admin_can('friend_groups_admin', 'edit') %}readonly{% endif %}>{{ blocked_terms or '' }}</textarea>
-        <div class="friend-group-admin-terms-footer">
-          <span>以逗號或換行分隔，最多 255 字。</span>
-          {% if content_admin_can('friend_groups_admin', 'edit') %}<button class="small-button" type="submit">儲存敏感詞</button>{% endif %}
-        </div>
-      </form>
-    </section>
   </div>
 
   {% set friend_group_admin_current = 'applications' %}{% include 'content_admin/friend_groups/_management_nav.html' %}

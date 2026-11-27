@@ -79,7 +79,7 @@ _ENDPOINT_ACTIONS = {
     },
     "attraction_posts_admin": {"approve_post": "edit", "reject_post": "edit"},
     "friend_groups_admin": {
-        "approve_application": "edit", "reject_application": "edit", "toggle_setting": "edit", "save_chat_terms": "edit",
+        "approve_application": "edit", "reject_application": "edit", "toggle_setting": "edit",
         "set_international_host": "edit",
         "remove_group_chat_message": "edit",
         "new_event": "edit", "edit_event": "edit", "cancel_event": "edit", "check_in_participant": "edit",

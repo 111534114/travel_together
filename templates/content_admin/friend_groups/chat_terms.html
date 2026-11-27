@@ -1,0 +1,18 @@
+{% extends "system_admin_base.html" %}
+{% block title %}聊天室敏感詞{% endblock %}
+{% block page_title %}聊天室敏感詞{% endblock %}
+{% block page_description %}管理行程與官方活動聊天室送出前的敏感詞檢查。{% endblock %}
+{% block content %}
+<section class="admin-section system-chat-terms">
+  <div class="section-title"><h2>敏感詞設定</h2></div>
+  <p class="friend-group-admin-description">輸入多個詞語時，使用逗號或換行分隔。儲存後，新送出的聊天室訊息會套用這份清單。</p>
+  <form method="post" action="{{ url_for('friend_groups_admin.save_chat_terms') }}" class="friend-group-admin-terms">
+    <label for="blockedTerms">敏感詞</label>
+    <textarea id="blockedTerms" name="blocked_terms" rows="6" placeholder="以逗號或換行分隔">{{ blocked_terms }}</textarea>
+    <div class="friend-group-admin-terms-footer">
+      <span>詞數不限，每個詞最多 40 字。</span>
+      <button class="small-button" type="submit">儲存敏感詞</button>
+    </div>
+  </form>
+</section>
+{% endblock %}

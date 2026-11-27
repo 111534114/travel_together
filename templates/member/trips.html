@@ -99,7 +99,7 @@
                 <h3>{{ trip.trip_name }}</h3>
                 <footer><span>{{ trip.days_count }} 天</span><span>{{ trip.start_date }} ～ {{ trip.end_date }}</span>{% if trip.total_budget is not none %}<span>{{ trip.currency }} {{ "{:,.0f}".format(trip.total_budget) }}</span>{% endif %}</footer>
                 <div class="card-actions">
-                    <form method="post" action="{{ url_for('member.toggle_trip_favorite', trip_id=trip.trip_id) }}" style="margin:0;"><input type="hidden" name="next" value="{{ url_for('member.my_trips') }}"><button type="submit" class="member-btn ghost small">取消收藏</button></form>
+                    <form method="post" action="{{ url_for('member.toggle_trip_favorite', trip_id=trip.trip_id) }}" style="margin:0;"><input type="hidden" name="next" value="{{ url_for('member.my_trips') }}"><button type="submit" class="booking-heart trip-heart is-saved" aria-label="取消收藏" title="取消收藏"><span aria-hidden="true">♥</span></button></form>
                     <button class="member-btn primary small" type="button" onclick="openTripModal('{{ trip.trip_id }}')">查看行程</button>
                 </div>
             </div>

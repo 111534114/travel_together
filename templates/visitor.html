@@ -171,7 +171,7 @@
     .section-header h2 { margin: 0; font-size: 28px; }
     .section-header p { margin: 5px 0 0; color: var(--muted); font-size: 14px; }
     .search-result, .section-link { color: var(--purple); font-size: 14px; font-weight: 700; }
-    .trip-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 18px; }
+    .trip-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 18px; align-items: stretch; }
     .trip-card { display: flex; flex-direction: column; overflow: hidden; background: #fff; border: 1px solid var(--line); border-radius: 8px; box-shadow: 0 8px 22px rgba(45, 37, 68, .06); transition: transform 160ms ease, box-shadow 160ms ease; }
     .trip-card:hover { transform: translateY(-3px); box-shadow: 0 12px 28px rgba(45, 37, 68, .12); }
     .trip-art { position: relative; display: grid; min-height: 142px; place-items: center; color: #fff; background: #477d78; background-position: center; background-size: cover; font-size: 36px; font-weight: 700; }
@@ -234,7 +234,7 @@
     .trip-content { display: flex; flex: 1; flex-direction: column; padding: 18px; }
     .trip-content h3 { margin: 0 0 8px; font-size: 20px; line-height: 1.4; }
     .location { min-height: 22px; margin: 0 0 14px; color: var(--muted); font-size: 14px; }
-    .trip-details { display: flex; flex-wrap: wrap; gap: 7px 12px; padding: 13px 0; color: var(--muted); border-top: 1px solid #E9F0F1; border-bottom: 1px solid #E9F0F1; font-size: 13px; }
+    .trip-details { margin-top: auto; display: flex; flex-wrap: wrap; gap: 7px 12px; padding: 13px 0; color: var(--muted); border-top: 1px solid #E9F0F1; border-bottom: 1px solid #E9F0F1; font-size: 13px; }
     .trip-footer { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-top: auto; padding-top: 14px; color: var(--muted); font-size: 13px; }
     .view-button { padding: 7px 12px; color: var(--purple); background: #fff; border: 1px solid #C6DCDF; border-radius: 6px; cursor: pointer; font-weight: 700; }
     .view-button:hover { color: #fff; background: var(--purple); border-color: var(--purple); }
@@ -307,7 +307,7 @@
     .featured-trips .trip-intro { display: -webkit-box; margin: 0 0 12px; overflow: hidden; color: #4B5D60; font-size: 14px; line-height: 1.6; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
     .featured-trips .trip-badges { display: flex; flex-wrap: wrap; gap: 6px; margin: 0 0 10px; }
     .featured-trips .trip-badges span { padding: 3px 8px; color: var(--purple); background: #EAF5F6; border-radius: 999px; font-size: 12px; font-weight: 700; }
-    .featured-actions { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 14px; }
+    .featured-actions { display: flex; flex-wrap: wrap; justify-content: center; gap: 6px; margin-top: 14px; }
     .featured-actions form { margin: 0; }
     .featured-cta { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; margin-top: 18px; padding: 16px 20px; background: #fff; border: 1px dashed #C6DCDF; border-radius: 8px; color: var(--muted); font-size: 14px; }
     .member-step-heading { margin: 0 0 12px; }
@@ -397,6 +397,9 @@
   </style>
   <link rel="stylesheet" href="{{ url_for('static', filename='css/flight-passengers.css') }}">
   <script src="{{ url_for('static', filename='js/flight-passengers.js') }}" defer></script>
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/price-notice.css') }}">
+  <script src="{{ url_for('static', filename='js/price-notice.js') }}" defer></script>
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/booking-heart.css') }}">
 </head>
 <body>
   <div class="member-shell">
@@ -533,10 +536,10 @@
                 {% if trip.can_duplicate %}
                 <form method="post" action="{{ url_for('member.duplicate_trip', trip_id=trip.trip_id) }}"><button class="view-button primary" type="submit">一鍵套用並微調</button></form>
                 {% endif %}
-                <form method="post" action="{{ url_for('member.toggle_trip_favorite', trip_id=trip.trip_id) }}"><input type="hidden" name="next" value="{{ url_for('member.dashboard') }}#featured-trips"><button class="view-button" type="submit">{{ '取消收藏' if trip.is_favorited else '☆ 收藏' }}</button></form>
+                <form method="post" action="{{ url_for('member.toggle_trip_favorite', trip_id=trip.trip_id) }}"><input type="hidden" name="next" value="{{ url_for('member.dashboard') }}#featured-trips"><button type="submit" class="booking-heart trip-heart{% if trip.is_favorited %} is-saved{% endif %}" aria-label="{{ '取消收藏' if trip.is_favorited else '加入收藏' }}" title="{{ '取消收藏' if trip.is_favorited else '加入收藏' }}"><span aria-hidden="true">{{ '♥' if trip.is_favorited else '♡' }}</span></button></form>
                 {% else %}
                 {% if trip.can_duplicate %}<a class="view-button primary" href="{{ url_for('apply_trip_after_login', trip_id=trip.trip_id) }}">登入後一鍵套用</a>{% endif %}
-                <a class="view-button" href="{{ url_for('favorite_trip_after_login', trip_id=trip.trip_id) }}">☆ 收藏</a>
+                <a class="booking-heart trip-heart" href="{{ url_for('favorite_trip_after_login', trip_id=trip.trip_id) }}" aria-label="登入後收藏" title="登入後收藏"><span aria-hidden="true">♡</span></a>
                 {% endif %}
               </div>
             </div>

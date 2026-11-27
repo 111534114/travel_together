@@ -10,6 +10,7 @@ from booking_search import (
     TRAIN_TYPE_LABELS, apply_facets, apply_time_band, apply_value_range, booking_bp, facet_options,
     filter_prices, mark_saved_live_trains, price_buckets, price_range, time_band_options, value_range,
 )
+import continents  # 洲名 → 國家清單
 import link_check  # 飯店官網連結檢查
 import requests  # 匯入 requests，用來呼叫 LINE 的個人資料 API
 from datetime import datetime, timedelta
@@ -390,6 +391,9 @@ def api_hotel_place_search():
     if not raw_keyword:
         return jsonify([])
     raw_keyword = google_places.to_chinese_keyword(raw_keyword)  # 打英文也可以，建議一律用中文顯示
+    continent_countries = continents.country_suggestions(raw_keyword)  # 輸入「歐洲」「亞洲」這類洲名：直接列出該洲的國家(不用打 Google，省額度)
+    if continent_countries:
+        return jsonify(continent_countries)
     # 優先用 Google 地點自動完成：全世界的國家、城市、景點、飯店(繁體中文)；沒金鑰或失敗才退回下面站內(台灣)的資料
     world = google_places.autocomplete_destinations(raw_keyword)
     popular = popular_cities.suggestions(raw_keyword)  # 輸入國家名稱時，最前面先列出該國的熱門城市(像 Agoda 的「倫敦, 英國　人氣王」)
@@ -870,6 +874,12 @@ def _flight_party():
     return adults, children, infants, adults + children
 
 
+def _cabin_choice():
+    """目前選的艙等：沒選就是經濟艙(預設)；選「全部艙等」(all)就不指定艙等。回傳艙等名稱或 None。"""
+    value = request.args.get("cabin") or "經濟艙"
+    return None if value == "all" else value
+
+
 def _live_flight_search(origin_keyword, destination_keyword, depart_date, return_date=None, pax=1, cabin_class=None, more=False, children=0, infants=0):
     """依序嘗試 SerpApi(Google Flights) -> Amadeus，兩個都沒設定金鑰/查不到/失敗就回傳 (None, False)，
     呼叫端自己改用本地資料庫的固定班表資料。回傳 (flights, is_live)。
@@ -1059,8 +1069,7 @@ def visitor_flight_search():
     # 兩種情況畫面都看得出差異(有沒有「即時報價」標籤)。
     # 「艙等」篩選選了特定艙等(不是「全部艙等」)時要重新查那個艙等，Google Flights 預設只回傳經濟艙，
     # 商務艙/頭等艙的航班不會自動出現在經濟艙的查詢結果裡。
-    selected_cabin = request.args.get("cabin", "all")
-    cabin_query = selected_cabin if selected_cabin != "all" else None
+    cabin_query = _cabin_choice()
     show_more = request.args.get("more") == "1"  # 「顯示更多航班」：多查幾種條件把更多航班合併進來(多用幾次額度)
     outbound_flights, using_live_data = _live_flight_search(origin, destination, depart_date, return_date if is_roundtrip else None, pax, cabin_class=cabin_query, more=show_more, children=children, infants=infants)
     if using_live_data and domestic_plan:
@@ -1174,8 +1183,15 @@ def visitor_flight_search():
                 for _attempt in range(2):
                     price = _live_cheapest_price(origin, destination, d.isoformat(), pax, return_date=(r.isoformat() if r else None))
                     if price is not None:
-                        return price
-                return None
+                        return price, False
+                if r:
+                    # Google 偶爾對某個「去程＋回程」日期組合完全沒有來回票結果(Fully empty)，但單程票是有的；
+                    # 這時改用「去程單程最低價＋回程單程最低價」當作約略價，日期列才不會留白(畫面上會標「約」)。
+                    out_price = _live_cheapest_price(origin, destination, d.isoformat(), pax)
+                    back_price = _live_cheapest_price(destination, origin, r.isoformat(), pax)
+                    if out_price is not None and back_price is not None:
+                        return out_price + back_price, True
+                return None, False
 
             # 6 個日期同時查(原本是一個一個等，慢又容易逾時)
             today = datetime.now().date()
@@ -1194,10 +1210,21 @@ def visitor_flight_search():
                 entry["label"] = f"{d.month}月{d.day}日" + (f"－{r.month}月{r.day}日" if r else "")
                 entry["selected"] = offset == 0
                 if using_live_data:
-                    entry["price"] = strip_price if offset == 0 else strip_results.get(offset)
+                    entry["price"], entry["estimated"] = (strip_price, False) if offset == 0 else strip_results.get(offset, (None, False))
                 else:
                     entry["price"] = strip_price
                 date_strip.append(entry)
+            # 最後的保底：不管什麼原因(額度、逾時、Google 沒資料)還是有哪一天查不到價格，就用目前已知的價格補上，
+            # 並標成「約」，日期列每一格一定都有價格，不會留白。優先用最近一天有查到的價格，沒有就用這次搜尋結果的最低價。
+            known = [(i, e["price"]) for i, e in enumerate(date_strip) if e.get("price") and not e.get("estimated")]
+            for i, entry in enumerate(date_strip):
+                if entry.get("price") or not using_live_data:
+                    continue
+                if known:
+                    entry["price"] = min(known, key=lambda item: abs(item[0] - i))[1]
+                    entry["estimated"] = True
+                elif strip_price:
+                    entry["price"], entry["estimated"] = strip_price, True
             strip_prev = shifted(-7)
             strip_next = shifted(7)
         except ValueError:
@@ -1242,64 +1269,134 @@ def visitor_flight_search():
     )
 
 
-@app.route("/visitor/flights/return-options")  # 來回機票選完去程之後的步驟二：顯示配這班去程的回程選項，每個選項都是真實來回總價
+def _flight_filtering(rows):
+    """機票結果頁左邊的篩選欄：統計篩選選項(用全部航班)，再依網址的條件篩選與排序。
+    rows 要先有 origin_airport_code / destination_airport_code / layover_city。回傳 (篩選後的航班, 給樣板的篩選欄變數)。"""
+    for row in rows:
+        row["alliance"] = flight_links.AIRLINE_ALLIANCE.get(row.get("airline_name"))
+        row["stops_label"] = "直飛" if not row.get("stops") else f"轉機 {row['stops']} 次"
+        row["departure_minutes"] = _hm_to_minutes(row.get("departure_time"))
+        row["arrival_minutes"] = _hm_to_minutes(row.get("arrival_time"))
+    origin_labels = {code: _airport_facet_label(code) for code in {r.get("origin_airport_code") for r in rows if r.get("origin_airport_code")}}
+    destination_labels = {code: _airport_facet_label(code) for code in {r.get("destination_airport_code") for r in rows if r.get("destination_airport_code")}}
+    facet_fields = (
+        ("airline_name", "airline"), ("alliance", "alliance"), ("stops_label", "stops_count"),
+        ("layover_city", "layover_city"), ("airplane_category", "aircraft"),
+        ("origin_airport_code", "origin_airport"), ("destination_airport_code", "destination_airport"),
+    )
+    duration_bounds = value_range(rows, "duration_minutes")
+    layover_bounds = value_range(rows, "layover_minutes")
+    range_bounds = {"duration": duration_bounds, "layover": layover_bounds, "depart_time": (0, 1439), "arrival_time": (0, 1439)}
+    filtered = apply_facets(rows, facet_fields)
+    for field, param_prefix in (
+        ("duration_minutes", "duration"), ("layover_minutes", "layover"),
+        ("departure_minutes", "depart_time"), ("arrival_minutes", "arrival_time"),
+    ):
+        filtered = apply_value_range(filtered, field, param_prefix, range_bounds[param_prefix])
+    filtered = apply_time_band(filtered, "departure_time")
+    filtered = filter_prices(filtered, "price", "duration_minutes", "stops", cabin_field="cabin_class")
+    context = dict(
+        price_buckets=price_buckets(rows, "price"),
+        price_max=price_range(rows, "price"),
+        airline_facets=facet_options(rows, "airline_name", price_field="price"),
+        alliance_facets=facet_options(rows, "alliance", labels=flight_links.ALLIANCE_NAMES, price_field="price"),
+        stops_facets=facet_options(rows, "stops_label", price_field="price"),
+        layover_city_facets=facet_options(rows, "layover_city", price_field="price"),
+        aircraft_facets=facet_options(rows, "airplane_category", price_field="price"),
+        origin_airport_facets=facet_options(rows, "origin_airport_code", labels=origin_labels, price_field="price"),
+        destination_airport_facets=facet_options(rows, "destination_airport_code", labels=destination_labels, price_field="price"),
+        duration_bounds=duration_bounds, layover_bounds=layover_bounds,
+        depart_band_options=time_band_options(rows, "departure_time"),
+    )
+    return filtered, context
+
+
+def _find_outbound_single(origin, destination, depart_date, pax, cabin_query, outbound_item):
+    """去程也要能單獨買：查同一天的單程，用班號和起飛時間找出跟選的去程同一班，拿它的單程訂票資料。
+    這類班次常常不在 Google 預設的前幾筆裡，先用一般搜尋找，找不到再用「更多航班」(多花幾次額度)找。"""
+    if not outbound_item:
+        return None
+    for want_more in (False, True):
+        outs, out_live = _live_flight_search(origin, destination, depart_date, None, pax, cabin_class=cabin_query, more=want_more)
+        for row in (outs if out_live else []):
+            number = (row.get("flight_number") or "").strip()
+            if number and number in outbound_item["title"] and format_hm(row.get("departure_time")) == outbound_item["start_time"]:
+                row["origin_city"] = _live_airport_label(row.get("origin_city"), origin)
+                row["destination_city"] = _live_airport_label(row.get("destination_city"), destination)
+                return row
+    return None
+
+
+def _label_return_rows(rows, origin, destination):
+    """回程航班：出發機場是去程的目的地、抵達機場是去程的出發地；篩選用的機場代碼先存起來，顯示用的欄位換成好懂的名稱。"""
+    for row in rows:
+        row["origin_airport_code"] = row.get("origin_city")
+        row["destination_airport_code"] = row.get("destination_city")
+        row["origin_city"] = _live_airport_label(row.get("origin_city"), destination)
+        row["destination_city"] = _live_airport_label(row.get("destination_city"), origin)
+        row["layover_city"] = _live_layover_city_label(row.get("layovers"))
+
+
+@app.route("/visitor/flights/return-options")  # 來回機票選完去程之後的步驟二：版面跟搜尋結果頁一樣(搜尋表單＋左邊篩選欄)，列出配這班去程的回程航班，每個選項都是真實來回總價
 def visitor_flight_return_options():
     origin = request.args.get("from", "").strip()
     destination = request.args.get("to", "").strip()
     depart_date = request.args.get("depart", "").strip()
     return_date = request.args.get("return", "").strip()
     departure_token = request.args.get("departure_token", "").strip()
-    pax_raw = request.args.get("pax", "1").strip()
-    pax = int(pax_raw) if pax_raw.isdigit() and int(pax_raw) > 0 else 1
-    cabin_query = request.args.get("cabin", "").strip() or None  # 跟去程選的艙等一致，才會配到正確的回程選項
+    adults, children, infants, pax = _flight_party()
+    cabin_query = _cabin_choice()  # 跟去程選的艙等一致，才會配到正確的回程選項(沒選就是經濟艙)
     skyscanner_url = flight_links.skyscanner_search_url(origin, destination, depart_date, return_date, pax)
     outbound_item = _parse_outbound_item(request.args.get("ob"))
+    common = dict(
+        origin=origin, destination=destination, depart_date=depart_date, return_date=return_date, pax=pax,
+        adults=adults, children=children, infants=infants, skyscanner_url=skyscanner_url, outbound_item=outbound_item,
+        using_live_data=True,
+    )
 
     return_flights = serpapi_flights.search_return_offers(origin, destination, depart_date, return_date, departure_token, pax, cabin_class=cabin_query)
     if return_flights is None:
+        quota_out = serpapi_flights.quota_exhausted()
+        _, sidebar = _flight_filtering([])
         return render_template(
-            "flight_return_options.html", origin=origin, destination=destination, depart_date=depart_date,
-            return_date=return_date, pax=pax, return_flights=[], lookup_failed=True, skyscanner_url=skyscanner_url,
-            outbound_item=outbound_item,
+            "flight_return_options.html", return_flights=[], lookup_failed=True, quota_out=quota_out,
+            separate_fallback=False, outbound_single=None, other_returns=[], **sidebar, **common,
         )
 
-    for row in return_flights:
-        row["origin_city"] = _live_airport_label(row.get("origin_city"), destination)
-        row["destination_city"] = _live_airport_label(row.get("destination_city"), origin)
-
-    return_flights = filter_prices(return_flights, 'price', 'duration_minutes', 'stops', cabin_field='cabin_class')
+    _label_return_rows(return_flights, origin, destination)
+    all_rows = return_flights
+    return_flights, sidebar = _flight_filtering(all_rows)
     separate_fallback = False
     outbound_single = None
-    if not return_flights and not request.args.get("stops"):
+    if not all_rows and not request.args.get("stops"):
         # Google 對少數去程(常見於便宜但轉機很久的組合)回「完全沒有結果」，實測就是沒有配套的來回票。
         # 這時改列出回程當天的「單程」航班，讓旅客至少能分開買回程；價格是單程價，不是來回總價。
         single, live = _live_flight_search(destination, origin, return_date, None, pax, cabin_class=cabin_query)
         if live and single:
-            for row in single:
-                row["origin_city"] = _live_airport_label(row.get("origin_city"), destination)
-                row["destination_city"] = _live_airport_label(row.get("destination_city"), origin)
-            return_flights = filter_prices(single, 'price', 'duration_minutes', 'stops', cabin_field='cabin_class')
-            separate_fallback = bool(return_flights)
-        if separate_fallback and outbound_item:
-            # 去程也要能單獨買：查同一天的單程，用班號和起飛時間找出同一班，拿它的單程訂票資料
-            # 這類便宜組合常常不在 Google 預設的前幾筆裡，先用一般搜尋找，找不到再用「更多航班」(多花幾次額度)找
-            for want_more in (False, True):
-                outs, out_live = _live_flight_search(origin, destination, depart_date, None, pax, cabin_class=cabin_query, more=want_more)
-                for row in (outs if out_live else []):
-                    number = (row.get("flight_number") or "").strip()
-                    if number and number in outbound_item["title"] and format_hm(row.get("departure_time")) == outbound_item["start_time"]:
-                        row["origin_city"] = _live_airport_label(row.get("origin_city"), origin)
-                        row["destination_city"] = _live_airport_label(row.get("destination_city"), destination)
-                        outbound_single = row
-                        break
-                if outbound_single:
-                    break
+            _label_return_rows(single, origin, destination)
+            all_rows = single
+            return_flights, sidebar = _flight_filtering(all_rows)
+            separate_fallback = bool(all_rows)
+        if separate_fallback:
+            outbound_single = _find_outbound_single(origin, destination, depart_date, pax, cabin_query, outbound_item)
+
+    # 配這班去程的來回票常常只有同一家航空公司(例如選了虎航，回程選項就只有虎航)；
+    # 這時另外列出「其他航空公司」回程當天的單程航班，旅客想搭別家就分開購買。
+    other_returns = []
+    if not separate_fallback and all_rows and outbound_item:
+        bundled_airlines = {row.get("airline_name") for row in all_rows}
+        if len(bundled_airlines) <= 1:
+            single, live = _live_flight_search(destination, origin, return_date, None, pax, cabin_class=cabin_query)
+            if live and single:
+                _label_return_rows(single, origin, destination)
+                extra = [row for row in single if row.get("airline_name") not in bundled_airlines]
+                other_returns, _ = _flight_filtering(extra)
+                if other_returns:
+                    outbound_single = _find_outbound_single(origin, destination, depart_date, pax, cabin_query, outbound_item)
 
     return render_template(
-        "flight_return_options.html",
-        origin=origin, destination=destination, depart_date=depart_date, return_date=return_date, pax=pax,
-        return_flights=return_flights, separate_fallback=separate_fallback, outbound_single=outbound_single,
-        lookup_failed=False, skyscanner_url=skyscanner_url, outbound_item=outbound_item,
+        "flight_return_options.html", return_flights=return_flights, separate_fallback=separate_fallback,
+        other_returns=other_returns, outbound_single=outbound_single, lookup_failed=False, quota_out=False, **sidebar, **common,
     )
 
 
@@ -1313,8 +1410,7 @@ def visitor_multi_city_flight_search():
         leg_count = 2
     leg_count = max(2, min(6, leg_count))  # 至少 2 段、最多 6 段，避免被亂帶參數灌爆查詢量
 
-    selected_cabin = request.args.get("cabin", "all")
-    cabin_query = selected_cabin if selected_cabin != "all" else None
+    cabin_query = _cabin_choice()
 
     legs = []
     all_rows = []
@@ -1424,6 +1520,14 @@ def visitor_flight_booking_redirect_lookup():
     redirect_info = serpapi_flights.get_booking_redirect(origin, destination, depart_date, token, return_date, pax)
     if not redirect_info:
         return jsonify({"ok": False})
+
+    if redirect_info.get("legs"):
+        legs = []
+        for leg in redirect_info["legs"]:
+            name, _, raw = leg["post_data"].partition("=")
+            legs.append({"label": leg["label"], "book_with": leg["book_with"], "url": leg["url"], "field_name": name or "u",
+                         "field_value": unquote_plus(raw), "price": float(leg["price"]) if leg.get("price") is not None else None})
+        return jsonify({"ok": True, "split": True, "legs": legs, "price": float(redirect_info["price"]) if redirect_info.get("price") is not None else None})
 
     # post_data 是單一一組 key=value(例如 "u=AAcR...")，是 Google 點擊追蹤轉址用的表單資料。
     # 這裡把值解碼出來，交給前端組一個隱藏表單再用瀏覽器原生的表單編碼送出，

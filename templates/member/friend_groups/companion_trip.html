@@ -19,7 +19,7 @@
             {% elif member_status == 'accepted' %}
             <a class="member-btn primary" href="{{ url_for('member.trip_detail', trip_id=trip.trip_id) }}">你已經是成員，前往行程</a>
             {% endif %}
-            <form method="post" action="{{ url_for('member.toggle_trip_favorite', trip_id=trip.trip_id) }}" style="margin:0;"><input type="hidden" name="next" value="{{ url_for('friend_groups.companion_trip_detail', trip_id=trip.trip_id) }}"><button type="submit" class="member-btn outline">{{ '取消收藏' if is_favorited else '☆ 收藏' }}</button></form>
+            <form method="post" action="{{ url_for('member.toggle_trip_favorite', trip_id=trip.trip_id) }}" style="margin:0;"><input type="hidden" name="next" value="{{ url_for('friend_groups.companion_trip_detail', trip_id=trip.trip_id) }}"><button type="submit" class="booking-heart trip-heart{% if is_favorited %} is-saved{% endif %}" aria-label="{{ '取消收藏' if is_favorited else '加入收藏' }}" title="{{ '取消收藏' if is_favorited else '加入收藏' }}"><span aria-hidden="true">{{ '♥' if is_favorited else '♡' }}</span></button></form>
             {% if trip.allow_copy or is_owner %}
             <form method="post" action="{{ url_for('member.duplicate_trip', trip_id=trip.trip_id) }}" style="margin:0;"><button type="submit" class="member-btn outline">複製此行程</button></form>
             {% endif %}

@@ -13,7 +13,7 @@ from datetime import datetime
 import requests
 
 from config import SERPAPI_API_KEY
-from flight_links import airline_display, to_iata
+from flight_links import airline_display, logo_for, to_iata
 
 SEARCH_URL = "https://serpapi.com/search"
 
@@ -43,6 +43,11 @@ BOOKING_CACHE_TTL_SECONDS = 1800
 
 # SERPAPI_API_KEY 可以用逗號放多把金鑰(例如 key1,key2)，某一把額度用完就自動換下一把
 _KEYS = [k.strip() for k in SERPAPI_API_KEY.split(",") if k.strip()]
+def quota_exhausted():
+    """所有金鑰的額度都用完(1 小時內被標記為額度用完)了嗎？給頁面顯示「額度用完」的說明用。"""
+    return bool(_KEYS) and all(_exhausted_until.get(key, 0) > time.time() for key in _KEYS)
+
+
 _exhausted_until = {}  # {key: 恢復嘗試的時間}，額度用完的金鑰 1 小時內先跳過
 EXHAUSTED_RETRY_SECONDS = 3600
 
@@ -262,7 +267,19 @@ def get_booking_redirect(origin_keyword, destination_keyword, departure_date, bo
         booking_options = data.get("booking_options") or []
 
         candidates = []
+        split_candidates = []  # 去程、回程要分開兩個網站訂(例如去程大韓航空、回程德威航空這種跨航空公司的來回票)
         for option in booking_options:
+            departing, returning = option.get("departing"), option.get("returning")
+            if departing and returning:
+                dep_req, ret_req = departing.get("booking_request"), returning.get("booking_request")
+                if dep_req and ret_req and dep_req.get("url") and dep_req.get("post_data") and ret_req.get("url") and ret_req.get("post_data"):
+                    together_price = (option.get("together") or {}).get("price")
+                    total = together_price if together_price is not None else (departing.get("price") or 0) + (returning.get("price") or 0)
+                    split_candidates.append({"price": total, "legs": [
+                        {"label": "去程", "book_with": departing.get("book_with") or "", "price": departing.get("price"), "url": dep_req["url"], "post_data": dep_req["post_data"]},
+                        {"label": "回程", "book_with": returning.get("book_with") or "", "price": returning.get("price"), "url": ret_req["url"], "post_data": ret_req["post_data"]},
+                    ]})
+                continue  # 這種選項的 together 只是兩段加總的價格，連結只會開到其中一家，不能當成「一個連結訂完」
             # 只挑「together」：一次訂到去程+回程(或單程)的單一連結。
             # 來回票如果最便宜的組合要跨兩家不同的航空公司分開訂(departing/returning 各自的連結)，
             # 這裡故意跳過不選，因為沒辦法只用一個連結完成訂票，寧可退回比價網站的連結，不要給錯誤導向。
@@ -280,7 +297,13 @@ def get_booking_redirect(origin_keyword, destination_keyword, departure_date, bo
                 "post_data": booking_request["post_data"],
             })
 
-        if candidates:
+        best_split = min(split_candidates, key=lambda c: c["price"]) if split_candidates else None
+        airline_candidates = [c for c in candidates if c["is_airline"]]
+        best_together = min(airline_candidates or candidates, key=lambda c: c["price"] if c["price"] is not None else float("inf")) if candidates else None
+        if best_split and (not best_together or (best_together["price"] is not None and best_split["price"] < best_together["price"])):
+            # 分開訂比一個連結訂完更便宜(或根本沒有一個連結訂完的選項)：回傳兩段各自的訂票連結，前端要同時給旅客兩個按鈕
+            result = {"legs": best_split["legs"], "price": best_split["price"], "book_with": " + ".join(leg["book_with"] for leg in best_split["legs"]), "options": []}
+        elif candidates:
             # 優先導向航空公司官網(airline=True)；該班沒有官網直訂選項時才退而求其次選最便宜的 OTA
             airline_candidates = [c for c in candidates if c["is_airline"]]
             pool = airline_candidates or candidates
@@ -415,7 +438,7 @@ def _parse_segments(item):
             }
         segments.append({
             "airline": airline_display(seg.get("airline"), seg.get("flight_number")),
-            "logo": seg.get("airline_logo"),
+            "logo": logo_for(seg.get("flight_number"), seg.get("airline_logo")),
             "flight_number": seg.get("flight_number") or "",
             "airplane": seg.get("airplane") or "",
             "cabin_class": _translate_cabin_class(seg.get("travel_class")),
@@ -446,7 +469,7 @@ def _parse_offers(data, seats=1):
                 results.append({
                     "flight_id": "serpapi-" + str(abs(hash((item.get("price"), first_seg.get("flight_number"), first_seg["departure_airport"]["time"])))),
                     "airline_name": airline_display(first_seg.get("airline"), first_seg.get("flight_number")) or "未知航空公司",
-                    "airline_logo": first_seg.get("airline_logo"),  # Google 自己託管的航空公司 logo 網址，不用自己存圖檔
+                    "airline_logo": logo_for(first_seg.get("flight_number"), first_seg.get("airline_logo")),  # Google 自己託管的航空公司 logo 網址，不用自己存圖檔
                     "flight_number": first_seg.get("flight_number", ""),
                     "departure_time": first_seg["departure_airport"]["time"][11:16],
                     "arrival_time": last_seg["arrival_airport"]["time"][11:16],

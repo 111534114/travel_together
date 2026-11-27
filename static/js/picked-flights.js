@@ -21,6 +21,7 @@
       li.append(info, price_);
       if (d.pickHref) {
         const a = document.createElement('a'); a.className = 'picked-book'; a.href = d.pickHref; a.target = '_blank'; a.rel = 'noopener'; a.textContent = '前往訂票';
+        if (d.pickFlights) a.dataset.flights = d.pickFlights;  // 訂完回到這個頁面時，會問「是否加入旅程」
         li.appendChild(a);
       }
       list.appendChild(li);

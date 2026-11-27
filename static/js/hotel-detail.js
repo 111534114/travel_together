@@ -537,6 +537,7 @@
     if (d.check_in_time) times.appendChild(el('li', '', `入住時間　${d.check_in_time}`));
     if (d.check_out_time) times.appendChild(el('li', '', `退房時間　${d.check_out_time}`));
     if (times.children.length) side.appendChild(times);
+    side.appendChild(el('div', 'hd-tax-note', '稅費(含稅、服務費、住宿稅)是否已包含在價格內，依各訂房網站而定，請以結帳頁的最終金額為準。'));
     if (query) side.appendChild(el('div', 'hd-total', query.party));
     const priceNote = el('p', 'hd-price-note');
     priceNote.hidden = true;

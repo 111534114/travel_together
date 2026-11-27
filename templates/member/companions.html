@@ -14,7 +14,7 @@
         {% if trips_timeline_json.get(comp.trip_id|string) %}
         <div class="card-actions">
             <button class="member-btn primary small" type="button" onclick="openTripModal('{{ comp.trip_id }}')">查看行程</button>
-            <form method="post" action="{{ url_for('member.toggle_trip_favorite', trip_id=comp.trip_id) }}" style="margin:0;"><input type="hidden" name="next" value="{{ url_for('member.companions_page') }}"><button type="submit" class="member-btn ghost small">{{ '取消收藏' if trips_timeline_json.get(comp.trip_id|string).is_favorited else '☆ 收藏' }}</button></form>
+            <form method="post" action="{{ url_for('member.toggle_trip_favorite', trip_id=comp.trip_id) }}" style="margin:0;"><input type="hidden" name="next" value="{{ url_for('member.companions_page') }}"><button type="submit" class="booking-heart trip-heart{% if trips_timeline_json.get(comp.trip_id|string).is_favorited %} is-saved{% endif %}" aria-label="{{ '取消收藏' if trips_timeline_json.get(comp.trip_id|string).is_favorited else '加入收藏' }}" title="{{ '取消收藏' if trips_timeline_json.get(comp.trip_id|string).is_favorited else '加入收藏' }}"><span aria-hidden="true">{{ '♥' if trips_timeline_json.get(comp.trip_id|string).is_favorited else '♡' }}</span></button></form>
         </div>
         {% endif %}
     </div>

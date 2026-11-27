@@ -31,3 +31,12 @@ html, body { overscroll-behavior-y: none; }  /* 捲到最上面或最下面再�
 .font-size-buttons button { padding: 6px 0; color: #426064; background: #fff; border: 1px solid #D2E4E6; border-radius: 6px; font: inherit; font-size: 13px; cursor: pointer; }
 .font-size-buttons button:hover { background: #EDF6F7; }
 .font-size-buttons button[aria-pressed="true"] { color: #fff; background: #4B838B; border-color: #4B838B; }
+/* 電腦版：側邊欄固定在畫面左側(原本用 sticky，只會跟著 .member-shell 的高度走)。
+   下拉選單、日曆、人數視窗這類浮出來的東西如果超過頁面最底部，頁面會多出一段捲動區，
+   sticky 的側邊欄走到 .member-shell 的底部就停住、跟著捲走，看起來被切掉、跑版。
+   改成 fixed 後不管頁面多長、浮出來的東西多大，側邊欄都固定貼著視窗。
+   側邊欄離開排版流程後，整個版面左邊留出側邊欄的寬度(220px)加間距(36px)，內容的置中方式跟原本一樣。 */
+@media (min-width: 851px) {
+  .member-shell { padding-left: 256px; }
+  .member-sidenav { position: fixed; top: 0; left: 0; }
+}

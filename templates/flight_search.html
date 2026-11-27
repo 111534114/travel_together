@@ -33,7 +33,7 @@
         {% for d in date_strip %}
         <a class="date-strip-day {{ 'selected' if d.selected }}" href="{{ date_strip_link(d.depart, d['return']) }}">
           <span class="date-strip-label">{{ d.label }}</span>
-          {% if d.price %}<span class="date-strip-price">TWD{{ '{:,.0f}'.format(d.price) }}</span>{% endif %}
+          {% if d.price %}<span class="date-strip-price"{% if d.estimated %} title="這組日期暫時查不到確切報價，這是依附近日期或單程票推算的約略價，實際請以搜尋結果為準"{% endif %}>{% if d.estimated %}約 {% endif %}TWD{{ '{:,.0f}'.format(d.price) }}</span>{% else %}<span class="date-strip-price" style="color: var(--muted); font-weight: 500;">暫無報價</span>{% endif %}
         </a>
         {% endfor %}
       </div>
@@ -64,7 +64,7 @@
           {% for flight in outbound_flights %}
             <article class="flight-card">
 {% if flight.is_live %}{% set fav = live_flight_favorite(flight, depart_date, origin, destination, pax) %}{% include 'partials/booking_live_heart.html' %}{% else %}{% set save_kind='flight' %}{% set save_id=flight.flight_id %}{% include 'partials/booking_favorite_button.html' %}{% endif %}
-              {% if flight.price == outbound_min_price %}<span class="flight-best-badge">{{ '來回最低總價' if bundled_roundtrip else '最低價' }}</span>{% endif %}
+              {% if flight.price == outbound_min_price %}<span class="flight-best-badge">{{ '去程最低價' if bundled_roundtrip else '最低價' }}</span>{% endif %}
               <div class="flight-airline">{% if flight.airline_logo %}<img class="airline-logo-img" src="{{ flight.airline_logo }}" alt="{{ flight.airline_name }}" loading="lazy">{% else %}<span class="airline-logo">{{ flight.airline_name[:1] }}</span>{% endif %}<div><b>{{ flight.airline_name }}</b><span>{{ flight.flight_number }}・{{ flight.cabin_class }}</span>{{ render_amenities(flight) }}</div></div>
               <div class="flight-route">
                 <div class="flight-time"><b>{{ flight.departure_time|hm }}</b><span>{{ flight.origin_city }}</span></div>
@@ -73,7 +73,7 @@
               </div>
               <div class="flight-meta">{% if flight.combined_domestic %}<span>含國內段 {{ money(flight.domestic_price * pax) }}・分開購買</span>{% endif %}{% if flight.origin_country or flight.destination_country %}<span>{{ flight.origin_country }} → {{ flight.destination_country }}</span>{% endif %}{% if flight.seats_available is not none %}<span class="{{ 'seats-low' if flight.seats_available <= 3 }}">剩餘 {{ flight.seats_available }} 席</span>{% endif %}</div>
               <div class="flight-footer">
-                <span class="price">{{ money(flight.price * pax) }}<small>{{ pax }} 人・{{ '來回總價估計' if bundled_roundtrip else (money(flight.price) ~ ' /人') }}</small></span>
+                <span class="price">{{ money(flight.price * pax) }}<small>{{ pax }} 人・{{ '去程價格' if bundled_roundtrip else (money(flight.price) ~ ' /人') }}</small></span>
                 {% if bundled_roundtrip and flight.departure_token %}<a class="view-button" href="{{ url_for('visitor_flight_return_options', **{'from': origin, 'to': destination, 'depart': depart_date, 'return': return_date, 'pax': pax, 'departure_token': flight.departure_token, 'cabin': request.args.get('cabin', ''), 'stops': ('direct' if (request.args.get('stops') == 'direct' or '直飛' in request.args.getlist('stops_count')) else ''), 'ob': flight_trip_item(flight, depart_date, pax, 0)|tojson}) }}">選擇去程 →</a>{% elif flight.booking_token %}<a class="view-button" href="{{ url_for('visitor_flight_booking_redirect', **{'token': flight.booking_token, 'from': origin, 'to': destination, 'depart': depart_date, 'return': (return_date if is_roundtrip else ''), 'pax': pax, 'fallback': skyscanner_url or ''}) }}" target="_blank" rel="noopener" data-flights='{{ [flight_trip_item(flight, depart_date, pax)]|tojson }}'>選擇 →</a>{% elif skyscanner_url %}<a class="view-button" href="{{ skyscanner_url }}" target="_blank" rel="noopener">選擇 →</a>{% else %}<button class="view-button" type="button" onclick="showToast('找不到這個城市的比價連結，換個關鍵字試試。')">選擇航班</button>{% endif %}
               </div>
               {% include 'partials/flight_detail.html' %}
@@ -165,5 +165,7 @@
       apply();
     })();
   </script>
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/price-notice.css') }}">
+  <script src="{{ url_for('static', filename='js/price-notice.js') }}" defer></script>
 </body>
 </html>

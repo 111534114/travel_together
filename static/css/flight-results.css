@@ -29,14 +29,20 @@ main { width: 100%; max-width: 1180px; margin: 0 auto; padding: 32px 36px 70px 0
 .date-strip-note { margin: 0 0 20px; color: var(--muted); font-size: 12px; }
 .side-toggle { display: inline-flex; align-items: center; gap: 8px; margin: 0 0 14px; color: var(--ink); font-size: 14px; font-weight: 600; cursor: pointer; }
 .legs-wrap.side-by-side { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 18px; align-items: start; }
-.legs-wrap.side-by-side .flight-card { flex-direction: column; align-items: stretch; }
+.legs-wrap.side-by-side .flight-card { flex-direction: column; align-items: stretch; gap: 12px; padding: 16px 18px; }
+/* 欄位是直向排列時，原本橫向用的 flex 寬度(170px、320px)會變成「高度」，卡片就被撐得又長又空，所以全部改成依內容高度 */
+.legs-wrap.side-by-side .flight-airline, .legs-wrap.side-by-side .flight-route, .legs-wrap.side-by-side .flight-meta, .legs-wrap.side-by-side .flight-footer { flex: none; }
+.legs-wrap.side-by-side .flight-airline { padding-right: 44px; }
+.legs-wrap.side-by-side .flight-card > .booking-save-form, .legs-wrap.side-by-side .flight-card > .booking-heart { position: absolute; top: 12px; right: 12px; margin: 0; }
+.legs-wrap.side-by-side .flight-route { gap: 10px; }
+.legs-wrap.side-by-side .flight-meta:empty { display: none; }
 .legs-wrap.side-by-side .flight-meta { margin: 0; padding-left: 0; border-left: 0; }
 .legs-wrap.side-by-side .flight-footer { margin-left: 0; justify-content: space-between; }
 @media (max-width: 1100px) { .legs-wrap.side-by-side { grid-template-columns: 1fr; } }
 .toast { position: fixed; z-index: 50; bottom: 30px; left: 50%; padding: 12px 22px; color: #fff; background: #293C3F; border-radius: 8px; box-shadow: 0 10px 25px rgba(0, 0, 0, .25); font-size: 14px; opacity: 0; transform: translate(-50%, 10px); transition: opacity 200ms ease, transform 200ms ease; pointer-events: none; }
 .toast.show { opacity: 1; transform: translate(-50%, 0); }
 .results-layout { display: grid; grid-template-columns: 240px 1fr; align-items: start; gap: 20px; }
-.results-sidebar { position: sticky; top: 88px; max-height: calc(100vh - 104px); overflow-y: auto; overscroll-behavior: contain; padding-right: 6px; scrollbar-width: thin; scrollbar-color: #C6DCDF transparent; }
+.results-sidebar { position: static; padding-right: 6px; }  /* 篩選欄跟著頁面一起捲動，不固定、不自己捲 */
 .results-sidebar .booking-tools { margin-top: 0; }
 .results-sidebar .booking-filters { flex-direction: column; align-items: stretch; gap: 16px; }
 .results-sidebar .booking-filters label { flex-direction: column; align-items: stretch; gap: 6px; white-space: normal; }
@@ -97,3 +103,7 @@ main { width: 100%; max-width: 1180px; margin: 0 auto; padding: 32px 36px 70px 0
 /* 多座城市結果頁用到的段落標題 */
 .flight-leg h3 { display: flex; align-items: center; gap: 10px; }
 .flight-leg-badge { display: inline-flex; align-items: center; justify-content: center; width: 24px; height: 24px; color: #fff; background: var(--purple); border-radius: 50%; font-size: 13px; font-weight: 800; }
+
+.step-banner { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin: 0 0 20px; padding: 16px 20px; background: #fff; border: 1px solid var(--line); border-radius: 12px; box-shadow: 0 6px 18px rgba(45, 37, 68, .05); }
+.step-badge { padding: 3px 11px; color: #fff; background: var(--purple); border-radius: 999px; font-size: 12px; font-weight: 700; }
+.step-banner p { margin: 0; color: var(--muted); font-size: 14px; }

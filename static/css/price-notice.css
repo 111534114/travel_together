@@ -1,0 +1,10 @@
+.pn-overlay { position: fixed; inset: 0; z-index: 2900; display: flex; align-items: center; justify-content: center; padding: 16px; background: rgba(20, 35, 38, .55); }
+.pn-box { width: min(440px, 100%); padding: 24px 26px 20px; color: #23373A; background: #fff; border-radius: 14px; box-shadow: 0 18px 50px rgba(0, 0, 0, .35); }
+.pn-title { margin: 0 0 10px; font-size: 20px; }
+.pn-lead { margin: 0 0 10px; font-weight: 700; line-height: 1.7; }
+.pn-list { margin: 0 0 14px; padding-left: 20px; color: #4B5D60; font-size: 14px; line-height: 1.8; }
+.pn-hide { display: block; margin-bottom: 14px; color: #708284; font-size: 13px; cursor: pointer; }
+.pn-ok { width: 100%; padding: 12px 0; color: #fff; background: #4B838B; border: 0; border-radius: 10px; font: inherit; font-size: 16px; font-weight: 800; cursor: pointer; }
+.pn-ok:hover { background: #37676D; }
+.pn-hide input { accent-color: #4B838B; }
+.pn-list li::marker { color: #4B838B; }

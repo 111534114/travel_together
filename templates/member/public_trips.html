@@ -35,7 +35,7 @@
             <p>{{ trip.start_date }} ～ {{ trip.end_date }} · 預計 {{ trip.people_count }} 人{% if trip.joined_count is not none %} · 已加入 {{ trip.joined_count }} 人{% endif %} · {{ trip.currency }} {{ trip.total_budget }}</p>
             <div class="card-actions">
                 <a class="member-btn outline small" href="{{ url_for('friend_groups.companion_trip_detail', trip_id=trip.trip_id) }}">查看行程</a>
-                <form method="post" action="{{ url_for('member.toggle_trip_favorite', trip_id=trip.trip_id) }}" style="margin:0;"><input type="hidden" name="next" value="{{ request.full_path }}"><button type="submit" class="member-btn ghost small">{{ '取消收藏' if trip.is_favorited else '☆ 收藏' }}</button></form>
+                <form method="post" action="{{ url_for('member.toggle_trip_favorite', trip_id=trip.trip_id) }}" style="margin:0;"><input type="hidden" name="next" value="{{ request.full_path }}"><button type="submit" class="booking-heart trip-heart{% if trip.is_favorited %} is-saved{% endif %}" aria-label="{{ '取消收藏' if trip.is_favorited else '加入收藏' }}" title="{{ '取消收藏' if trip.is_favorited else '加入收藏' }}"><span aria-hidden="true">{{ '♥' if trip.is_favorited else '♡' }}</span></button></form>
             </div>
         </article>
         {% endfor %}

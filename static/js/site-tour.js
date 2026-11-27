@@ -46,7 +46,7 @@
     const searchCard = document.querySelector('.booking-search-card');
     if (searchCard) list.push({ target: searchCard, title: '搜尋條件', text: '修改目的地、日期、人數後按「搜尋」。機票可以選單程或來回，住宿可以選房間數、大人與小孩。' });
     const sidebar = document.querySelector('.results-sidebar');
-    if (sidebar) list.push({ target: sidebar, title: '篩選與排序', text: '用價格、星級、設施等條件縮小範圍。游標移到這一欄時可以單獨捲動。' });
+    if (sidebar) list.push({ target: sidebar, title: '篩選與排序', text: '用價格、星級、設施等條件縮小範圍。' });
     NAV_STEPS.forEach(([name, text]) => {
       if (addedNames.has(name)) return;
       const link = links.find((a) => a.textContent.trim() === name);

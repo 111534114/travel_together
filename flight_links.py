@@ -197,6 +197,23 @@ def airline_display(name, flight_number=""):
     return name
 
 
+# Google 的航空公司圖庫沒有收錄的航空公司，圖片會變成一個灰色機尾的預設圖(例如易斯達航空)；
+# 這些航空公司的標誌放在 static/images/airlines/<IATA 代碼>.png，有放檔案的就改用自己的圖。
+_LOCAL_LOGO_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "static", "images", "airlines")
+try:
+    LOCAL_LOGO_CODES = {name[:-4].upper() for name in os.listdir(_LOCAL_LOGO_DIR) if name.lower().endswith(".png")}
+except OSError:
+    LOCAL_LOGO_CODES = set()
+
+
+def logo_for(flight_number, google_url):
+    """依班號的航空公司代碼(例如 ZE 882 的 ZE)決定要用哪個標誌：有自己放的圖就用自己的，沒有就用 Google 給的。"""
+    match = re.match(r"^([A-Za-z0-9]{2})\s?\d", (flight_number or "").strip())
+    if match and match.group(1).upper() in LOCAL_LOGO_CODES:
+        return f"/static/images/airlines/{match.group(1).upper()}.png"
+    return google_url
+
+
 def airline_logo_url(airline_name):
     code = AIRLINE_IATA.get((airline_name or "").strip())
     if not code:

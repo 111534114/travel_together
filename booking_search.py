@@ -12,7 +12,7 @@ booking_bp = Blueprint('booking', __name__)
 TABLES = {'hotel': ('accommodations', 'accommodation_id'), 'flight': ('flights', 'flight_id'), 'train': ('trains', 'train_id')}
 ENDPOINTS = {'visitor_hotel_search': 'hotel', 'visitor_flight_search': 'flight', 'visitor_train_search': 'train'}
 # 畫面上要顯示搜尋篩選欄、愛心收藏狀態的頁面(多座城市結果頁也要，但它的網址參數不一樣，所以不放進上面會做網址檢查的 ENDPOINTS)
-CONTEXT_KINDS = {**ENDPOINTS, 'visitor_multi_city_flight_search': 'flight'}
+CONTEXT_KINDS = {**ENDPOINTS, 'visitor_multi_city_flight_search': 'flight', 'visitor_flight_return_options': 'flight'}
 FARES = {'all': '全部票種', 'regular': '一般票', 'discount': '打折票', 'promotion': '優惠票', 'student': '學生票'}
 # 火車票種只放 TDX 查得到真實票價的種類；'all' 顯示全票價
 TRAIN_FARES = {'all': '全票', 'concession': '優待票（孩童／敬老／愛心）', 'group': '團體票（高鐵 11 人以上）'}
@@ -112,7 +112,7 @@ def validate_search(kind, args):
         if Decimal(args['min_price']) > Decimal(args['max_price']):
             errors['max_price'] = '最高預算不能小於最低預算'
     if kind == 'flight':
-        if args.get('cabin', 'all') not in CABIN_CLASSES:
+        if (args.get('cabin') or 'all') not in CABIN_CLASSES:  # 空字串(沒選艙等)等同「全部艙等」
             errors['cabin'] = '請選擇有效艙等'
     elif args.get('fare', 'all') not in (TRAIN_FARES if kind == 'train' else FARES):
         errors['fare'] = '請選擇有效票種'
@@ -292,7 +292,7 @@ def filter_prices(rows, field, duration_field=None, stops_field=None, cabin_fiel
     low = Decimal(request.args.get('min_price') or '0')
     high = Decimal(request.args['max_price']) if request.args.get('max_price') else None
     fare = request.args.get('fare', 'all')
-    cabin = request.args.get('cabin', 'all')
+    cabin = request.args.get('cabin') or 'all'  # 網址帶了空的 cabin= 時(例如回程頁)也當作全部艙等，不然所有航班都會被濾掉
     stops_filter = request.args.get('stops', '') if stops_field else ''
     result = []
     for row in rows:
@@ -317,13 +317,28 @@ def filter_prices(rows, field, duration_field=None, stops_field=None, cabin_fiel
             continue
         result.append(row)
     sort = request.args.get('sort', '')
+    if sort == 'featured':
+        sort = 'fastest'  # 舊網址的「綜合推薦」現在就是「最快抵達」
     if not sort and stops_field:
-        sort = 'featured'  # 機票沒選排序時預設用「綜合推薦」(車票沒有轉機欄位，維持原本順序)
+        sort = 'fastest'  # 機票沒選排序時預設用「最快抵達」(車票沒有轉機欄位，維持原本順序)
     if sort in ('price_asc', 'price_desc'):
         result.sort(key=lambda r: (not bool(r.get(field)), (r.get(field) or 0) * (-1 if sort == 'price_desc' else 1)))
-    elif sort == 'featured' and duration_field:
-        # 精選：同時考慮價格與耗時，概算每分鐘車程/航程約值 NT$20，取總分最低的排前面。
-        result.sort(key=lambda r: (not bool(r.get(field)), (r.get(field) or 0) + (r.get(duration_field) or 0) * 20))
+    elif sort == 'fastest' and duration_field:
+        # 最快抵達：依「實際抵達的先後」排——出發時刻加上整趟花的時間(含轉機等待)，越早抵達越前面，
+        # 這樣跨日、轉機的航班也比得對(不是單看抵達的時鐘時間)；同一時間抵達的再比價格。
+        def _arrival_order(row):
+            depart = row.get('departure_minutes')
+            if depart is None:
+                try:
+                    hour, minute = str(row.get('departure_time') or '').split(':')[:2]
+                    depart = int(hour) * 60 + int(minute)
+                except ValueError:
+                    depart = None
+            duration = row.get(duration_field)
+            if depart is None or duration is None:
+                return (1, 0, 0)  # 缺資料的排最後
+            return (0, depart + duration, row.get(field) or 0)
+        result.sort(key=_arrival_order)
     elif sort in ('depart_earliest', 'depart_latest'):
         # 當日最早/最晚：優先用已經算好的 departure_minutes(即時資料才有)，沒有的話(本地班表)
         # 自己把 "HH:MM" 轉成分鐘數再比較，兩種來源混在同一個排序鍵裡型別才會一致，不會排序到一半噴錯。

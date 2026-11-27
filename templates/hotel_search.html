@@ -53,7 +53,7 @@
     @media (max-width: 850px) { .site-nav { align-items: flex-start; flex-direction: column; gap: 6px; padding: 8px 18px 12px; } .nav-links { width: 100%; margin-left: 0; overflow-x: auto; } main { width: min(100% - 28px, 680px); padding: 24px 0 70px; } .hotel-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
     @media (max-width: 560px) { .brand { width: 108px; height: 48px; } .nav-links { gap: 2px; } .nav-links a { padding: 8px; font-size: 14px; white-space: nowrap; } .section-header { align-items: stretch; flex-direction: column; } .hotel-grid { grid-template-columns: 1fr; } .section-header h2 { font-size: 22px; } }
     .results-layout { display: grid; grid-template-columns: 240px 1fr; align-items: start; gap: 20px; }
-    .results-sidebar { position: sticky; top: 20px; max-height: calc(100vh - 40px); overflow-y: auto; overscroll-behavior: contain; padding-right: 6px; scrollbar-width: thin; scrollbar-color: #C6DCDF transparent; }
+    .results-sidebar { position: static; padding-right: 6px; }  /* 篩選欄跟著頁面一起捲動，不固定、不自己捲 */
     .map-box { display: grid; place-items: center; height: 96px; margin-bottom: 4px; background: linear-gradient(135deg, #CFE8EC, #E7F3EC 55%, #D4E6F3); border-radius: 10px; }
     .map-box span { padding: 9px 22px; color: var(--purple); background: #fff; border-radius: 8px; box-shadow: 0 2px 8px rgba(35, 55, 58, .15); font-weight: 700; }
     .map-box:hover span { color: #fff; background: var(--purple); }
@@ -152,7 +152,7 @@
             {% if hotel.price %}
             <span class="price-total js-price-label">{% if hotel_source == 'db' %}站內收錄・參考價{% else %}Google 參考價・以訂房網站為準{% endif %}</span>
             <span class="price-night">{{ money(hotel.price) }}<small> / 晚{% if rooms > 1 %}・每間{% endif %}</small></span>
-            {% if hotel.total_price %}<span class="price-total js-price-total">{% if rooms > 1 %}{{ rooms }} 間・{{ nights }} 晚約 {{ money(hotel.total_price * rooms) }}{% else %}{{ nights }} 晚共 {{ money(hotel.total_price) }}{% endif %}</span>{% endif %}
+            {% if hotel.total_price %}<span class="price-total js-price-total">{% if rooms > 1 %}{{ rooms }} 間・{{ nights }} 晚約 {{ money(hotel.total_price * rooms) }}{% else %}{{ nights }} 晚共 {{ money(hotel.total_price) }}{% endif %}</span>{% endif %}{% if hotel_source != 'db' %}<span class="price-total price-tax-note">稅費是否已含依各訂房網站而定</span>{% endif %}
             <span class="price-total">{{ party_label }}</span>
             {% else %}<span class="price-night"><small>價格洽詢</small></span>{% endif %}
             {% if party.note and hotel.price %}<span class="price-total price-warn">{{ party.note }}</span>{% endif %}
@@ -221,5 +221,7 @@
   <script src="{{ url_for('static', filename='js/member-nav.js') }}" defer></script>
   <script src="{{ url_for('static', filename='js/hotel-detail.js') }}" defer></script>
   <script src="{{ url_for('static', filename='js/booking-favorites.js') }}" defer></script>
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/price-notice.css') }}">
+  <script src="{{ url_for('static', filename='js/price-notice.js') }}" defer></script>
 </body>
 </html>

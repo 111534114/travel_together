@@ -18,6 +18,8 @@
     h1 { margin: 0 0 8px; font-size: 18px; font-weight: 700; }
     p { margin: 0; color: var(--muted); font-size: 14px; line-height: 1.6; }
     .error p { color: #B4453A; }
+    .leg-button { display: block; width: 100%; margin-top: 12px; padding: 13px 16px; color: #fff; background: var(--purple); border: 0; border-radius: 10px; font: inherit; font-size: 15px; font-weight: 700; cursor: pointer; }
+    .leg-button:hover { background: #37676D; }
     .back-link { display: inline-block; margin-top: 18px; color: var(--purple); font-weight: 600; font-size: 14px; text-decoration: none; }
   </style>
 </head>
@@ -56,6 +58,31 @@
         }
       }
 
+      // 去程、回程要在兩個不同的網站訂：不自動跳轉，讓旅客自己按兩顆按鈕各開一個分頁(自己按的按鈕瀏覽器才不會擋)
+      function showSplit(data) {
+        document.getElementById('spinner').style.display = 'none';
+        document.getElementById('statusTitle').textContent = '這趟來回要分兩個網站訂';
+        document.getElementById('statusText').textContent = '去程和回程是不同航空公司，最便宜的訂法是各自在不同網站購買。請依序按下面兩個按鈕，各開一個訂票頁。';
+        var box = document.getElementById('statusBox');
+        data.legs.forEach(function (leg) {
+          var form = document.createElement('form');
+          form.method = 'post'; form.action = leg.url; form.target = '_blank';
+          var input = document.createElement('input');
+          input.type = 'hidden'; input.name = leg.field_name; input.value = leg.field_value;
+          var button = document.createElement('button');
+          button.type = 'submit'; button.className = 'leg-button';
+          button.textContent = leg.label + '：到 ' + (leg.book_with || '訂票網站') + ' 訂票' + (leg.price ? '（NT$ ' + Math.round(leg.price).toLocaleString('zh-TW') + '）' : '') + ' →';
+          form.append(input, button);
+          box.appendChild(form);
+        });
+        if (data.price) {
+          var total = document.createElement('p');
+          total.style.marginTop = '14px';
+          total.textContent = '兩段合計約 NT$ ' + Math.round(data.price).toLocaleString('zh-TW');
+          box.appendChild(total);
+        }
+      }
+
       if (!params.get('token')) {
         showError('這個查詢結果沒有訂票資料，可以改用下面的連結查詢。', true);
         return;
@@ -68,6 +95,7 @@
             showError('可能是這班飛機已經停止開放訂位，或是暫時查詢失敗，可以改用下面的連結查詢。', true);
             return;
           }
+          if (data.split) { showSplit(data); return; }
           var form = document.getElementById('redirectForm');
           form.action = data.url;
           var input = document.createElement('input');

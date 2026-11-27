@@ -20,3 +20,7 @@
 .booking-search-form--multicity .mc-top .fp-toggle { min-height: 38px; }
 .booking-search-form--multicity .mc-top .booking-search-submit { margin-left: 0; }
 @media (max-width: 560px) { .search-actions, .booking-search-actions { flex-wrap: wrap; width: 100%; } .fp-panel { right: auto; left: 0; width: min(300px, 90vw); } }
+
+
+
+

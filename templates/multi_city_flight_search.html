@@ -43,7 +43,7 @@
           {% set leg_min_price = leg.flights|map(attribute='price')|min if leg.flights else none %}
           {% for flight in leg.flights %}
             {% set pick_href = url_for('visitor_flight_booking_redirect', **{'token': flight.booking_token, 'from': leg.origin, 'to': leg.destination, 'depart': leg.date, 'return': '', 'pax': pax, 'fallback': leg.skyscanner_url or ''}) if flight.booking_token else (leg.skyscanner_url or '') %}
-            <article class="flight-card" data-pick-leg="{{ leg.index }}" data-pick-price="{{ (flight.price * pax)|round(0)|int }}" data-pick-label="{{ flight.airline_name }} {{ flight.flight_number }}｜{{ flight.departure_time|hm }} → {{ flight.arrival_time|hm }}" data-pick-route="{{ leg.origin }} → {{ leg.destination }}" data-pick-date="{{ leg.date }}" data-pick-href="{{ pick_href }}">
+            <article class="flight-card" data-pick-leg="{{ leg.index }}" data-pick-price="{{ (flight.price * pax)|round(0)|int }}" data-pick-label="{{ flight.airline_name }} {{ flight.flight_number }}｜{{ flight.departure_time|hm }} → {{ flight.arrival_time|hm }}" data-pick-route="{{ leg.origin }} → {{ leg.destination }}" data-pick-date="{{ leg.date }}" data-pick-href="{{ pick_href }}" data-pick-flights='{{ [flight_trip_item(flight, leg.date, pax)]|tojson }}'>
 {% if flight.is_live %}{% set fav = live_flight_favorite(flight, leg.date, leg.origin, leg.destination, pax) %}{% include 'partials/booking_live_heart.html' %}{% else %}{% set save_kind='flight' %}{% set save_id=flight.flight_id %}{% include 'partials/booking_favorite_button.html' %}{% endif %}
               {% if flight.price == leg_min_price %}<span class="flight-best-badge">最低價</span>{% endif %}
               <div class="flight-airline">{% if flight.airline_logo %}<img class="airline-logo-img" src="{{ flight.airline_logo }}" alt="{{ flight.airline_name }}" loading="lazy">{% else %}<span class="airline-logo">{{ flight.airline_name[:1] }}</span>{% endif %}<div><b>{{ flight.airline_name }}</b><span>{{ flight.flight_number }}・{{ flight.cabin_class }}</span>{{ render_amenities(flight) }}</div></div>
@@ -99,6 +99,8 @@
   <script src="{{ url_for('static', filename='js/booking-favorites.js') }}" defer></script>
   <link rel="stylesheet" href="{{ url_for('static', filename='css/picked-flights.css') }}">
   <script src="{{ url_for('static', filename='js/picked-flights.js') }}" defer></script>
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/price-notice.css') }}">
+  <script src="{{ url_for('static', filename='js/price-notice.js') }}" defer></script>
 </body>
 </html>
 

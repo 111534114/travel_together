@@ -142,12 +142,43 @@
     }
   }
 
+  // 點「選擇」：訂票頁在新分頁打開，使用者去官網訂票；等他「回到這個分頁」時才跳出「訂完了嗎？」，
+  // 這樣他一回來就看得到，不會在他還在官網的時候就先跳出來沒人看。
+  // 如果點了之後這個分頁一直沒被切走(例如瀏覽器擋掉新分頁)，1.5 秒後也會直接問。
+  let pending = null, fallbackTimer = null, wasHidden = false;
+
+  function askPending() {
+    if (!pending) return;
+    const flights = pending;
+    pending = null;
+    clearTimeout(fallbackTimer);
+    showAsk(flights);
+  }
+
+  document.addEventListener('visibilitychange', () => {
+    if (document.hidden) { wasHidden = true; clearTimeout(fallbackTimer); return; }
+    if (pending && wasHidden) askPending();
+  });
+  window.addEventListener('focus', () => { if (pending && wasHidden) askPending(); });
+
   document.addEventListener('click', (event) => {
     const link = event.target instanceof Element ? event.target.closest('a[data-flights]') : null;
     if (!link) return;
     let flights;
     try { flights = JSON.parse(link.dataset.flights); } catch (error) { return; }
     if (!Array.isArray(flights) || !flights.length) return;
-    setTimeout(() => showAsk(flights), 400);
+    // 分開購買時，選回程就一起打開去程的訂票頁(data-open-also)；被瀏覽器擋掉就提示使用者自己點
+    if (link.dataset.openAlso) {
+      const win = window.open(link.dataset.openAlso, '_blank', 'noopener');
+      if (!win) {
+        showMessage('去程訂票頁被瀏覽器擋住了', '瀏覽器擋掉了第二個分頁。請允許這個網站的彈出視窗，或直接點下面的按鈕開啟去程的訂票頁。',
+          { label: '開啟去程訂票頁', href: link.dataset.openAlso, newTab: true });
+        return;
+      }
+    }
+    pending = flights;
+    wasHidden = false;
+    clearTimeout(fallbackTimer);
+    fallbackTimer = setTimeout(askPending, 1500);
   });
 })();

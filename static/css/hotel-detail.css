@@ -221,3 +221,5 @@
 .hd-price.is-ref { opacity: .55; }
 .hd-price-note { margin: 6px 0 12px; padding: 8px 10px; color: #8A5A00; background: #FFF6E3; border-radius: 8px; font-size: 12.5px; line-height: 1.6; }
 .hd-price-note[hidden] { display: none; }
+
+.hd-tax-note { margin: 6px 0 2px; color: #8a6d1a; font-size: 12px; line-height: 1.6; }

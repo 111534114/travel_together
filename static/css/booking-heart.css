@@ -3,3 +3,8 @@
 .booking-heart:hover { color:#e54b6b; background:#fff3f6; transform:scale(1.06); }
 .booking-heart.is-saved { color:#e63861; border-color:#e99aae; background:#fff0f4; }
 .booking-heart:focus-visible { outline:3px solid rgba(7,141,164,.25); outline-offset:2px; }
+
+/* 行程卡片上的收藏愛心：跟旁邊的文字按鈕一樣是圓角方形，不是圓形 */
+.booking-heart.trip-heart { width: 44px; height: 42px; border-radius: 8px; font-size: 22px; }
+.featured-actions .booking-heart.trip-heart { height: 43px; }
+.member-btn + form .booking-heart.trip-heart, .booking-heart.trip-heart { vertical-align: middle; }

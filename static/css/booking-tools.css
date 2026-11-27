@@ -185,3 +185,10 @@
 .flatpickr-day.selected, .flatpickr-day.startRange, .flatpickr-day.endRange, .flatpickr-day.selected:hover, .flatpickr-day.startRange:hover, .flatpickr-day.endRange:hover { background: #078da4; border-color: #078da4; }
 .flatpickr-day.inRange { background: #E5F4F7; border-color: #E5F4F7; box-shadow: -5px 0 0 #E5F4F7, 5px 0 0 #E5F4F7; }
 .flatpickr-calendar { border-radius: 14px; box-shadow: 0 16px 40px rgba(35, 55, 58, .18); }
+
+.booking-filters .sort-note { display: block; margin-top: 6px; color: #708284; font-size: 12px; font-weight: 400; line-height: 1.6; }
+
+.price-tax-note { display: block; margin-top: 2px; color: #8a6d1a; font-size: 11px; }
+
+.booking-filters .direct-only, .results-sidebar .booking-filters label.direct-only { display: flex; flex-direction: row; align-items: center; white-space: nowrap; gap: 8px; color: #23373A; font-size: 15px; font-weight: 700; cursor: pointer; }
+.booking-filters .direct-only input, .results-sidebar .booking-filters label.direct-only input { flex: none; width: auto; width: 18px; height: 18px; accent-color: #4B838B; }

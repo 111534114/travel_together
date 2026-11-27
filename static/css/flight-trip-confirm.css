@@ -15,3 +15,6 @@
 }
 .ftc-btn:disabled { opacity: 0.6; cursor: default; }
 .ftc-primary { background: var(--purple, #6d5bd0); border-color: var(--purple, #6d5bd0); color: #fff; }
+
+/* 置中的對話框，背後蓋一層半透明，回到頁面時一定看得到 */
+.ftc-panel { right: auto; bottom: auto; left: 50%; top: 50%; transform: translate(-50%, -50%); z-index: 2800; box-shadow: 0 0 0 100vmax rgba(20, 35, 38, .5), 0 12px 40px rgba(15, 23, 42, .3); }

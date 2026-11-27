@@ -62,7 +62,7 @@
     .results-main { min-width: 0; }
     .results-main .train-card { gap: 14px; }
     .results-main .train-brand { flex-basis: 120px; }
-    .results-sidebar { position: sticky; top: 88px; max-height: calc(100vh - 104px); overflow-y: auto; overscroll-behavior: contain; padding-right: 6px; scrollbar-width: thin; scrollbar-color: #C6DCDF transparent; }
+    .results-sidebar { position: static; padding-right: 6px; }  /* 篩選欄跟著頁面一起捲動，不固定、不自己捲 */
     .train-group-title { display: flex; align-items: baseline; gap: 8px; margin: 18px 0 2px; padding-left: 10px; border-left: 4px solid var(--purple); font-size: 18px; }
     .train-group-title span { color: var(--muted); font-size: 13px; font-weight: 500; }
     .train-group-title:first-child { margin-top: 0; }

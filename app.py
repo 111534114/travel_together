@@ -3590,7 +3590,7 @@ def admin_logs():
             if admin_id:
                 conditions.append("l.admin_id = %s")
                 params.append(int(admin_id))
-                cursor.execute("SELECT username,full_name FROM users WHERE user_id=%s AND role='content_admin'", (int(admin_id),))
+                cursor.execute("SELECT username,full_name FROM users WHERE user_id=%s", (int(admin_id),))
                 filtered_admin = cursor.fetchone()
             if keyword:
                 search = f"%{keyword}%"

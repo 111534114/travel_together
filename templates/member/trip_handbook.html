@@ -29,6 +29,8 @@
     .top-nav-actions { margin-left: auto; display: flex; gap: 8px; flex-shrink: 0; }
     .icon-btn { font: inherit; font-size: 16px; width: 38px; height: 38px; border-radius: 50%; border: 3px solid var(--ink); background: #fff; cursor: pointer; display: flex; align-items: center; justify-content: center; }
     .icon-btn:active { transform: translateY(1px); }
+    .nav-back-btn { font: inherit; font-size: 13.5px; font-weight: 700; padding: 0 16px; height: 38px; border-radius: 999px; border: 3px solid var(--ink); background: #fff; color: var(--ink); text-decoration: none; display: inline-flex; align-items: center; white-space: nowrap; }
+    .nav-back-btn:active { transform: translateY(1px); }
     .nav-tabs { display: flex; gap: 8px; overflow-x: auto; padding: 0 16px 10px; }
     .nav-tabs::-webkit-scrollbar { display: none; }
     .nav-tab { font: inherit; font-weight: 700; font-size: 13.5px; white-space: nowrap; padding: 7px 16px; border-radius: 999px; border: 3px solid var(--ink); background: #fff; color: var(--ink); cursor: pointer; }
@@ -103,7 +105,10 @@
     .timeline-item.type-transport::before { background: var(--yellow); }
     .timeline-item.type-restaurant::before { background: var(--coral); }
     .timeline-item .time { font-size: 12.5px; font-weight: 700; opacity: .7; margin-bottom: 3px; }
-    .timeline-item .item-card { border: 3px solid var(--ink); border-radius: 18px; padding: 12px 14px; background: #fff; }
+    .timeline-item .item-card { display: flex; gap: 12px; align-items: flex-start; border: 3px solid var(--ink); border-radius: 18px; padding: 12px 14px; background: #fff; }
+    .item-photo { flex: 0 0 56px; width: 56px; height: 56px; border-radius: 50%; overflow: hidden; border: 2px solid var(--ink); }
+    .item-photo img { width: 100%; height: 100%; object-fit: cover; display: block; }
+    .item-body { flex: 1; min-width: 0; }
     .timeline-item .title-row { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
     .timeline-item .title-row b { font-size: 15.5px; flex: 1; min-width: 0; }
     .type-tag { font-size: 11px; font-weight: 700; padding: 2px 10px; border-radius: 999px; border: 2px solid var(--ink); background: var(--blue-soft); white-space: nowrap; }
@@ -114,9 +119,18 @@
     .must-tag { font-size: 11px; font-weight: 700; padding: 2px 10px; border-radius: 999px; background: var(--coral-soft); color: var(--ink); border: 2px solid var(--coral); display: none; }
     .timeline-item.is-starred .must-tag { display: inline-block; }
     .timeline-item.is-starred .item-card { background: var(--coral-soft); }
-    .item-card .address, .item-card .notes { font-size: 12.5px; opacity: .8; margin: 5px 0 0; }
+    .item-card .address { font-size: 12.5px; opacity: .8; margin: 5px 0 0; }
     .item-card .address a { color: var(--ink); font-weight: 700; text-decoration: underline; }
+    .item-trivia { margin-top: 6px; padding: 8px 10px; font-size: 12.5px; line-height: 1.5; background: var(--blue-soft); border-radius: 10px; }
+    .item-tip { margin-top: 6px; padding: 6px 10px; font-size: 12.5px; font-weight: 700; color: var(--ink); background: var(--yellow-soft); border-left: 3px solid var(--yellow); border-radius: 6px; }
     .empty-day { text-align: center; opacity: .6; font-size: 13.5px; padding: 20px 0; }
+    .stays-grid { display: flex; flex-direction: column; gap: 14px; }
+    .stay-card { display: flex; gap: 14px; border: 3px solid var(--ink); border-radius: 18px; padding: 14px; background: #fff; }
+    .stay-card-photo { flex: 0 0 96px; width: 96px; height: 96px; border-radius: 14px; overflow: hidden; border: 2px solid var(--ink); }
+    .stay-card-photo img { width: 100%; height: 100%; object-fit: cover; display: block; }
+    .stay-card-body { flex: 1; min-width: 0; }
+    .stay-card-body b { font-size: 15.5px; }
+    .stay-dates { font-size: 12.5px; font-weight: 700; opacity: .75; margin: 4px 0; }
 
     /* 清單：出發前清單／行李清單 */
     .checklist-group { margin-bottom: 18px; }
@@ -132,9 +146,6 @@
     .add-item-row button { font: inherit; font-weight: 700; font-size: 13px; padding: 8px 14px; border: 3px solid var(--ink); border-radius: 12px; background: var(--yellow); cursor: pointer; }
     .remove-item-btn { font: inherit; font-size: 15px; border: none; background: none; cursor: pointer; opacity: .5; }
 
-    .members-panel { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
-    .member-chip { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; font-weight: 700; padding: 5px 13px; border-radius: 999px; background: var(--yellow-soft); border: 3px solid var(--yellow); }
-    .member-chip small { font-weight: 500; opacity: .7; }
 
     /* 插畫動畫 */
     .float-slow { animation: float-y 5s ease-in-out infinite; }
@@ -171,6 +182,7 @@
         .flight-card { margin-bottom: 0; }
         .pack-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 4px 36px; }
         .day-tabs { flex-wrap: wrap; overflow-x: visible; }
+        .stays-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 16px; }
     }
 
     @media print {
@@ -189,7 +201,10 @@
     <div class="top-nav-row">
         <span class="brand"><span class="logo-dot">✈</span>{{ trip.trip_name }}</span>
         <div class="top-nav-actions">
-            {% if not is_public_view %}
+            {% if is_public_view %}
+            <a class="nav-back-btn" href="{{ url_for('visitor') }}">走吧揪團 →</a>
+            {% else %}
+            <a class="nav-back-btn" href="{{ url_for('member.trip_detail', trip_id=trip.trip_id) }}">← 返回行程</a>
             <button class="icon-btn" type="button" title="分享給家人朋友" data-copy-link="{{ public_url('member.shared_trip_handbook', token=trip.share_token) }}">🔗</button>
             {% endif %}
             <button class="icon-btn" type="button" title="下載 PDF／列印" onclick="window.print()">🖨️</button>
@@ -199,6 +214,7 @@
         <button class="nav-tab is-active" type="button" data-nav-target="home">🏠 首頁</button>
         <button class="nav-tab" type="button" data-nav-target="flights">✈️ 航班</button>
         <button class="nav-tab" type="button" data-nav-target="itinerary">🗓️ 行程</button>
+        <button class="nav-tab" type="button" data-nav-target="stay">🏨 住宿</button>
         <button class="nav-tab" type="button" data-nav-target="checklist">🎒 清單</button>
     </div>
 </nav>
@@ -349,21 +365,25 @@
                 <div class="timeline-item type-{{ item.item_type }}" data-item-id="{{ item.itinerary_id }}">
                     <div class="time">{% if item.start_time %}{{ item.start_time|hm }}{% if item.end_time %} - {{ item.end_time|hm }}{% endif %}{% else %}未定時間{% endif %}</div>
                     <div class="item-card">
-                        <div class="title-row">
-                            <span>{{ item_type_labels.get(item.item_type, {}).get('icon', '📌') }}</span>
-                            <b>{{ item.title }}</b>
-                            <span class="must-tag">必去</span>
-                            <span class="type-tag">{{ item_type_labels.get(item.item_type, {}).get('label', item.item_type) }}</span>
-                            <button class="star-btn" type="button" data-star-toggle title="標記必去">☆</button>
+                        {% if item.place_image %}<div class="item-photo"><img src="{{ url_for('static', filename=item.place_image) }}" alt="" loading="lazy"></div>{% endif %}
+                        <div class="item-body">
+                            <div class="title-row">
+                                <span>{{ item_type_labels.get(item.item_type, {}).get('icon', '📌') }}</span>
+                                <b>{{ item.title }}</b>
+                                <span class="must-tag">必去</span>
+                                <span class="type-tag">{{ item_type_labels.get(item.item_type, {}).get('label', item.item_type) }}</span>
+                                <button class="star-btn" type="button" data-star-toggle title="標記必去">☆</button>
+                            </div>
+                            {% if item.address %}
+                            <p class="address">📍 {{ item.address }}
+                                {% set map_url = google_maps_url(item.address) %}
+                                {% if map_url %}<a href="{{ map_url }}" target="_blank" rel="noopener">查看地圖 →</a>{% endif %}
+                            </p>
+                            {% endif %}
+                            {% if item.transport_method %}<p class="address">🚗 {{ item.transport_method }}{% if item.transport_minutes %}・約 {{ item.transport_minutes }} 分鐘{% endif %}</p>{% endif %}
+                            {% if item.place_description %}<div class="item-trivia">💡 {{ item.place_description[:140] }}{{ '…' if item.place_description|length > 140 else '' }}</div>{% endif %}
+                            {% if item.notes %}<div class="item-tip">★ {{ item.notes }}</div>{% endif %}
                         </div>
-                        {% if item.address %}
-                        <p class="address">📍 {{ item.address }}
-                            {% set map_url = google_maps_url(item.address) %}
-                            {% if map_url %}<a href="{{ map_url }}" target="_blank" rel="noopener">查看地圖 →</a>{% endif %}
-                        </p>
-                        {% endif %}
-                        {% if item.transport_method %}<p class="address">🚗 {{ item.transport_method }}{% if item.transport_minutes %}・約 {{ item.transport_minutes }} 分鐘{% endif %}</p>{% endif %}
-                        {% if item.notes %}<p class="notes">💬 {{ item.notes }}</p>{% endif %}
                     </div>
                 </div>
                 {% else %}
@@ -375,6 +395,32 @@
         <p class="empty-day">這趟旅程還沒有安排任何行程項目。</p>
         {% endfor %}
     </div>
+</section>
+
+<section id="stay" class="panel card" data-tab-panel="stay">
+    <div class="panel-head"><h2>🏨 住宿資訊</h2><span class="count-badge">{{ stays|length }} 間</span></div>
+    {% if stays %}
+    <div class="stays-grid">
+        {% for stay in stays %}
+        <div class="stay-card">
+            {% if stay.image %}<div class="stay-card-photo"><img src="{{ url_for('static', filename=stay.image) }}" alt="" loading="lazy"></div>{% endif %}
+            <div class="stay-card-body">
+                <b>{{ stay.title }}</b>
+                <p class="stay-dates">📅 {{ stay.start_date }}{% if stay.end_date != stay.start_date %} ～ {{ stay.end_date }}{% endif %}</p>
+                {% if stay.address %}
+                <p class="address">📍 {{ stay.address }}
+                    {% set map_url = google_maps_url(stay.address) %}
+                    {% if map_url %}<a href="{{ map_url }}" target="_blank" rel="noopener">查看地圖 →</a>{% endif %}
+                </p>
+                {% endif %}
+                {% if stay.description %}<div class="item-trivia">💡 {{ stay.description[:140] }}{{ '…' if stay.description|length > 140 else '' }}</div>{% endif %}
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+    {% else %}
+    <p class="empty-state">還沒有加入住宿資訊，到「管理行程」的每日安排新增住宿就會顯示在這裡。</p>
+    {% endif %}
 </section>
 
 <section id="checklist" class="panel card" data-tab-panel="checklist">
@@ -430,12 +476,6 @@
         <div class="add-item-row" data-add-for="pack-electronics"><input type="text" placeholder="新增一項…" maxlength="60"><button type="button">＋ 新增</button></div>
     </div>
     </div>
-</section>
-
-<section class="panel card members-panel" data-tab-panel="home">
-    {% for member in members %}
-    <span class="member-chip">{{ member.nickname or member.full_name }}<small>（{{ role_labels.get(member.member_role, member.member_role) }}）</small></span>
-    {% endfor %}
 </section>
 
 </main>

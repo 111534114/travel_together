@@ -152,7 +152,8 @@ def _load_votes(cursor, trip_id, user_id):
         SELECT v.*, u.full_name AS creator_name, u.nickname AS creator_nickname,
                (SELECT COUNT(*) FROM vote_records vr WHERE vr.vote_id=v.vote_id) AS total_votes
         FROM votes v JOIN users u ON u.user_id=v.created_by
-        WHERE v.trip_id=%s ORDER BY v.created_at DESC
+        WHERE v.trip_id=%s
+        ORDER BY (v.status != 'open' OR v.deadline_at < NOW()) ASC, v.created_at DESC
     """, (trip_id,))
     votes = cursor.fetchall()
 
@@ -1550,6 +1551,26 @@ def _parse_iso_date(value):
         return None
 
 
+@member_bp.route("/api/match-destination")
+@login_required("member")
+def api_match_destination():
+    """建立/編輯行程表單用：行程名稱打的字裡面有地名的話，拿去跟「讓AI排行程」同一套地名比對邏輯配對，
+    前端收到 country_id/city_id 就直接幫使用者把目的地下拉選單選好，不用自己重打一次口語地名轉換規則。"""
+    text = request.args.get("text", "").strip()[:200]
+    if not text:
+        return jsonify(country_id=None, city_id=None)
+    connection = get_db_connection()
+    if connection is None:
+        return jsonify(country_id=None, city_id=None)
+    cursor = connection.cursor(dictionary=True)
+    try:
+        countries, cities = get_countries(cursor), get_cities(cursor)
+        country_id, city_id = trip_request.match_destination(text, countries, cities)
+    finally:
+        cursor.close(); connection.close()
+    return jsonify(country_id=country_id, city_id=city_id)
+
+
 @member_bp.route("/api/flight-trips")
 def api_flight_trips():
     # 機票頁「我已訂票，加入旅程」用：列出這位會員能編輯的旅程，並標示每段航班日期是否落在旅程期間內
@@ -2409,7 +2430,7 @@ def trip_detail(trip_id):
         my_preference, my_preference_source = trip_preferences.my_form_values(cursor, preference_rows, session["user_id"])
     finally:
         cursor.close(); connection.close()
-    return render_template("member/trip_detail.html", trip=trip, itinerary=itinerary, place_options=place_options, popular_attractions=popular_attractions, addable_trips=[trip], day_last_coords=day_last_coords, city_weather_days=city_weather_days, members=members, mention_members=[{"name": m["nickname"] or m["full_name"], "full_name": m["full_name"], "is_me": m["user_id"] == session["user_id"]} for m in members], pending_invitations=pending_invitations, pending_requests=pending_requests, invite_link=invite_link, proposals=proposals, votes=votes, comments=comments, itinerary_comments=itinerary_comments, proposal_comments=proposal_comments, reported_comment_ids=reported_comment_ids, comment_report_reasons=COMMENT_REPORT_REASONS, expenses=expenses, balance_summary=balance_summary, attachments=attachments, actual=actual, can_edit=_can_edit(trip), is_owner=trip["member_role"] == "owner", now=datetime.now(), item_type_labels=ITEM_TYPE_LABELS, itinerary_change_field_labels=ITINERARY_CHANGE_FIELD_LABELS, disney_parks=theme_parks.get_disney_parks(), transport_summary=transport_summary, preferences_ready=preference_rows is not None, my_preference=my_preference, my_preference_source=my_preference_source, preference_summary=trip_preferences.summarize(preference_rows), preference_options=trip_preferences, return_group_id=return_group_id, stay_plan=stay_plan, budget_estimate=budget_estimate, stay_tier=stay_tier, lodging_tiers=smart_trip.LODGING_TIERS, ai_ready=ai_ready(), precheck_issues=precheck_issues, compares=compares, compare_remaining=compare_remaining, compare_ready=compare_ready, compare_limit=booking_compare.DAILY_LIMIT, compare_nights=compare_nights)
+    return render_template("member/trip_detail.html", trip=trip, itinerary=itinerary, place_options=place_options, popular_attractions=popular_attractions, addable_trips=[trip], day_last_coords=day_last_coords, city_weather_days=city_weather_days, members=members, mention_members=[{"name": m["nickname"] or m["full_name"], "full_name": m["full_name"], "is_me": m["user_id"] == session["user_id"]} for m in members], pending_invitations=pending_invitations, pending_requests=pending_requests, invite_link=invite_link, proposals=proposals, votes=votes, comments=comments, itinerary_comments=itinerary_comments, proposal_comments=proposal_comments, reported_comment_ids=reported_comment_ids, comment_report_reasons=COMMENT_REPORT_REASONS, expenses=expenses, balance_summary=balance_summary, attachments=attachments, actual=actual, can_edit=_can_edit(trip), is_owner=trip["member_role"] == "owner", now=datetime.now(), item_type_labels=ITEM_TYPE_LABELS, disney_parks=theme_parks.get_disney_parks(), transport_summary=transport_summary, preferences_ready=preference_rows is not None, my_preference=my_preference, my_preference_source=my_preference_source, preference_summary=trip_preferences.summarize(preference_rows), preference_options=trip_preferences, return_group_id=return_group_id, stay_plan=stay_plan, budget_estimate=budget_estimate, stay_tier=stay_tier, lodging_tiers=smart_trip.LODGING_TIERS, ai_ready=ai_ready(), precheck_issues=precheck_issues, compares=compares, compare_remaining=compare_remaining, compare_ready=compare_ready, compare_limit=booking_compare.DAILY_LIMIT, compare_nights=compare_nights)
 
 
 @member_bp.route("/trips/<int:trip_id>/export/excel")
@@ -2531,8 +2552,18 @@ def _parse_flight_title(title):
 
 
 def _load_handbook_data(cursor, trip_id):
-    """旅遊手冊共用的資料整理：查出每日行程(依日期分組)、航班卡片跟同行旅伴，登入版跟公開分享版都靠這個組出一樣的內容。"""
-    cursor.execute("SELECT * FROM itineraries WHERE trip_id=%s ORDER BY itinerary_date, sort_order", (trip_id,))
+    """旅遊手冊共用的資料整理：查出每日行程(依日期分組)、航班卡片、住宿摘要跟同行旅伴，登入版跟公開分享版都靠這個組出一樣的內容。"""
+    cursor.execute("""
+        SELECT i.*,
+               COALESCE(a.image_path, r.image_path, ac.image_path) AS place_image,
+               COALESCE(a.description, r.description, ac.description) AS place_description,
+               COALESCE(a.opening_hours, r.opening_hours) AS place_hours
+        FROM itineraries i
+        LEFT JOIN attractions a ON a.attraction_id = i.attraction_id AND a.deleted_at IS NULL
+        LEFT JOIN restaurants r ON r.restaurant_id = i.restaurant_id AND r.deleted_at IS NULL
+        LEFT JOIN accommodations ac ON ac.accommodation_id = i.accommodation_id AND ac.deleted_at IS NULL
+        WHERE i.trip_id=%s ORDER BY i.itinerary_date, i.sort_order
+    """, (trip_id,))
     items = cursor.fetchall()
     cursor.execute("""SELECT tm.member_role, u.full_name, u.nickname, u.avatar_path FROM trip_members tm JOIN users u ON u.user_id=tm.user_id
                       WHERE tm.trip_id=%s AND tm.join_status='accepted'
@@ -2542,6 +2573,8 @@ def _load_handbook_data(cursor, trip_id):
     days = []  # 把行程項目依日期分組，模板直接逐天印出來
     days_by_date = {}
     flights = []  # 用「加入航班」功能存進來的交通項目（transport_method='飛機'），整理成航班卡片用
+    stays = []  # 這趟旅程住過的每一間住宿摘要（同一間住宿橫跨多天只出現一次，日期範圍自動合併）
+    stays_by_key = {}
     for item in items:
         day_key = item["itinerary_date"]
         if day_key not in days_by_date:
@@ -2551,7 +2584,18 @@ def _load_handbook_data(cursor, trip_id):
         if item["item_type"] == "transport" and item.get("transport_method") == "飛機":
             item["flight_info"] = _parse_flight_title(item["title"])
             flights.append(item)
-    return days, members, flights
+        if item["item_type"] == "accommodation":
+            key = item["accommodation_id"] or item["title"]
+            stay = stays_by_key.get(key)
+            if stay is None:
+                stay = {"title": item["title"], "address": item["address"], "image": item["place_image"],
+                        "description": item["place_description"], "start_date": day_key, "end_date": day_key}
+                stays_by_key[key] = stay
+                stays.append(stay)
+            else:
+                stay["start_date"] = min(stay["start_date"], day_key)
+                stay["end_date"] = max(stay["end_date"], day_key)
+    return days, members, flights, stays
 
 
 def _handbook_countdown_target(trip, flights):
@@ -2577,12 +2621,12 @@ def trip_handbook(trip_id):
         if not trip:
             flash("你沒有查看這個行程的權限。", "error")
             return redirect(url_for("member.dashboard"))
-        days, members, flights = _load_handbook_data(cursor, trip_id)
+        days, members, flights, stays = _load_handbook_data(cursor, trip_id)
     finally:
         cursor.close(); connection.close()
 
     return render_template(
-        "member/trip_handbook.html", trip=trip, days=days, members=members, flights=flights, is_public_view=False,
+        "member/trip_handbook.html", trip=trip, days=days, members=members, flights=flights, stays=stays, is_public_view=False,
         countdown_target=_handbook_countdown_target(trip, flights),
         item_type_labels=ITEM_TYPE_LABELS, role_labels={"owner": "建立者", "editor": "共同編輯者", "viewer": "查看者"},
     )
@@ -2606,12 +2650,12 @@ def shared_trip_handbook(token):
         if not trip:
             flash("找不到這個旅遊手冊，連結可能已經失效。", "error")
             return redirect(url_for("visitor"))
-        days, members, flights = _load_handbook_data(cursor, trip["trip_id"])
+        days, members, flights, stays = _load_handbook_data(cursor, trip["trip_id"])
     finally:
         cursor.close(); connection.close()
 
     return render_template(
-        "member/trip_handbook.html", trip=trip, days=days, members=members, flights=flights, is_public_view=True,
+        "member/trip_handbook.html", trip=trip, days=days, members=members, flights=flights, stays=stays, is_public_view=True,
         countdown_target=_handbook_countdown_target(trip, flights),
         item_type_labels=ITEM_TYPE_LABELS, role_labels={"owner": "建立者", "editor": "共同編輯者", "viewer": "查看者"},
     )
@@ -3359,324 +3403,6 @@ def scan_expense_image(trip_id):
         details=str(payload.get("details") or "").strip()[:300],
         itinerary=suggestion, warnings=warnings,
     )
-
-
-PROPOSAL_TYPES = ("attraction", "restaurant", "accommodation", "activity", "transport", "date", "other")
-
-
-@member_bp.route("/trips/<int:trip_id>/proposals", methods=["POST"])
-@login_required("member")
-def add_proposal(trip_id):
-    connection = _connection_or_home()
-    if connection is None: return redirect(url_for("member.dashboard"))
-    cursor = connection.cursor(dictionary=True)
-    review_proposal_id = None  # 需要審核的提案送出後，請 AI 小幫手在背景先幫管理員檢查
-    try:
-        trip = _member_access(cursor, trip_id, session["user_id"])
-        title = request.form.get("title", "").strip()
-        proposal_type = request.form.get("proposal_type", "other")
-        website_url = request.form.get("website_url", "").strip() or None
-        image_path = None
-        image_file = request.files.get("image")
-        if not trip: flash("你沒有新增提案的權限。", "error")
-        elif not title: flash("請填寫提案名稱。", "error")
-        elif proposal_type not in PROPOSAL_TYPES: flash("提案類型無效。", "error")
-        else:
-            if image_file and image_file.filename:
-                try:
-                    image_path = save_uploaded_image(image_file, "proposals")
-                except ValueError as error:
-                    flash(str(error), "error")
-                    return redirect(url_for("member.trip_detail", trip_id=trip_id) + "#proposals")
-            needs_review = proposal_type in ("attraction", "restaurant", "accommodation")
-            review_status = "pending" if needs_review else "not_required"
-            cursor.execute("""INSERT INTO proposals (trip_id,proposer_id,proposal_type,title,location,description,estimated_cost,proposed_date,website_url,image_path,content_review_status)
-                              VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)""", (trip_id, session["user_id"], proposal_type, title, request.form.get("location", "").strip() or None, request.form.get("description", "").strip() or None, request.form.get("estimated_cost") or 0, request.form.get("proposed_date") or None, website_url, image_path, review_status))
-            new_proposal_id = cursor.lastrowid
-            connection.commit()
-            if needs_review:
-                review_proposal_id = new_proposal_id
-                flash("提案已送出，旅伴可以先討論；新增景點、餐廳或住宿須經內容管理員審核後才會正式收錄。", "success")
-            else:
-                flash("提案已送出，旅伴現在可以一起討論。", "success")
-    except Exception:
-        connection.rollback(); flash("送出提案失敗。", "error")
-        review_proposal_id = None
-    finally:
-        cursor.close(); connection.close()
-    if review_proposal_id:
-        proposal_review.schedule_new_proposal(review_proposal_id)
-    return redirect(url_for("member.trip_detail", trip_id=trip_id) + "#proposals")
-
-
-@member_bp.route("/trips/<int:trip_id>/proposals/<int:proposal_id>/edit", methods=["POST"])
-@login_required("member")
-def edit_proposal(trip_id, proposal_id):
-    connection = _connection_or_home()
-    if connection is None: return redirect(url_for("member.dashboard"))
-    cursor = connection.cursor(dictionary=True)
-    try:
-        trip = _member_access(cursor, trip_id, session["user_id"])
-        cursor.execute("SELECT * FROM proposals WHERE proposal_id=%s AND trip_id=%s", (proposal_id, trip_id))
-        proposal = cursor.fetchone()
-        title = request.form.get("title", "").strip()
-        proposal_type = request.form.get("proposal_type", "other")
-
-        if not trip or not proposal: flash("找不到這個提案。", "error")
-        elif proposal["proposer_id"] != session["user_id"]: flash("只有提案人可以修改這個提案。", "error")
-        elif proposal["status"] != "discussing": flash("提案已進入投票或已有結果，無法再修改。", "error")
-        elif not title: flash("請填寫提案名稱。", "error")
-        elif proposal_type not in PROPOSAL_TYPES: flash("提案類型無效。", "error")
-        else:
-            image_path = proposal["image_path"]
-            image_file = request.files.get("image")
-            if image_file and image_file.filename:
-                try:
-                    new_path = save_uploaded_image(image_file, "proposals")
-                except ValueError as error:
-                    flash(str(error), "error")
-                    return redirect(url_for("member.trip_detail", trip_id=trip_id) + "#proposals")
-                if image_path: delete_uploaded_image(image_path)
-                image_path = new_path
-            cursor.execute("""UPDATE proposals SET proposal_type=%s,title=%s,location=%s,description=%s,estimated_cost=%s,proposed_date=%s,website_url=%s,image_path=%s
-                              WHERE proposal_id=%s""", (proposal_type, title, request.form.get("location", "").strip() or None, request.form.get("description", "").strip() or None, request.form.get("estimated_cost") or 0, request.form.get("proposed_date") or None, request.form.get("website_url", "").strip() or None, image_path, proposal_id))
-            connection.commit(); flash("提案已更新。", "success")
-    except Exception:
-        connection.rollback(); flash("修改提案失敗。", "error")
-    finally:
-        cursor.close(); connection.close()
-    return redirect(url_for("member.trip_detail", trip_id=trip_id) + "#proposals")
-
-
-@member_bp.route("/trips/<int:trip_id>/proposals/<int:proposal_id>/cancel", methods=["POST"])
-@login_required("member")
-def cancel_proposal(trip_id, proposal_id):
-    connection = _connection_or_home()
-    if connection is None: return redirect(url_for("member.dashboard"))
-    cursor = connection.cursor(dictionary=True)
-    try:
-        trip = _member_access(cursor, trip_id, session["user_id"])
-        cursor.execute("SELECT * FROM proposals WHERE proposal_id=%s AND trip_id=%s", (proposal_id, trip_id))
-        proposal = cursor.fetchone()
-
-        if not trip or not proposal: flash("找不到這個提案。", "error")
-        elif proposal["proposer_id"] != session["user_id"]: flash("只有提案人可以取消這個提案。", "error")
-        elif proposal["status"] != "discussing": flash("提案已進入投票或已有結果，無法取消。", "error")
-        else:
-            cursor.execute("UPDATE proposals SET status='cancelled' WHERE proposal_id=%s", (proposal_id,))
-            connection.commit(); flash("提案已取消。", "success")
-    except Exception:
-        connection.rollback(); flash("取消提案失敗。", "error")
-    finally:
-        cursor.close(); connection.close()
-    return redirect(url_for("member.trip_detail", trip_id=trip_id) + "#proposals")
-
-
-@member_bp.route("/trips/<int:trip_id>/proposals/<int:proposal_id>/delete", methods=["POST"])
-@login_required("member")
-def delete_proposal(trip_id, proposal_id):
-    connection = _connection_or_home()
-    if connection is None: return redirect(url_for("member.dashboard"))
-    cursor = connection.cursor(dictionary=True)
-    try:
-        trip = _member_access(cursor, trip_id, session["user_id"])
-        cursor.execute("SELECT * FROM proposals WHERE proposal_id=%s AND trip_id=%s", (proposal_id, trip_id))
-        proposal = cursor.fetchone()
-
-        if not trip or not proposal: flash("找不到這個提案。", "error")
-        elif proposal["proposer_id"] != session["user_id"]: flash("只有提案人可以刪除這個提案。", "error")
-        elif proposal["status"] in ("voting", "approved", "added"): flash("提案正在投票或已有結果，無法刪除。", "error")
-        else:
-            cursor.execute("DELETE FROM proposals WHERE proposal_id=%s", (proposal_id,))
-            connection.commit()
-            if proposal["image_path"]: delete_uploaded_image(proposal["image_path"])
-            flash("提案已刪除。", "success")
-    except Exception:
-        connection.rollback(); flash("刪除提案失敗。", "error")
-    finally:
-        cursor.close(); connection.close()
-    return redirect(url_for("member.trip_detail", trip_id=trip_id) + "#proposals")
-
-
-PROPOSAL_TO_ITEM_TYPE = {"attraction": "attraction", "restaurant": "restaurant", "accommodation": "accommodation", "transport": "transport", "activity": "other", "other": "other"}
-
-
-@member_bp.route("/trips/<int:trip_id>/proposals/<int:proposal_id>/add-to-itinerary", methods=["POST"])
-@login_required("member")
-def add_proposal_to_itinerary(trip_id, proposal_id):
-    connection = _connection_or_home()
-    if connection is None: return redirect(url_for("member.dashboard"))
-    cursor = connection.cursor(dictionary=True)
-    try:
-        trip = _member_access(cursor, trip_id, session["user_id"])
-        cursor.execute("SELECT * FROM proposals WHERE proposal_id=%s AND trip_id=%s", (proposal_id, trip_id))
-        proposal = cursor.fetchone()
-
-        if not trip or not proposal: flash("找不到這個提案。", "error")
-        elif trip["member_role"] != "owner": flash("只有行程建立者可以把提案加入正式行程。", "error")
-        elif proposal["status"] != "approved": flash("只有已通過的提案可以加入正式行程。", "error")
-        elif proposal["proposal_type"] == "date": flash("日期調整方案請直接修改行程日期，無法加入每日行程。", "error")
-        else:
-            item_type = PROPOSAL_TO_ITEM_TYPE.get(proposal["proposal_type"], "other")
-            day = proposal["proposed_date"] or trip["start_date"]
-            cursor.execute("SELECT COALESCE(MAX(sort_order),0)+1 AS next_order FROM itineraries WHERE trip_id=%s AND itinerary_date=%s", (trip_id, day)); order = cursor.fetchone()["next_order"]
-            cursor.execute("""INSERT INTO itineraries (trip_id,created_by,itinerary_date,item_type,title,is_all_day,address,estimated_cost,notes,sort_order)
-                              VALUES (%s,%s,%s,%s,%s,1,%s,%s,%s,%s)""", (trip_id, session["user_id"], day, item_type, proposal["title"], proposal["location"], proposal["estimated_cost"], proposal["description"], order))
-            cursor.execute("UPDATE proposals SET status='added' WHERE proposal_id=%s", (proposal_id,))
-            connection.commit(); flash("提案已加入每日行程。", "success")
-    except Exception:
-        connection.rollback(); flash("加入正式行程失敗。", "error")
-    finally:
-        cursor.close(); connection.close()
-    return redirect(url_for("member.trip_detail", trip_id=trip_id) + "#proposals")
-
-
-ITINERARY_CHANGE_FIELDS = ("title", "item_type", "itinerary_date", "start_time", "end_time", "is_all_day", "address", "transport_method", "transport_minutes", "estimated_cost", "notes")
-ITINERARY_CHANGE_FIELD_LABELS = {
-    "title": "項目名稱", "item_type": "類型", "itinerary_date": "日期", "start_time": "開始時間",
-    "end_time": "結束時間", "is_all_day": "整天", "address": "地點", "transport_method": "交通方式",
-    "transport_minutes": "交通時間（分鐘）", "estimated_cost": "預估費用", "notes": "備註",
-}
-
-
-def _itinerary_snapshot(item):
-    return {
-        "title": item["title"],
-        "item_type": item["item_type"],
-        "itinerary_date": item["itinerary_date"].isoformat() if item["itinerary_date"] else None,
-        "start_time": format_hm(item["start_time"]) if item["start_time"] else None,
-        "end_time": format_hm(item["end_time"]) if item["end_time"] else None,
-        "is_all_day": bool(item["is_all_day"]),
-        "address": item["address"],
-        "transport_method": item["transport_method"],
-        "transport_minutes": item["transport_minutes"],
-        "estimated_cost": float(item["estimated_cost"]) if item["estimated_cost"] is not None else 0,
-        "notes": item["notes"],
-    }
-
-
-def _itinerary_change_from_form(form, base=None):
-    """依表單值組出提議的新內容；update 時以目前內容(base)當底，只覆寫使用者有填的欄位。"""
-    data = dict(base) if base else {key: None for key in ITINERARY_CHANGE_FIELDS}
-    if form.get("title", "").strip():
-        data["title"] = form["title"].strip()
-    if form.get("item_type") in ITEM_TYPE_LABELS:
-        data["item_type"] = form["item_type"]
-    if form.get("itinerary_date", "").strip():
-        data["itinerary_date"] = form["itinerary_date"].strip()
-    time_mode = form.get("time_mode", "").strip()
-    if time_mode:
-        if time_mode not in TIME_MODES: time_mode = "range"
-        start = form.get("start_time", "").strip() or None
-        end = form.get("end_time", "").strip() or None
-        is_all_day = False
-        if time_mode == "all_day": start, end, is_all_day = None, None, True
-        elif time_mode == "start_only": end = None
-        elif time_mode == "end_only": start = None
-        data["start_time"], data["end_time"], data["is_all_day"] = start, end, is_all_day
-    if form.get("address", "").strip():
-        data["address"] = form["address"].strip()
-    if form.get("transport_method", "").strip():
-        data["transport_method"] = form["transport_method"].strip()
-    if form.get("transport_minutes", "").strip():
-        try: data["transport_minutes"] = int(form["transport_minutes"])
-        except ValueError: pass
-    if form.get("estimated_cost", "").strip():
-        try: data["estimated_cost"] = float(form["estimated_cost"])
-        except ValueError: pass
-    if form.get("notes", "").strip():
-        data["notes"] = form["notes"].strip()
-    return data
-
-
-@member_bp.route("/trips/<int:trip_id>/itinerary-changes", methods=["POST"])
-@login_required("member")
-def propose_itinerary_change(trip_id):
-    connection = _connection_or_home()
-    if connection is None: return redirect(url_for("member.dashboard"))
-    cursor = connection.cursor(dictionary=True)
-    try:
-        trip = _member_access(cursor, trip_id, session["user_id"])
-        change_type = request.form.get("change_type", "")
-        reason = request.form.get("reason", "").strip()
-        target_id = request.form.get("target_itinerary_id", "").strip() or None
-
-        if not trip or not _can_edit(trip): flash("只有建立者或共同編輯者可以提出行程變更提案。", "error")
-        elif change_type not in ("update", "delete", "create"): flash("請選擇變更類型。", "error")
-        elif not reason: flash("請填寫提案原因。", "error")
-        else:
-            before_data = after_data = target_itinerary_id = None
-            if change_type in ("update", "delete"):
-                existing = None
-                if target_id:
-                    cursor.execute("SELECT * FROM itineraries WHERE itinerary_id=%s AND trip_id=%s", (target_id, trip_id))
-                    existing = cursor.fetchone()
-                if not existing:
-                    flash("找不到要變更的行程項目。", "error")
-                    return redirect(url_for("member.trip_detail", trip_id=trip_id) + "#proposals")
-                target_itinerary_id = existing["itinerary_id"]
-                before_data = _itinerary_snapshot(existing)
-                title = (f"修改「{existing['title']}」" if change_type == "update" else f"刪除「{existing['title']}」")
-                if change_type == "update":
-                    after_data = _itinerary_change_from_form(request.form, before_data)
-            else:
-                after_data = _itinerary_change_from_form(request.form)
-                if not after_data.get("title") or not after_data.get("itinerary_date"):
-                    flash("新增項目至少要填寫名稱與日期。", "error")
-                    return redirect(url_for("member.trip_detail", trip_id=trip_id) + "#proposals")
-                title = f"新增「{after_data['title']}」"
-
-            cursor.execute("""INSERT INTO proposals (trip_id,proposer_id,proposal_type,target_itinerary_id,change_type,before_data,after_data,title,description,content_review_status)
-                              VALUES (%s,%s,'itinerary_change',%s,%s,%s,%s,%s,%s,'not_required')""",
-                           (trip_id, session["user_id"], target_itinerary_id, change_type,
-                            json.dumps(before_data, ensure_ascii=False) if before_data is not None else None,
-                            json.dumps(after_data, ensure_ascii=False) if after_data is not None else None,
-                            title, reason))
-            connection.commit()
-            flash("行程變更提案已送出，旅伴可以一起討論。", "success")
-    except Exception:
-        connection.rollback(); flash("送出提案失敗。", "error")
-    finally:
-        cursor.close(); connection.close()
-    return redirect(url_for("member.trip_detail", trip_id=trip_id) + "#proposals")
-
-
-@member_bp.route("/trips/<int:trip_id>/proposals/<int:proposal_id>/apply-change", methods=["POST"])
-@login_required("member")
-def apply_itinerary_change(trip_id, proposal_id):
-    connection = _connection_or_home()
-    if connection is None: return redirect(url_for("member.dashboard"))
-    cursor = connection.cursor(dictionary=True)
-    try:
-        trip = _member_access(cursor, trip_id, session["user_id"])
-        cursor.execute("SELECT * FROM proposals WHERE proposal_id=%s AND trip_id=%s AND proposal_type='itinerary_change'", (proposal_id, trip_id))
-        proposal = cursor.fetchone()
-
-        if not trip or not proposal: flash("找不到這個提案。", "error")
-        elif trip["member_role"] != "owner": flash("只有行程建立者可以套用行程變更。", "error")
-        elif proposal["status"] != "approved": flash("只有已通過的提案可以套用。", "error")
-        else:
-            after = json.loads(proposal["after_data"]) if proposal["after_data"] else None
-            if proposal["change_type"] == "delete":
-                cursor.execute("DELETE FROM itineraries WHERE itinerary_id=%s AND trip_id=%s", (proposal["target_itinerary_id"], trip_id))
-            elif proposal["change_type"] == "update":
-                cursor.execute("SELECT itinerary_id FROM itineraries WHERE itinerary_id=%s AND trip_id=%s", (proposal["target_itinerary_id"], trip_id))
-                if not cursor.fetchone():
-                    flash("原本的行程項目已不存在，無法套用。", "error")
-                    return redirect(url_for("member.trip_detail", trip_id=trip_id) + "#proposals")
-                cursor.execute("""UPDATE itineraries SET title=%s,item_type=%s,itinerary_date=%s,start_time=%s,end_time=%s,is_all_day=%s,address=%s,transport_method=%s,transport_minutes=%s,estimated_cost=%s,notes=%s
-                                  WHERE itinerary_id=%s""", (after["title"], after["item_type"], after["itinerary_date"], after["start_time"], after["end_time"], after["is_all_day"], after["address"], after["transport_method"], after["transport_minutes"], after["estimated_cost"], after["notes"], proposal["target_itinerary_id"]))
-            else:
-                cursor.execute("SELECT COALESCE(MAX(sort_order),0)+1 AS next_order FROM itineraries WHERE trip_id=%s AND itinerary_date=%s", (trip_id, after["itinerary_date"])); order = cursor.fetchone()["next_order"]
-                cursor.execute("""INSERT INTO itineraries (trip_id,created_by,itinerary_date,item_type,title,start_time,end_time,is_all_day,address,transport_method,transport_minutes,estimated_cost,notes,sort_order)
-                                  VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)""", (trip_id, session["user_id"], after["itinerary_date"], after["item_type"] or "other", after["title"], after["start_time"], after["end_time"], after["is_all_day"], after["address"], after["transport_method"], after["transport_minutes"] or 0, after["estimated_cost"] or 0, after["notes"], order))
-            cursor.execute("UPDATE proposals SET status='added' WHERE proposal_id=%s", (proposal_id,))
-            connection.commit(); flash("行程變更已套用。", "success")
-    except Exception:
-        connection.rollback(); flash("套用失敗，請再試一次。", "error")
-    finally:
-        cursor.close(); connection.close()
-    return redirect(url_for("member.trip_detail", trip_id=trip_id) + "#proposals")
 
 
 @member_bp.route("/trips/<int:trip_id>/votes", methods=["POST"])

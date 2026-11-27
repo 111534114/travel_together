@@ -110,4 +110,77 @@
 
 </div>
 
+<div class="admin-section">
+
+    <div class="section-title">
+        <h2>🗑️ 回收桶</h2>
+        <span>國家 {{ deleted_countries|length }} 筆・城市 {{ deleted_cities|length }} 筆</span>
+    </div>
+
+    <div class="table-container">
+        <table class="admin-table">
+            <thead>
+            <tr>
+                <th>國家名稱</th>
+                <th>刪除時間</th>
+                <th>操作</th>
+            </tr>
+            </thead>
+            <tbody>
+            {% for country in deleted_countries %}
+            <tr>
+                <td>{{ country.name }}</td>
+                <td>{{ country.deleted_at }}</td>
+                <td>
+                    <form method="POST" action="{{ url_for('locations.restore_country', country_id=country.country_id) }}" class="inline-form">
+                        <button type="submit" class="small-button">復原</button>
+                    </form>
+                    <form method="POST" action="{{ url_for('locations.permanently_delete_country', country_id=country.country_id) }}" class="inline-form"
+                          onsubmit="return confirm('確定要永久刪除這個國家嗎？刪除後無法復原！');">
+                        <button type="submit" class="disable-button">永久刪除</button>
+                    </form>
+                </td>
+            </tr>
+            {% else %}
+            <tr><td colspan="3" class="empty-data">回收桶裡沒有國家</td></tr>
+            {% endfor %}
+            </tbody>
+        </table>
+    </div>
+
+    <div class="table-container" style="margin-top:18px;">
+        <table class="admin-table">
+            <thead>
+            <tr>
+                <th>城市名稱</th>
+                <th>所屬國家</th>
+                <th>刪除時間</th>
+                <th>操作</th>
+            </tr>
+            </thead>
+            <tbody>
+            {% for city in deleted_cities %}
+            <tr>
+                <td>{{ city.name }}</td>
+                <td>{{ city.country_name }}</td>
+                <td>{{ city.deleted_at }}</td>
+                <td>
+                    <form method="POST" action="{{ url_for('locations.restore_city', city_id=city.city_id) }}" class="inline-form">
+                        <button type="submit" class="small-button">復原</button>
+                    </form>
+                    <form method="POST" action="{{ url_for('locations.permanently_delete_city', city_id=city.city_id) }}" class="inline-form"
+                          onsubmit="return confirm('確定要永久刪除這個城市嗎？刪除後無法復原！');">
+                        <button type="submit" class="disable-button">永久刪除</button>
+                    </form>
+                </td>
+            </tr>
+            {% else %}
+            <tr><td colspan="4" class="empty-data">回收桶裡沒有城市</td></tr>
+            {% endfor %}
+            </tbody>
+        </table>
+    </div>
+
+</div>
+
 {% endblock %}

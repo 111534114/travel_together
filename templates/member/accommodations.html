@@ -101,10 +101,14 @@
                 <footer><span>{{ ac.address or '地址未提供' }}</span><strong>{{ 'NT$ {:,.0f}/晚'.format(ac.price_per_night) if ac.price_per_night else '價格未提供' }}</strong></footer>
             </div>
         </a>
+        {% if is_member %}
         <form method="post" action="{{ url_for('member.toggle_accommodation_favorite', accommodation_id=ac.accommodation_id) }}" class="favorite-form">
             <input type="hidden" name="next" value="{{ request.full_path }}">
             <button type="submit" class="favorite-btn {{ 'is-favorited' if ac.is_favorited else '' }}" title="{{ '取消收藏' if ac.is_favorited else '收藏住宿' }}">{{ '♥' if ac.is_favorited else '♡' }}</button>
         </form>
+        {% else %}
+        {% set remember_target = url_for('member.toggle_accommodation_favorite', accommodation_id=ac.accommodation_id) %}{% set remember_label = '♡' %}{% set remember_class = 'favorite-btn' %}{% set remember_fields = {} %}{% set remember_title = '登入後收藏住宿' %}{% include 'partials/remember_button.html' %}
+        {% endif %}
         <div class="attraction-card-actions"><button type="button" class="member-btn outline small" data-add-to-trip data-action="{{ url_for('member.add_accommodation_to_trip', accommodation_id=ac.accommodation_id) }}" data-name="{{ ac.name }}" data-city-id="{{ ac.city_id }}">＋ 加入行程</button></div>
     </div>
     {% endfor %}

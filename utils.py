@@ -254,7 +254,7 @@ def google_maps_embed_url(address=None, latitude=None, longitude=None, zoom=16):
 
 
 def get_countries(cursor):  # 定義取得所有國家清單的共用函式，cursor 是已開啟的資料庫游標
-    cursor.execute("SELECT country_id, name FROM countries ORDER BY name")  # 查詢所有國家，依名稱排序
+    cursor.execute("SELECT country_id, name FROM countries WHERE deleted_at IS NULL ORDER BY name")  # 查詢所有未刪除的國家，依名稱排序
     return cursor.fetchall()  # 回傳查詢結果(國家清單)
 
 
@@ -280,8 +280,8 @@ def get_cities(cursor, country_id=None):  # 定義取得城市清單的共用函
             """
             SELECT city_id, country_id, name, region
             FROM cities
-            WHERE country_id = %s
-            """,  # 只查詢屬於該國家的城市，排序交給 Python 端處理(SQL 依字串排地區順序會不符合慣用順序)
+            WHERE country_id = %s AND deleted_at IS NULL
+            """,  # 只查詢屬於該國家、未刪除的城市，排序交給 Python 端處理(SQL 依字串排地區順序會不符合慣用順序)
             (country_id,)  # 帶入國家 ID 參數
         )
         return sorted(cursor.fetchall(), key=_region_sort_key)  # 依地區慣用順序、城市名稱排序後回傳
@@ -290,8 +290,9 @@ def get_cities(cursor, country_id=None):  # 定義取得城市清單的共用函
         """
         SELECT city_id, country_id, name, region
         FROM cities
+        WHERE deleted_at IS NULL
         ORDER BY country_id
-        """  # 查詢所有城市，先依國家排序，同一國家內的地區順序交給 Python 端處理
+        """  # 查詢所有未刪除的城市，先依國家排序，同一國家內的地區順序交給 Python 端處理
     )
     cities = cursor.fetchall()  # 取出查詢結果
     cities.sort(key=lambda city: (city["country_id"],) + _region_sort_key(city))  # 先依國家、再依地區慣用順序、城市名稱排序(穩定排序，國家順序不會被打亂)

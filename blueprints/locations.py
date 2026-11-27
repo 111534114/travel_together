@@ -103,7 +103,7 @@ def manage_locations():  # 定義國家與城市管理頁函式
 
     if connection is None:  # 如果連線失敗
         flash("資料庫連線失敗", "error")  # 顯示錯誤提示
-        return render_template("content_admin/locations.html", countries=[], cities=[])  # 回傳空清單頁面
+        return render_template("content_admin/locations.html", countries=[], cities=[], location_groups=[], deleted_countries=[], deleted_cities=[])  # 回傳空清單頁面
 
     cursor = connection.cursor(dictionary=True)  # 建立字典格式游標
 
@@ -112,13 +112,27 @@ def manage_locations():  # 定義國家與城市管理頁函式
             SELECT co.country_id, co.name,
                    COUNT(DISTINCT ci.city_id) AS city_count
             FROM countries co
-            LEFT JOIN cities ci ON ci.country_id = co.country_id
+            LEFT JOIN cities ci ON ci.country_id = co.country_id AND ci.deleted_at IS NULL
+            WHERE co.deleted_at IS NULL
             GROUP BY co.country_id, co.name
             ORDER BY co.name
-        """)  # 查詢所有國家，並統計每個國家底下有幾個城市
+        """)  # 查詢所有未刪除的國家，並統計每個國家底下有幾個未刪除的城市
         countries = cursor.fetchall()  # 取出國家清單
 
         cities = get_cities(cursor)  # 查詢所有城市，已經依國家、地區慣用順序、城市名稱排序好
+
+        cursor.execute("""
+            SELECT country_id, name, deleted_at FROM countries
+            WHERE deleted_at IS NOT NULL ORDER BY deleted_at DESC
+        """)  # 查詢回收桶裡的國家
+        deleted_countries = cursor.fetchall()
+
+        cursor.execute("""
+            SELECT ci.city_id, ci.name, ci.deleted_at, co.name AS country_name
+            FROM cities ci JOIN countries co ON co.country_id = ci.country_id
+            WHERE ci.deleted_at IS NOT NULL ORDER BY ci.deleted_at DESC
+        """)  # 查詢回收桶裡的城市，帶上所屬國家名稱方便辨識
+        deleted_cities = cursor.fetchall()
 
     finally:  # 不論成功或失敗都要執行
         cursor.close()  # 關閉游標
@@ -141,6 +155,8 @@ def manage_locations():  # 定義國家與城市管理頁函式
         countries=countries,  # 國家清單
         cities=cities,  # 城市清單
         location_groups=location_groups,  # 依國家、地區分組好的城市清單(給城市區塊顯示用)
+        deleted_countries=deleted_countries,  # 回收桶裡的國家清單
+        deleted_cities=deleted_cities,  # 回收桶裡的城市清單
     )
 
 
@@ -222,23 +238,23 @@ def delete_country(country_id):  # 定義刪除國家函式
         flash("資料庫連線失敗", "error")  # 顯示錯誤提示
         return redirect(url_for("locations.manage_locations"))  # 導回國家與城市管理頁
 
-    cursor = connection.cursor()  # 建立一般游標
+    cursor = connection.cursor(dictionary=True)  # 建立字典格式游標
 
-    try:  # 嘗試刪除資料
-        cursor.execute("SELECT name FROM countries WHERE country_id = %s", (country_id,))  # 先查出國家名稱，等下寫操作紀錄要用
+    try:  # 開始執行刪除(軟刪除：只標記刪除時間，資料列還在，可從回收桶復原)
+        cursor.execute("SELECT name FROM countries WHERE country_id = %s AND deleted_at IS NULL", (country_id,))  # 先查出國家名稱，等下寫操作紀錄要用
         existing = cursor.fetchone()  # 取得查詢結果(可能為 None)
 
-        cursor.execute("DELETE FROM countries WHERE country_id = %s", (country_id,))  # 執行刪除國家的 SQL
+        cursor.execute("UPDATE countries SET deleted_at = NOW() WHERE country_id = %s AND deleted_at IS NULL", (country_id,))  # 標記刪除時間，不真的砍掉資料列
 
         if existing:  # 如果原本有查到這個國家(代表確實刪除了)
-            log_action(cursor, "delete_country", "country", country_id, f"刪除國家：{existing[0]}")  # 寫入操作紀錄
+            log_action(cursor, "delete_country", "country", country_id, f"刪除國家：{existing['name']}")  # 寫入操作紀錄
 
         connection.commit()  # 提交交易(國家資料與操作紀錄一起寫入)
-        flash("國家已刪除", "success")  # 顯示成功訊息
-    except Exception as error:  # 如果刪除過程發生例外(例如底下還有城市，外鍵擋住)
+        flash("國家已移入回收桶，可以隨時復原", "success")  # 顯示成功訊息
+    except Exception as error:  # 如果刪除過程發生例外
         connection.rollback()  # 回復交易
         print("刪除國家失敗：", error)  # 在伺服器端印出錯誤內容
-        flash("刪除失敗，此國家底下仍有城市，請先刪除相關城市", "error")  # 顯示錯誤提示
+        flash("刪除國家失敗，請再試一次", "error")  # 顯示錯誤提示
     finally:  # 不論成功或失敗都要執行
         cursor.close()  # 關閉游標
         connection.close()  # 關閉資料庫連線
@@ -439,23 +455,162 @@ def delete_city(city_id):  # 定義刪除城市函式
         flash("資料庫連線失敗", "error")  # 顯示錯誤提示
         return redirect(url_for("locations.manage_locations"))  # 導回國家與城市管理頁
 
-    cursor = connection.cursor()  # 建立一般游標
+    cursor = connection.cursor(dictionary=True)  # 建立字典格式游標
 
-    try:  # 嘗試刪除資料
-        cursor.execute("SELECT name FROM cities WHERE city_id = %s", (city_id,))  # 先查出城市名稱，等下寫操作紀錄要用
+    try:  # 開始執行刪除(軟刪除：只標記刪除時間，資料列還在，可從回收桶復原)
+        cursor.execute("SELECT name FROM cities WHERE city_id = %s AND deleted_at IS NULL", (city_id,))  # 先查出城市名稱，等下寫操作紀錄要用
         existing = cursor.fetchone()  # 取得查詢結果(可能為 None)
 
-        cursor.execute("DELETE FROM cities WHERE city_id = %s", (city_id,))  # 執行刪除城市的 SQL
+        cursor.execute("UPDATE cities SET deleted_at = NOW() WHERE city_id = %s AND deleted_at IS NULL", (city_id,))  # 標記刪除時間，不真的砍掉資料列
 
         if existing:  # 如果原本有查到這個城市(代表確實刪除了)
-            log_action(cursor, "delete_city", "city", city_id, f"刪除城市：{existing[0]}")  # 寫入操作紀錄
+            log_action(cursor, "delete_city", "city", city_id, f"刪除城市：{existing['name']}")  # 寫入操作紀錄
 
         connection.commit()  # 提交交易(城市資料與操作紀錄一起寫入)
-        flash("城市已刪除", "success")  # 顯示成功訊息
-    except Exception as error:  # 如果刪除過程發生例外(例如仍有景點/餐廳/住宿使用這個城市，外鍵擋住)
+        flash("城市已移入回收桶，可以隨時復原", "success")  # 顯示成功訊息
+    except Exception as error:  # 如果刪除過程發生例外
         connection.rollback()  # 回復交易
         print("刪除城市失敗：", error)  # 在伺服器端印出錯誤內容
-        flash("刪除失敗，此城市仍有景點、餐廳或住宿使用中", "error")  # 顯示錯誤提示
+        flash("刪除城市失敗，請再試一次", "error")  # 顯示錯誤提示
+    finally:  # 不論成功或失敗都要執行
+        cursor.close()  # 關閉游標
+        connection.close()  # 關閉資料庫連線
+
+    return redirect(url_for("locations.manage_locations"))  # 導回國家與城市管理頁
+
+
+@locations_bp.route("/countries/<int:country_id>/restore", methods=["POST"])  # 設定從回收桶復原國家的路由
+@login_required("content_admin")  # 限制只有內容管理員登入後才能存取
+def restore_country(country_id):  # 定義復原國家函式
+    connection = get_db_connection()  # 建立資料庫連線
+
+    if connection is None:  # 如果連線失敗
+        flash("資料庫連線失敗", "error")  # 顯示錯誤提示
+        return redirect(url_for("locations.manage_locations"))  # 導回國家與城市管理頁
+
+    cursor = connection.cursor(dictionary=True)  # 建立字典格式游標
+
+    try:  # 開始執行復原
+        cursor.execute("SELECT name FROM countries WHERE country_id = %s AND deleted_at IS NOT NULL", (country_id,))  # 查出這個國家的名稱(要在回收桶裡才能復原)
+        existing = cursor.fetchone()  # 取得查詢結果
+
+        if not existing:  # 如果找不到(不在回收桶裡)
+            flash("找不到這筆國家資料", "error")  # 顯示錯誤提示
+        else:
+            cursor.execute("UPDATE countries SET deleted_at = NULL WHERE country_id = %s", (country_id,))  # 清空刪除時間，等於復原
+            log_action(cursor, "restore_country", "country", country_id, f"從回收桶復原國家：{existing['name']}")  # 寫入操作紀錄
+            connection.commit()  # 提交交易
+            flash("國家已復原", "success")  # 顯示成功訊息
+    except Exception as error:  # 如果復原過程發生例外
+        connection.rollback()  # 回復交易
+        print("復原國家失敗：", error)  # 在伺服器端印出錯誤內容
+        flash("復原失敗，請再試一次", "error")  # 顯示錯誤提示
+    finally:  # 不論成功或失敗都要執行
+        cursor.close()  # 關閉游標
+        connection.close()  # 關閉資料庫連線
+
+    return redirect(url_for("locations.manage_locations"))  # 導回國家與城市管理頁
+
+
+@locations_bp.route("/countries/<int:country_id>/permanent-delete", methods=["POST"])  # 設定從回收桶永久刪除國家的路由
+@login_required("content_admin")  # 限制只有內容管理員登入後才能存取
+def permanently_delete_country(country_id):  # 定義永久刪除國家函式
+    connection = get_db_connection()  # 建立資料庫連線
+
+    if connection is None:  # 如果連線失敗
+        flash("資料庫連線失敗", "error")  # 顯示錯誤提示
+        return redirect(url_for("locations.manage_locations"))  # 導回國家與城市管理頁
+
+    cursor = connection.cursor(dictionary=True)  # 建立字典格式游標
+
+    try:  # 開始執行永久刪除
+        cursor.execute("SELECT name FROM countries WHERE country_id = %s AND deleted_at IS NOT NULL", (country_id,))  # 查出這個國家的名稱(必須在回收桶裡才能永久刪除)
+        existing = cursor.fetchone()  # 取得查詢結果
+
+        if not existing:  # 如果找不到(不在回收桶裡)
+            flash("找不到這筆國家資料", "error")  # 顯示錯誤提示
+        else:
+            cursor.execute("DELETE FROM countries WHERE country_id = %s", (country_id,))  # 真的從資料庫刪除這筆資料列
+            log_action(cursor, "permanent_delete_country", "country", country_id, f"永久刪除國家：{existing['name']}")  # 寫入操作紀錄
+            connection.commit()  # 提交交易，正式從資料庫刪除
+            flash("國家已永久刪除，無法復原", "success")  # 顯示成功訊息
+    except Exception as error:  # 如果刪除過程發生例外(例如底下還有城市資料仍參照這個國家)
+        connection.rollback()  # 回復交易
+        print("永久刪除國家失敗：", error)  # 在伺服器端印出錯誤內容
+        flash("永久刪除失敗，請確認此國家底下的城市(含回收桶內)都已經先永久刪除", "error")  # 顯示錯誤提示
+    finally:  # 不論成功或失敗都要執行
+        cursor.close()  # 關閉游標
+        connection.close()  # 關閉資料庫連線
+
+    return redirect(url_for("locations.manage_locations"))  # 導回國家與城市管理頁
+
+
+@locations_bp.route("/cities/<int:city_id>/restore", methods=["POST"])  # 設定從回收桶復原城市的路由
+@login_required("content_admin")  # 限制只有內容管理員登入後才能存取
+def restore_city(city_id):  # 定義復原城市函式
+    connection = get_db_connection()  # 建立資料庫連線
+
+    if connection is None:  # 如果連線失敗
+        flash("資料庫連線失敗", "error")  # 顯示錯誤提示
+        return redirect(url_for("locations.manage_locations"))  # 導回國家與城市管理頁
+
+    cursor = connection.cursor(dictionary=True)  # 建立字典格式游標
+
+    try:  # 開始執行復原
+        cursor.execute("""
+            SELECT ci.name, co.deleted_at AS country_deleted_at
+            FROM cities ci JOIN countries co ON co.country_id = ci.country_id
+            WHERE ci.city_id = %s AND ci.deleted_at IS NOT NULL
+        """, (city_id,))  # 查出這個城市的名稱、順便看所屬國家是不是也在回收桶裡(要在回收桶裡才能復原)
+        existing = cursor.fetchone()  # 取得查詢結果
+
+        if not existing:  # 如果找不到(不在回收桶裡)
+            flash("找不到這筆城市資料", "error")  # 顯示錯誤提示
+        else:
+            cursor.execute("UPDATE cities SET deleted_at = NULL WHERE city_id = %s", (city_id,))  # 清空刪除時間，等於復原
+            log_action(cursor, "restore_city", "city", city_id, f"從回收桶復原城市：{existing['name']}")  # 寫入操作紀錄
+            connection.commit()  # 提交交易
+            if existing["country_deleted_at"]:  # 如果所屬國家也還在回收桶裡，提醒要一併復原
+                flash(f"城市「{existing['name']}」已復原，但所屬國家還在回收桶裡，記得也一併復原國家。", "success")  # 顯示提醒訊息
+            else:
+                flash("城市已復原", "success")  # 顯示成功訊息
+    except Exception as error:  # 如果復原過程發生例外
+        connection.rollback()  # 回復交易
+        print("復原城市失敗：", error)  # 在伺服器端印出錯誤內容
+        flash("復原失敗，請再試一次", "error")  # 顯示錯誤提示
+    finally:  # 不論成功或失敗都要執行
+        cursor.close()  # 關閉游標
+        connection.close()  # 關閉資料庫連線
+
+    return redirect(url_for("locations.manage_locations"))  # 導回國家與城市管理頁
+
+
+@locations_bp.route("/cities/<int:city_id>/permanent-delete", methods=["POST"])  # 設定從回收桶永久刪除城市的路由
+@login_required("content_admin")  # 限制只有內容管理員登入後才能存取
+def permanently_delete_city(city_id):  # 定義永久刪除城市函式
+    connection = get_db_connection()  # 建立資料庫連線
+
+    if connection is None:  # 如果連線失敗
+        flash("資料庫連線失敗", "error")  # 顯示錯誤提示
+        return redirect(url_for("locations.manage_locations"))  # 導回國家與城市管理頁
+
+    cursor = connection.cursor(dictionary=True)  # 建立字典格式游標
+
+    try:  # 開始執行永久刪除
+        cursor.execute("SELECT name FROM cities WHERE city_id = %s AND deleted_at IS NOT NULL", (city_id,))  # 查出這個城市的名稱(必須在回收桶裡才能永久刪除)
+        existing = cursor.fetchone()  # 取得查詢結果
+
+        if not existing:  # 如果找不到(不在回收桶裡)
+            flash("找不到這筆城市資料", "error")  # 顯示錯誤提示
+        else:
+            cursor.execute("DELETE FROM cities WHERE city_id = %s", (city_id,))  # 真的從資料庫刪除這筆資料列
+            log_action(cursor, "permanent_delete_city", "city", city_id, f"永久刪除城市：{existing['name']}")  # 寫入操作紀錄
+            connection.commit()  # 提交交易，正式從資料庫刪除
+            flash("城市已永久刪除，無法復原", "success")  # 顯示成功訊息
+    except Exception as error:  # 如果刪除過程發生例外(例如仍有景點、餐廳、住宿或行程參照這個城市)
+        connection.rollback()  # 回復交易
+        print("永久刪除城市失敗：", error)  # 在伺服器端印出錯誤內容
+        flash("永久刪除失敗，請確認沒有其他資料仍在使用此城市", "error")  # 顯示錯誤提示
     finally:  # 不論成功或失敗都要執行
         cursor.close()  # 關閉游標
         connection.close()  # 關閉資料庫連線

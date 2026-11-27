@@ -10,10 +10,14 @@
             {% else %}
                 <span class="art-fallback">{{ r.name[:1] }}</span>
             {% endif %}
+            {% if is_member %}
             <form method="post" action="{{ url_for('member.toggle_restaurant_favorite', restaurant_id=r.restaurant_id) }}" class="favorite-form">
                 <input type="hidden" name="next" value="{{ request.full_path }}">
                 <button type="submit" class="favorite-btn {{ 'is-favorited' if r.is_favorited else '' }}" title="{{ '取消收藏' if r.is_favorited else '收藏餐廳' }}">{{ '♥' if r.is_favorited else '♡' }}</button>
             </form>
+            {% else %}
+            {% set remember_target = url_for('member.toggle_restaurant_favorite', restaurant_id=r.restaurant_id) %}{% set remember_label = '♡' %}{% set remember_class = 'favorite-btn' %}{% set remember_fields = {} %}{% set remember_title = '登入後收藏餐廳' %}{% include 'partials/remember_button.html' %}
+            {% endif %}
         </div>
 
         <p class="attraction-detail-breadcrumb">{{ r.country }} · {{ r.city }}{% if r.category_name %} · {{ r.category_name }}{% endif %}</p>

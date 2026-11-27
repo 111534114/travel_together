@@ -67,7 +67,9 @@ _ENDPOINT_ACTIONS = {
         "create_country": "create", "create_city": "create",
         "import_world_countries": "create",
         "import_preset_cities": "create", "edit_country": "edit",
-        "edit_city": "edit", "delete_country": "delete", "delete_city": "delete",
+        "edit_city": "edit", "restore_country": "edit", "restore_city": "edit",
+        "delete_country": "delete", "delete_city": "delete",
+        "permanently_delete_country": "delete", "permanently_delete_city": "delete",
     },
     "categories": {
         "create_category": "create", "edit_category": "edit", "delete_category": "delete",

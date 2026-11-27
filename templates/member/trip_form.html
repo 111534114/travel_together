@@ -40,8 +40,33 @@
       });
       if (match) pick(match.dataset.cityId, match.dataset.country);
     });
+
+    // 行程名稱打的字裡面如果有地名（例如「台北三日遊」「大阪自由行」這種口語說法，不一定會打完整的
+    // 「台北市」「大阪市」），送去後端用「讓AI排行程」同一套地名比對規則（含口語別名、去掉市/縣/都等後綴）
+    // 配對，配到就自動幫忙選好目的地；只有國家還沒選過才會自動帶，已經選過/自己改過就不覆蓋。
+    var tripNameInput = document.querySelector('input[name="trip_name"]');
+    if (tripNameInput) {
+      var matchTimer = null;
+      tripNameInput.addEventListener('input', function () {
+        if (countrySelect.value) return;
+        var text = tripNameInput.value.trim();
+        if (!text) return;
+        clearTimeout(matchTimer);
+        matchTimer = setTimeout(function () {
+          if (countrySelect.value) return;  // 等待的這段時間裡使用者可能自己選好了，不要覆蓋
+          fetch("{{ url_for('member.api_match_destination') }}?text=" + encodeURIComponent(text))
+            .then(function (res) { return res.json(); })
+            .then(function (data) {
+              if (countrySelect.value || !data.country_id) return;
+              if (data.city_id) pick(data.city_id, data.country_id);
+              else { countrySelect.value = data.country_id; countrySelect.dispatchEvent(new Event('change')); }
+            })
+            .catch(function () {});
+        }, 450);
+      });
+    }
   })();
-</script><label>開始日期<input id="startDateInput" name="start_date" type="date" required value="{{ trip.start_date if trip else '' }}"></label><label>結束日期<input id="endDateInput" name="end_date" type="date" required value="{{ trip.end_date if trip else '' }}"></label><label>團體總預算<input name="total_budget" type="number" min="0" step="1" value="{{ trip.total_budget if trip else 0 }}"></label><label>幣別<select name="currency">{% for c in ['TWD','JPY','USD','KRW','EUR'] %}<option value="{{ c }}" {{ 'selected' if trip and trip.currency==c else '' }}>{{ c }}</option>{% endfor %}</select></label><label class="span-2">公開狀態<select name="visibility"><option value="private" {{ 'selected' if trip and trip.visibility=='private' else '' }}>私人：僅限旅程成員</option><option value="link_only" {{ 'selected' if trip and trip.visibility=='link_only' else '' }}>連結限定：持有連結者可查看</option><option value="public" {{ 'selected' if trip and trip.visibility=='public' else '' }}>公開：所有人可查看</option></select></label><label class="span-2 allow-copy-field"><input type="checkbox" name="allow_copy" {{ 'checked' if (not trip) or trip.allow_copy else '' }}> 允許其他會員複製這個公開行程</label><label class="span-2">行程介紹<textarea name="introduction" rows="5" placeholder="寫下這趟旅行的期待與重點…">{{ trip.introduction if trip else '' }}</textarea></label></div><div class="form-actions-member"><a class="member-btn ghost" href="{{ url_for('member.dashboard') }}">取消</a><button class="member-btn primary" type="submit">{{ '儲存變更' if mode=='edit' else '建立行程' }}</button></div></form></div>
+</script><label>開始日期<input id="startDateInput" name="start_date" type="date" required value="{{ trip.start_date if trip else '' }}"></label><label>結束日期<input id="endDateInput" name="end_date" type="date" required value="{{ trip.end_date if trip else '' }}"></label><label>團體總預算<input name="total_budget" type="number" min="0" step="1" value="{{ trip.total_budget if trip else 0 }}"></label><label>幣別<select name="currency">{% for c in ['TWD','JPY','USD','KRW','EUR'] %}<option value="{{ c }}" {{ 'selected' if trip and trip.currency==c else '' }}>{{ c }}</option>{% endfor %}</select></label><label class="span-2">公開狀態<select id="visibilitySelect" name="visibility"><option value="private" {{ 'selected' if trip and trip.visibility=='private' else '' }}>私人：僅限旅程成員</option><option value="link_only" {{ 'selected' if trip and trip.visibility=='link_only' else '' }}>連結限定：持有連結者可查看</option><option value="public" {{ 'selected' if trip and trip.visibility=='public' else '' }}>公開：所有人可查看</option></select></label><label class="span-2 allow-copy-field" id="allowCopyField"><input type="checkbox" name="allow_copy" {{ 'checked' if (not trip) or trip.allow_copy else '' }}> 允許其他會員複製這個公開行程</label><label class="span-2">行程介紹<textarea name="introduction" rows="5" placeholder="寫下這趟旅行的期待與重點…">{{ trip.introduction if trip else '' }}</textarea></label></div><div class="form-actions-member"><a class="member-btn ghost" href="{{ url_for('member.dashboard') }}">取消</a><button class="member-btn primary" type="submit">{{ '儲存變更' if mode=='edit' else '建立行程' }}</button></div></form></div>
 <div id="cropModal" style="display:none; position:fixed; inset:0; z-index:100; align-items:center; justify-content:center; padding:20px; background:rgba(39,35,58,.6);">
   <div style="width:100%; max-width:640px; max-height:90vh; overflow-y:auto; padding:24px; background:#fff; border-radius:12px;">
     <h3 style="margin:0 0 6px;">裁切封面圖片</h3>
@@ -72,6 +97,19 @@
     }
     document.getElementById('countrySelect').addEventListener('change', filterCitiesByCountry);
     window.addEventListener('DOMContentLoaded', filterCitiesByCountry);
+
+    (function toggleAllowCopyField() {
+        // 「允許複製」只有行程設成公開時才有意義，私人／連結限定的話其他人根本看不到這個行程，勾不勾都沒差，
+        // 顯示出來反而讓人誤會「私人也可能被複製」，所以只在選公開的時候才顯示這個勾選框。
+        var visibilitySelect = document.getElementById('visibilitySelect');
+        var allowCopyField = document.getElementById('allowCopyField');
+        if (!visibilitySelect || !allowCopyField) return;
+        function sync() {
+            allowCopyField.style.display = visibilitySelect.value === 'public' ? '' : 'none';
+        }
+        visibilitySelect.addEventListener('change', sync);
+        sync();
+    })();
 
     (function restrictPastTripDates() {
         // 不能用 toISOString() 取「今天」：那個函式會先轉成 UTC 時間再取日期，在台灣這種

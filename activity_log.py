@@ -51,7 +51,6 @@ ACTION_LABELS = {  # 定義每種操作代碼對應的中文顯示名稱，給�
     "ai_review_proposal": "請 AI 小幫手檢查提案",
     "toggle_proposal_auto_approve": "切換提案自動收下",
     "create_from_proposal": "由提案核准建立資料",
-    "verify_ai_data": "標記AI資料已確認",
     "change_user_role": "修改帳號角色",
     "review_user": "帳號進入審查",
     "disable_user": "停用帳號",

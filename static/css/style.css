@@ -2454,6 +2454,58 @@ body {
     background: var(--ocean-primary-dark);
 }
 
+/* 第一次進來被導去「旅伴偏好」時，提醒使用者「每日行程」在這裡可以點 */
+.trip-tab.is-nudging {
+    position: relative;
+    z-index: 1;
+    color: #ffffff;
+    background: var(--ocean-primary-dark);
+    animation: trip-tab-nudge 1.4s ease-in-out infinite;
+}
+
+.trip-tab.is-nudging::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    box-shadow: 0 0 0 0 rgba(0, 169, 192, .55);
+    animation: trip-tab-ring 1.4s ease-out infinite;
+    pointer-events: none;
+    z-index: -1;
+}
+
+.trip-tab.is-nudging::after {
+    content: "👉";
+    position: absolute;
+    left: 50%;
+    top: -22px;
+    transform: translateX(-50%);
+    font-size: 16px;
+    animation: trip-tab-point 1.4s ease-in-out infinite;
+    pointer-events: none;
+}
+
+@keyframes trip-tab-nudge {
+    0%, 100% { transform: translateY(0); }
+    50% { transform: translateY(-5px); }
+}
+
+@keyframes trip-tab-ring {
+    0% { box-shadow: 0 0 0 0 rgba(0, 169, 192, .55); }
+    100% { box-shadow: 0 0 0 10px rgba(0, 169, 192, 0); }
+}
+
+@keyframes trip-tab-point {
+    0%, 100% { transform: translateX(-50%) rotate(90deg) translateY(0); }
+    50% { transform: translateX(-50%) rotate(90deg) translateY(4px); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .trip-tab.is-nudging,
+    .trip-tab.is-nudging::before,
+    .trip-tab.is-nudging::after { animation: none; }
+}
+
 .trip-tab-panel[hidden] {
     display: none;
 }

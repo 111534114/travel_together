@@ -164,6 +164,7 @@
 
         tabs.forEach(function (tab) {
             tab.addEventListener('click', function () {
+                tabs.forEach(function (t) { t.classList.remove('is-nudging'); });  // 點了任何分頁就表示已經發現導覽列了，不用再跳動提醒
                 activate(tab.dataset.tabTarget);
                 history.replaceState(null, '', '#' + tab.dataset.tabTarget);
             });
@@ -176,7 +177,13 @@
         // 填完以後（my_preference_source 就不會是 none 了）下次進來才會照常直接看每日行程。
         var needsPreferences = document.querySelector('.trip-section-nav').dataset.needsPreferences === '1';
         var defaultTab = needsPreferences ? 'preferences' : 'itinerary';
-        activate(validIds.indexOf(voteMatch ? 'proposals' : initial) !== -1 ? (voteMatch ? 'proposals' : initial) : defaultTab);
+        var hasExplicitTarget = validIds.indexOf(voteMatch ? 'proposals' : initial) !== -1;
+        activate(hasExplicitTarget ? (voteMatch ? 'proposals' : initial) : defaultTab);
+        if (needsPreferences && !hasExplicitTarget) {
+            // 被導去「旅伴偏好」分頁時，讓「每日行程」分頁跳動一下，提醒旅伴行程要去那邊看
+            var itineraryTab = document.querySelector('.trip-tab[data-tab-target="itinerary"]');
+            if (itineraryTab) itineraryTab.classList.add('is-nudging');
+        }
         if (voteMatch) {
             var voteEl = document.getElementById('vote-' + voteMatch[1]);
             if (voteEl) {

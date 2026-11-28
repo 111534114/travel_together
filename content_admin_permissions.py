@@ -12,7 +12,6 @@ CONTENT_ADMIN_MODULES = {
     "proposals": "提案審核",
     "attraction_posts_admin": "景點相簿審核",
     "friend_groups_admin": "交友揪團管理",
-    "ai_data": "AI 資料維護",
     "reports": "統計報表",
     "logs": "操作紀錄",
     "ai_chat": "AI 助理",
@@ -27,7 +26,6 @@ CONTENT_ADMIN_ACTIONS = {
     "proposals": ("view", "edit"),
     "attraction_posts_admin": ("view", "edit"),
     "friend_groups_admin": ("view", "edit"),
-    "ai_data": ("view", "edit"),
     "reports": ("view",),
     "logs": ("view",),
     "ai_chat": (),  # 暫時關閉：還沒設定 ANTHROPIC_API_KEY，先把入口藏起來，設定好金鑰後把 () 改回 ("view",) 即可恢復
@@ -88,7 +86,6 @@ _ENDPOINT_ACTIONS = {
         "mark_no_show_participant": "edit", "post_event_announcement": "edit",
         "handle_group_report": "edit",
     },
-    "ai_data": {"verify_item": "edit", "autofill_items": "edit"},
 }
 
 

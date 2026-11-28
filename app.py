@@ -31,7 +31,6 @@ from blueprints.accommodations import accommodations_bp  # 匯入住宿管理的
 from blueprints.locations import locations_bp  # 匯入國家/城市管理的藍圖
 from blueprints.categories import categories_bp  # 匯入分類管理的藍圖
 from blueprints.proposals import proposals_bp  # 匯入會員提案審核的藍圖
-from blueprints.ai_data import ai_data_bp  # 匯入 AI 使用資料維護的藍圖
 from blueprints.reports import reports_bp  # 匯入統計報表匯出的藍圖
 from blueprints.logs import logs_bp  # 匯入操作紀錄查詢的藍圖
 from blueprints.ai_chat import ai_chat_bp  # 匯入 AI 助理對話的藍圖
@@ -204,7 +203,6 @@ app.register_blueprint(accommodations_bp)  # 註冊住宿管理路由
 app.register_blueprint(locations_bp)  # 註冊國家/城市管理路由
 app.register_blueprint(categories_bp)  # 註冊分類管理路由
 app.register_blueprint(proposals_bp)  # 註冊提案審核路由
-app.register_blueprint(ai_data_bp)  # 註冊 AI 資料維護路由
 app.register_blueprint(reports_bp)  # 註冊統計報表路由
 app.register_blueprint(logs_bp)  # 註冊操作紀錄路由
 app.register_blueprint(ai_chat_bp)  # 註冊 AI 助理對話路由
@@ -351,15 +349,17 @@ def visitor_remember_action():
 
 @app.route("/visitor/ai-plan", methods=["POST"])
 def visitor_ai_plan():
-    """訪客在首頁打好 AI 排行程需求：先記住，登入(或註冊後登入)完成就自動幫他排。"""
+    """訪客在首頁按「登入後開始規劃」：按鈕本來就講明要先登入，所以不管有沒有先打字都要去登入頁，
+    只有打了字才記住內容，登入(或註冊後登入)完成就自動幫他排。"""
     query = request.form.get("q", "").strip()[:1000]
-    if not query:
-        flash("請先說說你想去哪裡、玩幾天。", "error")
-        return redirect(url_for("visitor") + "#ai-home")
-    session["pending_ai_query"] = query
+    if query:
+        session["pending_ai_query"] = query
     if session.get("role") == "member":  # 已經登入的會員直接回會員首頁開始排
         return redirect(url_for("member.dashboard") + "#ai-home")
-    flash("登入後就會自動用你剛剛寫的需求幫你排行程。還沒有帳號的話，先免費註冊再登入也可以。", "success")
+    if query:
+        flash("登入後就會自動用你剛剛寫的需求幫你排行程。還沒有帳號的話，先免費註冊再登入也可以。", "success")
+    else:
+        flash("請先登入或免費註冊，登入後就能用 AI 幫你排行程。", "success")
     return redirect(url_for("login"))
 
 

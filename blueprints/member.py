@@ -66,14 +66,6 @@ ISSUE_REASONS = (
     "其它",
 )
 ISSUE_PREFIX = "問題回報："
-COMMENT_REPORT_REASONS = (
-    "含有不當內容（辱罵、歧視、仇恨言論等）",
-    "騷擾或人身攻擊",
-    "廣告或垃圾訊息",
-    "含有個資或敏感資訊",
-    "其它",
-)
-COMMENT_REPORT_PREFIX = "留言檢舉："
 TRIP_TRASH_DAYS = 30  # 軟刪除的行程保留天數，過期後自動永久刪除
 MAX_POST_IMAGES = 6
 
@@ -2420,8 +2412,6 @@ def trip_detail(trip_id):
             p["after"] = json.loads(p["after_data"]) if p["after_data"] else None
         votes = _load_votes(cursor, trip_id, session["user_id"])
         proposal_comments = _load_proposal_comments(cursor, trip_id)
-        cursor.execute("SELECT target_id FROM reports WHERE reporter_id=%s AND target_type='comment' AND status IN ('pending','processing')", (session["user_id"],))
-        reported_comment_ids = {row["target_id"] for row in cursor.fetchall()}
         expenses = _load_expenses(cursor, trip_id)
         balance_summary = _load_balance_summary(cursor, trip_id)
         attachments = _load_attachments(cursor, trip_id)
@@ -2449,7 +2439,7 @@ def trip_detail(trip_id):
         my_preference, my_preference_source = trip_preferences.my_form_values(cursor, preference_rows, session["user_id"])
     finally:
         cursor.close(); connection.close()
-    return render_template("member/trip_detail.html", trip=trip, itinerary=itinerary, place_options=place_options, popular_attractions=popular_attractions, addable_trips=[trip], day_last_coords=day_last_coords, city_weather_days=city_weather_days, members=members, mention_members=[{"name": m["nickname"] or m["full_name"], "full_name": m["full_name"], "is_me": m["user_id"] == session["user_id"]} for m in members], pending_invitations=pending_invitations, pending_requests=pending_requests, invite_link=invite_link, proposals=proposals, votes=votes, proposal_comments=proposal_comments, reported_comment_ids=reported_comment_ids, comment_report_reasons=COMMENT_REPORT_REASONS, expenses=expenses, balance_summary=balance_summary, attachments=attachments, actual=actual, can_edit=_can_edit(trip), is_owner=trip["member_role"] == "owner", now=datetime.now(), item_type_labels=ITEM_TYPE_LABELS, itinerary_change_field_labels=ITINERARY_CHANGE_FIELD_LABELS, disney_parks=theme_parks.get_disney_parks(), transport_summary=transport_summary, preferences_ready=preference_rows is not None, my_preference=my_preference, my_preference_source=my_preference_source, preference_summary=trip_preferences.summarize(preference_rows), preference_options=trip_preferences, return_group_id=return_group_id, stay_plan=stay_plan, budget_estimate=budget_estimate, stay_tier=stay_tier, lodging_tiers=smart_trip.LODGING_TIERS, ai_ready=ai_ready(), precheck_issues=precheck_issues, compares=compares, compare_remaining=compare_remaining, compare_ready=compare_ready, compare_limit=booking_compare.DAILY_LIMIT, compare_nights=compare_nights)
+    return render_template("member/trip_detail.html", trip=trip, itinerary=itinerary, place_options=place_options, popular_attractions=popular_attractions, addable_trips=[trip], day_last_coords=day_last_coords, city_weather_days=city_weather_days, members=members, mention_members=[{"name": m["nickname"] or m["full_name"], "full_name": m["full_name"], "is_me": m["user_id"] == session["user_id"]} for m in members], pending_invitations=pending_invitations, pending_requests=pending_requests, invite_link=invite_link, proposals=proposals, votes=votes, proposal_comments=proposal_comments, expenses=expenses, balance_summary=balance_summary, attachments=attachments, actual=actual, can_edit=_can_edit(trip), is_owner=trip["member_role"] == "owner", now=datetime.now(), item_type_labels=ITEM_TYPE_LABELS, itinerary_change_field_labels=ITINERARY_CHANGE_FIELD_LABELS, disney_parks=theme_parks.get_disney_parks(), transport_summary=transport_summary, preferences_ready=preference_rows is not None, my_preference=my_preference, my_preference_source=my_preference_source, preference_summary=trip_preferences.summarize(preference_rows), preference_options=trip_preferences, return_group_id=return_group_id, stay_plan=stay_plan, budget_estimate=budget_estimate, stay_tier=stay_tier, lodging_tiers=smart_trip.LODGING_TIERS, ai_ready=ai_ready(), precheck_issues=precheck_issues, compares=compares, compare_remaining=compare_remaining, compare_ready=compare_ready, compare_limit=booking_compare.DAILY_LIMIT, compare_nights=compare_nights)
 
 
 @member_bp.route("/trips/<int:trip_id>/export/excel")
@@ -3958,42 +3948,6 @@ def delete_comment(trip_id, comment_id):
             flash("留言已刪除。", "success")
     except Exception:
         connection.rollback(); flash("刪除失敗，請再試一次。", "error")
-    finally:
-        cursor.close(); connection.close()
-    return redirect(url_for("member.trip_detail", trip_id=trip_id) + anchor)
-
-
-@member_bp.route("/trips/<int:trip_id>/comments/<int:comment_id>/report", methods=["POST"])
-@login_required("member")
-def report_comment(trip_id, comment_id):
-    connection = _connection_or_home()
-    if connection is None: return redirect(url_for("member.dashboard"))
-    cursor = connection.cursor(dictionary=True)
-    anchor = "#chat"
-    try:
-        trip = _member_access(cursor, trip_id, session["user_id"])
-        cursor.execute("SELECT * FROM comments WHERE comment_id=%s AND trip_id=%s", (comment_id, trip_id))
-        comment = cursor.fetchone()
-        reason = request.form.get("reason", "").strip()
-        description = request.form.get("description", "").strip()
-        if comment: anchor = _comment_anchor(comment)
-
-        if not trip or not comment: flash("找不到這則留言。", "error")
-        elif comment["user_id"] == session["user_id"]: flash("不能檢舉自己的留言。", "error")
-        elif reason not in COMMENT_REPORT_REASONS: flash("請選擇檢舉原因。", "error")
-        elif len(description) > 500: flash("說明請勿超過 500 字。", "error")
-        else:
-            cursor.execute("""SELECT report_id FROM reports WHERE reporter_id=%s AND target_type='comment' AND target_id=%s
-                              AND status IN ('pending','processing') LIMIT 1""", (session["user_id"], comment_id))
-            if cursor.fetchone():
-                flash("你已檢舉過這則留言，管理員正在處理。", "error")
-            else:
-                cursor.execute("""INSERT INTO reports (reporter_id, target_type, target_id, reason, description)
-                                  VALUES (%s, 'comment', %s, %s, %s)""", (session["user_id"], comment_id, COMMENT_REPORT_PREFIX + reason, description or None))
-                connection.commit()
-                flash("檢舉已送出，系統管理員會查看。", "success")
-    except Exception:
-        connection.rollback(); flash("檢舉失敗，請再試一次。", "error")
     finally:
         cursor.close(); connection.close()
     return redirect(url_for("member.trip_detail", trip_id=trip_id) + anchor)

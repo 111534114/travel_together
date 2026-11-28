@@ -11,15 +11,22 @@ class SystemAdminNavigationTests(unittest.TestCase):
             session["user_id"] = 3
             session["role"] = "system_admin"
 
-    def test_comment_reports_link_is_visible_on_admin_pages(self):
+    def test_comment_reports_page_is_removed(self):
         with patch("app.get_db_connection", return_value=None):
-            for path in ("/system-admin", "/system-admin/public-trips", "/system-admin/comment-reports"):
+            for path in ("/system-admin", "/system-admin/public-trips"):
                 with self.subTest(path=path):
                     response = self.client.get(path)
                     self.assertEqual(response.status_code, 200)
-                    self.assertIn('href="/system-admin/comment-reports"', response.get_data(as_text=True))
-                    if path.endswith("/comment-reports"):
-                        self.assertIn('class="active" href="/system-admin/comment-reports"', response.get_data(as_text=True))
+                    html = response.get_data(as_text=True)
+                    self.assertNotIn("comment-reports", html)
+                    self.assertNotIn("留言檢舉", html)
+            self.assertEqual(self.client.get("/system-admin/comment-reports").status_code, 404)
+
+    def test_member_comment_report_route_is_removed(self):
+        with self.client.session_transaction() as session:
+            session["user_id"] = 4
+            session["role"] = "member"
+        self.assertEqual(self.client.post("/member/trips/1/comments/1/report").status_code, 404)
 
 
 if __name__ == "__main__":

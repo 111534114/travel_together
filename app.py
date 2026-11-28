@@ -40,7 +40,7 @@ from blueprints.attraction_posts_admin import attraction_posts_admin_bp
 from blueprints.friend_groups import friend_groups_bp  # 匯入交友揪團(會員端)的藍圖
 from blueprints.friend_groups_admin import friend_groups_admin_bp  # 匯入交友揪團(後台審核)的藍圖
 from content_admin_permissions import CONTENT_ADMIN_ACTIONS, content_admin_can
-from blueprints.member import COMMENT_REPORT_PREFIX, ISSUE_PREFIX, member_bp, _fetch_featured_public_trips  # 匯入會員功能的藍圖
+from blueprints.member import ISSUE_PREFIX, member_bp, _fetch_featured_public_trips  # 匯入會員功能的藍圖
 from blueprints.line_webhook import line_webhook_bp  # 匯入 LINE 官方帳號 webhook 的藍圖
 from blueprints.booking_compare import booking_compare_bp  # 匯入機票＋住宿比價的藍圖
 from blueprints.trip_assistant import trip_assistant_bp  # 匯入行程助理(行程頁 AI 聊天)的藍圖
@@ -3272,102 +3272,6 @@ def handle_admin_issue(issue_id):
         cursor.close()
         connection.close()
     return redirect(url_for("admin_issues"))
-
-
-@app.route("/system-admin/comment-reports")
-def admin_comment_reports():
-    denied = system_admin_required()
-    if denied:
-        return denied
-    status = request.args.get("status", "").strip()
-    if status not in {"pending", "processing", "resolved", "rejected"}:
-        status = ""
-    reports_rows = []
-    counts = {"pending": 0, "processing": 0, "resolved": 0, "rejected": 0}
-    connection = get_db_connection()
-    if connection is None:
-        flash("資料庫連線失敗", "error")
-    else:
-        cursor = connection.cursor(dictionary=True)
-        try:
-            cursor.execute("""
-                SELECT status, COUNT(*) AS total FROM reports
-                WHERE target_type = 'comment' AND reason LIKE %s
-                GROUP BY status
-            """, (COMMENT_REPORT_PREFIX + "%",))
-            for row in cursor.fetchall():
-                counts[row["status"]] = row["total"]
-            cursor.execute("""
-                SELECT r.report_id, r.target_id AS comment_id, r.reason, r.description,
-                       r.status, r.created_at, r.handling_result, r.handled_at,
-                       c.content AS comment_content, c.status AS comment_status, c.trip_id,
-                       t.trip_name, au.username AS comment_author_username, au.full_name AS comment_author_name,
-                       u.username AS reporter_username, u.full_name AS reporter_name
-                FROM reports r
-                LEFT JOIN comments c ON c.comment_id = r.target_id
-                LEFT JOIN trips t ON t.trip_id = c.trip_id
-                LEFT JOIN users au ON au.user_id = c.user_id
-                LEFT JOIN users u ON u.user_id = r.reporter_id  -- 檢舉人帳號被刪除時仍要顯示這筆回報，否則會出現「待處理(1)」卻查不到資料
-                WHERE r.target_type = 'comment' AND r.reason LIKE %s
-                  AND (%s = '' OR r.status = %s)
-                ORDER BY FIELD(r.status, 'pending', 'processing', 'resolved', 'rejected'),
-                         r.created_at DESC
-                LIMIT 200
-            """, (COMMENT_REPORT_PREFIX + "%", status, status))
-            reports_rows = cursor.fetchall()
-            for row in reports_rows:
-                row["reason"] = row["reason"][len(COMMENT_REPORT_PREFIX):]
-        finally:
-            cursor.close()
-            connection.close()
-    return render_template("admin_comment_reports.html", reports=reports_rows, counts=counts, report_status=status)
-
-
-@app.route("/system-admin/comment-reports/<int:report_id>/handle", methods=["POST"])
-def handle_admin_comment_report(report_id):
-    denied = system_admin_required()
-    if denied:
-        return denied
-    status = request.form.get("status", "").strip()
-    result = request.form.get("handling_result", "").strip()
-    if status not in {"processing", "resolved", "rejected"}:
-        flash("處理狀態不正確。", "error")
-        return redirect(url_for("admin_comment_reports"))
-    if len(result) > 1000 or (status in {"resolved", "rejected"} and not result):
-        flash("結案或駁回時請填寫不超過 1000 字的處理結果。", "error")
-        return redirect(url_for("admin_comment_reports"))
-    connection = get_db_connection()
-    if connection is None:
-        flash("資料庫連線失敗", "error")
-        return redirect(url_for("admin_comment_reports"))
-    cursor = connection.cursor(dictionary=True)
-    try:
-        cursor.execute("""
-            SELECT report_id, target_id AS comment_id FROM reports
-            WHERE report_id = %s AND target_type = 'comment' AND reason LIKE %s
-        """, (report_id, COMMENT_REPORT_PREFIX + "%"))
-        report = cursor.fetchone()
-        if not report:
-            flash("找不到這筆檢舉。", "error")
-            return redirect(url_for("admin_comment_reports"))
-        if status == "resolved":
-            cursor.execute("UPDATE comments SET status='hidden' WHERE comment_id=%s AND status='visible'", (report["comment_id"],))
-        cursor.execute("""
-            UPDATE reports SET status = %s, handling_result = %s, handled_by = %s,
-                handled_at = CASE WHEN %s IN ('resolved', 'rejected') THEN NOW() ELSE NULL END
-            WHERE report_id = %s AND target_type = 'comment' AND reason LIKE %s
-        """, (status, result or None, session["user_id"], status, report_id, COMMENT_REPORT_PREFIX + "%"))
-        log_action(cursor, "handle_comment_report", "comment", report["comment_id"], f"留言檢舉狀態更新為 {status}")
-        connection.commit()
-        flash("檢舉已結案，該留言已隱藏。" if status == "resolved" else "檢舉已更新。", "success")
-    except Exception as error:
-        connection.rollback()
-        print("更新留言檢舉失敗：", error)
-        flash("更新失敗。", "error")
-    finally:
-        cursor.close()
-        connection.close()
-    return redirect(url_for("admin_comment_reports"))
 
 
 @app.route("/system-admin/announcements", methods=["GET", "POST"])
